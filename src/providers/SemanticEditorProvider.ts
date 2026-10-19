@@ -207,6 +207,8 @@ export function classifyDomainLoadFailure(err: unknown): DomainLoadFailure {
   if (err instanceof DomainFileError) {
     if (err.reason === 'missing') return 'missing';
     if (err.reason === 'unreadable') return 'unreadable';
+    if (err.reason === 'empty') return 'empty';
+    if (err.mergeConflict) return 'conflict';
     return 'json';
   }
   if (err instanceof DomainValidationError) return 'invalid';

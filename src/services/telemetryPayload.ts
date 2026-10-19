@@ -293,6 +293,11 @@ export const ERROR_CODES = [
   'relInvCheckFailed',
   // Export Diagram… could not read the domain or write the chosen file.
   'exportFailed',
+  // Why a domain file's text could not be parsed, split out of `domainLoadJson`
+  // (which stays the fallback, now only a JSON syntax error): the file stayed
+  // empty through every re-read, or it holds unresolved git conflict markers.
+  'domainLoadEmpty',
+  'domainLoadConflict',
 ] as const;
 export type TelemetryErrorCode = (typeof ERROR_CODES)[number];
 
@@ -694,16 +699,19 @@ export function modelFileErrorCode(kind: ModelLoadErrorKind): TelemetryErrorCode
 
 /**
  * Why a canvas could not load its domain: not a domain path, the file is gone
- * or cannot be read, its text is not JSON (or empty), it is JSON that fails
- * validation (schema version, format, layer), or anything else threw.
+ * or cannot be read, its text is not JSON, it is empty, it holds git conflict
+ * markers, it is JSON that fails validation (schema version, format, layer),
+ * or anything else threw.
  */
-export type DomainLoadFailure = 'notDomain' | 'missing' | 'unreadable' | 'json' | 'invalid' | 'internal';
+export type DomainLoadFailure = 'notDomain' | 'missing' | 'unreadable' | 'json' | 'empty' | 'conflict' | 'invalid' | 'internal';
 
 const DOMAIN_LOAD_ERROR_CODES: Record<DomainLoadFailure, TelemetryErrorCode> = {
   notDomain: 'domainLoadNotDomain',
   missing: 'domainLoadMissing',
   unreadable: 'domainLoadUnreadable',
   json: 'domainLoadJson',
+  empty: 'domainLoadEmpty',
+  conflict: 'domainLoadConflict',
   invalid: 'domainLoadInvalid',
   internal: 'domainLoadInternal',
 };

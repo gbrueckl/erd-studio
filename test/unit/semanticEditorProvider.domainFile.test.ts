@@ -21,6 +21,7 @@ import { DomainValidationError } from '@erd-studio/core';
 import { classifyDomainLoadFailure, SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
 import { DomainFileError, DomainService } from '../../src/services/domainService';
 import { telemetry } from '../../src/services/telemetryService';
+import { domainLoadErrorCode } from '../../src/services/telemetryPayload';
 import { LayerService } from '../../src/services/layerService';
 import { LogicalModelService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
@@ -278,10 +279,11 @@ describe('a domain file with unresolved git merge conflicts (#145)', () => {
     expect(errors(panel)).toHaveLength(1);
   });
 
-  it('is still a json failure to telemetry', () => {
+  it('is a conflict failure to telemetry, not a json one', () => {
     const err = new DomainFileError('invalid-json', '/x.json', 'conflict', { mergeConflict: true, line: 3 });
     expect(err.transient).toBe(false);
-    expect(classifyDomainLoadFailure(err)).toBe('json');
+    expect(classifyDomainLoadFailure(err)).toBe('conflict');
+    expect(domainLoadErrorCode('conflict')).toBe('domainLoadConflict');
   });
 });
 
@@ -354,7 +356,7 @@ describe('domainLoad telemetry carries a fixed reason', () => {
   it('classifies each kind of failure without reading its message', () => {
     expect(classifyDomainLoadFailure(new DomainFileError('missing', '/x.json', 'gone'))).toBe('missing');
     expect(classifyDomainLoadFailure(new DomainFileError('unreadable', '/x.json', 'EBUSY'))).toBe('unreadable');
-    expect(classifyDomainLoadFailure(new DomainFileError('empty', '/x.json', 'empty'))).toBe('json');
+    expect(classifyDomainLoadFailure(new DomainFileError('empty', '/x.json', 'empty'))).toBe('empty');
     expect(classifyDomainLoadFailure(new DomainFileError('invalid-json', '/x.json', 'bad'))).toBe('json');
     expect(classifyDomainLoadFailure(new DomainValidationError('no schemaVersion'))).toBe('invalid');
     expect(classifyDomainLoadFailure(new TypeError("Cannot read properties of undefined (reading 'x')"))).toBe('internal');
@@ -371,6 +373,24 @@ describe('domainLoad telemetry carries a fixed reason', () => {
 
     await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 10 });
     expect(error.mock.calls.map((c) => c[0])).toEqual(['domainLoad', 'domainLoadInvalid']);
+  });
+
+  it('maps each reason to its own error code', () => {
+    expect(domainLoadErrorCode('json')).toBe('domainLoadJson');
+    expect(domainLoadErrorCode('empty')).toBe('domainLoadEmpty');
+    expect(domainLoadErrorCode('conflict')).toBe('domainLoadConflict');
+  });
+
+  it('records a file that stays empty as domainLoadEmpty, not domainLoadJson', async () => {
+    const error = vi.spyOn(telemetry, 'error');
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    fs.writeFileSync(file, '');
+
+    const { panel } = await open(root, file);
+    panel._simulateMessage({ type: 'ready' });
+
+    await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 10 });
+    expect(error.mock.calls.map((c) => c[0])).toEqual(['domainLoad', 'domainLoadEmpty']);
   });
 
   it('records a template opened as a canvas as notDomain', async () => {
