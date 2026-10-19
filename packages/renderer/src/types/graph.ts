@@ -152,6 +152,11 @@ export type FkEdgeData = {
   pairs?: ColumnPair[];
   /** The composite's `compositeKey` name, alongside `pairs`. */
   compositeKey?: string;
+  /**
+   * The keys contradict its direction (`DisplayRelationship.keysContradict`,
+   * #163): drawn with a ⚠ and Turn round, except for viewers.
+   */
+  keysContradict?: true;
   /** Stage of the owning domain canvas — drives CSS colour class. */
   stage?: Stage;
   /** Discrepancy status for ghost/extra/mismatch edges. */

@@ -206,3 +206,51 @@
   background: var(--button-bg);
   color: var(--button-fg);
 }
+
+/* -----------------------------------------------------------------------
+   Drawn backwards (#163): ⚠ above the midpoint, Turn round on hover
+   ----------------------------------------------------------------------- */
+
+.fk-edge__backwards {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: all;
+}
+
+.fk-edge__backwards--dimmed {
+  opacity: 0.25;
+}
+
+.fk-edge__backwards-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  font-size: 12px;
+  line-height: 1;
+  cursor: help;
+}
+
+.fk-edge__backwards-btn {
+  padding: 2px 6px;
+  border: 1px solid var(--warning-fg);
+  border-radius: 4px;
+  background: var(--panel-bg);
+  color: var(--editor-fg);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fk-edge__backwards-btn:hover {
+  border-color: var(--focus-border);
+  background: var(--button-bg);
+  color: var(--button-fg);
+}

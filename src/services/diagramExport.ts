@@ -56,7 +56,9 @@ export async function exportDomainFile(
     throw new Error(`Unknown diagram export format: ${String(format)}`);
   }
   const unified = domainService.getDomain(domainPath, options.dbtKeyIndex ? { dbtKeyIndex: options.dbtKeyIndex } : {});
-  const display = buildLogicalDisplayDomain(DomainService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns);
+  const display = buildLogicalDisplayDomain(
+    DomainService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns, options.dbtKeyIndex,
+  );
   return {
     content: exportDiagram(display, format),
     fileName: diagramExportFileName(display, format),

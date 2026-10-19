@@ -103,9 +103,10 @@ export function reverseRelationship<T extends Relationship>(rel: T): T {
  * Whether the keys contradict a stored many-to-one: its many side is its
  * model's whole key (each value appears once) and the one side is certainly
  * not the target's key (`keyEvidence`: the model's flags, else dbt's tests).
- * "Keys win": such an entry is read the other way round. Without that
- * certainty — nothing flagged or tested on the target — nothing is turned
- * round.
+ * "Keys win": such an entry belongs the other way round — Move and ⇄ store
+ * it so, and a read only flags it (`keysContradictedRelationships`, #163).
+ * Without that certainty — nothing flagged or tested on the target —
+ * nothing is turned round or flagged.
  */
 export function contradictsKeys(
   rel: Relationship,
@@ -130,6 +131,52 @@ export function contradictsKeysOf(
   const { fromModel, toModel } = members[0];
   return keyEvidenceOf(named(modelOf(fromModel), fromModel), members.map((m) => m.fromColumn), dbt) === 'whole-key'
     && keyEvidenceOf(named(modelOf(toModel), toModel), members.map((m) => m.toColumn), dbt) === 'not-key';
+}
+
+/**
+ * The relationships stored the way round their keys contradict (#163): read
+ * as their `canonicalRelationship`, they start at a model's whole key and
+ * point at columns that are certainly not the other model's key
+ * (`contradictsKeysOf`). A composite foreign key's members (entries sharing a
+ * `compositeKey` between the same two models) are judged together and flagged
+ * together. Nothing is flagged when the keys do not decide, and nothing is
+ * turned round: since 1.6.8 a user can keep one on purpose (Create anyway).
+ */
+export function keysContradictedRelationships<T extends Relationship>(
+  relationships: readonly T[],
+  modelOf: (name: string) => KeyedModel | null | undefined,
+  dbt?: DbtKeyIndex,
+): Set<T> {
+  const lower = (s: string): string => s.toLowerCase();
+  const groups = new Map<string, T[]>();
+  for (const rel of relationships) {
+    const id = rel.compositeKey ? [rel.fromModel, rel.toModel, rel.compositeKey].map(lower).join('\u0000') : null;
+    if (id === null) groups.set(`\u0001${groups.size}`, [rel]);
+    else groups.set(id, [...(groups.get(id) ?? []), rel]);
+  }
+  const out = new Set<T>();
+  for (const members of groups.values()) {
+    if (contradictsKeysOf(members.map(canonicalRelationship), modelOf, dbt)) members.forEach((m) => out.add(m));
+  }
+  return out;
+}
+
+/**
+ * The sentence every surface shows for a relationship
+ * `keysContradictedRelationships` flags — the canvas's ⚠, the details panel
+ * and the DBML / Mermaid comment — so they never disagree (#163). It names
+ * the link's "many" end (`foreignKeyAtTo`: the `to` end of a `one-to-many`),
+ * which is its model's whole key; `pairs` are its column pairs as stored.
+ */
+export function backwardsRelationshipNote(
+  link: { fromModel: string; toModel: string; cardinality: string },
+  pairs: ReadonlyArray<{ fromColumn: string; toColumn: string }>,
+): string {
+  const atTo = foreignKeyAtTo(link.cardinality);
+  const model = atTo ? link.toModel : link.fromModel;
+  const cols = pairs.map((p) => (atTo ? p.toColumn : p.fromColumn));
+  const columns = cols.length === 1 ? cols[0] : `(${cols.join(', ')})`;
+  return `This starts at ${model}'s key (${columns}), so it was probably drawn backwards.`;
 }
 
 /** A model as key evidence reads it, named so dbt evidence can be looked up for it. */

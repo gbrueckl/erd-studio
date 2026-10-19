@@ -307,6 +307,7 @@ export function transformDomain(
           cardinality: rel.cardinality,
           ...(rel.role ? { role: rel.role } : {}),
           ...(rel.pairs ? { pairs: rel.pairs, compositeKey: rel.compositeKey } : {}),
+          ...(rel.keysContradict && !readOnly ? { keysContradict: true as const } : {}),
           stage,
           ...(readOnly ? { readOnly: true } : {}),
           ...(discStatus ? { discrepancyStatus: discStatus } : {}),

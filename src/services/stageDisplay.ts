@@ -28,17 +28,21 @@ import type { YmlData } from '../types/ymlData';
  * domain's relationships (core's `foreignKeyEnd`: the `toColumn` of a
  * `one-to-many`, else the `fromColumn`). `viewConfig` is passed separately because it lives
  * at the root of the unified domain file, not in the stage section.
+ * `dbtKeyIndex` lets a relationship drawn backwards be flagged
+ * (`keysContradict`, #163) on dbt's evidence too, as the canvas flags it.
  */
 export function buildLogicalDisplayDomain(
   domain: SemanticDomain,
   viewConfig: ViewConfig,
   stubColumns?: string[],
+  dbtKeyIndex?: DbtKeyIndex,
 ): DisplayDomain {
   return toDisplayDomain(domain, {
     viewConfig,
     stubColumns,
     layerConfig: undefined,
     readOnly: domain.stage === 'physical',
+    ...(dbtKeyIndex ? { dbtKeyIndex } : {}),
   });
 }
 

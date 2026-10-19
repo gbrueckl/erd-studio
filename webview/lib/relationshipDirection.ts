@@ -92,6 +92,6 @@ export function keysContradictionWarning(
     ? `dbt tests ${from} as unique`
     : `${from} is ${rel.fromModel}'s key`;
   return `${why}, so each value appears only once — it can't be the ` +
-    `"many" side. ${to} is probably the source ${members.length > 1 ? 'columns' : 'column'} instead; if you save it this way, Move ` +
-    'Relationships to Model Library will turn it round.';
+    `"many" side. ${to} is probably the source ${members.length > 1 ? 'columns' : 'column'} instead; if you save it this way, ` +
+    'the line shows a ⚠ with Turn round, and Move Relationships to Model Library will turn it round.';
 }

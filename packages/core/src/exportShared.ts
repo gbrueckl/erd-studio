@@ -17,7 +17,7 @@
 
 import type { DisplayDomain } from './types/display.js';
 import type { Rationale } from './types/semantic.js';
-import { compositeGroupProblem, foreignKeyAtTo, linkKey } from './relationships.js';
+import { backwardsRelationshipNote, compositeGroupProblem, foreignKeyAtTo, linkKey } from './relationships.js';
 
 /** Rationale keys in display order, with the label an export prints. */
 export const RATIONALE_LABELS: ReadonlyArray<readonly [keyof Rationale, string]> = [
@@ -81,6 +81,8 @@ export interface ExportLink {
   toColumns: string[];
   cardinality: ExportCardinality;
   role?: string;
+  /** The keys contradict its direction (`DisplayRelationship.keysContradict`, #163): written with a comment. */
+  keysContradict?: true;
 }
 
 /** A relationship to export, or one left out with its reason. */
@@ -206,6 +208,7 @@ interface RawLink {
   cardinality: string;
   role?: string;
   compositeKey?: string;
+  keysContradict?: true;
 }
 
 function readRawLink(entry: unknown): RawLink {
@@ -221,6 +224,7 @@ function readRawLink(entry: unknown): RawLink {
   if (role) link.role = role;
   const compositeKey = text(raw.compositeKey).trim();
   if (compositeKey) link.compositeKey = compositeKey;
+  if (raw.keysContradict === true) link.keysContradict = true;
   return link;
 }
 
@@ -337,10 +341,19 @@ function resolveLinks(raw: RawLink[], models: ExportModel[]): LinkItem[] {
         toColumns,
         cardinality: first.cardinality as ExportCardinality,
         ...(role ? { role } : {}),
+        ...(members.some((m) => m.keysContradict) ? { keysContradict: true as const } : {}),
       },
     });
   }
   return items;
+}
+
+/** The canvas's ⚠ sentence for a link drawn backwards (#163), on one line. */
+export function backwardsNoteOf(link: ExportLink): string {
+  return backwardsRelationshipNote(
+    { fromModel: oneLine(link.from.name), toModel: oneLine(link.to.name), cardinality: link.cardinality },
+    link.fromColumns.map((c, i) => ({ fromColumn: oneLine(c), toColumn: oneLine(link.toColumns[i]) })),
+  );
 }
 
 /** Read a `DisplayDomain` into what an export describes. Never throws. */

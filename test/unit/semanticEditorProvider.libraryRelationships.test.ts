@@ -835,3 +835,108 @@ describe('the notice after deleting a link another diagram still draws (#133 D3)
     ]);
   });
 });
+
+describe('a relationship 1.6.7 saved backwards (#163)', () => {
+  let h: Harness;
+  beforeEach(() => { _resetMockWorkspace(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(h.root, { recursive: true, force: true });
+  });
+
+  const OFFER = '1 relationship in this diagram looks drawn backwards';
+
+  /** dim_customer's file holds a many-to-one from its own key to fct_order: drawn backwards. */
+  async function backwards() {
+    h = await createHarness();
+    h.logicalModelService.saveModel({
+      ...DIM_CUSTOMER,
+      relationships: [{ fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key', cardinality: 'many-to-one' }],
+    });
+    const files = ['fct_order', 'dim_customer'].map((name) => h.logicalModelService.modelPath(name));
+    const before = files.map((file) => fs.readFileSync(file, 'utf-8'));
+    return { files, before, read: () => files.map((file) => fs.readFileSync(file, 'utf-8')) };
+  }
+
+  const offers = (info: { mock: { calls: unknown[][] } }) => info.mock.calls.filter(([text]) => String(text).startsWith(OFFER));
+
+  it('is drawn as stored, flagged keysContradict, and offered once — writing nothing until the user picks', async () => {
+    const { before, read } = await backwards();
+    const info = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue('Not Now' as never);
+    const orders = await h.open('orders');
+    await orders.send({ type: 'ready' });
+    await vi.waitFor(() => expect(offers(info)).toHaveLength(1));
+
+    const loaded = (orders.panel._postedMessages as Array<{ type: string; payload: { relationships: Array<Record<string, unknown>> } }>)
+      .find((m) => m.type === 'domainLoaded')!;
+    expect(loaded.payload.relationships).toEqual([expect.objectContaining({
+      fromModel: 'dim_customer', toModel: 'fct_order', cardinality: 'many-to-one', keysContradict: true,
+    })]);
+    expect(offers(info)[0].slice(1)).toEqual(['Turn Round', 'Review…', 'Not Now', "Don't Ask Again"]);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(_appliedEdits).toHaveLength(0);
+    expect(read()).toEqual(before);
+
+    // Once a session: another canvas opening does not ask again.
+    await (await h.open('reporting')).send({ type: 'ready' });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(offers(info)).toHaveLength(1);
+  });
+
+  it('Turn Round stores it the right way round in one WorkspaceEdit, and the ⚠ goes', async () => {
+    await backwards();
+    vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue('Turn Round' as never);
+    const orders = await h.open('orders');
+    await orders.send({ type: 'ready' });
+    await vi.waitFor(() => expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([
+      { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' },
+    ]));
+    expect(_appliedEdits).toHaveLength(1);
+    expect(orders.errors()).toEqual([]);
+    h.logicalModelService.invalidateCache();
+    expect(h.logicalModelService.getModel('dim_customer')?.relationships ?? []).toEqual([]);
+  });
+
+  it('Review… turns round only what stays ticked: unticking all writes nothing', async () => {
+    const { before, read } = await backwards();
+    vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue('Review…' as never);
+    const pick = vi.spyOn(vscode.window, 'showQuickPick').mockResolvedValue([] as never);
+    await (await h.open('orders')).send({ type: 'ready' });
+    await vi.waitFor(() => expect(pick).toHaveBeenCalled());
+    const [items, options] = pick.mock.calls[0] as unknown as [Array<{ label: string; picked: boolean }>, { canPickMany: boolean }];
+    expect(items.map((i) => [i.label, i.picked])).toEqual([['dim_customer.customer_key → fct_order.customer_key', true]]);
+    expect(options.canPickMany).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(_appliedEdits).toHaveLength(0);
+    expect(read()).toEqual(before);
+  });
+
+  it('Turn Round after the link changed meanwhile turns nothing round, and reports no error', async () => {
+    await backwards();
+    let pick: (choice: string) => void = () => undefined;
+    vi.spyOn(vscode.window, 'showInformationMessage').mockImplementation(
+      (() => new Promise((resolve) => { pick = resolve as (choice: string) => void; })) as never,
+    );
+    const orders = await h.open('orders');
+    await orders.send({ type: 'ready' });
+    await vi.waitFor(() => expect(vscode.window.showInformationMessage).toHaveBeenCalled());
+    // While the toast waits, the link is removed and the canvas reloads.
+    h.logicalModelService.saveModel({ ...DIM_CUSTOMER });
+    await orders.send({ type: 'ready' });
+    const before = fs.readFileSync(h.logicalModelService.modelPath('fct_order'), 'utf-8');
+    _appliedEdits.length = 0;
+    pick('Turn Round');
+    await new Promise((r) => setTimeout(r, 30));
+    expect(_appliedEdits).toHaveLength(0);
+    expect(orders.errors()).toEqual([]);
+    expect(fs.readFileSync(h.logicalModelService.modelPath('fct_order'), 'utf-8')).toBe(before);
+  });
+
+  it('is never offered on a diagram whose relationships run the right way', async () => {
+    h = await createHarness();
+    const info = vi.spyOn(vscode.window, 'showInformationMessage');
+    await (await h.open('orders')).send({ type: 'ready' });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(offers(info)).toHaveLength(0);
+  });
+});

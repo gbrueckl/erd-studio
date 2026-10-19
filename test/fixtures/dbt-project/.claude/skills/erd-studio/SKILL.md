@@ -333,7 +333,7 @@ Every entry in "in source but not in YAML" must have a specific reason. A class-
 
 **Spelling:** always spell `fromModel`, `toModel` and the columns exactly as the model and column are named. ERD Studio matches them ignoring case, but writes the real spelling the next time it changes that entry.
 
-**Direction:** `fromModel` is always the many (FK) side, `toModel` the side it points at (PK). Never write `one-to-many`: swap the ends and write `many-to-one`, in the other model's file — it is the same relationship. `one-to-one` and `many-to-many` keep the direction they were drawn in. Keys win: the many side is never its model's whole primary or natural key while the other end is a column of a model with a different key — ERD Studio reads such a `many-to-one` the other way round (**Move Relationships to Model Library** stores it so), and the canvas refuses a ⇄ that would write it. FK column names should match the PK column name of the referenced table.
+**Direction:** `fromModel` is always the many (FK) side, `toModel` the side it points at (PK). Never write `one-to-many`: swap the ends and write `many-to-one`, in the other model's file — it is the same relationship. `one-to-one` and `many-to-many` keep the direction they were drawn in. Keys win: the many side is never its model's whole primary or natural key while the other end is a column of a model with a different key — such a `many-to-one` is drawn backwards: ERD Studio draws it as stored but flags it (an amber ⚠ on the line with **Turn round**, a comment in the DBML / Mermaid export, a `backwardsRelationships` count in `erd-studio doctor`), **Move Relationships to Model Library** stores it the right way round, and the canvas refuses a ⇄ that would write it. Never write one; when doctor reports some (`turn-round-relationships`), offer to turn them round: a `many-to-one` from the column that is not a key to the key, in that column's model file. FK column names should match the PK column name of the referenced table.
 
 ### Where relationships live
 
@@ -458,4 +458,4 @@ When asked to execute a sync plan, or when `.erd-studio/.sync-plan.json` exists:
 2. Read `.erd-studio/.sync-plan.json` for the specific actions to execute
 3. Follow the execution steps in SYNC.md to reconcile logical and physical models
 
-<!-- erd-studio-harness: 30 -->
+<!-- erd-studio-harness: 31 -->

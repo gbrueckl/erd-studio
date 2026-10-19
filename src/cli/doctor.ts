@@ -16,7 +16,9 @@ import { redactPaths } from '../types/feedback';
 import { detectDomainFormat } from '../types/semantic';
 import { normaliseName } from '../services/nameUtils';
 import { DomainFileError } from '../services/domainService';
-import { parseDomainJson } from '@erd-studio/core';
+import { keysContradictedRelationships, linkKey, parseDomainJson } from '@erd-studio/core';
+import type { Relationship } from '@erd-studio/core';
+import { dbtKeyIndexOf } from '../services/stageDisplay';
 import {
   dbtCommands,
   dbtExecutableCandidates,
@@ -49,7 +51,7 @@ import { toUnreadableModelFile, unreadableHint, type UnreadableModelFile } from 
 
 export type NextStepId =
   | 'install-dbt' | 'confirm-venv' | 'create-profile' | 'run-deps' | 'run-parse' | 'refresh-parse' | 'run-catalog'
-  | 'resolve-merge-conflicts' | 'fix-model-yaml' | 'migrate-v5' | 'update-harness' | 'ready';
+  | 'resolve-merge-conflicts' | 'fix-model-yaml' | 'migrate-v5' | 'turn-round-relationships' | 'update-harness' | 'ready';
 
 export interface NextStep {
   id: NextStepId;
@@ -109,9 +111,27 @@ export interface DoctorResult extends Envelope {
      * renamed `dataType` — a warning, not a next step: nothing is broken.
      */
     dataTypeAliasFiles: DataTypeAliasFile[];
+    /**
+     * Relationships drawn backwards (#163): stored starting at a model's
+     * whole key and pointing at columns that are certainly not the other
+     * model's key, as the canvas flags them with a ⚠. Each link once, with
+     * every diagram that draws it.
+     */
+    backwardsRelationships: BackwardsRelationship[];
   };
   harness: { schemaSkill: FileState; setupSkill: FileState; version: string };
   nextSteps: NextStep[];
+}
+
+export interface BackwardsRelationship {
+  /** As stored: it starts here, at this model's key. */
+  fromModel: string;
+  fromColumns: string[];
+  toModel: string;
+  toColumns: string[];
+  cardinality: string;
+  /** The diagrams that draw it, project-relative, forward slashes. */
+  domains: string[];
 }
 
 export interface ConflictedDomainFile {
@@ -196,7 +216,7 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
   if (!exists) {
     return {
       semanticDirExists: false, layers: [], domains: 0, logicalModels: 0, domainFormatIssues: [], unreadableModelFiles: [],
-      conflictedDomainFiles: [], dataTypeAliasFiles: [],
+      conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
     };
   }
   const domains = ctx.domainService.listDomains(ctx.root, ctx.semanticDir);
@@ -227,6 +247,7 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
     }
   }
   return {
+    backwardsRelationships: backwardsRelationshipsOf(ctx, domains.map((d) => d.filePath).filter((f) => !issues.some((i) => i.file === relPath(ctx.root, f)))),
     semanticDirExists: true,
     layers: ctx.layerService.getValidLayerIds(),
     domains: domains.length,
@@ -236,6 +257,50 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
     conflictedDomainFiles: conflicted,
     dataTypeAliasFiles: aliased,
   };
+}
+
+/**
+ * The relationships the canvas flags as drawn backwards (#163), across every
+ * v5 diagram: core's `keysContradictedRelationships` on each logical stage,
+ * read with dbt's key evidence as the canvas reads it. A diagram that does
+ * not load is skipped (`diff --all` names it).
+ */
+function backwardsRelationshipsOf(ctx: CliContext, domainFiles: string[]): BackwardsRelationship[] {
+  const dbtKeyIndex = dbtKeyIndexOf(ctx.ymlData, ctx.manifest);
+  const byLink = new Map<string, BackwardsRelationship>();
+  for (const file of domainFiles) {
+    let relationships: Relationship[];
+    let flagged: Set<Relationship>;
+    try {
+      const domain = ctx.domainService.getDomainStage(file, { dbtKeyIndex });
+      const byName = new Map(domain.models.map((m) => [m.name.toLowerCase(), m]));
+      relationships = domain.relationships;
+      flagged = keysContradictedRelationships(relationships, (name) => byName.get(name.toLowerCase()), dbtKeyIndex);
+    } catch {
+      continue;
+    }
+    // A composite's members are one relationship.
+    const groups = new Map<string, Relationship[]>();
+    for (const rel of relationships) {
+      if (!flagged.has(rel)) continue;
+      const id = rel.compositeKey ? [rel.fromModel, rel.toModel, rel.compositeKey].join('\u0000').toLowerCase() : `\u0001${groups.size}`;
+      groups.set(id, [...(groups.get(id) ?? []), rel]);
+    }
+    for (const members of groups.values()) {
+      const key = members.map(linkKey).sort().join('\u0001');
+      const held = byLink.get(key) ?? {
+        fromModel: members[0].fromModel,
+        fromColumns: members.map((m) => m.fromColumn),
+        toModel: members[0].toModel,
+        toColumns: members.map((m) => m.toColumn),
+        cardinality: members[0].cardinality,
+        domains: [],
+      };
+      held.domains.push(relPath(ctx.root, file));
+      byLink.set(key, held);
+    }
+  }
+  return [...byLink.values()];
 }
 
 function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boolean; installPath: string; invocation: string | null }): NextStep[] {
@@ -351,6 +416,18 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
       command: null,
     });
   }
+  const backwards = r.erd.backwardsRelationships.length;
+  if (backwards > 0) {
+    steps.push({
+      id: 'turn-round-relationships',
+      title: 'Turn round relationships drawn backwards',
+      why: `${backwards === 1 ? '1 relationship looks' : `${backwards} relationships look`} drawn backwards: ${backwards === 1 ? 'it starts' : 'each starts'} at a model's key `
+        + 'and points at a column that is not the other model\'s key. Turn it round on the canvas (the ⚠ on the line → Turn round), '
+        + 'or rewrite it as a many-to-one from the column that is not a key to the key, in that column\'s model file. '
+        + 'Leave one that was drawn this way on purpose.',
+      command: null,
+    });
+  }
   if (r.harness.schemaSkill === 'outdated' || r.harness.setupSkill === 'outdated') {
     steps.push({
       id: 'update-harness',
@@ -389,7 +466,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
       projectFiles: { schemaYmlFiles: 0, sourceFiles: 0, modelsDiscovered: 0 },
       erd: {
         semanticDirExists: false, layers: [], domains: 0, logicalModels: 0, domainFormatIssues: [], unreadableModelFiles: [],
-        conflictedDomainFiles: [], dataTypeAliasFiles: [],
+        conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
       },
       harness: { schemaSkill: 'missing', setupSkill: 'missing', version: harnessVersion },
     };

@@ -176,6 +176,19 @@ chosen. Only the user knows which version is right — it is often a teammate's 
 The column types were read from the warehouse before the latest project changes. It is still
 useful; offer to re-run the catalog command (it connects to the warehouse) or carry on.
 
+## Relationships drawn backwards
+
+**Seen as:** doctor's `turn-round-relationships` step; `erd.backwardsRelationships` lists each one
+(its `fromModel` / `fromColumns` as stored, and the `domains` that draw it).
+
+An older ERD Studio (1.6.7) could save a relationship from a dimension's key to a fact — the
+wrong way round. ERD Studio draws it as stored with a ⚠ on the line. Name each one in a line
+("`dim_customer.customer_key → fct_order.customer_key` starts at dim_customer's key, so it was
+probably drawn backwards") and ask once whether to turn them round. On a yes, either point the
+user at the ⚠ → **Turn round** on the canvas (one undo step), or edit the files yourself: write
+it as a `many-to-one` from the column that is not a key to the key, in that column's model file,
+and remove the old entry. Leave any the user says were drawn that way on purpose.
+
 ## The helper found the wrong project
 
 **Seen as:** doctor reports `project.found: false`, or a project name the user does not

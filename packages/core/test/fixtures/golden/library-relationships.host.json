@@ -153,7 +153,8 @@
         "fromColumn": "product_key",
         "toModel": "fct_order",
         "toColumn": "product_key",
-        "cardinality": "many-to-one"
+        "cardinality": "many-to-one",
+        "keysContradict": true
       }
     ],
     "viewConfig": {

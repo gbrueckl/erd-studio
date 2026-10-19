@@ -57,7 +57,9 @@ export function buildStageForDiff(
   if (stage === 'physical') {
     return inputs.domainService.buildPhysicalDomain(unified, inputs.ymlData, inputs.manifest, inputs.catalog);
   }
-  return buildLogicalDisplayDomain(DomainService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns);
+  return buildLogicalDisplayDomain(
+    DomainService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns, dbtKeyIndexOf(inputs.ymlData, inputs.manifest),
+  );
 }
 
 /**
