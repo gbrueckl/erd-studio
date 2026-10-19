@@ -1,5 +1,5 @@
 /**
- * LogicalModelService — reads and writes canonical model definitions
+ * TableLibraryService — reads and writes canonical model definitions
  * stored as YAML files in .erd-studio/logical-models/.
  *
  * Each model is a single YAML file, either at the top of the library
@@ -25,7 +25,7 @@ import { OwnWriteTracker, ownWrites } from './ownWriteTracker';
 import { sameName } from '../types/naming';
 import { keepLineEndings } from './lineEndings';
 
-// The directory name and the YAML -> SemanticModel parsing live in
+// The directory name and the YAML -> SemanticTable parsing live in
 // @erd-studio/core; re-exported so existing imports of this module keep working.
 export { LOGICAL_MODELS_DIR } from '@erd-studio/core';
 
@@ -112,7 +112,7 @@ export interface TableFileError {
 /** Describe a failure thrown while reading or parsing a model file. */
 export function describeTableFileError(name: string, filePath: string, err: unknown): TableFileError {
   const message = err instanceof Error ? err.message : String(err);
-  // The classification is core's, so the extension and loadDisplayDomain agree.
+  // The classification is core's, so the extension and loadDisplaySubjectArea agree.
   return { name, filePath, ...classifyTableLoadError(err), message };
 }
 
@@ -414,7 +414,7 @@ export class TableLibraryService {
   /** Remember why `filePath` is broken, and report it once per session. */
   private recordFailure(filePath: string, error: TableFileError, cause: unknown): void {
     // Once per broken file, not once per canvas refresh that re-reads it
-    // (nor for getModelFileError's own re-read).
+    // (nor for getTableFileError's own re-read).
     const known = this.failedPaths.has(filePath);
     this.failedPaths.set(filePath, error);
     if (!known) {
@@ -596,7 +596,7 @@ export class TableLibraryService {
    *
    * Note: this bypasses VS Code's undo stack. Editor-driven mutations should
    * go through the SemanticEditorProvider's WorkspaceEdit path instead (which
-   * uses `serializeModel()`), so the yml change is undoable together with the
+   * uses `serializeTable()`), so the yml change is undoable together with the
    * domain change. Use this for non-editor callers (migration, seeding, CLI).
    */
   saveTable(model: SemanticTable, folder?: string): void {
@@ -704,7 +704,7 @@ export class TableLibraryService {
    *
    * Like `saveModel`, this bypasses VS Code's undo stack, so it is for
    * non-editor callers. The editor renames through a WorkspaceEdit and gets
-   * the same document carry-over via `serializeModel(model, fromName)`.
+   * the same document carry-over via `serializeTable(model, fromName)`.
    */
   renameTable(oldName: string, newName: string): void {
     const model = this.getTable(oldName);
@@ -740,7 +740,7 @@ export class TableLibraryService {
 
   /**
    * Create a new logical model file seeded from manifest data.
-   * Returns the created SemanticModel.
+   * Returns the created SemanticTable.
    * If the model file already exists, returns the existing model without overwriting.
    */
   createFromManifest(name: string, manifest: ManifestData, folder?: string): SemanticTable | null {
@@ -773,7 +773,7 @@ export class TableLibraryService {
   }
 
   /**
-   * Convert dbt .yml model info to a SemanticModel, without touching disk.
+   * Convert dbt .yml model info to a SemanticTable, without touching disk.
    * Used by `createFromYml` and by the editor, which seeds a new library file
    * through a WorkspaceEdit instead of writing it directly.
    */
@@ -796,7 +796,7 @@ export class TableLibraryService {
   // -------------------------------------------------------------------------
 
   /**
-   * Convert manifest model info to a SemanticModel.
+   * Convert manifest model info to a SemanticTable.
    * Columns get name, dataType, and description from manifest.
    * Design metadata (keys, SCD, etc.) are left unset for the user to fill in.
    */
@@ -850,7 +850,7 @@ export class TableLibraryService {
 
   /**
    * Where a new file for `name` goes. A `folder` that is neither layer-shaped
-   * (see MODEL_FOLDER_PATTERN) nor an existing library folder is ignored and
+   * (see TABLE_FOLDER_PATTERN) nor an existing library folder is ignored and
    * the top level used instead.
    */
   private newTablePath(name: string, folder?: string): string {
@@ -877,7 +877,7 @@ export class TableLibraryService {
   }
 
   // -------------------------------------------------------------------------
-  // YAML ↔ SemanticModel conversion
+  // YAML ↔ SemanticTable conversion
   // -------------------------------------------------------------------------
 
   /** Resolved value for strings/booleans/null; original source text for anything else. */

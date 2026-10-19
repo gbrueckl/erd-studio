@@ -40,9 +40,9 @@ ERD Studio uses a **central model store** (domain schema v5). Each model is one 
 └── gold/reporting.json
 ```
 
-- **A model's `name` is its identity everywhere** (domain `logical.models`, relationship endpoints, `viewConfig.positions` keys, physical matching) and is unique across the whole library, case-insensitively. Never make a folder part of it. `alias` is the warehouse table name (dbt's `alias`). Folders are organisational only and **opt-in per project** (`LogicalModelService.groupsByFolder()`); a flat library stays flat.
+- **A model's `name` is its identity everywhere** (domain `logical.models`, relationship endpoints, `viewConfig.positions` keys, physical matching) and is unique across the whole library, case-insensitively. Never make a folder part of it. `alias` is the warehouse table name (dbt's `alias`). Folders are organisational only and **opt-in per project** (`TableLibraryService.groupsByFolder()`); a flat library stays flat.
 - **Relationships are defined once, in the model library**, stored in the many (FK) side's file (`canonicalRelationship()`). Link identity is core's `linkKey` / `sameLink` only; direction comes from `orientLink`, and when nothing decides it the dialog asks — never default from drag order. **Every canvas relationship edit is planned by the pure `planRelationshipWrite`** (the exhaustive checker in `test/unit/relationshipStateSpace.*` calls the same function); never write a second planner. Composite FKs are one entry per column pair sharing `compositeKey`, never an array. Library storage is opt-in per project by what is on disk (`usesLibraryRelationships`). Details: `docs/dev/relationships.md`.
-- **Format detection** is `detectDomainFormat()` (`packages/core/src/types/semantic.ts`) → `v5` | `v4` (loads, prompts for `erdStudio.migrateToV5`) | `hybrid` / `legacy` (rejected). Never add a second detector.
+- **Format detection** is `detectSubjectAreaFormat()` (`packages/core/src/types/semantic.ts`) → `v5` | `v4` (loads, prompts for `erdStudio.migrateToV5`) | `hybrid` / `legacy` (rejected). Never add a second detector.
 
 ## Build & test
 
@@ -73,7 +73,7 @@ Four esbuild targets (`esbuild.js`, each in both build and watch branches):
 | CLI | `src/cli/index.ts` → `dist/cli.js` | Node 18, **no `external`**: an `import 'vscode'` anywhere in its graph breaks the build (`test/unit/cli.noVscode.test.ts`) |
 
 - Two tsconfigs: `tsconfig.json` (Node) and `tsconfig.webview.json` (DOM, includes `src/types/**`). `@types/vscode` is pinned to `1.85.0` to match `engines.vscode` — **use no newer VS Code APIs**.
-- **Packages are built from source** in the extension: tsconfig `paths` and vitest aliases point `@erd-studio/core` / `@erd-studio/renderer` at `packages/*/src`; their `exports` point only at `dist/`. Core owns the pure raw-files → `DisplayDomain` pipeline and the Mermaid / DBML exporters; host services delegate to it and keep only file access, caching and messaging. The renderer owns the canvas; its components post edits through `CanvasHost`, never `acquireVsCodeApi()`.
+- **Packages are built from source** in the extension: tsconfig `paths` and vitest aliases point `@erd-studio/core` / `@erd-studio/renderer` at `packages/*/src`; their `exports` point only at `dist/`. Core owns the pure raw-files → `DisplaySubjectArea` pipeline and the Mermaid / DBML exporters; host services delegate to it and keep only file access, caching and messaging. The renderer owns the canvas; its components post edits through `CanvasHost`, never `acquireVsCodeApi()`.
 - `src/` layout: `extension.ts` (activation), `providers/` (`SemanticEditorProvider` custom editor, `GettingStartedPanel`, tree views, `payloadValidation.ts`), `services/` (business logic), `commands/`, `watchers/`, `cli/`, `harness/` (setup-skill markdown, inlined at build), `workers/`, `types/` (shared host + webview; never imports from `services/`).
 - `webview/`: the editor around the renderer canvas — `components/`, `store/editorStore.ts` (Zustand; its `setDomain` override must stay last in the initialiser), `hooks/` (`useMessageBus`, `useSend()`), `host/vscodeCanvasHost.ts`, `lib/elkLayout`.
 - **Not build targets:** `proxy/` (feedback analysis Worker), `telemetry/` (telemetry Worker, deployed by `deploy.yml`), `video/` (getting-started video pipeline), `mcp-server/`. Nothing in `esbuild.js`, the tsconfigs, vitest or the npm scripts may depend on `proxy/`, `telemetry/` or `video/`; `npm run build` and `npm test` must pass in a clone that never touched them.
@@ -89,27 +89,27 @@ Four esbuild targets (`esbuild.js`, each in both build and watch branches):
 
 ```
 {layer}/{domain}.json ─┐
-logical-models/**.yml ─┴→ DomainService.getDomain() ─→ UnifiedDomain ─→ .logical → DisplayDomain
+logical-models/**.yml ─┴→ SubjectAreaService.getDomain() ─→ UnifiedSubjectArea ─→ .logical → DisplaySubjectArea
 schema .yml + source files ─→ YmlParserService ─┐                                         │
-manifest.json              ─→ ManifestService  ─┼→ buildPhysicalDomain() ─→ DisplayDomain │
+manifest.json              ─→ ManifestService  ─┼→ buildPhysicalSubjectArea() ─→ DisplaySubjectArea │
 catalog.json               ─→ CatalogService   ─┘                                         │
                                                     [message] ─→ graphTransformer ─→ React Flow
 ```
 
-The canvas and the CLI reach comparisons through the same pure cores — `buildLogicalDisplayDomain` (`stageDisplay.ts`), `computeDomainDiff` (`stageDiff.ts`) and `buildSyncPlan` / `allSelections` (`syncPlanBuilder.ts`). **Never write comparison logic anywhere else**, or the two will disagree. Full step-by-step (existence, column / type / description precedence, provenance, discrepancy statuses): `docs/dev/architecture.md`.
+The canvas and the CLI reach comparisons through the same pure cores — `buildLogicalDisplaySubjectArea` (`stageDisplay.ts`), `computeSubjectAreaDiff` (`stageDiff.ts`) and `buildSyncPlan` / `allSelections` (`syncPlanBuilder.ts`). **Never write comparison logic anywhere else**, or the two will disagree. Full step-by-step (existence, column / type / description precedence, provenance, discrepancy statuses): `docs/dev/architecture.md`.
 
 ## Rules
 
 ### Edit pipeline
 
-- **Every canvas write to a domain file or a `logical-models/*.yml` goes through `applyDomainEdit` / `applyModelEdit`** in `SemanticEditorProvider`: one `WorkspaceEdit`, one save, one undo step, nothing on disk unless `applyEdit` succeeds. Never `fs.writeFileSync` or hand-roll a `WorkspaceEdit` in a provider handler. (Direct `fs` writes elsewhere — `LayerService.saveConfig`, `HarnessService`, `MigrationService`, `moveRelationshipsToLibrary`, … — are not the editor path.)
+- **Every canvas write to a domain file or a `logical-models/*.yml` goes through `applySubjectAreaEdit` / `applyTableEdit`** in `SemanticEditorProvider`: one `WorkspaceEdit`, one save, one undo step, nothing on disk unless `applyEdit` succeeds. Never `fs.writeFileSync` or hand-roll a `WorkspaceEdit` in a provider handler. (Direct `fs` writes elsewhere — `LayerService.saveConfig`, `HarnessService`, `MigrationService`, `moveRelationshipsToLibrary`, … — are not the editor path.)
 - After `applyEdit`, save model documents with `saveDocumentByUri` (`src/providers/documentSave.ts`) and check the result: `save()` resolves `false` rather than throwing.
 - Any writer of a watched file (domain JSON, `layers.json`, `logical-models/*.yml`) records `ownWrites` **after** the bytes land.
 - Model yml writes edit the parsed YAML document in place, so comments, key order, unknown keys, number text and aliases survive. Never regenerate a file that parses.
 - Refresh paths (watchers, external edits, stage switches) never write. Only the initial `ready` load persists auto-computed positions, and only for a partially positioned domain.
-- Compare model and column names with `sameName()` / `normaliseName()` (case-insensitive). Names match `MODEL_NAME_PATTERN` / `COLUMN_NAME_PATTERN` (`src/types/naming.ts`; the renderer keeps its own copies). Refuse a case-only model rename (the write-new + delete-old edit would delete the file on macOS/Windows). Add / Rename refuse a name already in the domain or the library in any case via `LogicalModelService.findModelNameIgnoringCase`, which lists files — never `existsSync`, which is case-sensitive on Linux.
+- Compare model and column names with `sameName()` / `normaliseName()` (case-insensitive). Names match `TABLE_NAME_PATTERN` / `COLUMN_NAME_PATTERN` (`src/types/naming.ts`; the renderer keeps its own copies). Refuse a case-only model rename (the write-new + delete-old edit would delete the file on macOS/Windows). Add / Rename refuse a name already in the domain or the library in any case via `TableLibraryService.findModelNameIgnoringCase`, which lists files — never `existsSync`, which is case-sensitive on Linux.
 - `updateColumn` treats an omitted `scdType` / `additiveType` as "keep" and `null` as "clear".
-- `meta` is the user's free-form map: edit only through `updateMeta` patches; it is never compared, diffed or synced to dbt. `LogicalModelService.syncMeta` writes only the top-level key that changed, matching keys as the parser reads them (never via `YAMLMap.get/set`).
+- `meta` is the user's free-form map: edit only through `updateMeta` patches; it is never compared, diffed or synced to dbt. `TableLibraryService.syncMeta` writes only the top-level key that changed, matching keys as the parser reads them (never via `YAMLMap.get/set`).
 - `SelectorsService` owns only `domain_*` selectors whose description ends with `Managed by ERD Studio.`; everything else in `selectors.yml` is preserved.
 
 ### Message protocol and the physical stage
@@ -121,9 +121,9 @@ The canvas and the CLI reach comparisons through the same pure cores — `buildL
 
 The Confluence app renders whatever is committed in a customer's repo — written by any extension version — and cannot run a migration. So:
 
-- **Every change under `packages/` ships automatically** to npm on merge to `main` and into the Confluence app. Every export, the `ErdCanvas` props, the `DisplayDomain` shape, the `loadDisplayDomain` options and its four error classes, and the README's `--vscode-*` list are a public contract. A breaking change is a pinned MINOR while `0.x`; say in the PR if the Confluence cache key needs a bump.
+- **Every change under `packages/` ships automatically** to npm on merge to `main` and into the Confluence app. Every export, the `ErdCanvas` props, the `DisplaySubjectArea` shape, the `loadDisplaySubjectArea` options and its four error classes, and the README's `--vscode-*` list are a public contract. A breaking change is a pinned MINOR while `0.x`; say in the PR if the Confluence cache key needs a bump.
 - **Never drop a read path.** Core keeps loading v4 and v5, flat and foldered libraries, relationships in the domain file, the library or both, `one-to-many` records, and a missing `layers.json`. Format changes are additive on read.
-- **New fields are optional** (domain JSON, model yml, `layers.json`, `Display*` types) with a default that renders what an older file meant; the renderer must draw a `DisplayDomain` from an older core. A field whose meaning changes gets a new name.
+- **New fields are optional** (domain JSON, model yml, `layers.json`, `Display*` types) with a default that renders what an older file meant; the renderer must draw a `DisplaySubjectArea` from an older core. A field whose meaning changes gets a new name.
 - **Unknown keys are ignored, not rejected.** Only a newer `schemaVersion` may refuse a file.
 - Before changing how a format is written, add a fixture and golden of the old shape under `packages/core/test/fixtures/`. Never delete an old-format golden; regenerate one (`UPDATE_GOLDEN=1`) only for an intended rendering change. Keep a "still read" note in `docs/semantic-domain-json-reference.md`.
 - The viewer path (`ErdCanvas` with `viewer`) makes no `CanvasHost` posts, touches no VS Code globals and shows no editing affordance. Write every viewer gate as `viewer ? … : <upstream>`.
@@ -140,7 +140,7 @@ The Confluence app renders whatever is committed in a customer's repo — writte
 
 ### Security and privacy — do not "fix" these
 
-- **Feedback:** no image capture, picker, drop zone or paste-to-attach route (GitHub cannot accept one; `FEEDBACK_IMAGE_NOTE` is the whole Images section). `FeedbackDomainSummary` carries no domain name or layer. Keep every `redactPaths()` call site. Diagnostics are never sent to the model. Never auto-analyse text the user did not write. A pinned analysis provider never falls through to another tier. Never write `vscode.lm.` directly (use `getLanguageModelApi()`). `HOSTED_ANALYSIS_ENDPOINT` and `HOSTED_ANALYSIS_PROVIDER` change together, in one commit.
+- **Feedback:** no image capture, picker, drop zone or paste-to-attach route (GitHub cannot accept one; `FEEDBACK_IMAGE_NOTE` is the whole Images section). `FeedbackSubjectAreaSummary` carries no domain name or layer. Keep every `redactPaths()` call site. Diagnostics are never sent to the model. Never auto-analyse text the user did not write. A pinned analysis provider never falls through to another tier. Never write `vscode.lm.` directly (use `getLanguageModelApi()`). `HOSTED_ANALYSIS_ENDPOINT` and `HOSTED_ANALYSIS_PROVIDER` change together, in one commit.
 - **Telemetry:** no field may hold a name, path or message. `installId` is `crypto.randomUUID()`, never `vscode.env.machineId`. The contract with the Worker is additive (`HEARTBEAT_VERSION` stays `1`); change both sides and `telemetry.json` in one PR and deploy the Worker first. The root README never mentions telemetry.
 - **Harness hook:** the PreToolUse hook only ever denies; never add an allow path.
 - **dbt:** never run a project-venv dbt that `PATH` does not resolve to without `--trust-venv`; keep the skill's pre-approved dbt rules subcommand-scoped.
@@ -171,13 +171,13 @@ The Confluence app renders whatever is committed in a customer's repo — writte
 
 Rules reviewers (human or AI) apply to every PR:
 
-- Domain/model writes go through `applyDomainEdit` / `applyModelEdit` — reject hand-rolled `WorkspaceEdit`s or direct `fs` writes in the provider
+- Domain/model writes go through `applySubjectAreaEdit` / `applyTableEdit` — reject hand-rolled `WorkspaceEdit`s or direct `fs` writes in the provider
 - Physical stage is derived at runtime: reject code that persists physical data, copies logical relationships into physical, or extends the physical allowlist with schema mutations
 - Message protocol changes update both directions in `src/types/messages.ts`, add payload validation, and wire both a sender and a handler
 - Schema changes update `SCHEMA_CONTENT`, bump `HARNESS_VERSION` and update the reference doc
 - `erdStudio` identifiers only; the `dbtSemantic` aliases and deprecated settings stay; settings read via `getErdStudioSetting()`
 - No `vscode` imports in worker-shared or CLI-bundled modules; no APIs newer than VS Code 1.85
-- No comparison logic outside `computeDomainDiff` / `buildSyncPlan` — the canvas and the CLI must share one diff
-- Old files keep rendering: reject a change to `@erd-studio/core` that stops reading an on-disk shape a released extension wrote, a new field without a default for its absence, an unknown key that now fails validation, or a renderer change that requires a `DisplayDomain` field older cores did not produce. A package API break must be a pinned MINOR (while `0.x`), never an automatic patch
+- No comparison logic outside `computeSubjectAreaDiff` / `buildSyncPlan` — the canvas and the CLI must share one diff
+- Old files keep rendering: reject a change to `@erd-studio/core` that stops reading an on-disk shape a released extension wrote, a new field without a default for its absence, an unknown key that now fails validation, or a renderer change that requires a `DisplaySubjectArea` field older cores did not produce. A package API break must be a pinned MINOR (while `0.x`), never an automatic patch
 - Webview: BEM classes, theme CSS variables (no hardcoded colours), module-level node/edge type maps, `useSend()` rather than `useMessageBus(() => {})`
 - Skip: lock-file formatting, `test/fixtures/` sample data, deploy-workflow version bump commits

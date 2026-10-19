@@ -1,5 +1,5 @@
 /**
- * ModelLibraryTreeProvider — VS Code TreeDataProvider for the Model Library sidebar.
+ * TableLibraryTreeProvider — VS Code TreeDataProvider for the Model Library sidebar.
  *
  * Shows the model YAML files in .erd-studio/logical-models/. A library with
  * no sub-folders is a flat alphabetical list, exactly as before layer folders

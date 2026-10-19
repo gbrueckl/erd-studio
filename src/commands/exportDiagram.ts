@@ -2,7 +2,7 @@
  * **Export Diagram…** (`erdStudio.exportDiagram`) — a domain's logical
  * (design) stage as Mermaid or DBML text, one way out. Nothing about how ERD
  * Studio stores a diagram changes: the text comes from `@erd-studio/core`'s
- * `exportDiagram` through `exportDomainFile` (`src/services/diagramExport.ts`),
+ * `exportDiagram` through `exportSubjectAreaFile` (`src/services/diagramExport.ts`),
  * the same read the `erd-studio export` CLI and the canvas's logical stage
  * make, so every host produces the same bytes.
  *
@@ -16,7 +16,7 @@
  *
  * Writes no ERD Studio file. Save As… writes only the file the user named in
  * the save dialog, through `workspace.fs` — an export, not a domain write, so
- * it is not an `applyDomainEdit` and records no own write.
+ * it is not an `applySubjectAreaEdit` and records no own write.
  *
  * Every vscode call goes through `ExportDiagramUi`, so the flow is unit-tested
  * with plain fakes; `vscodeExportUi()` is the real one `activate()` uses.
@@ -87,7 +87,7 @@ export interface ExportDiagramUi {
 }
 
 export interface ExportDiagramDeps {
-  /** `exportDomainFile` bound to this window's services. Throws what `getDomain` throws. */
+  /** `exportSubjectAreaFile` bound to this window's services. Throws what `getSubjectArea` throws. */
   exportDomain: (domainPath: string, format: DiagramExportFormat) => Promise<SubjectAreaExport>;
   /** The domain file of the focused ERD canvas, if one is focused. */
   activeDomainPath: () => string | undefined;

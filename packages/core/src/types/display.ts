@@ -3,7 +3,7 @@
  *
  * These types replace the old ReconciledDomain/ReconciledModel/ReconciledColumn
  * types. In the stage architecture, there is no manifest-merge reconciliation;
- * instead, each stage (logical/physical) produces a DisplayDomain
+ * instead, each stage (logical/physical) produces a DisplaySubjectArea
  * directly from its data source.
  */
 
@@ -163,7 +163,7 @@ export interface DisplayRelationship {
    * Set (only ever `true`) on a logical relationship stored the way round its
    * keys contradict (#163, `keysContradictedRelationships`): it starts at a
    * model's whole key, so it was probably drawn backwards. Absent when the
-   * keys do not decide, and in a DisplayDomain from a core before it.
+   * keys do not decide, and in a DisplaySubjectArea from a core before it.
    */
   keysContradict?: true;
 }

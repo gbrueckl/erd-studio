@@ -2,7 +2,7 @@
  * Types for React Flow graph nodes and edges.
  *
  * These types define the data payloads for custom React Flow node and edge
- * components. The graph transformer converts DisplayDomain data into
+ * components. The graph transformer converts DisplaySubjectArea data into
  * these shapes.
  */
 
@@ -16,7 +16,7 @@ import type { PhysicalProvenance } from '@erd-studio/core';
 // Column display
 // ---------------------------------------------------------------------------
 
-/** Column data enriched with PK/FK/NK indicators for display in ModelNode. */
+/** Column data enriched with PK/FK/NK indicators for display in TableNode. */
 export interface ColumnDisplay {
   name: string;
   dataType: string;
@@ -38,17 +38,17 @@ export interface ColumnDisplay {
 }
 
 // ---------------------------------------------------------------------------
-// ModelNode
+// TableNode
 // ---------------------------------------------------------------------------
 
-/** Data payload for a ModelNode React Flow node. */
+/** Data payload for a TableNode React Flow node. */
 export type TableNodeData = {
   /** Model name (unique within a domain). */
   modelName: string;
   /**
    * Header label when it differs from `modelName`: the model's table name
    * (`alias`), qualified by schema when another model on the canvas would read
-   * the same. See `computeModelLabels`.
+   * the same. See `computeTableLabels`.
    */
   label?: string;
   /** The active design stage. */
@@ -122,7 +122,7 @@ export type TableNodeData = {
    * Index signature required by React Flow's Node generic.
    *
    * It also means an unknown or misspelled key type-checks, and a field written
-   * here but never destructured in ModelNode ships as dead payload — which is
+   * here but never destructured in TableNode ships as dead payload — which is
    * exactly how `hasRationale` and `modelRole` gained matching dead CSS. Add a
    * field here only together with the code that reads it.
    */

@@ -1,5 +1,5 @@
 /**
- * Model node size estimation (matches ModelNode CSS).
+ * Model node size estimation (matches TableNode CSS).
  *
  * The width and height a model node will render at, estimated from its
  * content, for code that needs node sizes before React Flow has measured the
@@ -14,7 +14,7 @@ import type { TableFlowNode, TableNodeData } from '../types/graph';
 import { COLLAPSED_COLUMN_LIMIT } from '../hooks/useColumnExpansion';
 
 // ---------------------------------------------------------------------------
-// Node size estimation (matches ModelNode CSS)
+// Node size estimation (matches TableNode CSS)
 // ---------------------------------------------------------------------------
 
 /** Default width — used as fallback by edgeDistribution.ts. */
@@ -59,7 +59,7 @@ export function estimateNodeHeight(rowCount: number, hasGrain: boolean): number 
 }
 
 /**
- * Number of rows ModelNode actually renders in its columns section.
+ * Number of rows TableNode actually renders in its columns section.
  *
  * Mirrors the rendering rules in `ModelNode.tsx`:
  *   - stub models show only PK/NK columns
@@ -100,7 +100,7 @@ export function resolveNodeDimensions(
   };
 }
 
-// --- Width estimation constants (approximates ModelNode CSS rendering) ---
+// --- Width estimation constants (approximates TableNode CSS rendering) ---
 
 /** Average pixel width per character in 12px system sans-serif (body text). */
 const CHAR_WIDTH_BODY = 7.5;

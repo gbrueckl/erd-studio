@@ -2,7 +2,7 @@
  * `toMermaid` — a diagram as a Mermaid `erDiagram`
  * (https://mermaid.js.org/syntax/entityRelationshipDiagram.html), one way.
  *
- * The output is a contract: the same `DisplayDomain` always gives the same
+ * The output is a contract: the same `DisplaySubjectArea` always gives the same
  * text, its second line (after `erDiagram`) is a version line, and every
  * mapping change is a deliberate golden update plus a CHANGELOG line. The
  * syntax used is the
@@ -160,7 +160,7 @@ function relationshipLines(link: ExportLink): string[] {
   ];
 }
 
-/** The diagram as a Mermaid `erDiagram`. Deterministic; never throws on a valid `DisplayDomain`, however minimal. */
+/** The diagram as a Mermaid `erDiagram`. Deterministic; never throws on a valid `DisplaySubjectArea`, however minimal. */
 export function toMermaid(domain: DisplaySubjectArea): string {
   const prepared = prepareSubjectArea(domain);
   const about = [prepared.layer && `layer ${oneLine(prepared.layer)}`, prepared.stage && `${oneLine(prepared.stage)} stage`].filter(Boolean);

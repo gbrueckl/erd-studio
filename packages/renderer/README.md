@@ -1,6 +1,6 @@
 # @erd-studio/renderer
 
-The entity-relationship diagram canvas from the [ERD Studio](https://github.com/liam-machine/erd-studio) VS Code extension, packaged for reuse. It is built on React Flow and renders a `DisplayDomain` from `@erd-studio/core`: model nodes with their columns and key badges, FK edges with cardinality, annotations, the detail panel and the legend.
+The entity-relationship diagram canvas from the [ERD Studio](https://github.com/liam-machine/erd-studio) VS Code extension, packaged for reuse. It is built on React Flow and renders a `DisplaySubjectArea` from `@erd-studio/core`: model nodes with their columns and key badges, FK edges with cardinality, annotations, the detail panel and the legend.
 
 Peer dependencies: `react` and `react-dom` 18.3+, `@xyflow/react` 12.4+.
 
@@ -8,8 +8,8 @@ Peer dependencies: `react` and `react-dom` 18.3+, `@xyflow/react` 12.4+.
 
 | Import | What it is for |
 |---|---|
-| `@erd-studio/renderer` | Showing a domain: the `ErdCanvas` viewer component (below), plus `transformDomain` (a `DisplayDomain` to React Flow nodes and edges), `pickHandleSides`, `repickHandleSides` / `nodeRect`, the diagram exporters re-exported from `@erd-studio/core` (below), and the display, domain and graph types (`DisplayDomain`, `ModelFlowNode`, `FkFlowEdge`, …). |
-| `@erd-studio/renderer/editor` | Everything above plus what a host needs to build a full editor around the canvas, as the extension's webview does: the store (below), the host adapter, `useCanvasGraph`, `CanvasBackdrop`, `canvasNodeTypes` / `canvasEdgeTypes`, the components (`ModelNode`, `FkEdge`, `AnnotationNode`, `AnnotationEdge`, `DetailPanel`, `Legend`, `KeyBadge`, `KeyBadgeGroup`, `DataTypeSelect`, `ColumnRowEditor`), the canvas hooks and the pure helpers. |
+| `@erd-studio/renderer` | Showing a domain: the `ErdCanvas` viewer component (below), plus `transformSubjectArea` (a `DisplaySubjectArea` to React Flow nodes and edges), `pickHandleSides`, `repickHandleSides` / `nodeRect`, the diagram exporters re-exported from `@erd-studio/core` (below), and the display, domain and graph types (`DisplaySubjectArea`, `ModelFlowNode`, `FkFlowEdge`, …). |
+| `@erd-studio/renderer/editor` | Everything above plus what a host needs to build a full editor around the canvas, as the extension's webview does: the store (below), the host adapter, `useCanvasGraph`, `CanvasBackdrop`, `canvasNodeTypes` / `canvasEdgeTypes`, the components (`TableNode`, `FkEdge`, `AnnotationNode`, `AnnotationEdge`, `DetailPanel`, `Legend`, `KeyBadge`, `KeyBadgeGroup`, `DataTypeSelect`, `ColumnRowEditor`), the canvas hooks and the pure helpers. |
 | `@erd-studio/renderer/store` | The canvas store on its own, with no React Flow runtime: `createCanvasSlice`, `createCanvasStore`, `CanvasStoreProvider`, `useEditorStore`, `useEditorStoreApi` and their types. |
 | `@erd-studio/renderer/sizing` | Model node size estimation (`NODE_WIDTH`, `estimateNodeWidth`, `estimateNodeHeight`, `countVisibleColumnRows`, `resolveNodeDimensions`), for layout code that needs node sizes before React Flow has measured them. No components. |
 | `@erd-studio/renderer/styles.css` | The stylesheet: every component's CSS in cascade order, then the theme tokens. It `@import`s `@xyflow/react/dist/style.css`, which your bundler resolves. |
@@ -18,14 +18,14 @@ All four JavaScript entry points share their modules, so a store or context crea
 
 ## Viewer: `ErdCanvas`
 
-`ErdCanvas` renders a `DisplayDomain` read-only, the way the extension shows a read-only domain: model nodes with their columns and key badges, FK edges, annotations, the minimap, the legend, and the detail panel a click on a model opens. It presents no editing affordances and posts nothing anywhere.
+`ErdCanvas` renders a `DisplaySubjectArea` read-only, the way the extension shows a read-only domain: model nodes with their columns and key badges, FK edges, annotations, the minimap, the legend, and the detail panel a click on a model opens. It presents no editing affordances and posts nothing anywhere.
 
 ```tsx
 import { useRef, useState } from 'react';
-import { ErdCanvas, type ErdCanvasHandle, type DisplayDomain } from '@erd-studio/renderer';
+import { ErdCanvas, type ErdCanvasHandle, type DisplaySubjectArea } from '@erd-studio/renderer';
 import '@erd-studio/renderer/styles.css';
 
-function Diagram({ domain }: { domain: DisplayDomain }) {
+function Diagram({ domain }: { domain: DisplaySubjectArea }) {
   const canvas = useRef<ErdCanvasHandle>(null);
   const [moved, setMoved] = useState(false);
   return (
@@ -51,12 +51,12 @@ Each `ErdCanvas` has its own store, so several can share a page.
 
 ## Exporting a diagram
 
-The `.` entry re-exports `@erd-studio/core`'s one-way exporters, so a page that shows a diagram with `ErdCanvas` can offer it as text without depending on core itself: `toMermaid`, `toDbml`, `exportDiagram`, `diagramExportFileName`, `DIAGRAM_EXPORT_FORMATS`, `DIAGRAM_EXPORT_FILE_EXTENSIONS` and the `DiagramExportFormat` type. They are pure functions with no React or DOM use; the same `DisplayDomain` gives the same text everywhere ERD Studio exports it.
+The `.` entry re-exports `@erd-studio/core`'s one-way exporters, so a page that shows a diagram with `ErdCanvas` can offer it as text without depending on core itself: `toMermaid`, `toDbml`, `exportDiagram`, `diagramExportFileName`, `DIAGRAM_EXPORT_FORMATS`, `DIAGRAM_EXPORT_FILE_EXTENSIONS` and the `DiagramExportFormat` type. They are pure functions with no React or DOM use; the same `DisplaySubjectArea` gives the same text everywhere ERD Studio exports it.
 
 ```ts
-import { exportDiagram, diagramExportFileName, type DisplayDomain } from '@erd-studio/renderer';
+import { exportDiagram, diagramExportFileName, type DisplaySubjectArea } from '@erd-studio/renderer';
 
-function downloadDbml(domain: DisplayDomain) {
+function downloadDbml(domain: DisplaySubjectArea) {
   const text = exportDiagram(domain, 'dbml'); // or 'mermaid'
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
   const link = Object.assign(document.createElement('a'), { href: url, download: diagramExportFileName(domain, 'dbml') });

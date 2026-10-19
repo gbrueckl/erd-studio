@@ -1,9 +1,9 @@
 /**
- * Graph transformer — converts a DisplayDomain into React Flow nodes and edges.
+ * Graph transformer — converts a DisplaySubjectArea into React Flow nodes and edges.
  *
  * This is a pure function with no side effects, making it easy to unit test.
  * It handles:
- *   1. Mapping each DisplayModel → ModelFlowNode (with position + columns)
+ *   1. Mapping each DisplayTable → ModelFlowNode (with position + columns)
  *   2. Mapping each DisplayRelationship → FkFlowEdge (with handle side selection)
  *   3. Selecting optimal handle sides based on relative node positions
  *   4. Injecting discrepancy data and ghost nodes/edges when a comparison report is active
@@ -67,7 +67,7 @@ const DEFAULT_POSITION = { x: 0, y: 0 };
 const hasMeta = (meta: Meta | undefined): meta is Meta => !!meta && Object.keys(meta).length > 0;
 
 /**
- * Convert a DisplayModel's columns to ColumnDisplay[].
+ * Convert a DisplayTable's columns to ColumnDisplay[].
  * Sort by key priority (PK → NK → FK → non-key).
  */
 function mapColumns(model: DisplayTable): ColumnDisplay[] {
@@ -136,7 +136,7 @@ export function pickHandleSides(
 // ---------------------------------------------------------------------------
 
 /**
- * Convert a DisplayDomain into React Flow nodes and edges.
+ * Convert a DisplaySubjectArea into React Flow nodes and edges.
  *
  * @param domain — the display domain from extension host
  * @param options — optional discrepancy report and ghost positions

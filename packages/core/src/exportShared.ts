@@ -1,11 +1,11 @@
 /**
  * The traversal both diagram exporters share (`exportDbml.ts`,
- * `exportMermaid.ts`): one tolerant pass over a `DisplayDomain` that settles
+ * `exportMermaid.ts`): one tolerant pass over a `DisplaySubjectArea` that settles
  * which models, columns and relationships an export describes, in what order,
  * and why anything was left out. The two formats differ only in syntax, so
  * they always describe the same relationships.
  *
- * The input may come from an older core (a cached `DisplayDomain`), so every
+ * The input may come from an older core (a cached `DisplaySubjectArea`), so every
  * optional field may be absent and the required ones may still be malformed:
  * a column without a text name, a model listed twice, a relationship to a
  * model that is not in the diagram. Nothing here throws on such input; what
@@ -356,7 +356,7 @@ export function backwardsNoteOf(link: ExportLink): string {
   );
 }
 
-/** Read a `DisplayDomain` into what an export describes. Never throws. */
+/** Read a `DisplaySubjectArea` into what an export describes. Never throws. */
 export function prepareSubjectArea(domain: DisplaySubjectArea): PreparedSubjectArea {
   const input = (domain && typeof domain === 'object' ? domain : {}) as unknown as Record<string, unknown>;
   const modelItems: TableItem[] = [];

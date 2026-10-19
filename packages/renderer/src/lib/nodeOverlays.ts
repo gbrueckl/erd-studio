@@ -1,6 +1,6 @@
 /**
  * Node/edge overlays — ephemeral per-node presentation state layered on top
- * of the graph produced by `transformDomain`:
+ * of the graph produced by `transformSubjectArea`:
  *
  *   - `dimmed`: search-miss or not-connected-to-selection dimming (F402)
  *   - `isExpanded` / `onToggleExpansion`: column expansion (F405)
@@ -8,7 +8,7 @@
  * `applyNodeOverlays` is a pure function that preserves object identity for
  * every node/edge whose overlay values did not change, so React Flow's
  * `adoptUserNodes` short-circuits on unchanged nodes and memoised
- * `ModelNode` / `FkEdge` components skip re-rendering. When nothing changed
+ * `TableNode` / `FkEdge` components skip re-rendering. When nothing changed
  * at all, the *same arrays* are returned so callers can skip `setNodes`.
  *
  * This lets selection / search / expansion changes avoid re-running the full

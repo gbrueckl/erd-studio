@@ -188,7 +188,7 @@ function iso(ms: number | null): string | null {
 
 /**
  * Build the services and load every input. Wiring follows extension.ts —
- * `LayerService` + `LogicalModelService` feed `DomainService` — with the
+ * `LayerService` + `TableLibraryService` feed `SubjectAreaService` — with the
  * manifest parsed in-process (spec D6).
  */
 export async function buildCliContext(opts: { project?: string; semanticDir: string; cwd?: string }): Promise<CliContext> {

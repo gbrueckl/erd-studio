@@ -148,7 +148,7 @@ function AcceptCell({ side, selectionKey, children, valueColor, hint }: AcceptCe
 }
 
 // ---------------------------------------------------------------------------
-// ModelRow
+// TableRow
 // ---------------------------------------------------------------------------
 
 interface SelectionSummary {
@@ -393,7 +393,7 @@ function RelationshipRow({ rel, sourceStage, targetStage }: { rel: RelationshipD
 }
 
 // ---------------------------------------------------------------------------
-// ModelRowGroup — section header + collapsible column rows
+// TableRowGroup — section header + collapsible column rows
 // ---------------------------------------------------------------------------
 
 interface TableRowGroupProps {

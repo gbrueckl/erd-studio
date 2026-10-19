@@ -1,5 +1,5 @@
 /**
- * ModelRationale — collapsible section for all design rationale fields.
+ * TableRationale — collapsible section for all design rationale fields.
  *
  * Renders a clickable "Design Rationale" heading that toggles the body.
  * Each field has its own add/edit/read lifecycle and sends independent

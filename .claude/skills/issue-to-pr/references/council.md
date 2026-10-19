@@ -149,7 +149,7 @@ You don't propose the fix. You attack it. Cite file:line for every claim.
 Attack it in this repo's known failure states, and say "survives" or "breaks" for each one
 that applies (skip only the ones that can't reach this code, and say why):
 - undo/redo: the toolbar `undo`, and native Cmd+Z through `flushUndoRedo` and
-  `editedModelPaths`;
+  `editedTablePaths`;
 - the physical stage and its message allowlist; two panels on the same domain; a
   `retainContextWhenHidden` panel that wakes up later;
 - watchers and `ownWrites`: our own save racing an external one; a git checkout that
@@ -158,7 +158,7 @@ that applies (skip only the ones that can't reach this code, and say why):
 - names differing only in case; Windows paths and separators; a nested dbt project;
 - old shapes: v4 domains, a flat vs layer-folder model library, relationships in the
   domain file vs the library, a YAML alias, a file written by 1.6.7;
-- the twins: the CLI, `mcp-server/`, and core's `loadDisplayDomain` (the Confluence app);
+- the twins: the CLI, `mcp-server/`, and core's `loadDisplaySubjectArea` (the Confluence app);
 - scale: a large library, or a slow manifest parse.
 
 ## Deliver (under 400 words)
@@ -205,13 +205,13 @@ Work through ALL of these lenses, and say "nothing found" for a lens rather than
    including tests, the webview, the CLI, the MCP server, and both packages.
 3. Twin implementations. This repo deliberately has several hosts for one behaviour: the
    canvas vs the `erd-studio` CLI vs `mcp-server/` vs `@erd-studio/core`'s
-   `loadDisplayDomain` (the Confluence app), and the logical vs physical stage. Does each
+   `loadDisplaySubjectArea` (the Confluence app), and the logical vs physical stage. Does each
    twin need the same fix, or does it deliberately differ?
 4. Contracts and versioned artefacts. Read `.claude/skills/issue-to-pr/references/ripple-map.md`
    and walk every row whose trigger matches. Report [convention] rows first: no test
    catches those.
 5. Old data and other versions. Files written by older or newer extension versions
-   (still read? still render?), a cached `DisplayDomain` from an older core, a user
+   (still read? still render?), a cached `DisplaySubjectArea` from an older core, a user
    mid-upgrade, a teammate on 1.6.7 who rewrites the same file.
 6. Tests that encode the old behaviour. Which existing tests or goldens will now fail,
    or worse, keep passing while asserting something that is no longer true?

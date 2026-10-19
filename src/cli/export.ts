@@ -1,10 +1,10 @@
 /**
  * `erd-studio export` — a domain's logical (design) diagram as Mermaid or DBML.
  *
- * The text comes from `exportDomainFile` (`src/services/diagramExport.ts`),
+ * The text comes from `exportSubjectAreaFile` (`src/services/diagramExport.ts`),
  * the one host entry point the palette command and the canvas also call, so
  * the CLI, the extension and the Confluence app print the same bytes. The
- * dbt key evidence is passed the way `computeDomainDiff` passes it, so a link
+ * dbt key evidence is passed the way `computeSubjectAreaDiff` passes it, so a link
  * stored twice is exported from the copy the canvas draws.
  *
  * Read-only like every subcommand: the text goes to stdout and nothing is

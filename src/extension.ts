@@ -1138,7 +1138,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const semanticChangedSubscription = fileWatcherService.onSemanticFileChanged(({ uri, created }) => {
     // A domain file ERD Studio did not write appeared: an AI assistant, a hand
     // edit or a git pull. createDomain / renameDomain write outside the own-write
-    // tracker, so they mark their paths in domainsCreatedHere instead.
+    // tracker, so they mark their paths in subjectAreasCreatedHere instead.
     if (created && !subjectAreasCreatedHere.delete(uri.fsPath)) { telemetry.feature('domainCreatedExternal'); }
     // A canvas showing "deleted or renamed" whose file is back redraws (#161).
     editorProvider.syncSubjectAreaFilePresence();
@@ -1844,9 +1844,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (newSlug === oldDomainName) { return; }
 
         // Read and update domain name in the unified file.
-        // Validate via DomainService, but rewrite the RAW document so v5 model
+        // Validate via SubjectAreaService, but rewrite the RAW document so v5 model
         // name references and unknown keys are preserved — re-serialising the
-        // resolved UnifiedDomain would inline model bodies into a v5 file.
+        // resolved UnifiedSubjectArea would inline model bodies into a v5 file.
         let renamedContent: string;
         try {
           subjectAreaService.getSubjectArea(oldFilePath);

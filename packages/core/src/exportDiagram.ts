@@ -3,10 +3,10 @@
  * DBML. ERD Studio's own files (the model library and the domain JSON) stay
  * the only storage; nothing reads these exports back.
  *
- * Pure functions over a `DisplayDomain`, with no dependency beyond core
+ * Pure functions over a `DisplaySubjectArea`, with no dependency beyond core
  * itself, so every host — the extension, its CLI and any page that renders a
  * diagram with `@erd-studio/renderer` — produces the same text. Hosts pass
- * the logical (design) stage; the functions accept any `DisplayDomain`,
+ * the logical (design) stage; the functions accept any `DisplaySubjectArea`,
  * including one built by an older core, and never throw on it.
  *
  * The mapping of each format is documented at the top of `exportMermaid.ts`

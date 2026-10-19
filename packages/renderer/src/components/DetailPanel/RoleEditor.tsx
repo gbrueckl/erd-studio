@@ -1,7 +1,7 @@
 /**
  * RoleEditor — always-visible dropdown for setting a model's role.
  *
- * Displays a native <select> element with all ModelRole options.
+ * Displays a native <select> element with all TableRole options.
  * When "No role" is selected, the modelRole key is removed from JSON.
  */
 

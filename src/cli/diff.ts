@@ -1,7 +1,7 @@
 /**
  * `erd-studio diff` — the canvas's "Compare to Physical", headless.
  *
- * Each domain goes through `computeDomainDiff(…, 'logical')` — the one
+ * Each domain goes through `computeSubjectAreaDiff(…, 'logical')` — the one
  * orchestration the canvas's toggle also calls — and then through
  * `buildSyncPlan` with physical as the ground truth for every item, exactly
  * as "All Physical → Generate sync plan" would. The `fixes` below are a
@@ -479,7 +479,7 @@ export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean):
   try {
     raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
   } catch {
-    raw = undefined; // getDomain below produces the precise error
+    raw = undefined; // getSubjectArea below produces the precise error
   }
   const format = raw === undefined ? null : detectSubjectAreaFormat(raw);
 
@@ -487,7 +487,7 @@ export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean):
   // the v5 load path — the migration command is what fixes it, whatever else
   // that load might have tripped over (an unknown layer, say). A file with no
   // numeric schemaVersion also detects as v4, but it is not a v4 domain —
-  // getDomain reports that one precisely.
+  // getSubjectArea reports that one precisely.
   const obj = (raw ?? {}) as { domain?: unknown; layer?: unknown; schemaVersion?: unknown };
   if (format === 'v4' && typeof obj.schemaVersion === 'number') {
     return {

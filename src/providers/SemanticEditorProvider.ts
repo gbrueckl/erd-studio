@@ -4,7 +4,7 @@
  * Opens domain files (`{semanticDir}/{layer}/{domain}.json`, v5 central model
  * store) in a React webview instead of the default JSON editor. Model bodies
  * live in `{semanticDir}/logical-models/{name}.yml` and are resolved through
- * LogicalModelService; the domain file holds model names, relationships and
+ * TableLibraryService; the domain file holds model names, relationships and
  * the shared viewConfig (positions, annotations).
  *
  * Message protocol (src/types/messages.ts — every type there has a live
@@ -26,10 +26,10 @@
  *                         feedbackAnalysis, feedbackSubmitted, error
  *
  * Writes and save semantics:
- *   Every domain-file write goes through `applyDomainEdit` — the ONLY place a
+ *   Every domain-file write goes through `applySubjectAreaEdit` — the ONLY place a
  *   domain WorkspaceEdit is built (parse → mutate → replace → applyEdit →
  *   document.save() → refresh). logical-models/*.yml changes ride in the same
- *   WorkspaceEdit (`applyModelEdit` / `addModelFileEdits`) so a model edit and
+ *   WorkspaceEdit (`applyTableEdit` / `addTableFileEdits`) so a model edit and
  *   its domain change are atomic and one undo step. Edits are saved
  *   immediately after applying — the custom editor never sits dirty. Multi-
  *   select messages (removeModels, removeRelationships, removeAnnotations,
@@ -50,7 +50,7 @@
  *     only the initial `ready` load persists auto-computed positions.
  *
  * Update loop prevention:
- *   `pendingUpdates` is held for the whole applyDomainEdit / undo / redo so the
+ *   `pendingUpdates` is held for the whole applySubjectAreaEdit / undo / redo so the
  *   onDidChangeTextDocument listener does not save and re-send on its own.
  *   External edits (guard not held) are saved if dirty and re-sent. VS Code's
  *   own undo/redo (Cmd+Z on the canvas) is flushed exactly as the toolbar's is.
@@ -218,7 +218,7 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 /**
  * The logical-models/ sub-folder new models created from a domain go in: the
  * domain file's layer directory (`{semanticDir}/{layer}/{domain}.json`).
- * `LogicalModelService` ignores a name that is not layer-shaped, so a domain
+ * `TableLibraryService` ignores a name that is not layer-shaped, so a domain
  * opened from anywhere else simply creates its models at the top level.
  */
 export function tableFolderForSubjectArea(domainFilePath: string): string {
@@ -333,9 +333,9 @@ function sameTableName(name: string, domainPath: string): string {
 }
 
 /**
- * Thrown by an `applyDomainEdit` mutator to abort without an edit. The mutator
+ * Thrown by an `applySubjectAreaEdit` mutator to abort without an edit. The mutator
  * has already reported the reason to the webview (or decided the request is a
- * silent no-op), so `applyDomainEdit` swallows it and returns `false`.
+ * silent no-op), so `applySubjectAreaEdit` swallows it and returns `false`.
  */
 class EditAborted extends Error {
   constructor() {
@@ -579,7 +579,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * Load the warehouse catalog, if a reader was injected and an artifact exists.
    *
    * Always resolves — `CatalogService.loadCatalog()` degrades to undefined on
-   * every failure, and `buildPhysicalDomain()` treats undefined as "no catalog".
+   * every failure, and `buildPhysicalSubjectArea()` treats undefined as "no catalog".
    */
   private async loadCatalog(): Promise<CatalogData | undefined> {
     return this.catalogService?.loadCatalog(this.workspaceRoot);
@@ -606,7 +606,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
   /**
    * Track all open webview panels by document URI.
-   * Used by refreshAllOpenDomains() to update all editors when manifest changes.
+   * Used by refreshAllOpenSubjectAreas() to update all editors when manifest changes.
    * activeStage tracks which stage the webview is currently displaying.
    */
   private readonly openPanels = new Map<
@@ -1767,7 +1767,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * Apply a mutation to a model stored in logical-models/{name}.yml (v5 path).
    * Reads the model, applies the mutator callback, and writes it back through
    * the same WorkspaceEdit as the domain file so both files form one undo step
-   * (see `applyDomainEdit` / `addModelFileEdits`). Nothing touches disk until
+   * (see `applySubjectAreaEdit` / `addTableFileEdits`). Nothing touches disk until
    * `vscode.workspace.applyEdit` succeeds.
    *
    * For handlers that also need to modify the domain file (e.g., cascade column rename
@@ -2007,7 +2007,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     domainMutator?: (section: Record<string, unknown>, parsed: Record<string, unknown>) => void,
     /** Other library models changed alongside (relationships pointing at this one). */
     alsoSave: readonly SemanticTable[] = [],
-    /** Other diagrams' own relationship copies to rewrite in the same edit (see applyDomainEdit). */
+    /** Other diagrams' own relationship copies to rewrite in the same edit (see applySubjectAreaEdit). */
     otherDomains?: (parsed: Record<string, unknown>) => boolean,
   ): Promise<boolean> {
     const model = this.tableLibraryService.getTable(modelName);
@@ -2105,7 +2105,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       ...(ops?.save ?? []).flatMap(({ model, fromName }) => (fromName ? [model.name, fromName] : [model.name])),
     ];
     for (const name of names) {
-      // The file addModelFileEdits would replace, read from or delete.
+      // The file addTableFileEdits would replace, read from or delete.
       if (!this.tableLibraryService.tableExists(name)) continue;
       const filePath = this.tableLibraryService.tablePath(name);
       if (dirtyFiles([filePath]).length > 0) {
@@ -2117,11 +2117,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
   /**
    * After an undo/redo the in-memory yml documents we edited via WorkspaceEdit
-   * are reverted but dirty; DomainService reads the library from disk, so
+   * are reverted but dirty; SubjectAreaService reads the library from disk, so
    * flush them before re-rendering.
    *
    * ONLY documents this provider itself wrote through a WorkspaceEdit for this
-   * domain are saved (`editedModelPaths`). A logical-models/*.yml the user has
+   * domain are saved (`editedTablePaths`). A logical-models/*.yml the user has
    * open in another tab with unsaved hand edits is never force-saved — those
    * bytes are theirs to keep or discard.
    */
@@ -2339,7 +2339,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       }
       // Our own writes are suppressed at the watcher, so the refreshes it
       // used to drive are issued here instead: this panel via sendDomainData,
-      // the sidebar/model library via onDidWriteDomain, and any OTHER open
+      // the sidebar/model library via onDidWriteSubjectArea, and any OTHER open
       // panel that shows a model we just wrote.
       if (refreshWebview && webview) {
         await this.sendSubjectAreaData(document, webview);
@@ -2416,7 +2416,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
   /**
    * The open domain document, parsed for an edit or a handler that reads it
-   * (#151). Core's `parseDomainJson` reads it — the load path's parser — so a
+   * (#151). Core's `parseSubjectAreaJson` reads it — the load path's parser — so a
    * document that is empty, not JSON, or holds git conflict markers (written
    * while the canvas was open, before its refresh) refuses with the load
    * path's plain message ("…has unresolved git merge conflicts (first at
@@ -2469,7 +2469,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   /**
-   * Convert a SemanticDomain to a DisplayDomain for the webview.
+   * Convert a SemanticSubjectArea to a DisplaySubjectArea for the webview.
    * viewConfig is passed separately since it lives at the unified domain root level.
    */
   private buildDisplaySubjectArea(
@@ -2824,7 +2824,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * Refresh all open domain editors that reference a specific model.
    * Called when a logical-models/*.yml file changes externally (e.g., edited
    * from another domain, or modified by an AI tool directly), and by
-   * `applyDomainEdit` for the OTHER open panels after this provider wrote a
+   * `applySubjectAreaEdit` for the OTHER open panels after this provider wrote a
    * model file itself (its own write is suppressed at the watcher, so the
    * cross-panel refresh has to be driven from here).
    */
@@ -2834,7 +2834,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         continue;
       }
       // The panel that made the edit has already been refreshed by
-      // applyDomainEdit — re-sending would clear the user's selection.
+      // applySubjectAreaEdit — re-sending would clear the user's selection.
       if (exceptPanelKey !== undefined && panelKey === exceptPanelKey) {
         continue;
       }
@@ -3488,7 +3488,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * Write one relationship edit (#133), or several as one (#163's Turn
    * Round, folded by `planRelationshipWrites`): `planRelationshipWrite` decides it
    * from this domain file's relationships and the model library, inside one
-   * `applyDomainEdit` — the domain file and every model file it changes are
+   * `applySubjectAreaEdit` — the domain file and every model file it changes are
    * one WorkspaceEdit and one undo step. In a project that keeps
    * relationships in the model library (#126, v5 only) the link is stored
    * once in its many side's file and any copy in this domain file is folded
@@ -3509,7 +3509,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     const models = v5 ? this.tableLibraryService.listTables() : [];
     const home = v5 && this.relationshipsInLibrary(models) ? 'library' : 'domain';
     const dbt = await this.loadDbtKeyIndex();
-    // Filled by the mutator, which applyDomainEdit runs before it reads modelFiles.
+    // Filled by the mutator, which applySubjectAreaEdit runs before it reads modelFiles.
     const save: Array<{ model: SemanticTable }> = [];
     let grouped: { count: number; compositeKey: string } | undefined;
     let audit: RelationshipAudit | undefined;
@@ -3656,7 +3656,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             stage,
             // fromName carries the OLD file's YAML document (comments, key
             // order, unknown keys) across to the new path — see
-            // LogicalModelService.serializeModel.
+            // TableLibraryService.serializeModel.
             modelFiles: {
               save: [
                 { model: renamedModel, fromName: payload.oldName },
@@ -3738,7 +3738,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * Batch-remove one or more models in a single document edit.
    * Cascades all relationships referencing any listed model and prunes the
    * shared viewConfig (their stored positions, plus any annotation whose
-   * `linkedModel` pointed at them) via `pruneViewConfigForRemovedModels`, the
+   * `linkedModel` pointed at them) via `pruneViewConfigForRemovedTables`, the
    * same helper in both the V5 and V4 arms. Produces one WorkspaceEdit (one
    * undo step, one save) regardless of how many models are deleted.
    *
@@ -4174,7 +4174,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
         // Seed the logical model from yml (primary) or the manifest (fallback)
         // when it is not in the library yet — the same seeding Draw from dbt
-        // uses (`seedModelFromDbt`). The file is NOT written here — it rides
+        // uses (`seedTableFromDbt`). The file is NOT written here — it rides
         // in the same WorkspaceEdit as the domain change below, so a rejected
         // edit leaves no orphan yml behind and one undo removes both.
         const ymlData = await this.ymlParserService.loadYmlData(this.workspaceRoot, undefined);
@@ -4329,7 +4329,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * of Add Existing Model. Asks which dbt models with the Draw from dbt picker
    * (models already in the domain left out), seeds the ones the library lacks
    * from dbt's yml / manifest and adds names, relationships and new library
-   * files in ONE `applyDomainEdit` — one save, one refresh, one undo step.
+   * files in ONE `applySubjectAreaEdit` — one save, one refresh, one undo step.
    *
    * An empty domain is left with no stored position for any model, so it is
    * a fresh layout: the refresh carries `autoLayout: true` and the webview
@@ -4401,10 +4401,10 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * The Add Existing Model dialog with several rows ticked (#160): the same
    * batch write as "Add models from dbt" — library models referenced, dbt-only
    * ones seeded into the library, relationships between them and the domain
-   * added — in one `applyDomainEdit`, so one undo removes them all. The names
+   * added — in one `applySubjectAreaEdit`, so one undo removes them all. The names
    * are the user's explicit pick, so the draft's first-diagram cap does not
    * apply; the payload validator already holds them to
-   * {@link ADD_EXISTING_MODELS_LIMIT}. v5 only, like the dbt batch.
+   * {@link ADD_EXISTING_TABLES_LIMIT}. v5 only, like the dbt batch.
    */
   private async handleAddExistingModels(
     document: vscode.TextDocument,
@@ -4688,7 +4688,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
   /**
    * Set or clear a model's `alias` — the warehouse table name. It lives only
-   * in the model file (v5), so it goes through applyModelEdit and shares that
+   * in the model file (v5), so it goes through applyTableEdit and shares that
    * path's single undo step; a v4 domain has no model files to hold it.
    */
   private async handleUpdateModelAlias(

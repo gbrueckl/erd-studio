@@ -317,7 +317,7 @@ function EditorCanvas() {
   );
 
   // Handle long-press column drag to create relationships.
-  // Listens for custom events dispatched by ColumnRow in ModelNode.
+  // Listens for custom events dispatched by ColumnRow in TableNode.
   // Disabled in read-only mode (physical stage).
   useEffect(() => {
     if (domain?.readOnly) return;

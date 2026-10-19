@@ -395,7 +395,7 @@ export interface StageDataV5 {
  * Unified domain file format (v5).
  *
  * Same as v4 but `logical.models` contains model name strings instead of
- * inline SemanticModel objects. Models are stored centrally in
+ * inline SemanticTable objects. Models are stored centrally in
  * .erd-studio/logical-models/{name}.yml.
  */
 export interface UnifiedSubjectAreaV5 {
@@ -405,7 +405,7 @@ export interface UnifiedSubjectAreaV5 {
   description: string;
   modelFolder?: string;
   logical: StageDataV5;
-  /** See UnifiedDomain.stubColumns. */
+  /** See UnifiedSubjectArea.stubColumns. */
   stubColumns?: string[];
   viewConfig: ViewConfig;
 }
@@ -431,7 +431,7 @@ export interface RawSubjectAreaFile {
  * On-disk format of a raw (JSON.parse'd) domain document.
  *
  * - `v5`     — `logical.models` is an array of model name strings (central model store).
- * - `v4`     — `logical.models` is an array of inline SemanticModel objects (deprecated,
+ * - `v4`     — `logical.models` is an array of inline SemanticTable objects (deprecated,
  *              migratable via "ERD Studio: Migrate Subject Areas to the Central Table Library").
  * - `hybrid` — the document contradicts itself: `schemaVersion >= 5` with inline model
  *              objects, a mix of strings and objects, or entries that are neither.
@@ -444,8 +444,8 @@ export type SubjectAreaFormat = 'v4' | 'v5' | 'hybrid' | 'legacy';
 /**
  * Single source of truth for domain file format detection.
  *
- * Every reader/writer of domain JSON (DomainService, SemanticEditorProvider,
- * ModelLibraryTreeProvider, MigrationService) must use this so that a file is
+ * Every reader/writer of domain JSON (SubjectAreaService, SemanticEditorProvider,
+ * TableLibraryTreeProvider, MigrationService) must use this so that a file is
  * never read as one format and written as another.
  *
  * Rules (in order):
@@ -557,7 +557,7 @@ export function isSubjectAreaV5(raw: RawSubjectAreaFile): boolean {
 // Summary (lightweight, for tree view listing)
 // ---------------------------------------------------------------------------
 
-/** Lightweight summary returned by listDomains — avoids parsing full JSON. */
+/** Lightweight summary returned by listSubjectAreas — avoids parsing full JSON. */
 export interface SubjectAreaSummary {
   /** Domain slug (filename without extension). */
   domain: string;

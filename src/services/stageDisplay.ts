@@ -1,11 +1,11 @@
 /**
- * Logical stage → DisplayDomain, the pure core.
+ * Logical stage → DisplaySubjectArea, the pure core.
  *
- * A thin wrapper over `@erd-studio/core`'s `toDisplayDomain` — the one
+ * A thin wrapper over `@erd-studio/core`'s `toDisplaySubjectArea` — the one
  * implementation the canvas (`SemanticEditorProvider.buildDisplayDomain`) also
  * uses — without the canvas-only extras (templates, add-model pickers, layer
  * config). The discrepancy comparison only reads the core, so
- * `computeDomainDiff` (`stageDiff.ts`), shared by the canvas and the
+ * `computeSubjectAreaDiff` (`stageDiff.ts`), shared by the canvas and the
  * `erd-studio` CLI, builds the logical side here and both see exactly the same
  * domain.
  *
@@ -21,7 +21,7 @@ import type { SemanticSubjectArea, ViewConfig } from '../types/semantic';
 import type { YmlData } from '../types/ymlData';
 
 /**
- * Convert a logical `SemanticDomain` to a `DisplayDomain`.
+ * Convert a logical `SemanticSubjectArea` to a `DisplaySubjectArea`.
  *
  * Key flags are coerced to booleans (`isPrimaryKey === true`), and a column is
  * a foreign key when it says so OR when it is the foreign-key end of one of the

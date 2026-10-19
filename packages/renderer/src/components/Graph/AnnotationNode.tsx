@@ -24,7 +24,7 @@ import './AnnotationNode.css';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Invisible handles for edge routing (same pattern as ModelNode). */
+/** Invisible handles for edge routing (same pattern as TableNode). */
 const HANDLE_STYLE: CSSProperties = {
   width: 1,
   height: 1,

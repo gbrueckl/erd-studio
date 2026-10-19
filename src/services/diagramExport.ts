@@ -3,8 +3,8 @@
  * palette command, the canvas and the `erd-studio export` CLI share.
  *
  * The domain is read exactly as the canvas's logical stage reads it
- * (`DomainService.getDomain` → `buildLogicalDisplayDomain`, the same core
- * `computeDomainDiff` uses), so library relationships are merged and a link
+ * (`SubjectAreaService.getDomain` → `buildLogicalDisplaySubjectArea`, the same core
+ * `computeSubjectAreaDiff` uses), so library relationships are merged and a link
  * stored twice is drawn from the same winner. The text itself comes from
  * `@erd-studio/core`'s `exportDiagram`, which every host shares.
  *
@@ -31,10 +31,10 @@ export interface SubjectAreaExport {
 
 export interface ExportSubjectAreaFileOptions {
   /**
-   * dbt's key evidence (#133 L1), as the canvas and `computeDomainDiff` pass
+   * dbt's key evidence (#133 L1), as the canvas and `computeSubjectAreaDiff` pass
    * it: with it, a link stored twice with no key flagged is exported from the
    * copy the canvas draws. Optional — without it the read is the same one
-   * `getDomain` makes for any caller that does not pass it.
+   * `getSubjectArea` makes for any caller that does not pass it.
    */
   dbtKeyIndex?: DbtKeyIndex;
 }
@@ -42,7 +42,7 @@ export interface ExportSubjectAreaFileOptions {
 /**
  * The logical (design) stage of the domain at `domainPath` in `format`.
  *
- * Throws what `DomainService.getDomain` throws (`DomainFileError`, an
+ * Throws what `SubjectAreaService.getDomain` throws (`SubjectAreaFileError`, an
  * unsupported-format or unknown-layer error), and an `Error` for a format
  * that is not in `DIAGRAM_EXPORT_FORMATS` — before reading anything.
  */

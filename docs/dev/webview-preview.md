@@ -85,7 +85,7 @@ The built `dist/webview.js` is a self-contained IIFE bundle (React, React Flow, 
    ```
    Then navigate to `http://localhost:8765/dev-preview.html`
 
-4. **Add test models/relationships** to the `domainLoaded` payload in `dev-preview.html` to render sample nodes and edges. The graph transformer converts `DisplayDomain` data into React Flow nodes/edges automatically.
+4. **Add test models/relationships** to the `domainLoaded` payload in `dev-preview.html` to render sample nodes and edges. The graph transformer converts `DisplaySubjectArea` data into React Flow nodes/edges automatically.
 
 5. **Use Chrome browser automation** (claude-in-chrome) to take screenshots and verify visual output.
 

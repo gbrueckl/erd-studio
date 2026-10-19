@@ -4,7 +4,7 @@
  * v4 → v5 migration:
  *   - Extracts inline model objects from domain files
  *   - Creates YAML model files in .erd-studio/logical-models/
- *   - Converts domain logical.models from SemanticModel[] to string[]
+ *   - Converts domain logical.models from SemanticTable[] to string[]
  *   - Bumps schemaVersion to 5
  *
  * Conflict resolution: when the same model exists in multiple v4 domains
@@ -39,7 +39,7 @@ interface V4SubjectAreaFile {
 }
 
 /**
- * Inline SemanticModel objects from a raw domain document, whether they live
+ * Inline SemanticTable objects from a raw domain document, whether they live
  * under `logical.models` (v4 / hybrid) or a legacy top-level `models` array.
  * String entries (v5 name references) are ignored.
  */
@@ -93,7 +93,7 @@ function safeLstat(p: string): fs.Stats | null {
  * Every ERD Studio domain file has one, of every vintage, so this is what
  * separates a domain from an unrelated `.json` a user happens to keep in a
  * layer directory. Migration must never restructure a file that fails this
- * test, no matter what `detectDomainFormat` would call it.
+ * test, no matter what `detectSubjectAreaFormat` would call it.
  */
 export function isSubjectAreaDocument(parsed: unknown): boolean {
   return (
@@ -207,7 +207,7 @@ export class MigrationService {
    * - `hybrid` files (schemaVersion 5 with inline objects, or mixed entries)
    * - `legacy` pre-v4 files (schemaVersion < 4 or top-level `models`)
    *
-   * Uses the shared {@link detectSubjectAreaFormat} so this agrees with DomainService,
+   * Uses the shared {@link detectSubjectAreaFormat} so this agrees with SubjectAreaService,
    * but only for files that {@link isSubjectAreaDocument} recognises as domain files
    * (a numeric `schemaVersion`) — an unrelated `.json` a user keeps in a layer
    * directory is never a migration candidate, however it happens to be shaped.

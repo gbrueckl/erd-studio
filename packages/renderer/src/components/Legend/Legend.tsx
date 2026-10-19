@@ -4,7 +4,7 @@
  * Shows stage colours, relationship types, cardinality notation, the node
  * header badges (schema abbreviation and physical provenance chips) and the
  * column badges. The badge vocabulary is imported from lib/badgeLabels so the
- * legend cannot fall out of step with what ModelNode actually renders. Positioned in the bottom-left corner, collapsible
+ * legend cannot fall out of step with what TableNode actually renders. Positioned in the bottom-left corner, collapsible
  * to a `?` icon button.
  */
 

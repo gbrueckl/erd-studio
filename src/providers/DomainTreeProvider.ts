@@ -1,5 +1,5 @@
 /**
- * DomainTreeProvider — VS Code TreeDataProvider for the sidebar.
+ * SubjectAreaTreeProvider — VS Code TreeDataProvider for the sidebar.
  *
  * Displays semantic domains grouped by layer (bronze, silver, gold).
  * Each domain shows a badge with model count (from the logical stage).
@@ -78,7 +78,7 @@ export class SubjectAreaTreeProvider
    * Parsed-domain cache keyed by file path. Resolving a v5 domain means one
    * YAML parse per referenced model, so without this every tree refresh cost
    * O(domains x models) reads. Entries are validated by mtime + size so an
-   * edit is never served stale; invalidateDomain() drops entries eagerly when
+   * edit is never served stale; invalidateSubjectArea() drops entries eagerly when
    * the file watcher reports a change.
    */
   private readonly summaryCache = new Map<string, CachedSubjectAreaSummary>();

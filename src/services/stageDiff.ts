@@ -1,5 +1,5 @@
 /**
- * computeDomainDiff — THE cross-stage comparison of one domain file.
+ * computeSubjectAreaDiff — THE cross-stage comparison of one domain file.
  *
  * The canvas's "Compare to …" toggle (`SemanticEditorProvider.handleToggleDiscrepancy`)
  * and the `erd-studio diff` CLI both call this, so the two can only disagree
@@ -21,7 +21,7 @@ import { buildLogicalDisplaySubjectArea, dbtKeyIndexOf } from './stageDisplay';
 
 /** Everything the comparison reads besides the domain file itself. */
 export interface SubjectAreaDiffInputs {
-  /** Must have its LogicalModelService set, or v5 model names do not resolve. */
+  /** Must have its TableLibraryService set, or v5 model names do not resolve. */
   subjectAreaService: SubjectAreaService;
   ymlData: YmlData;
   manifest: ManifestData;
@@ -44,7 +44,7 @@ export function otherStage(stage: Stage): Stage {
 }
 
 /**
- * Build one stage's `DisplayDomain` from an already-read unified domain.
+ * Build one stage's `DisplaySubjectArea` from an already-read unified domain.
  * Physical is derived from the dbt project; logical is the pure core of the
  * canvas's logical payload (no templates or pickers — the comparison never
  * reads them).
@@ -66,7 +66,7 @@ export function buildStageForDiff(
  * Read `domainPath` once, build the source and target stages, and compare
  * them with the domain's `stubColumns` suppression.
  *
- * Throws what `DomainService.getDomain` throws (`DomainFileError`, an
+ * Throws what `SubjectAreaService.getDomain` throws (`SubjectAreaFileError`, an
  * unsupported-format or unknown-layer error) — the caller decides how to
  * report it.
  *

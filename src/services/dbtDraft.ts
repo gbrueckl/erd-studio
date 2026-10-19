@@ -10,7 +10,7 @@
  *
  * Pure: no `vscode`, no file access. Callers pass the parsed yml / manifest
  * data in and write the results through their own write path (the editor's
- * `applyDomainEdit`, or a `wx` create for a new domain file). This module is
+ * `applySubjectAreaEdit`, or a `wx` create for a new domain file). This module is
  * reachable from `dist/cli.js`, so it must never import `vscode`.
  */
 
@@ -201,7 +201,7 @@ function folderUnder(rel: string, modelPaths: readonly string[]): string | null 
  * models (yml spelling first), minus the ones dbt has disabled. Two more are
  * left out:
  *  - a model with no columns to copy (only a `.sql` file, or a yml entry with
- *    no `columns:`), judged from the same source `seedModelFromDbt` copies —
+ *    no `columns:`), judged from the same source `seedTableFromDbt` copies —
  *    it would only draw an empty box;
  *  - a manifest model from an installed dbt package. Package files sit under
  *    `dbt_packages/`, which the yml walker skips, and their `original_file_path`
@@ -231,7 +231,7 @@ export function listDraftModels(input: DraftSourceInput): DraftModelEntry[] {
     const yml = ymlData?.models.get(name);
     const man = manifestByKey.get(key);
     if (!yml && man && rootProjects.size > 0 && !rootProjects.has(man.projectName)) { return; }
-    // Same source seedModelFromDbt copies: the yml when there is one, else the manifest.
+    // Same source seedTableFromDbt copies: the yml when there is one, else the manifest.
     const columnCount = yml ? yml.columns.length : man?.columns.length ?? 0;
     if (columnCount === 0) { return; }
 
@@ -437,7 +437,7 @@ export function customDraftScope(modelNames: readonly string[], models: readonly
 
 /**
  * A logical model copied from dbt: the schema yml first (as
- * `LogicalModelService.ymlToSemanticModel` does), with the manifest filling a
+ * `TableLibraryService.ymlToSemanticModel` does), with the manifest filling a
  * missing description and the schema; the manifest alone when no yml declares
  * the model. Undefined when neither has it.
  *
@@ -693,7 +693,7 @@ export function serializeDraftSubjectAreaDocument(doc: DraftSubjectAreaDocument)
   return JSON.stringify(doc, null, 2) + '\n';
 }
 
-/** Domain slug rule — the one `validateDomainSlug` in extension.ts enforces. */
+/** Domain slug rule — the one `validateSubjectAreaSlug` in extension.ts enforces. */
 export const SUBJECT_AREA_SLUG_PATTERN = /^[a-z][a-z0-9_-]*$/;
 const SUBJECT_AREA_SLUG_MAX = 64;
 

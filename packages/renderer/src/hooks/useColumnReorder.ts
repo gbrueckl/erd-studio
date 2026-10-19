@@ -4,7 +4,7 @@
  * Uses imperative mouse events (matching the existing useLongPressDrag pattern).
  * Returns drag state, handle props for each row, and the optimistic display order.
  *
- * Works in both DetailPanel (ColumnRowEditor rows) and ModelNode (ColumnRow rows)
+ * Works in both DetailPanel (ColumnRowEditor rows) and TableNode (ColumnRow rows)
  * by accepting configurable CSS selectors for the container and row elements.
  */
 

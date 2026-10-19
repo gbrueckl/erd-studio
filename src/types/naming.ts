@@ -7,7 +7,7 @@
  *
  * It is deliberately NOT applied to names discovered in the user's dbt project
  * ("Add Existing Model"), where dbt permits uppercase and digit-leading names.
- * Those go through `validateModelNameSafety`, which only rules out anything
+ * Those go through `validateTableNameSafety`, which only rules out anything
  * unsafe as a file name under `.erd-studio/logical-models/`.
  */
 

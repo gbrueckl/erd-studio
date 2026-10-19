@@ -2,7 +2,7 @@
  * Types for dbt schema YAML data as parsed by YmlParserService.
  *
  * These types intentionally mirror the shape of ManifestData so that
- * downstream consumers (buildPhysicalDomain, derivePhysicalRelationships)
+ * downstream consumers (buildPhysicalSubjectArea, derivePhysicalRelationships)
  * can work with either source with minimal changes.
  *
  * Unlike ManifestData (which comes from the compiled manifest.json),

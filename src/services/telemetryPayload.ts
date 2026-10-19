@@ -211,7 +211,7 @@ export const ERROR_CODES = [
   'migrationFailed',
   'other',
   // Why a logical-models file failed (#110), recorded beside `modelFileParse`,
-  // which stays the total. One per ModelFileErrorKind, via modelFileErrorCode().
+  // which stays the total. One per TableFileErrorKind, via tableFileErrorCode().
   'modelFileRead',
   'modelFileYamlIndent',
   'modelFileYamlScalar',
@@ -249,7 +249,7 @@ export const ERROR_CODES = [
   // erdStudio.projectPath names a folder with no dbt_project.yml.
   'projectPathInvalid',
   // Why a canvas failed to load, recorded beside `domainLoad`, which stays the
-  // total. One per DomainLoadFailure, via domainLoadErrorCode().
+  // total. One per SubjectAreaLoadFailure, via subjectAreaLoadErrorCode().
   'domainLoadNotDomain',
   'domainLoadMissing',
   'domainLoadUnreadable',

@@ -1,5 +1,5 @@
 /**
- * ModelNode — custom React Flow node for displaying a semantic model card.
+ * TableNode — custom React Flow node for displaying a semantic model card.
  *
  * Shows model name with a layer badge, a list of columns with PK/FK
  * indicators and data types, and a footer with the total column count.
@@ -541,7 +541,7 @@ function ColumnRow({ column, modelName, readOnly, existingColumnNames, discrepan
 }
 
 // ---------------------------------------------------------------------------
-// ModelNode Component
+// TableNode Component
 // ---------------------------------------------------------------------------
 
 /** The node's one line for a model file that exists but cannot be read. */
@@ -549,7 +549,7 @@ function describeLoadError(error: TableLoadError): string {
   if (error.kind === 'read') {
     return "ERD Studio can't read this file.";
   }
-  // Absent from a DisplayDomain built by an older core, which then reads as
+  // Absent from a DisplaySubjectArea built by an older core, which then reads as
   // the YAML error below — still true of a conflicted file.
   if (error.mergeConflict) {
     return error.line !== undefined

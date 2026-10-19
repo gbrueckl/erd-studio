@@ -440,7 +440,7 @@ function compositeGroups(rels: readonly DisplayRelationship[]): Map<DisplayRelat
  * @param source - The domain being viewed (e.g., physical)
  * @param target - The domain being compared against (e.g., logical)
  * @param stubColumnModels - Model names whose physical-only (missing) column
- *   discrepancies should be suppressed. See UnifiedDomain.stubColumns.
+ *   discrepancies should be suppressed. See UnifiedSubjectArea.stubColumns.
  */
 export function compare(
   source: DisplaySubjectArea,

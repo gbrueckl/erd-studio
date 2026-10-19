@@ -1,5 +1,5 @@
 /**
- * AddExistingModelDialog — dialog for adding existing models to a domain.
+ * AddExistingTableDialog — dialog for adding existing models to a domain.
  *
  * Displays a searchable, filterable list of models from three sources:
  * - Library: models with YAML definitions in .erd-studio/logical-models/

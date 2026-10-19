@@ -1,7 +1,7 @@
 /**
  * ErdCanvas — the diagram as a self-contained, read-only React component.
  *
- * Renders a `DisplayDomain` the way the VS Code extension's canvas shows a
+ * Renders a `DisplaySubjectArea` the way the VS Code extension's canvas shows a
  * read-only domain: model nodes, FK edges, annotations, the minimap, the
  * detail panel a click on a model opens, and the legend. There are no editing
  * affordances (the canvas runs in viewer mode) and nothing is ever sent

@@ -1,5 +1,5 @@
 /**
- * Logical stage -> DisplayDomain: the shape the canvas renders.
+ * Logical stage -> DisplaySubjectArea: the shape the canvas renders.
  */
 
 import type { TableTemplate, NodePosition, Relationship, SemanticSubjectArea, ViewConfig } from './types/semantic.js';
@@ -41,7 +41,7 @@ export interface DisplaySubjectAreaEditorPayload {
 }
 
 export interface ToDisplaySubjectAreaOptions {
-  /** The domain's global view config (it lives on the UnifiedDomain, not the stage). */
+  /** The domain's global view config (it lives on the UnifiedSubjectArea, not the stage). */
   viewConfig: ViewConfig;
   stubColumns?: string[];
   /** The configured layer the domain belongs to, for badge styling. */
@@ -58,7 +58,7 @@ export interface ToDisplaySubjectAreaOptions {
 }
 
 /**
- * Convert a SemanticDomain to a DisplayDomain for the canvas.
+ * Convert a SemanticSubjectArea to a DisplaySubjectArea for the canvas.
  *
  * A column is a foreign key when it says so or when it is the foreign-key end
  * of a relationship (`foreignKeyEnd`: the `to` end of a `one-to-many`, else

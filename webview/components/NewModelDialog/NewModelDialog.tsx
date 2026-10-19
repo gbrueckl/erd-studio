@@ -1,5 +1,5 @@
 /**
- * NewModelDialog — dialog for creating new design models with configurable templates.
+ * NewTableDialog — dialog for creating new design models with configurable templates.
  *
  * Form fields:
  * - Model name (text input, validated for template prefix)

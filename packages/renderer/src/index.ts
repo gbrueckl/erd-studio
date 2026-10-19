@@ -1,5 +1,5 @@
 // Entry point `@erd-studio/renderer`: the viewer API — rendering a
-// `DisplayDomain` as an entity-relationship diagram, and the graph types.
+// `DisplaySubjectArea` as an entity-relationship diagram, and the graph types.
 //
 //   import { ErdCanvas } from '@erd-studio/renderer';
 //   import '@erd-studio/renderer/styles.css';

@@ -1,12 +1,12 @@
 /**
- * DomainService — reads semantic domain JSON files from disk.
+ * SubjectAreaService — reads semantic domain JSON files from disk.
  *
  * Domain files live at {dbt_project}/.erd-studio/{layer}/{domain}.json
- * Each file is a UnifiedDomain containing logical stage data.
+ * Each file is a UnifiedSubjectArea containing logical stage data.
  *
  * Physical domains are not stored on disk — they are derived at runtime
  * by projecting a logical domain's model list through the dbt manifest
- * via buildPhysicalDomain().
+ * via buildPhysicalSubjectArea().
  */
 
 import * as fs from 'fs';
@@ -88,8 +88,8 @@ const SOURCE_AUTHORITY: readonly PhysicalColumnSource[] = ['catalog', 'yml', 'ma
 /**
  * Rewrite the `domain` slug in the raw text of a domain file.
  *
- * Operates on the parsed JSON document rather than DomainService's resolved
- * UnifiedDomain so that v5 model name references, `stubColumns`, and any
+ * Operates on the parsed JSON document rather than SubjectAreaService's resolved
+ * UnifiedSubjectArea so that v5 model name references, `stubColumns`, and any
  * unknown keys survive byte-for-byte (apart from re-indentation). Used by the
  * Rename Domain command.
  */
@@ -109,9 +109,9 @@ export class SubjectAreaService {
   constructor(private readonly layerService: LayerService) {}
 
   /**
-   * Set the LogicalModelService for resolving v5 model references.
-   * Called after construction since DomainService may be instantiated before
-   * LogicalModelService is available (circular dependency avoidance).
+   * Set the TableLibraryService for resolving v5 model references.
+   * Called after construction since SubjectAreaService may be instantiated before
+   * TableLibraryService is available (circular dependency avoidance).
    */
   setTableLibraryService(service: TableLibraryService): void {
     this.tableLibraryService = service;
@@ -197,12 +197,12 @@ export class SubjectAreaService {
   }
 
   /**
-   * Read and parse a domain JSON file, returning a UnifiedDomain.
+   * Read and parse a domain JSON file, returning a UnifiedSubjectArea.
    *
-   * Every failure before validation is raised as a `DomainFileError` so
+   * Every failure before validation is raised as a `SubjectAreaFileError` so
    * callers can tell a file that is momentarily unreadable (empty or truncated
    * because something is writing it right now) from one that is genuinely
-   * wrong. See `DomainFileError` for why that distinction is load-bearing.
+   * wrong. See `SubjectAreaFileError` for why that distinction is load-bearing.
    *
    * `dbtKeyIndex` is dbt's key evidence (#133 L1): with it, a link stored
    * twice with no key flagged is drawn from the copy dbt's tests orient. The
@@ -221,8 +221,8 @@ export class SubjectAreaService {
       throw new SubjectAreaFileError('unreadable', filePath, `Failed to read subject area file: ${message}`);
     }
 
-    // Empty / invalid JSON (DomainFileError), then validation and repair
-    // (DomainValidationError, warnings) — shared with every other host.
+    // Empty / invalid JSON (SubjectAreaFileError), then validation and repair
+    // (SubjectAreaValidationError, warnings) — shared with every other host.
     const { obj, format } = validateSubjectAreaDocument(parseSubjectAreaJson(raw, filePath), filePath);
     return buildUnifiedSubjectArea(obj, format, {
       filePath,
@@ -250,19 +250,19 @@ export class SubjectAreaService {
   }
 
   /**
-   * Extract the logical stage from a UnifiedDomain, returning a SemanticDomain.
+   * Extract the logical stage from a UnifiedSubjectArea, returning a SemanticSubjectArea.
    *
-   * Physical stage is not supported here — use buildPhysicalDomain() instead.
+   * Physical stage is not supported here — use buildPhysicalSubjectArea() instead.
    */
   getSubjectAreaStage(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): SemanticSubjectArea {
     return SubjectAreaService.toLogicalStage(this.getSubjectArea(filePath, options));
   }
 
   /**
-   * Project an already-read `UnifiedDomain` onto its logical stage.
+   * Project an already-read `UnifiedSubjectArea` onto its logical stage.
    *
-   * Pure, and separate from `getDomainStage` so a caller holding a
-   * `UnifiedDomain` does not have to read the file a second time — a second
+   * Pure, and separate from `getSubjectAreaStage` so a caller holding a
+   * `UnifiedSubjectArea` does not have to read the file a second time — a second
    * read is a second chance to catch the file mid-replacement.
    */
   static toLogicalStage(unified: UnifiedSubjectArea): SemanticSubjectArea {
@@ -270,7 +270,7 @@ export class SubjectAreaService {
   }
 
   /**
-   * Build a physical DisplayDomain by projecting a unified domain's logical
+   * Build a physical DisplaySubjectArea by projecting a unified domain's logical
    * stage through what exists in the dbt project.
    *
    * Physical domains are not stored on disk — they are derived at runtime.

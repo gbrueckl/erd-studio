@@ -1,7 +1,7 @@
 /**
  * `toDbml` — a diagram as DBML (https://dbml.dbdiagram.io), one way.
  *
- * The output is a contract: the same `DisplayDomain` always gives the same
+ * The output is a contract: the same `DisplaySubjectArea` always gives the same
  * text, it opens with a version line, and every mapping change is a
  * deliberate golden update plus a CHANGELOG line. ERD Studio's own files stay
  * the source of truth; nothing reads this back.
@@ -248,7 +248,7 @@ function commentLines(label: string, value: string): string[] {
   return [`// ${label}${lines[0]}`, ...lines.slice(1).map((l) => `//     ${l}`)];
 }
 
-/** The diagram as DBML. Deterministic; never throws on a valid `DisplayDomain`, however minimal. */
+/** The diagram as DBML. Deterministic; never throws on a valid `DisplaySubjectArea`, however minimal. */
 export function toDbml(domain: DisplaySubjectArea): string {
   const prepared = prepareSubjectArea(domain);
   const out: string[] = [

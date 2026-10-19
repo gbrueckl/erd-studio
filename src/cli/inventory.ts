@@ -2,7 +2,7 @@
  * `erd-studio inventory` — what the dbt project has, shaped for building a
  * logical model from it.
  *
- * The heavy lifting is `DomainService.buildPhysicalDomain`, run over a
+ * The heavy lifting is `SubjectAreaService.buildPhysicalDomain`, run over a
  * synthetic domain holding the chosen names: the columns, types, provenance
  * and relationships reported here are therefore exactly what the physical
  * stage — and so `erd-studio diff` — will see for a domain holding the same

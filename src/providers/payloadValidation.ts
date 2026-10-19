@@ -376,7 +376,7 @@ function validateStringList(value: unknown, label: string): string | null {
  *
  * The domain's name and layer are not among them, and not by omission: they
  * name the user's own project, so they are no longer carried at all (see
- * `FeedbackDomainSummary`). Nothing here reads a key the diagnostics do not
+ * `FeedbackSubjectAreaSummary`). Nothing here reads a key the diagnostics do not
  * render, so a payload that carried one anyway could not surface it.
  */
 function validateFeedbackSubjectAreaSummary(value: unknown): string | null {
