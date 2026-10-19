@@ -35,6 +35,7 @@ export type {
   RemoveRelationshipsMessage,
   RemoveAnnotationsMessage,
   AddExistingModelMessage,
+  AddExistingModelsMessage,
   UpdatePositionsMessage,
   RefreshManifestMessage,
   SwitchStageMessage,

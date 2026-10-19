@@ -121,6 +121,12 @@ export interface BuildDbtDraftInput {
   existingRelationships?: readonly DraftRelationshipTest[];
   /** Defaults to {@link DRAFT_MODEL_LIMIT}. */
   limit?: number;
+  /**
+   * Leave out models dbt has disabled (default true). False for an explicit
+   * pick from the Add Existing Model dialog, which lists them and adds one on
+   * its own regardless.
+   */
+  skipDisabled?: boolean;
 }
 
 export interface DbtDraft {
@@ -588,7 +594,7 @@ export function relationshipsForAddedModels(
 export function buildDbtDraft(input: BuildDbtDraftInput): DbtDraft {
   const limit = input.limit ?? DRAFT_MODEL_LIMIT;
   const seed = input.seed ?? ((name: string) => seedModelFromDbt(name, input.ymlData, input.manifest, input.catalog));
-  const disabled = input.manifest?.disabledModels ?? new Set<string>();
+  const disabled = input.skipDisabled === false ? new Set<string>() : input.manifest?.disabledModels ?? new Set<string>();
   const inDomain = new Set((input.existingModelNames ?? []).map(normaliseName));
 
   const skipped: DraftSkipped[] = [];
