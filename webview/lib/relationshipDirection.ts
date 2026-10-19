@@ -12,11 +12,11 @@
 import { contradictsKeysOf, keyEvidenceDetail, linkEnd, orientLink } from '@erd-studio/core';
 import type { KeyColumn, LinkEnd, Orientation } from '@erd-studio/core';
 
-import type { DisplayModel } from '../../src/types/display';
+import type { DisplayTable } from '../../src/types/display';
 import type { Cardinality } from '../../src/types/semantic';
 import type { FkDialogPrefill } from '../store/editorStore';
 
-type Models = ReadonlyArray<Pick<DisplayModel, 'name' | 'columns'>>;
+type Models = ReadonlyArray<Pick<DisplayTable, 'name' | 'columns'>>;
 
 /** The prefill a drag opens the dialog with, oriented by key evidence. */
 export interface OrientedPrefill extends FkDialogPrefill {

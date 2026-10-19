@@ -7,9 +7,9 @@
  */
 
 import type { Node, Edge } from '@xyflow/react';
-import type { AnnotationColor, Cardinality, ColumnPair, DbtKeyHint, Layer, Meta, ModelLoadError, ModelLoadWarning, ModelRole, Stage } from '@erd-studio/core';
+import type { AnnotationColor, Cardinality, ColumnPair, DbtKeyHint, Layer, Meta, TableLoadError, TableLoadWarning, TableRole, Stage } from '@erd-studio/core';
 import type { LayerConfig } from '@erd-studio/core';
-import type { ModelDiscrepancy } from '@erd-studio/core';
+import type { TableDiscrepancy } from '@erd-studio/core';
 import type { PhysicalProvenance } from '@erd-studio/core';
 
 // ---------------------------------------------------------------------------
@@ -76,7 +76,7 @@ export type ModelNodeData = {
   /** Grain statement — "One row per ___". Shown as subtitle on node. */
   grain?: string;
   /** Model's role in the data warehouse architecture. Shown as badge on node. */
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
   /** Structured metadata (`meta:`) — shown in the name's hover tip. Absent when empty. */
   meta?: Meta;
   /** Whether this stage is read-only (physical). */
@@ -104,16 +104,16 @@ export type ModelNodeData = {
    * The model's file exists but could not be read (logical stage only): the
    * node shows the error and an "Open file" button instead of "No columns".
    */
-  loadError?: ModelLoadError;
+  loadError?: TableLoadError;
   /**
    * The model's file was read but needs fixing (logical stage only): a key
    * written twice, whose last value is shown (#164). Absent from an older core.
    */
-  loadWarning?: ModelLoadWarning;
+  loadWarning?: TableLoadWarning;
   /** Whether this model is in stub display mode (PK/NK columns only). */
   isStub: boolean;
   /** Per-model discrepancy data when a cross-stage comparison report is active. */
-  discrepancy?: ModelDiscrepancy;
+  discrepancy?: TableDiscrepancy;
   /** The stage currently being viewed (set when discrepancy overlay is active). */
   discrepancySourceStage?: Stage;
   /** The stage being compared against (set when discrepancy overlay is active). */

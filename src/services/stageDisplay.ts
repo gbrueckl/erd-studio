@@ -12,12 +12,12 @@
  * No `vscode` import — this module is bundled into `dist/cli.js`.
  */
 
-import { buildDbtKeyIndex, toDisplayDomain } from '@erd-studio/core';
+import { buildDbtKeyIndex, toDisplaySubjectArea } from '@erd-studio/core';
 import type { DbtKeyIndex } from '@erd-studio/core';
 
-import type { DisplayDomain } from '../types/display';
+import type { DisplaySubjectArea } from '../types/display';
 import type { ManifestData } from '../types/manifest';
-import type { SemanticDomain, ViewConfig } from '../types/semantic';
+import type { SemanticSubjectArea, ViewConfig } from '../types/semantic';
 import type { YmlData } from '../types/ymlData';
 
 /**
@@ -32,12 +32,12 @@ import type { YmlData } from '../types/ymlData';
  * (`keysContradict`, #163) on dbt's evidence too, as the canvas flags it.
  */
 export function buildLogicalDisplayDomain(
-  domain: SemanticDomain,
+  domain: SemanticSubjectArea,
   viewConfig: ViewConfig,
   stubColumns?: string[],
   dbtKeyIndex?: DbtKeyIndex,
-): DisplayDomain {
-  return toDisplayDomain(domain, {
+): DisplaySubjectArea {
+  return toDisplaySubjectArea(domain, {
     viewConfig,
     stubColumns,
     layerConfig: undefined,
@@ -62,7 +62,7 @@ export function dbtKeyIndexOf(ymlData: YmlData | undefined, manifest: ManifestDa
  * display goldens never carry it. Returns `display` itself when there is
  * nothing to add.
  */
-export function withDbtKeyHints(display: DisplayDomain, index: DbtKeyIndex): DisplayDomain {
+export function withDbtKeyHints(display: DisplaySubjectArea, index: DbtKeyIndex): DisplaySubjectArea {
   if (index.columns.size === 0) return display;
   let touched = false;
   const models = display.models.map((model) => {

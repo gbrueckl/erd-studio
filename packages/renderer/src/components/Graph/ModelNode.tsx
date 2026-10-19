@@ -17,7 +17,7 @@
 import { memo, useCallback, useMemo, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { ModelFlowNode, ModelNodeData, ColumnDisplay } from '../../types/graph';
-import type { ModelLoadError, ModelLoadWarning, Stage } from '@erd-studio/core';
+import type { TableLoadError, TableLoadWarning, Stage } from '@erd-studio/core';
 import type { ColumnDiscrepancy } from '@erd-studio/core';
 import type { PhysicalColumnSource, PhysicalProvenance } from '@erd-studio/core';
 import { COLLAPSED_COLUMN_LIMIT } from '../../hooks/useColumnExpansion';
@@ -545,7 +545,7 @@ function ColumnRow({ column, modelName, readOnly, existingColumnNames, discrepan
 // ---------------------------------------------------------------------------
 
 /** The node's one line for a model file that exists but cannot be read. */
-function describeLoadError(error: ModelLoadError): string {
+function describeLoadError(error: TableLoadError): string {
   if (error.kind === 'read') {
     return "ERD Studio can't read this file.";
   }
@@ -562,7 +562,7 @@ function describeLoadError(error: ModelLoadError): string {
 }
 
 /** The node's one line for a model read from a file that needs fixing (#164). */
-function describeLoadWarning(warning: ModelLoadWarning): string {
+function describeLoadWarning(warning: TableLoadWarning): string {
   const key = warning.key ? `"${warning.key}"` : 'A key';
   return `${key} is written twice (line ${warning.line}) — the last one is shown. Remove the other copy to edit this table.`;
 }

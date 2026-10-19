@@ -3,14 +3,14 @@
  * when the moved positions come back in the domain.
  */
 import { describe, it, expect } from 'vitest';
-import type { DisplayDomain, DisplayModel } from '@erd-studio/core';
+import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 import { nodeRect, repickHandleSides } from '../../src/lib/dragHandleSides';
 import { transformDomain } from '../../src/lib/graphTransformer';
 import { resolveNodeDimensions } from '../../src/lib/nodeSizing';
 import type { GraphEdge, GraphNode } from '../../src/lib/nodeOverlays';
 import type { AnnotationFlowNode, ModelFlowNode } from '../../src/types/graph';
 
-function model(name: string, columnCount = 3): DisplayModel {
+function model(name: string, columnCount = 3): DisplayTable {
   return {
     name,
     schema: 'sales',
@@ -26,7 +26,7 @@ function model(name: string, columnCount = 3): DisplayModel {
   };
 }
 
-function domainWith(positions: Record<string, { x: number; y: number }>): DisplayDomain {
+function domainWith(positions: Record<string, { x: number; y: number }>): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',

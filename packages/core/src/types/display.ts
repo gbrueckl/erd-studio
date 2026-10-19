@@ -7,7 +7,7 @@
  * directly from its data source.
  */
 
-import type { Cardinality, Layer, Meta, ModelLoadError, ModelLoadWarning, ModelRole, ModelTemplate, Rationale, Stage, ViewConfig } from './semantic.js';
+import type { Cardinality, Layer, Meta, TableLoadError, TableLoadWarning, TableRole, TableTemplate, Rationale, Stage, ViewConfig } from './semantic.js';
 import type { LayerConfig } from './layer.js';
 import type { DbtKeyHint } from '../keyEvidence.js';
 
@@ -35,7 +35,7 @@ export interface ManifestModelPreview {
  * - 'yml': model defined in a dbt .yml schema file (dbt)
  * - 'manifest': model exists in compiled manifest only, no .yml file (Compiled)
  */
-export interface ExistingModelPreview extends ManifestModelPreview {
+export interface ExistingTablePreview extends ManifestModelPreview {
   source: 'logical' | 'yml' | 'manifest';
   /** Relative file path showing where this model is defined (e.g. "models/silver/dim_customer.yml") */
   sourcePath: string;
@@ -94,7 +94,7 @@ export interface PhysicalProvenance {
 }
 
 /** Model ready for webview display. */
-export interface DisplayModel {
+export interface DisplayTable {
   name: string;
   schema: string;
   /**
@@ -108,7 +108,7 @@ export interface DisplayModel {
   columns: DisplayColumn[];
   rationale?: Rationale;
   grain?: string;
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
   /** Structured metadata from the model file (logical stage only). */
   meta?: Meta;
   /**
@@ -135,13 +135,13 @@ export interface DisplayModel {
    * The model's file exists but could not be read (logical stage only): the
    * node shows the error instead of an empty column list.
    */
-  loadError?: ModelLoadError;
+  loadError?: TableLoadError;
   /**
    * The model's file was read, but something in it needs fixing (logical stage
    * only): a key written twice, whose last value is shown (#164). Absent from
    * older cores, which left such a model out instead.
    */
-  loadWarning?: ModelLoadWarning;
+  loadWarning?: TableLoadWarning;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,22 +173,22 @@ export interface DisplayRelationship {
 // ---------------------------------------------------------------------------
 
 /** Domain ready for webview rendering. */
-export interface DisplayDomain {
+export interface DisplaySubjectArea {
   schemaVersion: number;
   domain: string;
   layer: Layer;
   stage: Stage;
   description: string;
   modelFolder?: string;
-  models: DisplayModel[];
+  models: DisplayTable[];
   relationships: DisplayRelationship[];
   viewConfig: ViewConfig;
   /** Available templates (only for editable stages). */
-  templates?: ModelTemplate[];
+  templates?: TableTemplate[];
   /** Manifest models available to add (only for editable stages). @deprecated Use existingModels. */
   manifestModels?: ManifestModelPreview[];
   /** Models available to add from logical-models/ and manifest (only for editable stages). */
-  existingModels?: ExistingModelPreview[];
+  existingModels?: ExistingTablePreview[];
   /** Layer config for badge styling. */
   layerConfig?: LayerConfig;
   /** Whether this stage is read-only for data mutations (physical). */

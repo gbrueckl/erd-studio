@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createRef, type ComponentProps } from 'react';
 import { render, act } from '@testing-library/react';
 import type { NodeChange } from '@xyflow/react';
-import type { DisplayDomain, DisplayModel } from '@erd-studio/core';
+import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 import type { GraphEdge, GraphNode } from '../../src/lib/nodeOverlays';
 
 type FlowProps = {
@@ -58,7 +58,7 @@ import { ErdCanvas, type ErdCanvasHandle } from '../../src/ErdCanvas';
 // Fixtures and helpers
 // ---------------------------------------------------------------------------
 
-function model(name: string): DisplayModel {
+function model(name: string): DisplayTable {
   return {
     name,
     schema: 'sales',
@@ -70,7 +70,7 @@ function model(name: string): DisplayModel {
   };
 }
 
-function makeDomain(customersX = 800): DisplayDomain {
+function makeDomain(customersX = 800): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',

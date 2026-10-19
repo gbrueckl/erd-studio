@@ -52,11 +52,11 @@ import { Toolbar } from '../../webview/components/Toolbar/Toolbar';
 import { useEditorStore } from '../../webview/store/editorStore';
 import { useFirstOpenAutoLayout } from '../../webview/hooks/useFirstOpenAutoLayout';
 import type { ModelFlowNode, FkFlowEdge } from '../../webview/types/graph';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
-function makeDomain(stage: 'logical' | 'physical' = 'logical'): DisplayDomain {
+function makeDomain(stage: 'logical' | 'physical' = 'logical'): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'fresh',
@@ -69,7 +69,7 @@ function makeDomain(stage: 'logical' | 'physical' = 'logical'): DisplayDomain {
     relationships: [],
     viewConfig: { positions: { model_a: { x: 0, y: 0 }, model_b: { x: 0, y: 200 } } },
     readOnly: false,
-  } as unknown as DisplayDomain;
+  } as unknown as DisplaySubjectArea;
 }
 
 function makeNode(id: string): ModelFlowNode {
@@ -96,7 +96,7 @@ async function renderToolbar(nodeList: ModelFlowNode[] = nodes) {
 }
 
 /** What App.tsx does on a `domainLoaded` message. */
-function deliverDomainLoaded(domain: DisplayDomain, autoLayout?: boolean) {
+function deliverDomainLoaded(domain: DisplaySubjectArea, autoLayout?: boolean) {
   act(() => {
     useEditorStore.getState().setDomain(domain);
     useEditorStore.getState().setPendingAutoLayout(autoLayout === true);

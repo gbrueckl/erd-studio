@@ -19,8 +19,8 @@ import {
 } from '../../src/exportDiagram';
 import { RATIONALE_KEYS } from '../../src/logicalModel';
 import { RATIONALE_LABELS } from '../../src/exportShared';
-import type { DisplayDomain } from '../../src/types/display';
-import { DBML_PARSERS, MERMAID_PARSERS, col, domain, model, rel } from '../exportParsers';
+import type { DisplaySubjectArea } from '../../src/types/display';
+import { DBML_PARSERS, MERMAID_PARSERS, col, subjectArea, tableDef, rel } from '../exportParsers';
 
 describe('diagram export API', () => {
   it('is exported from the package entry', () => {
@@ -38,14 +38,14 @@ describe('diagram export API', () => {
   });
 
   it('dispatches to the format functions', () => {
-    const d = domain([model('a', [col('id')]), model('b', [col('a_id')])], [rel('b.a_id', 'a.id')]);
+    const d = subjectArea([tableDef('a', [col('id')]), tableDef('b', [col('a_id')])], [rel('b.a_id', 'a.id')]);
     expect(exportDiagram(d, 'dbml')).toBe(toDbml(d));
     expect(exportDiagram(d, 'mermaid')).toBe(toMermaid(d));
     expect(() => exportDiagram(d, 'svg' as DiagramExportFormat)).toThrow('Unknown diagram export format: svg');
   });
 
   it('exports a DisplayDomain carrying only its required fields in every format', () => {
-    const minimal: DisplayDomain = {
+    const minimal: DisplaySubjectArea = {
       schemaVersion: 5,
       domain: 'minimal',
       layer: 'silver',
@@ -63,7 +63,7 @@ describe('diagram export API', () => {
   });
 
   it('leaves positions out of every format', () => {
-    const d = domain([model('a', [col('id')])], [], { viewConfig: { positions: { a: { x: 123456, y: 654321 } } } });
+    const d = subjectArea([tableDef('a', [col('id')])], [], { viewConfig: { positions: { a: { x: 123456, y: 654321 } } } });
     for (const format of DIAGRAM_EXPORT_FORMATS) {
       const text = exportDiagram(d, format);
       expect(text).not.toContain('123456');
@@ -93,7 +93,7 @@ describe('diagram export API', () => {
 
   it('caps the file name length and tolerates a missing name', () => {
     expect(diagramExportFileName({ domain: 'x'.repeat(300) }, 'dbml')).toBe(`${'x'.repeat(100)}.dbml`);
-    expect(diagramExportFileName({} as Pick<DisplayDomain, 'domain'>, 'dbml')).toBe('diagram.dbml');
+    expect(diagramExportFileName({} as Pick<DisplaySubjectArea, 'domain'>, 'dbml')).toBe('diagram.dbml');
   });
 
   it('gives an unknown format, even an inherited property name, the txt extension', () => {

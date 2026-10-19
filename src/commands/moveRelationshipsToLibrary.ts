@@ -26,7 +26,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { VALID_CARDINALITIES, linkKey, normaliseCompositeKey, normaliseRelationshipRole, parseLogicalModelText } from '@erd-studio/core';
+import { VALID_CARDINALITIES, linkKey, normaliseCompositeKey, normaliseRelationshipRole, parseTableText } from '@erd-studio/core';
 import { dirtyFiles } from '../providers/dirtyDocuments';
 import {
   applyMoveToModel,
@@ -43,8 +43,8 @@ import { relationshipsRewriteLoses, setDomainRelationships, setYamlRelationships
 import { ownWrites } from '../services/ownWriteTracker';
 import { telemetry } from '../services/telemetryService';
 import { checkLibraryRewrite, moveUsage } from '../services/relationshipHealth';
-import { detectDomainFormat } from '../types/semantic';
-import type { Relationship, SemanticModel } from '../types/semantic';
+import { detectSubjectAreaFormat } from '../types/semantic';
+import type { Relationship, SemanticTable } from '../types/semantic';
 import type { DomainService } from '../services/domainService';
 import type { LogicalModelService } from '../services/logicalModelService';
 
@@ -83,7 +83,7 @@ export function readDomainRelationships(
   for (const summary of domainService.listDomains(workspaceRoot, semanticDir)) {
     try {
       const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as Record<string, unknown>;
-      if (detectDomainFormat(raw) !== 'v5') continue;
+      if (detectSubjectAreaFormat(raw) !== 'v5') continue;
       const logical = raw.logical as { models?: unknown; relationships?: unknown } | undefined;
       const models = (Array.isArray(logical?.models) ? logical!.models : []).filter((m): m is string => typeof m === 'string');
       const relationships = (Array.isArray(logical?.relationships) ? logical!.relationships : [])
@@ -168,8 +168,8 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
   // One object per model, whatever the spelling an entry uses (#133 L4):
   // `Dim_Customer` reaches dim_customer.yml on a case-sensitive file system,
   // and both spellings in one plan edit the same copy.
-  const models = new Map<string, SemanticModel | null>();
-  const libraryModel = (name: string): SemanticModel | null => {
+  const models = new Map<string, SemanticTable | null>();
+  const libraryModel = (name: string): SemanticTable | null => {
     const key = name.toLowerCase();
     if (!models.has(key)) models.set(key, logicalModelService.getModel(logicalModelService.findModelNameIgnoringCase?.(name) ?? name));
     return models.get(key) ?? null;
@@ -288,8 +288,8 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
   // while — changing only its relationships.
   const writes: Array<{ filePath: string; original: string; text: string }> = [];
   // Every target file as read and as it will be written, for the self-check below.
-  const readModels: SemanticModel[] = [];
-  const nextModels: SemanticModel[] = [];
+  const readModels: SemanticTable[] = [];
+  const nextModels: SemanticTable[] = [];
   for (const target of moveTargets(plan)) {
     const name = libraryModel(target)?.name ?? target;
     const filePath = logicalModelService.modelPath(name);
@@ -297,9 +297,9 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
     if (relationshipsRewriteLoses(original)) {
       throw new Error(`${relPath(filePath)} changed while the dialog was open (its relationships list now has comments, YAML anchors or entries it cannot read). Nothing was changed.`);
     }
-    const model = parseLogicalModelText(original, name);
+    const model = parseTableText(original, name);
     if (!model) throw new Error(`${relPath(filePath)} could not be read as a table file.`);
-    const copy: SemanticModel = { ...model, relationships: model.relationships ? [...model.relationships] : undefined };
+    const copy: SemanticTable = { ...model, relationships: model.relationships ? [...model.relationships] : undefined };
     readModels.push(model);
     nextModels.push(copy);
     if (!applyMoveToModel(plan, copy)) continue;

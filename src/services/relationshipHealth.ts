@@ -42,14 +42,14 @@ import {
   orientLink,
   respellRelationship,
 } from '@erd-studio/core';
-import type { DbtKeyIndex, KeyedModel } from '@erd-studio/core';
+import type { DbtKeyIndex, KeyedTable } from '@erd-studio/core';
 import type {
   MoveToLibraryPlan,
   RelationshipWriteInput,
   RelationshipWriteOp,
   RelationshipWritePlan,
 } from './libraryRelationships';
-import type { Cardinality, ColumnDef, Relationship, SemanticModel } from '../types/semantic';
+import type { Cardinality, ColumnDef, Relationship, SemanticTable } from '../types/semantic';
 import type { TelemetryErrorCode, TelemetryFeature } from './telemetryPayload';
 
 type Ends = Pick<Relationship, 'fromModel' | 'fromColumn' | 'toModel' | 'toColumn'>;
@@ -89,7 +89,7 @@ const ownerOf = (rel: Relationship): string => lower(rel.cardinality === 'one-to
 // ---------------------------------------------------------------------------
 
 /** A model as the checks need it: its name, its library `relationships:`, and (for key checks) its columns. */
-export type HealthModel = Pick<SemanticModel, 'name' | 'relationships'> & { columns?: readonly ColumnDef[] };
+export type HealthModel = Pick<SemanticTable, 'name' | 'relationships'> & { columns?: readonly ColumnDef[] };
 
 /** The stored relationships before a write: the library models and the open domain file's `logical.relationships`. */
 export interface RelationshipSnapshot {
@@ -237,7 +237,7 @@ function groupIndex(files: Map<string, Stored[]>): { groupOf: Map<string, string
  */
 function drawnGroups(before: RelationshipSnapshot): Map<string, string[]> {
   const lines = mergeLibraryRelationships(
-    (before.home === 'library' ? before.models : []) as SemanticModel[], before.domainRelationships, '', undefined, before.dbt,
+    (before.home === 'library' ? before.models : []) as SemanticTable[], before.domainRelationships, '', undefined, before.dbt,
   );
   const buckets = new Map<string, string[]>();
   for (const line of lines) {
@@ -408,8 +408,8 @@ export function invariantErrorCodes(invariants: readonly RelationshipInvariant[]
 // ---------------------------------------------------------------------------
 
 /** A model lookup for key evidence, without case. */
-function modelLookup(models: readonly KeyedModel[]): (name: string) => KeyedModel | undefined {
-  const byName = new Map<string, KeyedModel>();
+function modelLookup(models: readonly KeyedTable[]): (name: string) => KeyedTable | undefined {
+  const byName = new Map<string, KeyedTable>();
   for (const m of models) if (typeof m.name === 'string' && !byName.has(lower(m.name))) byName.set(lower(m.name), m);
   return (name) => byName.get(lower(name));
 }
@@ -423,7 +423,7 @@ export function relationshipWriteUsage(
   op: RelationshipWriteOp,
   before: RelationshipSnapshot,
   after: RelationshipSnapshotAfter,
-  keyModels?: readonly KeyedModel[],
+  keyModels?: readonly KeyedTable[],
   dbt?: DbtKeyIndex,
 ): TelemetryFeature[] {
   const out: TelemetryFeature[] = [];
@@ -447,7 +447,7 @@ export function relationshipWriteUsage(
     }
     const drawn = op.drawn;
     const members: Relationship[] = [drawn, ...(op.extraPairs ?? []).map((p) => ({ ...drawn, fromColumn: p.fromColumn, toColumn: p.toColumn }))];
-    const modelOf = modelLookup(keyModels ?? (before.models as readonly KeyedModel[]));
+    const modelOf = modelLookup(keyModels ?? (before.models as readonly KeyedTable[]));
     if (op.kind === 'add' && library && drawn.cardinality === 'one-to-many') out.push('relDragTurned');
     const role = normaliseRelationshipRole(drawn.role);
     if (role !== undefined) {
@@ -486,7 +486,7 @@ export function auditRelationshipWrite(
   op: RelationshipWriteOp,
   input: RelationshipWriteInput,
   plan: RelationshipWritePlan,
-  keyModels?: readonly KeyedModel[],
+  keyModels?: readonly KeyedTable[],
 ): RelationshipAudit {
   try {
     if (!plan.ok) return { usage: [], broken: [] };
@@ -639,7 +639,7 @@ export function surveyLibrary(
       if (!info.has(lower(m.name))) info.set(lower(m.name), { columns: cols });
     }
     survey.unreadable = Math.max(0, Math.floor(options.unreadableEntries ?? 0));
-    const modelOf = modelLookup(models as readonly KeyedModel[]);
+    const modelOf = modelLookup(models as readonly KeyedTable[]);
 
     const files = filesOf(models.filter((m) => typeof m?.name === 'string'), domainRelationships ?? []);
     const library = [...files.entries()].filter(([f]) => f !== 'domain').flatMap(([, c]) => c);

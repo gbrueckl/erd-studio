@@ -8,11 +8,11 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
-import type { DisplayDomain } from '@erd-studio/core';
+import type { DisplaySubjectArea } from '@erd-studio/core';
 import { createCanvasStore, CanvasStoreProvider } from '../../src/store/editorStore';
 import { DetailPanel } from '../../src/components/DetailPanel/DetailPanel';
 
-function domain(readOnly: boolean): DisplayDomain {
+function domain(readOnly: boolean): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',

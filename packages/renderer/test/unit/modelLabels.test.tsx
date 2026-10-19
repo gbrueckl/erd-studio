@@ -30,7 +30,7 @@ import { computeModelLabels, matchesModelSearch } from '../../src/lib/modelLabel
 import { transformDomain } from '../../src/lib/graphTransformer';
 import { estimateNodeWidth } from '../../src/lib/nodeSizing';
 import { ModelNode } from '../../src/components/Graph/ModelNode';
-import type { DisplayDomain, DisplayModel } from '@erd-studio/core';
+import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 import type { ModelFlowNode } from '../../src/types/graph';
 
 describe('computeModelLabels', () => {
@@ -76,9 +76,9 @@ describe('computeModelLabels', () => {
 });
 
 describe('transformDomain: node labels', () => {
-  const model = (name: string, extra: Partial<DisplayModel> = {}): DisplayModel =>
+  const model = (name: string, extra: Partial<DisplayTable> = {}): DisplayTable =>
     ({ name, schema: 'gold', description: '', columns: [], ...extra });
-  const domain = (models: DisplayModel[]): DisplayDomain => ({
+  const domain = (models: DisplayTable[]): DisplaySubjectArea => ({
     schemaVersion: 5, domain: 'finance', layer: 'gold', stage: 'logical', description: '',
     models, relationships: [], viewConfig: {}, readOnly: false, positionDraggable: true,
   });

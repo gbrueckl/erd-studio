@@ -15,7 +15,7 @@ import { runInventory } from '../../src/cli/inventory';
 import { DomainService } from '../../src/services/domainService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { extractManifestData } from '../../src/workers/manifestExtractor';
-import type { UnifiedDomain } from '../../src/types/semantic';
+import type { UnifiedSubjectArea } from '../../src/types/semantic';
 
 let tmp: string;
 beforeEach(() => { tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-seed-docs-')); });
@@ -159,7 +159,7 @@ describe('manifest extraction — seed. / snapshot. nodes', () => {
 });
 
 describe('physical stage — seed / snapshot descriptions', () => {
-  const unified = (names: string[]): UnifiedDomain => ({
+  const unified = (names: string[]): UnifiedSubjectArea => ({
     schemaVersion: 5,
     domain: 'd',
     layer: 'silver',

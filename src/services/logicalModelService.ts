@@ -16,9 +16,9 @@ import * as path from 'path';
 import { Document, Pair, YAMLMap, YAMLSeq, parseDocument, isAlias, isMap, isNode, isPair, isScalar, isSeq, visit } from 'yaml';
 import type { Alias, Node, Scalar, ScalarTag, Tags } from 'yaml';
 
-import { LOGICAL_MODELS_DIR, RATIONALE_KEYS, classifyModelLoadError, modelLoadWarningOf, parseLogicalModelText } from '@erd-studio/core';
-import type { ModelLoadErrorKind } from '@erd-studio/core';
-import type { ColumnDef, ModelRelationship, SemanticModel } from '../types/semantic';
+import { LOGICAL_MODELS_DIR, RATIONALE_KEYS, classifyTableLoadError, tableLoadWarningOf, parseTableText } from '@erd-studio/core';
+import type { TableLoadErrorKind } from '@erd-studio/core';
+import type { ColumnDef, TableRelationship, SemanticTable } from '../types/semantic';
 import type { YmlModelInfo } from '../types/ymlData';
 import type { ManifestData, ManifestModelInfo } from '../types/manifest';
 import { OwnWriteTracker, ownWrites } from './ownWriteTracker';
@@ -32,7 +32,7 @@ export { LOGICAL_MODELS_DIR } from '@erd-studio/core';
 /** Parsed model cached against the file's mtime + size. */
 interface CachedModel {
   readonly signature: string;
-  readonly model: SemanticModel;
+  readonly model: SemanticTable;
 }
 
 /**
@@ -82,7 +82,7 @@ const MODEL_FOLDER_PATTERN = /^[a-z][a-z0-9_-]*$/;
  * the `yaml` library's own error code (never the message text), so it is safe
  * to count in usage telemetry and to branch on in the UI.
  */
-export type ModelFileErrorKind = ModelLoadErrorKind;
+export type ModelFileErrorKind = TableLoadErrorKind;
 
 /**
  * A model file that exists but cannot be read or parsed. `message` is the
@@ -113,7 +113,7 @@ export interface ModelFileError {
 export function describeModelFileError(name: string, filePath: string, err: unknown): ModelFileError {
   const message = err instanceof Error ? err.message : String(err);
   // The classification is core's, so the extension and loadDisplayDomain agree.
-  return { name, filePath, ...classifyModelLoadError(err), message };
+  return { name, filePath, ...classifyTableLoadError(err), message };
 }
 
 /** The {@link ModelFileError} for a model read from a file with a key written twice (#164). */
@@ -289,7 +289,7 @@ export class LogicalModelService {
    * Returns null when the file is missing, empty, not a mapping, or has no
    * `name`; throws on read/parse failure.
    */
-  private readModelFile(filePath: string, fallbackName: string): SemanticModel | null {
+  private readModelFile(filePath: string, fallbackName: string): SemanticTable | null {
     let stat: fs.Stats;
     try {
       stat = fs.statSync(filePath);
@@ -305,7 +305,7 @@ export class LogicalModelService {
     const content = fs.readFileSync(filePath, 'utf-8');
     // A key written twice is read as dbt reads it, the last copy winning; the
     // model carries a loadWarning and writes are refused (loadEditableDocument).
-    const model = parseLogicalModelText(content, fallbackName, { duplicateKeys: 'last' });
+    const model = parseTableText(content, fallbackName, { duplicateKeys: 'last' });
     if (!model) {
       this.cache.delete(filePath);
       return null;
@@ -391,14 +391,14 @@ export class LogicalModelService {
    * Returns null if the name is not path-safe, or the file doesn't exist or is
    * invalid — callers render a broken-reference placeholder for null.
    */
-  getModel(name: string): SemanticModel | null {
+  getModel(name: string): SemanticTable | null {
     const filePath = this.resolveModelPath(name);
     if (filePath === null) {
       return null;
     }
     try {
       const model = this.readModelFile(filePath, name);
-      const warning = model ? modelLoadWarningOf(model) : undefined;
+      const warning = model ? tableLoadWarningOf(model) : undefined;
       if (warning) {
         this.recordFailure(filePath, duplicateKeyFileError(name, filePath, warning), null);
       } else {
@@ -507,8 +507,8 @@ export class LogicalModelService {
    * one folder down). A shadowed duplicate is skipped, and so are files that
    * fail to parse.
    */
-  listModels(): SemanticModel[] {
-    const models: SemanticModel[] = [];
+  listModels(): SemanticTable[] {
+    const models: SemanticTable[] = [];
     for (const entry of this.listModelFiles()) {
       if (entry.shadowedBy) continue;
       try {
@@ -599,7 +599,7 @@ export class LogicalModelService {
    * uses `serializeModel()`), so the yml change is undoable together with the
    * domain change. Use this for non-editor callers (migration, seeding, CLI).
    */
-  saveModel(model: SemanticModel, folder?: string): void {
+  saveModel(model: SemanticTable, folder?: string): void {
     const filePath = this.modelPath(model.name, folder);
     this.ensureDir(filePath);
     this.writeAtomic(filePath, this.renderModel(model, filePath));
@@ -618,7 +618,7 @@ export class LogicalModelService {
    * file does not exist yet, so without it the document would be regenerated
    * from scratch and everything hand-written in the old file would be lost.
    */
-  serializeModel(model: SemanticModel, fromName?: string): string {
+  serializeModel(model: SemanticTable, fromName?: string): string {
     return this.renderModel(model, this.modelPath(fromName ?? model.name));
   }
 
@@ -628,7 +628,7 @@ export class LogicalModelService {
    * the file that WINS a duplicated name, so the copy that is ignored can only
    * be addressed by its path.
    */
-  serializeModelAt(model: SemanticModel, sourcePath: string): string {
+  serializeModelAt(model: SemanticTable, sourcePath: string): string {
     return this.renderModel(model, sourcePath);
   }
 
@@ -637,11 +637,11 @@ export class LogicalModelService {
    * `filePath` edited in place when it can be parsed, otherwise a fresh
    * document generated from the model. Line endings follow the file's own.
    */
-  private renderModel(model: SemanticModel, filePath: string): string {
+  private renderModel(model: SemanticTable, filePath: string): string {
     const existing = this.loadEditableDocument(filePath);
     // A model read from a file with a key written twice is never written, even
     // when that key is `name:` and so points the write at another file (#164).
-    const warning = modelLoadWarningOf(model);
+    const warning = tableLoadWarningOf(model);
     if (warning) {
       throw new DuplicateKeyWriteRefused(
         `Can't change "${model.name}": ${warning.key ? `"${warning.key}"` : 'a key'} is written twice in one block of its table file ` +
@@ -743,7 +743,7 @@ export class LogicalModelService {
    * Returns the created SemanticModel.
    * If the model file already exists, returns the existing model without overwriting.
    */
-  createFromManifest(name: string, manifest: ManifestData, folder?: string): SemanticModel | null {
+  createFromManifest(name: string, manifest: ManifestData, folder?: string): SemanticTable | null {
     if (this.modelExists(name)) {
       return this.getModel(name);
     }
@@ -777,7 +777,7 @@ export class LogicalModelService {
    * Used by `createFromYml` and by the editor, which seeds a new library file
    * through a WorkspaceEdit instead of writing it directly.
    */
-  ymlToSemanticModel(ymlModel: YmlModelInfo): SemanticModel {
+  ymlToSemanticModel(ymlModel: YmlModelInfo): SemanticTable {
     const columns: ColumnDef[] = ymlModel.columns.map((col) => ({
       name: col.name,
       dataType: col.dataType ?? 'unknown',
@@ -800,7 +800,7 @@ export class LogicalModelService {
    * Columns get name, dataType, and description from manifest.
    * Design metadata (keys, SCD, etc.) are left unset for the user to fill in.
    */
-  manifestToSemanticModel(manifestModel: ManifestModelInfo): SemanticModel {
+  manifestToSemanticModel(manifestModel: ManifestModelInfo): SemanticTable {
     const columns: ColumnDef[] = manifestModel.columns.map((col) => ({
       name: col.name,
       dataType: col.data_type ?? 'unknown',
@@ -924,8 +924,8 @@ export class LogicalModelService {
   private duplicateKeyRefusal(filePath: string, text: string, fallbackLine: number | undefined): DuplicateKeyWriteRefused {
     let warning: { key: string; line: number } | undefined;
     try {
-      const model = parseLogicalModelText(text, 'probe', { duplicateKeys: 'last' });
-      warning = model ? modelLoadWarningOf(model) : undefined;
+      const model = parseTableText(text, 'probe', { duplicateKeys: 'last' });
+      warning = model ? tableLoadWarningOf(model) : undefined;
     } catch {
       // The refusal stands without the key's name.
     }
@@ -941,7 +941,7 @@ export class LogicalModelService {
    * Apply a model onto an existing document, touching only managed keys
    * whose value differs. Keys ERD Studio does not know about are preserved.
    */
-  private applyModel(doc: Document, root: YAMLMap, model: SemanticModel, filePath: string): void {
+  private applyModel(doc: Document, root: YAMLMap, model: SemanticTable, filePath: string): void {
     const plain = this.modelToPlain(model);
     // Every alias starts out kept as it reads now — under a key ERD Studio
     // does not manage too (`x-note: *g`), and as a key (`*k: …`) — so none
@@ -1110,7 +1110,7 @@ export class LogicalModelService {
       throw refuse(existing, '"relationships:" is not a list');
     }
     const read = list.items.map((item) => this.readRelationshipEntry(doc, item));
-    const same = (r: ModelRelationship | null | undefined, want: Record<string, unknown>): boolean =>
+    const same = (r: TableRelationship | null | undefined, want: Record<string, unknown>): boolean =>
       !!r && RELATIONSHIP_KEYS.every((k) => r[k] === want[k]);
     const claimed = new Set<number>();
     const claim = (i: number): number => (i === -1 ? i : (claimed.add(i), i));
@@ -1130,10 +1130,10 @@ export class LogicalModelService {
     // each only from an entry that shares one of its ends (a rename changes
     // one end; an unrelated link must not inherit another's comment or role).
     // Without case: an entry respelled to the real names (#133 L4) keeps its node.
-    const sameEnds = (r: ModelRelationship | null | undefined, want: Record<string, unknown>): boolean =>
+    const sameEnds = (r: TableRelationship | null | undefined, want: Record<string, unknown>): boolean =>
       !!r && sameName(r.fromColumn, String(want.fromColumn)) && sameName(r.toModel, String(want.toModel))
       && sameName(r.toColumn, String(want.toColumn));
-    const shareAnEnd = (r: ModelRelationship | null | undefined, want: Record<string, unknown>): boolean =>
+    const shareAnEnd = (r: TableRelationship | null | undefined, want: Record<string, unknown>): boolean =>
       !!r && (sameName(r.fromColumn, String(want.fromColumn))
         || (sameName(r.toModel, String(want.toModel)) && sameName(r.toColumn, String(want.toColumn))));
     const takeOver = (d: number, at: number): void => {
@@ -1174,11 +1174,11 @@ export class LogicalModelService {
    * along with no anchor to point at, so it never read, and every save of
    * the model was refused (#157).
    */
-  private readRelationshipEntry(doc: Document, item: unknown): ModelRelationship | null | undefined {
+  private readRelationshipEntry(doc: Document, item: unknown): TableRelationship | null | undefined {
     try {
       const probe = new Document({ name: 'probe', relationships: [] }, { customTags: keepNumberText });
       (probe.get('relationships', true) as YAMLSeq).items.push(isNode(item) ? this.detach(doc, item) : item);
-      return parseLogicalModelText(probe.toString(), 'probe')?.relationships?.[0] ?? null;
+      return parseTableText(probe.toString(), 'probe')?.relationships?.[0] ?? null;
     } catch {
       return undefined;
     }
@@ -1302,7 +1302,7 @@ export class LogicalModelService {
     if (typeof value === 'object') {
       const read = (v: unknown): string | undefined => {
         try {
-          const probe = parseLogicalModelText(new Document({ name: 'probe', [key]: v }).toString(), 'probe');
+          const probe = parseTableText(new Document({ name: 'probe', [key]: v }).toString(), 'probe');
           return JSON.stringify((probe as unknown as Record<string, unknown> | null)?.[key]);
         } catch {
           return undefined;
@@ -1638,7 +1638,7 @@ export class LogicalModelService {
    * Build a clean plain object for serialisation, omitting undefined/empty
    * fields. Key order here defines the order used for new files.
    */
-  private modelToPlain(model: SemanticModel): Record<string, unknown> {
+  private modelToPlain(model: SemanticTable): Record<string, unknown> {
     const obj: Record<string, unknown> = { name: model.name };
 
     if (model.schema) obj.schema = model.schema;

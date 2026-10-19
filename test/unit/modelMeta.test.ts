@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { parseLogicalModelText, toDisplayDomain } from '@erd-studio/core';
+import { parseTableText, toDisplaySubjectArea } from '@erd-studio/core';
 import { LogicalModelService } from '../../src/services/logicalModelService';
 import { validateMetaPayload } from '../../src/providers/payloadValidation';
 
@@ -38,7 +38,7 @@ const MODEL_WITH_META = [
 
 describe('parsing meta', () => {
   it('reads model and column meta, numbers as their source text', () => {
-    const model = parseLogicalModelText(MODEL_WITH_META, 'dim_customer');
+    const model = parseTableText(MODEL_WITH_META, 'dim_customer');
     expect(model.meta).toEqual({
       owner: 'finance',
       tier: '1',
@@ -48,18 +48,18 @@ describe('parsing meta', () => {
   });
 
   it('ignores a meta that is not a map, and an empty one', () => {
-    expect(parseLogicalModelText('name: a\nmeta: finance\n', 'a')).not.toHaveProperty('meta');
-    expect(parseLogicalModelText('name: a\nmeta: [x]\n', 'a')).not.toHaveProperty('meta');
-    expect(parseLogicalModelText('name: a\nmeta: {}\n', 'a')).not.toHaveProperty('meta');
+    expect(parseTableText('name: a\nmeta: finance\n', 'a')).not.toHaveProperty('meta');
+    expect(parseTableText('name: a\nmeta: [x]\n', 'a')).not.toHaveProperty('meta');
+    expect(parseTableText('name: a\nmeta: {}\n', 'a')).not.toHaveProperty('meta');
   });
 
   it('reaches the display domain only where it is set', () => {
-    const model = parseLogicalModelText(MODEL_WITH_META, 'dim_customer');
-    const plain = parseLogicalModelText('name: dim_plain\ncolumns:\n  - name: id\n    dataType: int\n', 'dim_plain');
-    const display = toDisplayDomain({
+    const model = parseTableText(MODEL_WITH_META, 'dim_customer');
+    const plain = parseTableText('name: dim_plain\ncolumns:\n  - name: id\n    dataType: int\n', 'dim_plain');
+    const display = toDisplaySubjectArea({
       schemaVersion: 5, domain: 'd', layer: 'silver', stage: 'logical', description: '',
       models: [model, plain], relationships: [],
-    } as unknown as Parameters<typeof toDisplayDomain>[0], { viewConfig: {} });
+    } as unknown as Parameters<typeof toDisplaySubjectArea>[0], { viewConfig: {} });
     expect(display.models[0].meta).toEqual(model.meta);
     expect(display.models[0].columns[0].meta).toEqual({ pii: false, steward: 'jane' });
     expect(display.models[1]).not.toHaveProperty('meta');
@@ -172,7 +172,7 @@ describe('writing meta', () => {
   it('writes meta into a brand-new file', () => {
     service.saveModel({ name: 'fct_sale', meta: { owner: 'sales' }, columns: [{ name: 'id', dataType: 'int', description: '', meta: { pii: false } }] });
     const text = fs.readFileSync(service.modelPath('fct_sale'), 'utf-8');
-    expect(parseLogicalModelText(text, 'fct_sale')).toMatchObject({
+    expect(parseTableText(text, 'fct_sale')).toMatchObject({
       meta: { owner: 'sales' },
       columns: [{ meta: { pii: false } }],
     });

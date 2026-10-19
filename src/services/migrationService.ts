@@ -18,8 +18,8 @@ import * as path from 'path';
 import { LogicalModelService } from './logicalModelService';
 import { LayerService } from './layerService';
 import { keepLineEndings } from './lineEndings';
-import type { SemanticModel, Relationship, ViewConfig } from '../types/semantic';
-import { CURRENT_SCHEMA_VERSION, detectDomainFormat, getRawDomainModelNames } from '../types/semantic';
+import type { SemanticTable, Relationship, ViewConfig } from '../types/semantic';
+import { CURRENT_SCHEMA_VERSION, detectSubjectAreaFormat, getRawSubjectAreaTableNames } from '../types/semantic';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,7 +32,7 @@ interface V4DomainFile {
   description?: string;
   modelFolder?: string;
   logical: {
-    models: SemanticModel[];
+    models: SemanticTable[];
     relationships: Relationship[];
   };
   viewConfig?: ViewConfig;
@@ -43,7 +43,7 @@ interface V4DomainFile {
  * under `logical.models` (v4 / hybrid) or a legacy top-level `models` array.
  * String entries (v5 name references) are ignored.
  */
-function inlineModelsOf(raw: unknown): SemanticModel[] {
+function inlineModelsOf(raw: unknown): SemanticTable[] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
   const obj = raw as Record<string, unknown>;
   const logicalModels = (obj.logical as Record<string, unknown> | undefined)?.models;
@@ -53,8 +53,8 @@ function inlineModelsOf(raw: unknown): SemanticModel[] {
       ? obj.models
       : [];
   return source.filter(
-    (m): m is SemanticModel =>
-      !!m && typeof m === 'object' && !Array.isArray(m) && typeof (m as SemanticModel).name === 'string',
+    (m): m is SemanticTable =>
+      !!m && typeof m === 'object' && !Array.isArray(m) && typeof (m as SemanticTable).name === 'string',
   );
 }
 
@@ -207,7 +207,7 @@ export class MigrationService {
    * - `hybrid` files (schemaVersion 5 with inline objects, or mixed entries)
    * - `legacy` pre-v4 files (schemaVersion < 4 or top-level `models`)
    *
-   * Uses the shared {@link detectDomainFormat} so this agrees with DomainService,
+   * Uses the shared {@link detectSubjectAreaFormat} so this agrees with DomainService,
    * but only for files that {@link isDomainDocument} recognises as domain files
    * (a numeric `schemaVersion`) — an unrelated `.json` a user keeps in a layer
    * directory is never a migration candidate, however it happens to be shaped.
@@ -236,7 +236,7 @@ export class MigrationService {
           // a top-level `models` array would be classified 'legacy' and
           // silently restructured.
           if (!isDomainDocument(parsed)) continue;
-          const format = detectDomainFormat(parsed);
+          const format = detectSubjectAreaFormat(parsed);
           if (format === 'hybrid' || format === 'legacy') {
             v4Paths.push(filePath);
           } else if (format === 'v4') {
@@ -299,7 +299,7 @@ export class MigrationService {
     this.logicalModelService.ensureDir();
 
     // Phase 1: Extract all models across all domains, resolve conflicts
-    const allModels = new Map<string, { model: SemanticModel; sources: string[] }>();
+    const allModels = new Map<string, { model: SemanticTable; sources: string[] }>();
 
     for (const filePath of v4Paths) {
       try {
@@ -357,7 +357,7 @@ export class MigrationService {
         // Convert models (inline objects and/or existing name strings) to a
         // de-duplicated list of name references. Handles legacy top-level
         // `models` as well as `logical.models`.
-        const modelNames = Array.from(new Set(getRawDomainModelNames(parsed)));
+        const modelNames = Array.from(new Set(getRawSubjectAreaTableNames(parsed)));
 
         // Legacy (pre-v4) layout: lift top-level models/relationships into
         // a `logical` section and drop the obsolete `stage` field.
@@ -399,7 +399,7 @@ export class MigrationService {
    * Compute a "richness" score for a model definition.
    * Higher score = more design annotations = better candidate for the canonical version.
    */
-  private richness(model: SemanticModel): number {
+  private richness(model: SemanticTable): number {
     let score = 0;
     const columns = model.columns ?? [];
 

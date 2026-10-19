@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { transformDomain, type TransformResult } from '../../src/lib/graphTransformer';
-import type { DisplayColumn, DisplayDomain, DisplayModel, DisplayRelationship } from '@erd-studio/core';
+import type { DisplayColumn, DisplaySubjectArea, DisplayTable, DisplayRelationship } from '@erd-studio/core';
 import type { DiscrepancyReport } from '@erd-studio/core';
 import type { AnnotationFlowEdge, AnnotationFlowNode, FkFlowEdge, ModelFlowNode } from '../../src/types/graph';
 
@@ -15,7 +15,7 @@ function column(name: string, overrides: Partial<DisplayColumn> = {}): DisplayCo
   return { name, dataType: 'string', description: '', isPrimaryKey: false, isForeignKey: false, isNaturalKey: false, ...overrides };
 }
 
-function model(name: string, overrides: Partial<DisplayModel> = {}): DisplayModel {
+function model(name: string, overrides: Partial<DisplayTable> = {}): DisplayTable {
   return { name, schema: 'silver', description: '', columns: [column(`${name}_id`, { isPrimaryKey: true })], ...overrides };
 }
 
@@ -23,7 +23,7 @@ function rel(fromModel: string, toModel: string, overrides: Partial<DisplayRelat
   return { fromModel, fromColumn: `${toModel}_id`, toModel, toColumn: `${toModel}_id`, cardinality: 'many-to-one', ...overrides };
 }
 
-function domain(overrides: Partial<DisplayDomain> = {}): DisplayDomain {
+function domain(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'orders',
@@ -36,7 +36,7 @@ function domain(overrides: Partial<DisplayDomain> = {}): DisplayDomain {
     readOnly: false,
     positionDraggable: true,
     ...overrides,
-  } as DisplayDomain;
+  } as DisplaySubjectArea;
 }
 
 const modelNodes = (r: TransformResult) => r.nodes.filter((n) => n.type === 'model') as ModelFlowNode[];

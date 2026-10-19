@@ -13,10 +13,10 @@ import * as path from 'path';
 
 import type { FileState } from '../types/harness';
 import { redactPaths } from '../types/feedback';
-import { detectDomainFormat } from '../types/semantic';
+import { detectSubjectAreaFormat } from '../types/semantic';
 import { normaliseName } from '../services/nameUtils';
-import { DomainFileError } from '../services/domainService';
-import { keysContradictedRelationships, linkKey, parseDomainJson } from '@erd-studio/core';
+import { SubjectAreaFileError } from '../services/domainService';
+import { keysContradictedRelationships, linkKey, parseSubjectAreaJson } from '@erd-studio/core';
 import type { Relationship } from '@erd-studio/core';
 import { dbtKeyIndexOf } from '../services/stageDisplay';
 import {
@@ -224,13 +224,13 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
   const conflicted: ConflictedDomainFile[] = [];
   for (const d of domains) {
     try {
-      const format = detectDomainFormat(parseDomainJson(fs.readFileSync(d.filePath, 'utf-8'), d.filePath));
+      const format = detectSubjectAreaFormat(parseSubjectAreaJson(fs.readFileSync(d.filePath, 'utf-8'), d.filePath));
       if (format !== 'v5') { issues.push({ file: relPath(ctx.root, d.filePath), format }); }
     } catch (err) {
       // A conflicted diagram cannot load at all, and git's own wording is the
       // fix (#145). Any other unreadable / invalid JSON is not a format issue;
       // `diff --all` names it.
-      if (err instanceof DomainFileError && err.mergeConflict && err.line !== undefined) {
+      if (err instanceof SubjectAreaFileError && err.mergeConflict && err.line !== undefined) {
         conflicted.push({ file: relPath(ctx.root, d.filePath), line: err.line });
       }
     }

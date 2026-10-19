@@ -25,7 +25,7 @@ import type { LayerService } from '../../src/services/layerService';
 import type { ManifestData, ManifestModelInfo } from '../../src/types/manifest';
 import type { CatalogData, CatalogNodeInfo } from '../../src/types/catalog';
 import type { YmlData } from '../../src/types/ymlData';
-import type { SemanticModel, UnifiedDomain } from '../../src/types/semantic';
+import type { SemanticTable, UnifiedSubjectArea } from '../../src/types/semantic';
 
 const EMPTY_YML: YmlData = {
   models: new Map(),
@@ -56,7 +56,7 @@ function manifest(models: ManifestModelInfo[], tests: ManifestData['relationship
   };
 }
 
-function domain(models: SemanticModel[], layer = 'gold'): UnifiedDomain {
+function domain(models: SemanticTable[], layer = 'gold'): UnifiedSubjectArea {
   return {
     schemaVersion: 5,
     domain: 'finance',

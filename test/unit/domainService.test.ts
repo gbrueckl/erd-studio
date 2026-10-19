@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { DomainFileError, DomainService, derivePhysicalRelationships, isDomainFilePath, mergeCompositeForeignKeys, relationshipReferencesColumn, renameDomainInRaw } from '../../src/services/domainService';
+import { SubjectAreaFileError, DomainService, derivePhysicalRelationships, isDomainFilePath, mergeCompositeForeignKeys, relationshipReferencesColumn, renameDomainInRaw } from '../../src/services/domainService';
 import { LogicalModelService } from '../../src/services/logicalModelService';
 import type { LayerService } from '../../src/services/layerService';
 import type { LayerConfig } from '../../src/types/layer';
@@ -11,7 +11,7 @@ import type { ManifestData, ManifestRelationshipTest } from '../../src/types/man
 import type { YmlData } from '../../src/types/ymlData';
 import type { CatalogColumn, CatalogData, CatalogNodeInfo } from '../../src/types/catalog';
 import { normaliseName } from '../../src/services/nameUtils';
-import type { UnifiedDomain, StageData } from '../../src/types/semantic';
+import type { UnifiedSubjectArea, StageData } from '../../src/types/semantic';
 
 /** Empty YmlData — forces buildPhysicalDomain to use the manifest-only fallback. */
 const EMPTY_YML_DATA: YmlData = {
@@ -170,10 +170,10 @@ describe('DomainService', () => {
       let thrown: unknown;
       try { service.getDomain(filePath); } catch (err) { thrown = err; }
 
-      expect(thrown).toBeInstanceOf(DomainFileError);
-      expect((thrown as DomainFileError).reason).toBe('invalid-json');
-      expect((thrown as DomainFileError).transient).toBe(true);
-      expect((thrown as DomainFileError).filePath).toBe(filePath);
+      expect(thrown).toBeInstanceOf(SubjectAreaFileError);
+      expect((thrown as SubjectAreaFileError).reason).toBe('invalid-json');
+      expect((thrown as SubjectAreaFileError).transient).toBe(true);
+      expect((thrown as SubjectAreaFileError).filePath).toBe(filePath);
     });
 
     it('reports an empty file as empty, not as broken JSON', () => {
@@ -184,9 +184,9 @@ describe('DomainService', () => {
         let thrown: unknown;
         try { service.getDomain(filePath); } catch (err) { thrown = err; }
 
-        expect(thrown).toBeInstanceOf(DomainFileError);
-        expect((thrown as DomainFileError).reason).toBe('empty');
-        expect((thrown as DomainFileError).transient).toBe(true);
+        expect(thrown).toBeInstanceOf(SubjectAreaFileError);
+        expect((thrown as SubjectAreaFileError).reason).toBe('empty');
+        expect((thrown as SubjectAreaFileError).transient).toBe(true);
         expect((thrown as Error).message).toContain('Subject area file is empty');
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
@@ -197,9 +197,9 @@ describe('DomainService', () => {
       let thrown: unknown;
       try { service.getDomain('/nonexistent/domain.json'); } catch (err) { thrown = err; }
 
-      expect(thrown).toBeInstanceOf(DomainFileError);
-      expect((thrown as DomainFileError).reason).toBe('missing');
-      expect((thrown as DomainFileError).transient).toBe(false);
+      expect(thrown).toBeInstanceOf(SubjectAreaFileError);
+      expect((thrown as SubjectAreaFileError).reason).toBe('missing');
+      expect((thrown as SubjectAreaFileError).transient).toBe(false);
     });
   });
 
@@ -275,7 +275,7 @@ describe('DomainService', () => {
   });
 
   describe('buildPhysicalDomain', () => {
-    function createUnifiedDomain(): UnifiedDomain {
+    function createUnifiedDomain(): UnifiedSubjectArea {
       return {
         schemaVersion: 4,
         domain: 'test-domain',

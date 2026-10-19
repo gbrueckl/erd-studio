@@ -59,7 +59,7 @@ import { SyncMergeModal } from './components/SyncMergeModal/SyncMergeModal';
 import { ReconnectOverlay } from './components/ReconnectOverlay/ReconnectOverlay';
 import { useReconnectWatchdog } from './hooks/useReconnectWatchdog';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts';
-import type { DisplayDomain } from '../src/types/display';
+import type { DisplaySubjectArea } from '../src/types/display';
 import { redactPaths } from '../src/types/feedback';
 import { orientDraggedRelationship } from './lib/relationshipDirection';
 
@@ -71,7 +71,7 @@ import { orientDraggedRelationship } from './lib/relationshipDirection';
  * Load a display-domain payload into the store. Shared by `domainLoaded`
  * (initial load / host refresh) and `stageData` (stage switch reply).
  */
-function applyDomainPayload(payload: DisplayDomain): void {
+function applyDomainPayload(payload: DisplaySubjectArea): void {
   const s = useEditorStore.getState();
   s.setDomain(payload);
   if (payload.templates) {

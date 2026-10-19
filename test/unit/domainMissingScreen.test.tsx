@@ -23,14 +23,14 @@ vi.mock('../../webview/hooks/useVsCodeApi', () => ({
 
 import { App } from '../../webview/App';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 const MISSING = { message: '.erd-studio/silver/showcase.json was deleted or renamed outside ERD Studio.', kind: 'domain-missing' };
 const domain = {
   schemaVersion: 5, domain: 'showcase', layer: 'silver', stage: 'logical', description: '',
   models: [], relationships: [], viewConfig: {}, readOnly: false, positionDraggable: true,
-} as unknown as DisplayDomain;
+} as unknown as DisplaySubjectArea;
 
 function postFromHost(data: unknown) {
   act(() => {

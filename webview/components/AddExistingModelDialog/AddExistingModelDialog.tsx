@@ -21,7 +21,7 @@ import { Panel } from '@xyflow/react';
 
 import { useEditorStore } from '../../store/editorStore';
 import { useSend } from '../../hooks/useMessageBus';
-import type { ExistingModelPreview, ManifestModelPreview } from '../../../src/types/display';
+import type { ExistingTablePreview, ManifestModelPreview } from '../../../src/types/display';
 import { ADD_EXISTING_MODELS_LIMIT } from '../../../src/types/messages';
 import './AddExistingModelDialog.css';
 
@@ -52,7 +52,7 @@ export function AddExistingModelDialog() {
   const send = useSend();
 
   // Use existingModels if available (v5), fall back to manifestModels (v4 compat)
-  const models: (ExistingModelPreview | ManifestModelPreview)[] =
+  const models: (ExistingTablePreview | ManifestModelPreview)[] =
     existingModels.length > 0 ? existingModels : manifestModels;
 
   // Local state
@@ -91,7 +91,7 @@ export function AddExistingModelDialog() {
           m.name.toLowerCase().includes(query) ||
           m.schema.toLowerCase().includes(query) ||
           m.description.toLowerCase().includes(query) ||
-          ('sourcePath' in m && (m as ExistingModelPreview).sourcePath.toLowerCase().includes(query)),
+          ('sourcePath' in m && (m as ExistingTablePreview).sourcePath.toLowerCase().includes(query)),
       );
     }
 
@@ -314,7 +314,7 @@ export function AddExistingModelDialog() {
           ) : (
             filteredModels.map((model) => {
               const source: SourceKey = 'source' in model ? (model.source as SourceKey) : 'manifest';
-              const sourcePath = 'sourcePath' in model ? (model as ExistingModelPreview).sourcePath : undefined;
+              const sourcePath = 'sourcePath' in model ? (model as ExistingTablePreview).sourcePath : undefined;
               return (
                 <ModelItem
                   key={model.name}

@@ -24,7 +24,7 @@ import {
   deriveColumnAction,
   deriveRelationshipAction,
 } from '../../../src/types/syncPlan';
-import type { ModelDiscrepancy, RelationshipDiscrepancy } from '../../../src/types/discrepancy';
+import type { TableDiscrepancy, RelationshipDiscrepancy } from '../../../src/types/discrepancy';
 import type { GroundTruth } from '../../../src/types/syncPlan';
 import type { Stage } from '../../../src/types/semantic';
 import './SyncMergeModal.css';
@@ -158,7 +158,7 @@ interface SelectionSummary {
 }
 
 interface ModelRowProps {
-  model: ModelDiscrepancy;
+  model: TableDiscrepancy;
   sourceStage: string;
   targetStage: string;
   isCollapsed: boolean;
@@ -279,7 +279,7 @@ function ModelRow({ model, sourceStage, targetStage, isCollapsed, hasFoldableCon
 
 interface ColumnRowProps {
   modelName: string;
-  col: ModelDiscrepancy['columns'][number];
+  col: TableDiscrepancy['columns'][number];
   sourceStage: string;
   targetStage: string;
 }
@@ -397,8 +397,8 @@ function RelationshipRow({ rel, sourceStage, targetStage }: { rel: RelationshipD
 // ---------------------------------------------------------------------------
 
 interface ModelRowGroupProps {
-  model: ModelDiscrepancy;
-  conflictCols: ModelDiscrepancy['columns'];
+  model: TableDiscrepancy;
+  conflictCols: TableDiscrepancy['columns'];
   sourceStage: string;
   targetStage: string;
   isCollapsed: boolean;
@@ -607,7 +607,7 @@ export function SyncMergeModal() {
 
   // Split models and relationships into unresolved / resolved when hiding
   const { unresolved: unresolvedModels, resolved: resolvedModels } = useMemo(() => {
-    if (!hideResolved) return { unresolved: models, resolved: [] as ModelDiscrepancy[] };
+    if (!hideResolved) return { unresolved: models, resolved: [] as TableDiscrepancy[] };
     return splitByResolved(models, (m) => !!modelResolutionStatus.get(m.name));
   }, [models, hideResolved, modelResolutionStatus]);
 

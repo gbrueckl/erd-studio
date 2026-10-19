@@ -17,8 +17,8 @@
  * — the code the extension runs.
  */
 
-import { canonicalRelationship, linkKey, mergeLibraryRelationships, toDisplayDomain } from '@erd-studio/core';
-import type { DisplayDomain } from '@erd-studio/core';
+import { canonicalRelationship, linkKey, mergeLibraryRelationships, toDisplaySubjectArea } from '@erd-studio/core';
+import type { DisplaySubjectArea } from '@erd-studio/core';
 import { transformDomain } from '@erd-studio/renderer/editor';
 import type { FkFlowEdge } from '@erd-studio/renderer/editor';
 import {
@@ -27,7 +27,7 @@ import {
 } from '../../src/services/libraryRelationships';
 import type { ConflictDefinition, MoveToLibraryPlan, RelationshipWriteOp } from '../../src/services/libraryRelationships';
 import { validateRelationshipEnds } from '../../src/providers/payloadValidation';
-import type { Cardinality, ColumnDef, ModelRelationship, Relationship, SemanticModel } from '../../src/types/semantic';
+import type { Cardinality, ColumnDef, TableRelationship, Relationship, SemanticTable } from '../../src/types/semantic';
 import { CARDS, SHORT, SWAP, clone, multisets } from './relationshipStateSpace.model';
 import type { Violation } from './relationshipStateSpace.model';
 
@@ -37,17 +37,17 @@ const DS: D[] = ['D1', 'D2', 'D3'];
 /** A world of any models: their columns, library entries, and three diagrams. */
 export interface GWorld {
   columns: Record<string, ColumnDef[]>;
-  lib: Record<string, ModelRelationship[]>;
+  lib: Record<string, TableRelationship[]>;
   dom: Record<D, Relationship[]>;
   domModels: Record<D, string[]>;
 }
 
 const col = (name: string, pk = false): ColumnDef => ({ name, dataType: 'string', description: '', ...(pk ? { isPrimaryKey: true } : {}) });
 
-export function gModels(w: GWorld, order = Object.keys(w.columns)): SemanticModel[] {
+export function gModels(w: GWorld, order = Object.keys(w.columns)): SemanticTable[] {
   return order.map((name) => ({ name, columns: clone(w.columns[name]), ...(w.lib[name].length > 0 ? { relationships: clone(w.lib[name]) } : {}) }));
 }
-const withModels = (w: GWorld, models: readonly SemanticModel[]): GWorld => {
+const withModels = (w: GWorld, models: readonly SemanticTable[]): GWorld => {
   const next = clone(w);
   for (const m of models) next.lib[m.name] = clone(m.relationships ?? []);
   return next;
@@ -80,7 +80,7 @@ export function gWrite(w: GWorld, op: RelationshipWriteOp, d: D = 'D1'): GOutcom
 
 export function gMovePlan(w: GWorld, domainOrder: D[] = ['D1', 'D2', 'D3'], modelOrder = Object.keys(w.columns)): MoveToLibraryPlan {
   const domains = domainOrder.map((d) => ({ label: d, relationships: clone(w.dom[d]) })).filter((d) => d.relationships.length > 0);
-  const libraryModel = (name: string): SemanticModel | null => gModels(w).find((m) => m.name === name.toLowerCase()) ?? null;
+  const libraryModel = (name: string): SemanticTable | null => gModels(w).find((m) => m.name === name.toLowerCase()) ?? null;
   return planMoveToLibrary(domains, libraryModel, gModels(w, modelOrder), () => false);
 }
 
@@ -308,7 +308,7 @@ function oneEdge(w: GWorld): Violation[] {
   const v: Violation[] = [];
   for (const d of ['D1', 'D2'] as const) {
     const drawn = gDraw(w, d);
-    const display: DisplayDomain = toDisplayDomain(
+    const display: DisplaySubjectArea = toDisplaySubjectArea(
       { schemaVersion: 5, domain: d, layer: 'silver', stage: 'logical', description: '', models: gModels(w, w.domModels[d]), relationships: drawn },
       { viewConfig: {}, layerConfig: undefined, readOnly: false },
     );
@@ -361,7 +361,7 @@ function groupHome(w: GWorld): string[] {
 const libraryAndD1 = (w: GWorld): Relationship[] => files(w).filter(([f]) => f.endsWith('.yml') || f === 'D1').flatMap(([, r]) => r);
 
 /** 1.6.7's save of fct.yml: only the four fields of the entries it can read survive (see mixed167.compositeKey.test.ts). */
-const save167 = (rels: ModelRelationship[]): ModelRelationship[] =>
+const save167 = (rels: TableRelationship[]): TableRelationship[] =>
   rels.map(({ fromColumn, toModel, toColumn, cardinality }) => ({ fromColumn, toModel, toColumn, cardinality }));
 
 /** Every check of one GROUP state: reads, each canvas edit from D1, 1.6.7's writes, and the Move. */

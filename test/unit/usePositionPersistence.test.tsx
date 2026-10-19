@@ -23,7 +23,7 @@ vi.mock('../../webview/hooks/useVsCodeApi', () => ({
 import { usePositionPersistence } from '../../webview/hooks/usePositionPersistence';
 import { useEditorStore } from '../../webview/store/editorStore';
 import type { ModelFlowNode } from '@erd-studio/renderer/editor';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
@@ -44,7 +44,7 @@ const domain = {
   relationships: [],
   viewConfig: { positions: { a: { x: 0, y: 0 }, b: { x: 0, y: 0 } } },
   readOnly: false,
-} as unknown as DisplayDomain;
+} as unknown as DisplaySubjectArea;
 
 let visibility: DocumentVisibilityState = 'visible';
 
@@ -81,7 +81,7 @@ describe('usePositionPersistence', () => {
           ...domain.viewConfig,
           annotations: [{ id: 'n1', text: '', x: 0, y: 0 }, { id: 'n2', text: '', x: 5, y: 5 }],
         },
-      } as unknown as DisplayDomain,
+      } as unknown as DisplaySubjectArea,
     });
     const { result } = renderHook(() => usePositionPersistence());
 

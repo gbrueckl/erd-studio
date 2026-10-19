@@ -5,7 +5,7 @@ import { ModelLibraryTreeProvider, type ModelLibraryNode } from '../../src/provi
 import type { LogicalModelService, ModelFileEntry } from '../../src/services/logicalModelService';
 import type { LayerConfig } from '../../src/types/layer';
 import type { DomainService } from '../../src/services/domainService';
-import type { DomainSummary } from '../../src/types/semantic';
+import type { SubjectAreaSummary } from '../../src/types/semantic';
 
 // Mock fs — readFileSync returns domain JSON for cross-referencing
 const mockReadFileSync = vi.fn();
@@ -62,7 +62,7 @@ const LAYERS: LayerConfig[] = [
   { id: 'marts', label: 'Data Marts', abbreviation: 'M' },
 ] as LayerConfig[];
 
-function createMockDomainService(summaries: DomainSummary[] = []): DomainService {
+function createMockDomainService(summaries: SubjectAreaSummary[] = []): DomainService {
   return {
     listDomains: vi.fn().mockReturnValue(summaries),
   } as unknown as DomainService;
@@ -97,7 +97,7 @@ function v4DomainJson(modelNames: string[]): string {
 // Test data
 // ---------------------------------------------------------------------------
 
-const SUMMARIES: DomainSummary[] = [
+const SUMMARIES: SubjectAreaSummary[] = [
   { domain: 'customer-360', layer: 'silver', filePath: '/project/.erd-studio/silver/customer-360.json' },
   { domain: 'reporting', layer: 'gold', filePath: '/project/.erd-studio/gold/reporting.json' },
 ];

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, fireEvent, act, cleanup } from '@testing-library/react';
-import type { DisplayDomain } from '@erd-studio/core';
+import type { DisplaySubjectArea } from '@erd-studio/core';
 import { ErdCanvas } from '../../src/ErdCanvas';
 import { toRenderableDomain } from '../../src/ErdCanvas';
 
@@ -22,7 +22,7 @@ beforeAll(() => {
 
 afterEach(cleanup);
 
-function makeDomain(readOnly: boolean): DisplayDomain {
+function makeDomain(readOnly: boolean): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',
@@ -45,7 +45,7 @@ function makeDomain(readOnly: boolean): DisplayDomain {
         description: '',
         // Hand-built domains may leave the data type out.
         columns: [
-          { name: 'customer_id', description: '', isPrimaryKey: true, isForeignKey: false, isNaturalKey: false } as DisplayDomain['models'][number]['columns'][number],
+          { name: 'customer_id', description: '', isPrimaryKey: true, isForeignKey: false, isNaturalKey: false } as DisplaySubjectArea['models'][number]['columns'][number],
         ],
         rationale: { purpose: 'Who buys', design: '' },
       },
@@ -204,7 +204,7 @@ for (const readOnly of [false, true]) {
 describe('ErdCanvas onReady', () => {
   it('fires once for a domain with nothing to draw', async () => {
     const onReady = vi.fn();
-    const empty: DisplayDomain = { ...makeDomain(true), models: [], relationships: [], viewConfig: {} };
+    const empty: DisplaySubjectArea = { ...makeDomain(true), models: [], relationships: [], viewConfig: {} };
     const { rerender } = render(<ErdCanvas domain={empty} onReady={onReady} />);
     await flush();
     rerender(<ErdCanvas domain={empty} onReady={onReady} />);
@@ -221,7 +221,7 @@ describe('ErdCanvas with a domain that has no layer', () => {
       models: [{ ...rest.models[0], schema: '' }],
       relationships: [],
       viewConfig: { positions: { orders: { x: 0, y: 0 } } },
-    } as unknown as DisplayDomain;
+    } as unknown as DisplaySubjectArea;
     const { container } = render(
       <div style={{ width: 1200, height: 800 }}>
         <ErdCanvas domain={domain} />
@@ -243,7 +243,7 @@ describe('toRenderableDomain', () => {
       models: [{ name: 'm', schema: '', description: '' }],
       readOnly: false,
       positionDraggable: false,
-    } as unknown as DisplayDomain;
+    } as unknown as DisplaySubjectArea;
 
     expect(toRenderableDomain(partial)).toEqual({
       ...partial,

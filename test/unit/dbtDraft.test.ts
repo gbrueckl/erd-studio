@@ -26,12 +26,12 @@ import { CatalogService } from '../../src/services/catalogService';
 import { DomainService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
 import { normaliseName } from '../../src/services/nameUtils';
-import { detectDomainFormat } from '../../src/types/semantic';
+import { detectSubjectAreaFormat } from '../../src/types/semantic';
 import { isFreshLayout } from '../../src/providers/SemanticEditorProvider';
 import type { YmlData, YmlModelInfo } from '../../src/types/ymlData';
 import type { ManifestData, ManifestModelInfo } from '../../src/types/manifest';
 import type { CatalogData, CatalogNodeInfo } from '../../src/types/catalog';
-import type { UnifiedDomain } from '../../src/types/semantic';
+import type { UnifiedSubjectArea } from '../../src/types/semantic';
 
 const ROOT = path.resolve(__dirname, '../fixtures/dbt-project');
 
@@ -326,7 +326,7 @@ describe('seedModelFromDbt — column types from catalog.json', () => {
     // One rule: the physical stage resolves every column of every drawable model identically.
     const names = listDraftModels({ ymlData, manifest, projectRoot: ROOT, modelPaths: ['models'] }).map((e) => e.name);
     const models = names.map((n) => seedModelFromDbt(n, ymlData, manifest, catalog)!);
-    const unified: UnifiedDomain = {
+    const unified: UnifiedSubjectArea = {
       schemaVersion: 4, domain: 'parity', layer: 'silver', description: '',
       logical: { models, relationships: [] }, viewConfig: {},
     };
@@ -503,7 +503,7 @@ describe('buildDraftDomainDocument', () => {
     const text = serializeDraftDomainDocument(doc);
     expect(text.endsWith('}\n')).toBe(true);
     const parsed = JSON.parse(text);
-    expect(detectDomainFormat(parsed)).toBe('v5');
+    expect(detectSubjectAreaFormat(parsed)).toBe('v5');
     expect(isFreshLayout({ logical: { models: parsed.logical.models.map((name: string) => ({ name })) }, viewConfig: parsed.viewConfig })).toBe(true);
   });
 });

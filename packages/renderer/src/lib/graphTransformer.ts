@@ -10,13 +10,13 @@
  */
 
 import type {
-  DisplayDomain,
-  DisplayModel,
+  DisplaySubjectArea,
+  DisplayTable,
   Meta,
 } from '@erd-studio/core';
 import type {
   DiscrepancyReport,
-  ModelDiscrepancy,
+  TableDiscrepancy,
 } from '@erd-studio/core';
 import type {
   ModelFlowNode,
@@ -70,7 +70,7 @@ const hasMeta = (meta: Meta | undefined): meta is Meta => !!meta && Object.keys(
  * Convert a DisplayModel's columns to ColumnDisplay[].
  * Sort by key priority (PK → NK → FK → non-key).
  */
-function mapColumns(model: DisplayModel): ColumnDisplay[] {
+function mapColumns(model: DisplayTable): ColumnDisplay[] {
   const mapped = model.columns.map((col) => ({
     name: col.name,
     dataType: col.dataType,
@@ -143,14 +143,14 @@ export function pickHandleSides(
  * @returns nodes and edges ready for React Flow's `<ReactFlow>` component
  */
 export function transformDomain(
-  domain: DisplayDomain,
+  domain: DisplaySubjectArea,
   options?: TransformOptions,
 ): TransformResult {
   const { models, relationships, viewConfig, layer, stage, layerConfig, readOnly } = domain;
   const positions = viewConfig.positions ?? {};
 
   // Build discrepancy lookup if report is active
-  const discrepancyMap = new Map<string, ModelDiscrepancy>();
+  const discrepancyMap = new Map<string, TableDiscrepancy>();
   if (options?.discrepancyReport) {
     for (const md of options.discrepancyReport.models) {
       discrepancyMap.set(md.name, md);

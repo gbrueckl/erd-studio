@@ -17,8 +17,8 @@ export {
 export { repickHandleSides, nodeRect } from './lib/dragHandleSides';
 
 export type {
-  DisplayDomain,
-  DisplayModel,
+  DisplaySubjectArea,
+  DisplayTable,
   DisplayColumn,
   DisplayRelationship,
   PhysicalColumnSource,
@@ -27,7 +27,7 @@ export type {
   AnnotationColor,
   Cardinality,
   Layer,
-  ModelRole,
+  TableRole,
   NodePosition,
   Rationale,
   Stage,

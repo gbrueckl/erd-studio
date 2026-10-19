@@ -27,9 +27,9 @@
  * it writes a user setting, not a domain file.
  */
 
-import type { DisplayDomain } from './display';
+import type { DisplaySubjectArea } from './display';
 import type { DiscrepancyReport } from './discrepancy';
-import type { AnnotationColor, Cardinality, DesignModel, Stage } from './semantic';
+import type { AnnotationColor, Cardinality, DesignTable, Stage } from './semantic';
 import type { ColumnPair } from '@erd-studio/core';
 import type { GroundTruth } from './syncPlan';
 import type {
@@ -99,7 +99,7 @@ export type {
  */
 export interface DomainLoadedMessage {
   type: 'domainLoaded';
-  payload: DisplayDomain;
+  payload: DisplaySubjectArea;
   /** Whether the user has already dismissed the welcome modal (persisted in globalState). */
   welcomeDismissed?: boolean;
   /**
@@ -166,7 +166,7 @@ export interface ErrorMessage {
  */
 export interface StageDataMessage {
   type: 'stageData';
-  payload: DisplayDomain;
+  payload: DisplaySubjectArea;
   requestId?: number;
   /** Same contract as `DomainLoadedMessage.manifestMissing`. */
   manifestMissing?: boolean;
@@ -290,7 +290,7 @@ export interface ReadyMessage {
  */
 export interface AddModelMessage {
   type: 'addModel';
-  payload: DesignModel;
+  payload: DesignTable;
 }
 
 /**

@@ -16,7 +16,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import type { Rationale, ModelRole } from '@erd-studio/core';
+import type { Rationale, TableRole } from '@erd-studio/core';
 import { RationaleField } from './RationaleField';
 import { useIsViewer } from '../../host/canvasEnvironment';
 
@@ -36,7 +36,7 @@ export function hasRationaleContent(rationale: Rationale | undefined): boolean {
 interface ModelRationaleProps {
   modelName: string;
   rationale?: Rationale;
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
   grain?: string;
 }
 

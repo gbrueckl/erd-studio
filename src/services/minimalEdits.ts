@@ -12,7 +12,7 @@ import type { Node, Pair } from 'yaml';
 
 import { VALID_CARDINALITIES, normaliseCompositeKey, normaliseRelationshipRole } from '@erd-studio/core';
 
-import type { ModelRelationship, Relationship } from '../types/semantic';
+import type { TableRelationship, Relationship } from '../types/semantic';
 import { detectEol, keepLineEndings } from './lineEndings';
 
 const BOM = '﻿';
@@ -65,7 +65,7 @@ function detectSeqIndent(text: string, pairs: readonly Pair[]): number {
   return 2;
 }
 
-function renderYamlBlock(relationships: readonly ModelRelationship[], indent: number, eol: string): string {
+function renderYamlBlock(relationships: readonly TableRelationship[], indent: number, eol: string): string {
   const dash = ' '.repeat(indent);
   const body = ' '.repeat(indent + 2);
   const lines = ['relationships:'];
@@ -114,7 +114,7 @@ export function relationshipsRewriteLoses(text: string): boolean {
  * unchanged. Line endings follow the file's own (CRLF stays CRLF); a BOM is
  * kept. Throws if `text` is not a YAML mapping.
  */
-export function setYamlRelationships(text: string, relationships: readonly ModelRelationship[]): string {
+export function setYamlRelationships(text: string, relationships: readonly TableRelationship[]): string {
   const { bom, body } = splitBom(text);
   const doc = parseDocument(body);
   if (doc.errors.length > 0) throw new Error(`setYamlRelationships: ${doc.errors[0].message}`);

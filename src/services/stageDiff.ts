@@ -11,9 +11,9 @@
 
 import type { CatalogData } from '../types/catalog';
 import type { DiscrepancyReport } from '../types/discrepancy';
-import type { DisplayDomain } from '../types/display';
+import type { DisplaySubjectArea } from '../types/display';
 import type { ManifestData } from '../types/manifest';
-import type { Stage, UnifiedDomain } from '../types/semantic';
+import type { Stage, UnifiedSubjectArea } from '../types/semantic';
 import type { YmlData } from '../types/ymlData';
 import { compare } from './discrepancyService';
 import { DomainService } from './domainService';
@@ -30,11 +30,11 @@ export interface DomainDiffInputs {
 
 export interface DomainDiffResult {
   /** The domain file as read — once — for this comparison. */
-  unified: UnifiedDomain;
+  unified: UnifiedSubjectArea;
   /** The stage being viewed. */
-  source: DisplayDomain;
+  source: DisplaySubjectArea;
   /** The stage compared against. */
-  target: DisplayDomain;
+  target: DisplaySubjectArea;
   report: DiscrepancyReport;
 }
 
@@ -51,9 +51,9 @@ export function otherStage(stage: Stage): Stage {
  */
 export function buildStageForDiff(
   inputs: DomainDiffInputs,
-  unified: UnifiedDomain,
+  unified: UnifiedSubjectArea,
   stage: Stage,
-): DisplayDomain {
+): DisplaySubjectArea {
   if (stage === 'physical') {
     return inputs.domainService.buildPhysicalDomain(unified, inputs.ymlData, inputs.manifest, inputs.catalog);
   }

@@ -13,7 +13,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import type { ColumnDef, SemanticModel } from '../../src/types/semantic';
+import type { ColumnDef, SemanticTable } from '../../src/types/semantic';
 import type { UpdateColumnPayloadColumn } from '../../src/types/messages';
 
 // ---------------------------------------------------------------------------
@@ -65,12 +65,12 @@ function makeDocument(text: string) {
  * (the createFile branch needs no TextDocument). `workspace.applyEdit` is
  * stubbed so the edit never reaches the real filesystem.
  */
-function makeProvider(models: SemanticModel[]) {
-  const saved: SemanticModel[] = [];
+function makeProvider(models: SemanticTable[]) {
+  const saved: SemanticTable[] = [];
   const logicalModelService = {
     getModel: (name: string) => models.find((m) => m.name === name) ?? null,
-    saveModel: (model: SemanticModel) => { saved.push(model); },
-    serializeModel: (model: SemanticModel) => { saved.push(model); return `name: ${model.name}\n`; },
+    saveModel: (model: SemanticTable) => { saved.push(model); },
+    serializeModel: (model: SemanticTable) => { saved.push(model); return `name: ${model.name}\n`; },
     modelExists: () => false,
     modelPath: (name: string) => `/ws/.erd-studio/logical-models/${name}.yml`,
     ensureDir: () => {},
@@ -140,7 +140,7 @@ describe('handleUpdateColumn (V5) scdType / additiveType', () => {
   }));
 
   let provider: SemanticEditorProvider;
-  let saved: SemanticModel[];
+  let saved: SemanticTable[];
 
   beforeEach(() => {
     ({ provider, saved } = makeProvider([{ name: 'dim_customer', columns: [makeColumn()] }]));

@@ -17,13 +17,13 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { loadDisplayDomain } from '../../src/loadDisplayDomain';
-import { DomainFileError, DomainValidationError } from '../../src/domain';
+import { loadDisplaySubjectArea } from '../../src/loadDisplayDomain';
+import { SubjectAreaFileError, SubjectAreaValidationError } from '../../src/domain';
 
 const FIXTURES = path.resolve(__dirname, '../fixtures');
 const GOLDEN_DIR = path.join(FIXTURES, 'golden');
 
-const DOMAIN_CASES: Record<string, string> = {
+const SUBJECT_AREA_CASES: Record<string, string> = {
   showcase: '.erd-studio/silver/showcase.json',
   'v4-inline': '.erd-studio/bronze/orders.json',
   'missing-model': '.erd-studio/silver/partial.json',
@@ -67,10 +67,10 @@ function fsReadFile(root: string) {
 }
 
 describe('loadDisplayDomain matches the extension host golden output', () => {
-  describe.each(Object.entries(DOMAIN_CASES))('%s', (name, domainPath) => {
+  describe.each(Object.entries(SUBJECT_AREA_CASES))('%s', (name, domainPath) => {
     it('builds the posted DisplayDomain, without the editor-only fields', async () => {
       const root = path.join(FIXTURES, name);
-      const domain = await loadDisplayDomain({
+      const domain = await loadDisplaySubjectArea({
         domainPath,
         readFile: fsReadFile(root),
         readOnly: false,
@@ -92,7 +92,7 @@ describe('loadDisplayDomain matches the extension host golden output', () => {
       const golden = readGolden(`errors.${name}.host.json`).payload as { message: string; kind?: string };
       let caught: unknown;
       try {
-        await loadDisplayDomain({
+        await loadDisplaySubjectArea({
           domainPath,
           readFile: fsReadFile(path.join(FIXTURES, 'errors')),
           readOnly: false,
@@ -102,7 +102,7 @@ describe('loadDisplayDomain matches the extension host golden output', () => {
         caught = err;
       }
       // The host tags DomainFileError failures with kind 'domain-file'.
-      expect(caught).toBeInstanceOf(golden.kind === 'domain-file' ? DomainFileError : DomainValidationError);
+      expect(caught).toBeInstanceOf(golden.kind === 'domain-file' ? SubjectAreaFileError : SubjectAreaValidationError);
       const message = (caught as Error).message.replace(LINE_COLUMN, '');
       expect(message).toBe(golden.message.split('<root>/').join(''));
     });

@@ -14,10 +14,10 @@ import * as path from 'path';
 
 import type { DiscrepancyReport } from '../types/discrepancy';
 import { redactPaths } from '../types/feedback';
-import type { Cardinality, Relationship, UnifiedDomain } from '../types/semantic';
-import { detectDomainFormat } from '../types/semantic';
+import type { Cardinality, Relationship, UnifiedSubjectArea } from '../types/semantic';
+import { detectSubjectAreaFormat } from '../types/semantic';
 import type { SyncPlan } from '../types/syncPlan';
-import { DomainFileError } from '../services/domainService';
+import { SubjectAreaFileError } from '../services/domainService';
 import type { ModelFileError, ModelFileErrorKind } from '../services/logicalModelService';
 import { usesLibraryRelationships } from '../services/libraryRelationships';
 import { canonicalRelationship, linkKey, mergeLibraryRelationships, reverseRelationship } from '@erd-studio/core';
@@ -231,7 +231,7 @@ export function describeDomainError(ctx: CliContext, file: string, err: unknown)
   const rel = relPath(ctx.root, file);
   const raw = err instanceof Error ? err.message : String(err);
   const message = redactPaths(raw.split(file).join(rel));
-  if (err instanceof DomainFileError) {
+  if (err instanceof SubjectAreaFileError) {
     if (err.mergeConflict) { return { code: 'merge-conflict', message: conflictedDomainMessage(rel, err.line) }; }
     return { code: err.reason === 'missing' ? 'domain-missing' : 'domain-invalid', message };
   }
@@ -481,7 +481,7 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
   } catch {
     raw = undefined; // getDomain below produces the precise error
   }
-  const format = raw === undefined ? null : detectDomainFormat(raw);
+  const format = raw === undefined ? null : detectSubjectAreaFormat(raw);
 
   // A v4 (inline-model) file gets the migration answer before anything tries
   // the v5 load path — the migration command is what fixes it, whatever else
@@ -568,13 +568,13 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
   };
 }
 
-function missingModelFiles(ctx: CliContext, unified: UnifiedDomain): string[] {
+function missingModelFiles(ctx: CliContext, unified: UnifiedSubjectArea): string[] {
   return unified.logical.models
     .map((m) => m.name)
     .filter((name) => !ctx.logicalModelService.modelExists(name));
 }
 
-function unreadableModels(ctx: CliContext, unified: UnifiedDomain): UnreadableModelFile[] {
+function unreadableModels(ctx: CliContext, unified: UnifiedSubjectArea): UnreadableModelFile[] {
   const out: UnreadableModelFile[] = [];
   for (const m of unified.logical.models) {
     const err = ctx.logicalModelService.getModelFileError(m.name);

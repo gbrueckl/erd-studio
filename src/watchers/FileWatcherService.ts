@@ -34,7 +34,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { LOGICAL_MODELS_DIR } from '../services/logicalModelService';
-import { NON_DOMAIN_DIRS } from '../services/domainService';
+import { NON_SUBJECT_AREA_DIRS } from '../services/domainService';
 import { LAYERS_CONFIG_FILE } from '../services/layerService';
 import { OwnWriteTracker, ownWrites } from '../services/ownWriteTracker';
 import {
@@ -75,7 +75,7 @@ export function classifySemanticPath(
     return 'other';
   }
   const [dir, file] = segments;
-  if (dir.startsWith('.') || NON_DOMAIN_DIRS.has(dir) || !file.endsWith('.json') || file.startsWith('.')) {
+  if (dir.startsWith('.') || NON_SUBJECT_AREA_DIRS.has(dir) || !file.endsWith('.json') || file.startsWith('.')) {
     return 'other';
   }
   return 'domain';

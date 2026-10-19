@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { compare, normaliseDataType } from '../../src/services/discrepancyService';
 import { deriveColumnAction } from '../../src/types/syncPlan';
-import type { DisplayDomain, DisplayModel, DisplayRelationship } from '../../src/types/display';
+import type { DisplaySubjectArea, DisplayTable, DisplayRelationship } from '../../src/types/display';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDomain(overrides: Partial<DisplayDomain> = {}): DisplayDomain {
+function makeDomain(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 2,
     domain: 'test',
@@ -22,11 +22,11 @@ function makeDomain(overrides: Partial<DisplayDomain> = {}): DisplayDomain {
   };
 }
 
-function makeModel(name: string, columns: DisplayModel['columns'] = []): DisplayModel {
+function makeModel(name: string, columns: DisplayTable['columns'] = []): DisplayTable {
   return { name, schema: '', description: '', columns };
 }
 
-function makeColumn(name: string, dataType = 'VARCHAR'): DisplayModel['columns'][0] {
+function makeColumn(name: string, dataType = 'VARCHAR'): DisplayTable['columns'][0] {
   return { name, dataType, description: '', isPrimaryKey: false, isForeignKey: false, isNaturalKey: false };
 }
 
@@ -571,7 +571,7 @@ describe('DiscrepancyService.compare', () => {
 
   describe('models that do not exist in the dbt project', () => {
     /** A physical model the dbt project does not have — emitted so it can ghost. */
-    function phantom(name: string): DisplayModel {
+    function phantom(name: string): DisplayTable {
       return { ...makeModel(name), existsInProject: false, missingReason: 'absent' };
     }
 
@@ -608,7 +608,7 @@ describe('DiscrepancyService.compare', () => {
 
   describe('a model with no column evidence', () => {
     /** A model known only by the .sql file that defines it — its shape is unverified. */
-    function fileOnly(name: string): DisplayModel {
+    function fileOnly(name: string): DisplayTable {
       return { ...makeModel(name), existsInProject: true, provenance: { columns: ['file'], types: 'file' } };
     }
 
@@ -634,7 +634,7 @@ describe('DiscrepancyService.compare', () => {
       // provenance 'yml' with zero columns is a different claim from 'file':
       // the yml declares the model and documents no columns, which is a real
       // difference from a logical design that documents two.
-      const undocumented: DisplayModel = {
+      const undocumented: DisplayTable = {
         ...makeModel('dim_customer'), existsInProject: true, provenance: { columns: ['yml'], types: 'yml' },
       };
       const report = compare(makeDomain({ stage: 'physical', models: [undocumented] }), documented());

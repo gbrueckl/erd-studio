@@ -14,13 +14,13 @@ vi.mock('../../webview/hooks/useMessageBus', () => ({ useSend: () => send }));
 
 import { ManifestHint } from '../../webview/components/Canvas/ManifestHint';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 const LEAD =
   "dbt hasn't parsed this project yet. Your diagram is fine, but the Physical view can't show columns and tests without it.";
 const CLOSE_LABEL = "Don't show again for this project";
 
-function domain(overrides: Partial<DisplayDomain> = {}): DisplayDomain {
+function domain(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'orders',
@@ -32,7 +32,7 @@ function domain(overrides: Partial<DisplayDomain> = {}): DisplayDomain {
     viewConfig: {},
     readOnly: false,
     ...overrides,
-  } as DisplayDomain;
+  } as DisplaySubjectArea;
 }
 
 beforeEach(() => {

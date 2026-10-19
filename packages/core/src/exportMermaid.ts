@@ -48,9 +48,9 @@
  * exported.
  */
 
-import type { DisplayDomain } from './types/display.js';
-import { backwardsNoteOf, describeEnds, foreignKeyColumns, oneLine, prepareDomain } from './exportShared.js';
-import type { ExportColumn, ExportLink, ExportModel } from './exportShared.js';
+import type { DisplaySubjectArea } from './types/display.js';
+import { backwardsNoteOf, describeEnds, foreignKeyColumns, oneLine, prepareSubjectArea } from './exportShared.js';
+import type { ExportColumn, ExportLink, ExportTable } from './exportShared.js';
 
 export const MERMAID_EXPORT_HEADER = '%% erd-studio mermaid-export v1';
 
@@ -71,7 +71,7 @@ function entityName(name: string): string {
   return oneLine(name).replace(/"/g, "'").replace(/%/g, '_').replace(/\\/g, '/');
 }
 
-function entity(model: ExportModel): string {
+function entity(model: ExportTable): string {
   return `"${entityName(model.name)}"`;
 }
 
@@ -113,7 +113,7 @@ function attributeLine(column: ExportColumn): string {
   return `    ${type} ${name}${keys.length > 0 ? ` ${keys.join(', ')}` : ''}${comment}`;
 }
 
-function modelLines(model: ExportModel): string[] {
+function tableLines(model: ExportTable): string[] {
   const lines: string[] = [`  %% Table ${oneLine(model.name)}`];
   if (entityName(model.name) !== model.name) {
     lines.push(`  %%   written as ${entity(model)}: Mermaid entity names cannot hold ", % or \\`);
@@ -161,8 +161,8 @@ function relationshipLines(link: ExportLink): string[] {
 }
 
 /** The diagram as a Mermaid `erDiagram`. Deterministic; never throws on a valid `DisplayDomain`, however minimal. */
-export function toMermaid(domain: DisplayDomain): string {
-  const prepared = prepareDomain(domain);
+export function toMermaid(domain: DisplaySubjectArea): string {
+  const prepared = prepareSubjectArea(domain);
   const about = [prepared.layer && `layer ${oneLine(prepared.layer)}`, prepared.stage && `${oneLine(prepared.stage)} stage`].filter(Boolean);
   const out: string[] = [
     // `erDiagram` first: Mermaid 10.0 to 10.4 reject any line before it, comments included.
@@ -175,7 +175,7 @@ export function toMermaid(domain: DisplayDomain): string {
   ];
 
   const entities = new Set<string>();
-  const exported = new Set<ExportModel>();
+  const exported = new Set<ExportTable>();
   for (const item of prepared.models) {
     if (item.kind === 'skipped') {
       out.push(`  %% Not exported: ${item.text}.`);
@@ -188,7 +188,7 @@ export function toMermaid(domain: DisplayDomain): string {
     }
     entities.add(name);
     exported.add(item.model);
-    out.push('', ...modelLines(item.model));
+    out.push('', ...tableLines(item.model));
   }
 
   if (prepared.links.length > 0) out.push('');

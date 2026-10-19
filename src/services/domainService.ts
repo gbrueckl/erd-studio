@@ -13,19 +13,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import {
-  DomainFileError,
-  NON_DOMAIN_DIRS,
-  buildUnifiedDomain,
+  SubjectAreaFileError,
+  NON_SUBJECT_AREA_DIRS,
+  buildUnifiedSubjectArea,
   compositeGroupProblem,
   groupKey,
   linkKey,
-  parseDomainJson,
+  parseSubjectAreaJson,
   toLogicalStage,
-  validateDomainDocument,
+  validateSubjectAreaDocument,
 } from '@erd-studio/core';
 import type { DbtKeyIndex } from '@erd-studio/core';
-import type { DomainSummary, SemanticDomain, UnifiedDomain } from '../types/semantic';
-import type { DisplayDomain, DisplayModel, DisplayColumn, DisplayRelationship, PhysicalColumnSource } from '../types/display';
+import type { SubjectAreaSummary, SemanticSubjectArea, UnifiedSubjectArea } from '../types/semantic';
+import type { DisplaySubjectArea, DisplayTable, DisplayColumn, DisplayRelationship, PhysicalColumnSource } from '../types/display';
 import type { CompositeForeignKey, ManifestData } from '../types/manifest';
 import type { CatalogData, CatalogColumn } from '../types/catalog';
 import type { YmlData } from '../types/ymlData';
@@ -37,8 +37,8 @@ import { catalogNodeFor, resolveColumnType } from './columnTypes';
 
 // The pure domain parsing lives in @erd-studio/core; these are re-exported so
 // existing imports of this module keep working.
-export { DomainFileError, NON_DOMAIN_DIRS } from '@erd-studio/core';
-export type { DomainFileErrorReason } from '@erd-studio/core';
+export { SubjectAreaFileError, NON_SUBJECT_AREA_DIRS } from '@erd-studio/core';
+export type { SubjectAreaFileErrorReason } from '@erd-studio/core';
 
 /**
  * Minimal relationship test shape accepted by derivePhysicalRelationships().
@@ -71,7 +71,7 @@ export function isDomainFilePath(fsPath: string): boolean {
     file.endsWith('.json') &&
     !file.startsWith('.') &&
     !dir.startsWith('.') &&
-    !NON_DOMAIN_DIRS.has(dir)
+    !NON_SUBJECT_AREA_DIRS.has(dir)
   );
 }
 
@@ -124,14 +124,14 @@ export class DomainService {
    * Directory structure:
    *   .erd-studio/{layer}/*.json
    */
-  listDomains(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): DomainSummary[] {
+  listDomains(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): SubjectAreaSummary[] {
     const basePath = path.join(projectPath, semanticDir);
 
     if (!fs.existsSync(basePath)) {
       return [];
     }
 
-    const summaries: DomainSummary[] = [];
+    const summaries: SubjectAreaSummary[] = [];
     const layers = this.layerService.getAllLayers();
 
     for (const layerConfig of layers) {
@@ -208,9 +208,9 @@ export class DomainService {
    * twice with no key flagged is drawn from the copy dbt's tests orient. The
    * canvas and the diff pass it; callers that only list or count need not.
    */
-  getDomain(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): UnifiedDomain {
+  getDomain(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): UnifiedSubjectArea {
     if (!fs.existsSync(filePath)) {
-      throw new DomainFileError('missing', filePath, `Subject area file not found: ${filePath}`);
+      throw new SubjectAreaFileError('missing', filePath, `Subject area file not found: ${filePath}`);
     }
 
     let raw: string;
@@ -218,13 +218,13 @@ export class DomainService {
       raw = fs.readFileSync(filePath, 'utf-8');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new DomainFileError('unreadable', filePath, `Failed to read subject area file: ${message}`);
+      throw new SubjectAreaFileError('unreadable', filePath, `Failed to read subject area file: ${message}`);
     }
 
     // Empty / invalid JSON (DomainFileError), then validation and repair
     // (DomainValidationError, warnings) — shared with every other host.
-    const { obj, format } = validateDomainDocument(parseDomainJson(raw, filePath), filePath);
-    return buildUnifiedDomain(obj, format, {
+    const { obj, format } = validateSubjectAreaDocument(parseSubjectAreaJson(raw, filePath), filePath);
+    return buildUnifiedSubjectArea(obj, format, {
       filePath,
       domainNameFallback: path.basename(filePath, '.json'),
       parentDirName: path.basename(path.dirname(filePath)),
@@ -254,7 +254,7 @@ export class DomainService {
    *
    * Physical stage is not supported here — use buildPhysicalDomain() instead.
    */
-  getDomainStage(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): SemanticDomain {
+  getDomainStage(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): SemanticSubjectArea {
     return DomainService.toLogicalStage(this.getDomain(filePath, options));
   }
 
@@ -265,7 +265,7 @@ export class DomainService {
    * `UnifiedDomain` does not have to read the file a second time — a second
    * read is a second chance to catch the file mid-replacement.
    */
-  static toLogicalStage(unified: UnifiedDomain): SemanticDomain {
+  static toLogicalStage(unified: UnifiedSubjectArea): SemanticSubjectArea {
     return toLogicalStage(unified);
   }
 
@@ -335,11 +335,11 @@ export class DomainService {
    * Uses the global viewConfig for positions so layout is consistent across all stages.
    */
   buildPhysicalDomain(
-    unifiedDomain: UnifiedDomain,
+    unifiedDomain: UnifiedSubjectArea,
     ymlData: YmlData,
     manifest?: ManifestData,
     catalog?: CatalogData,
-  ): DisplayDomain {
+  ): DisplaySubjectArea {
     const logicalStage = unifiedDomain.logical;
     const physicalModelNames = new Set<string>();
 
@@ -358,7 +358,7 @@ export class DomainService {
       ? indexByRelation([...catalog.byUniqueId.values()].filter(n => n.resourceType === 'model'), n => relationKey(n.schema, n.relationName))
       : undefined;
 
-    const models: DisplayModel[] = logicalStage.models.map(model => {
+    const models: DisplayTable[] = logicalStage.models.map(model => {
         const byName = manifest?.models.get(model.name) ?? manifestIndex?.get(normaliseName(model.name));
         const knownByName = !!byName || !!ymlData.models.get(model.name)
           || !!ymlIndex.get(normaliseName(model.name)) || !!ymlData.sourceFiles?.get(normaliseName(model.name));

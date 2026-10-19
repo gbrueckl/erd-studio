@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { buildUnifiedDomain, mergeLibraryRelationships, relationshipKey } from '../../src/domain';
-import { parseLogicalModelText } from '../../src/logicalModel';
-import type { Relationship, SemanticModel } from '../../src/types/semantic';
+import { buildUnifiedSubjectArea, mergeLibraryRelationships, relationshipKey } from '../../src/domain';
+import { parseTableText } from '../../src/logicalModel';
+import type { Relationship, SemanticTable } from '../../src/types/semantic';
 
 /** fct_order's file says it points at dim_customer and dim_product. */
-const FCT_ORDER: SemanticModel = {
+const FCT_ORDER: SemanticTable = {
   name: 'fct_order',
   columns: [],
   relationships: [
@@ -13,7 +13,7 @@ const FCT_ORDER: SemanticModel = {
     { fromColumn: 'product_key', toModel: 'dim_product', toColumn: 'product_key', cardinality: 'many-to-one' },
   ],
 };
-const LIBRARY: Record<string, SemanticModel> = {
+const LIBRARY: Record<string, SemanticTable> = {
   fct_order: FCT_ORDER,
   dim_customer: { name: 'dim_customer', columns: [] },
   dim_product: { name: 'dim_product', columns: [] },
@@ -28,7 +28,7 @@ const TO_PRODUCT: Relationship = {
 
 function relationshipsOf(models: string[], own: Relationship[] = [], warn = vi.fn()): Relationship[] {
   const doc = { schemaVersion: 5, domain: 'd', layer: 'silver', logical: { models, relationships: own }, viewConfig: {} };
-  return buildUnifiedDomain(doc, 'v5', {
+  return buildUnifiedSubjectArea(doc, 'v5', {
     filePath: 'silver/d.json',
     domainNameFallback: 'd',
     parentDirName: 'silver',
@@ -73,7 +73,7 @@ describe('a relationship stored in a model file (#126)', () => {
 
 describe('parseLogicalModelText relationships', () => {
   it('reads the list, skipping entries without three endpoints and defaulting an unknown cardinality', () => {
-    const model = parseLogicalModelText([
+    const model = parseTableText([
       'name: fct_order',
       'relationships:',
       '  - { fromColumn: customer_key, toModel: dim_customer, toColumn: customer_key, cardinality: one-to-one }',
@@ -88,6 +88,6 @@ describe('parseLogicalModelText relationships', () => {
   });
 
   it('leaves the field off a model without relationships', () => {
-    expect(parseLogicalModelText('name: dim_customer\n', 'dim_customer')).not.toHaveProperty('relationships');
+    expect(parseTableText('name: dim_customer\n', 'dim_customer')).not.toHaveProperty('relationships');
   });
 });

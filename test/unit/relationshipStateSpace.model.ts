@@ -40,7 +40,7 @@ import {
   usesLibraryRelationships,
 } from '../../src/services/libraryRelationships';
 import type { ConflictDefinition, MoveToLibraryPlan, RelationshipWriteOp } from '../../src/services/libraryRelationships';
-import type { Cardinality, ColumnDef, ModelRelationship, Relationship, SemanticModel } from '../../src/types/semantic';
+import type { Cardinality, ColumnDef, TableRelationship, Relationship, SemanticTable } from '../../src/types/semantic';
 import type { LinkEnd } from '@erd-studio/core';
 import { orientDraggedRelationship } from '../../webview/lib/relationshipDirection';
 
@@ -121,11 +121,11 @@ export function dbtIndexOf(spec: DbtSpec | undefined): DbtKeyIndex | undefined {
 export const dbtIndex = (w: World): DbtKeyIndex | undefined => dbtIndexOf(DBT[w.profile]);
 
 export const L_KEY = linkKey({ fromModel: 'fct', fromColumn: 'k', toModel: 'dim', toColumn: 'k' });
-export const BYSTANDER: ModelRelationship = { fromColumn: 'k2', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one', role: 'ship' };
+export const BYSTANDER: TableRelationship = { fromColumn: 'k2', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one', role: 'ship' };
 
 export interface World {
   profile: Profile;
-  lib: Record<ModelName, ModelRelationship[]>;
+  lib: Record<ModelName, TableRelationship[]>;
   dom: Record<DomainName, Relationship[]>;
   /** Which models each diagram holds, in file order. */
   domModels: Record<DomainName, ModelName[]>;
@@ -171,7 +171,7 @@ export function columnsOf(profile: Profile, model: ModelName): ColumnDef[] {
 }
 
 /** Fresh library models (what `listModels()` / `getModel()` hand out), in `order`. */
-export function libModels(w: World, order: ModelName[] = ['dim', 'fct']): SemanticModel[] {
+export function libModels(w: World, order: ModelName[] = ['dim', 'fct']): SemanticTable[] {
   return order.map((name) => ({
     name,
     columns: columnsOf(w.profile, name),
@@ -180,7 +180,7 @@ export function libModels(w: World, order: ModelName[] = ['dim', 'fct']): Semant
 }
 
 /** Write library models back into a world. */
-export function withLib(w: World, models: readonly SemanticModel[]): World {
+export function withLib(w: World, models: readonly SemanticTable[]): World {
   const next = clone(w);
   for (const m of models) next.lib[m.name as ModelName] = clone(m.relationships ?? []);
   return next;
@@ -302,8 +302,8 @@ export function movePlan(
     .map((d) => ({ label: d, relationships: clone(w.dom[d]) }))
     .filter((d) => d.relationships.length > 0);
   // As the command looks a model up: by its real name, one object per model whatever the spelling (L4).
-  const cache = new Map<string, SemanticModel | null>();
-  const libraryModel = (name: string): SemanticModel | null => {
+  const cache = new Map<string, SemanticTable | null>();
+  const libraryModel = (name: string): SemanticTable | null => {
     const key = name.toLowerCase();
     if (!cache.has(key)) cache.set(key, libModels(w).find((m) => m.name === key) ?? null);
     return cache.get(key) ?? null;

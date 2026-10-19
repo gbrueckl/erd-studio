@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vite
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { buildDbtKeyIndex, DomainFileError, exportDiagram } from '@erd-studio/core';
+import { buildDbtKeyIndex, SubjectAreaFileError, exportDiagram } from '@erd-studio/core';
 import type { DiagramExportFormat } from '@erd-studio/core';
 import { exportDomainFile } from '../../src/services/diagramExport';
 import { DomainService } from '../../src/services/domainService';
@@ -105,7 +105,7 @@ describe('exportDomainFile', () => {
 
   it('throws what getDomain throws', async () => {
     const missing = path.join(DBT_PROJECT, '.erd-studio', 'silver', 'no-such-domain.json');
-    await expect(exportDomainFile(domainServiceFor(DBT_PROJECT), missing, 'dbml')).rejects.toBeInstanceOf(DomainFileError);
+    await expect(exportDomainFile(domainServiceFor(DBT_PROJECT), missing, 'dbml')).rejects.toBeInstanceOf(SubjectAreaFileError);
   });
 
   it('refuses an unknown format before reading anything', async () => {

@@ -13,7 +13,7 @@
  * and `exportDbml.ts`.
  */
 
-import type { DisplayDomain } from './types/display.js';
+import type { DisplaySubjectArea } from './types/display.js';
 import { toDbml } from './exportDbml.js';
 import { toMermaid } from './exportMermaid.js';
 
@@ -37,7 +37,7 @@ export const DIAGRAM_EXPORT_FILE_EXTENSIONS: Readonly<Record<DiagramExportFormat
  * same text. Throws only for a format that is not in
  * {@link DIAGRAM_EXPORT_FORMATS}.
  */
-export function exportDiagram(domain: DisplayDomain, format: DiagramExportFormat): string {
+export function exportDiagram(domain: DisplaySubjectArea, format: DiagramExportFormat): string {
   switch (format) {
     case 'mermaid':
       return toMermaid(domain);
@@ -61,7 +61,7 @@ const MAX_BASE_LENGTH = 100;
  * reserved word, and a format outside {@link DIAGRAM_EXPORT_FORMATS} the
  * extension `txt`.
  */
-export function diagramExportFileName(domain: Pick<DisplayDomain, 'domain'>, format: DiagramExportFormat): string {
+export function diagramExportFileName(domain: Pick<DisplaySubjectArea, 'domain'>, format: DiagramExportFormat): string {
   const raw = typeof domain?.domain === 'string' ? domain.domain : '';
   let base = raw
     // eslint-disable-next-line no-control-regex

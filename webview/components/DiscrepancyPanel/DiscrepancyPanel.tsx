@@ -19,7 +19,7 @@ import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { STAGE_HEX } from '@erd-studio/renderer/editor';
 import { stageName } from '../../lib/stageUtils';
 import { StalenessWarning } from './SyncControls';
-import type { ModelDiscrepancy, RelationshipDiscrepancy } from '../../../src/types/discrepancy';
+import type { TableDiscrepancy, RelationshipDiscrepancy } from '../../../src/types/discrepancy';
 import type { WebviewMessage } from '../../hooks/useMessageBus';
 import './DiscrepancyPanel.css';
 
@@ -62,7 +62,7 @@ function statusLabel(status: string, sourceStage: string, targetStage: string): 
 // ---------------------------------------------------------------------------
 
 interface ModelEntryProps {
-  model: ModelDiscrepancy;
+  model: TableDiscrepancy;
   sourceStage: string;
   targetStage: string;
   onNavigate: (modelName: string) => void;

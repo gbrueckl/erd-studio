@@ -7,15 +7,15 @@
 
 import { useCallback } from 'react';
 import { useCanvasHost } from '../../host/canvasEnvironment';
-import type { ModelRole } from '@erd-studio/core';
+import type { TableRole } from '@erd-studio/core';
 
 interface RoleEditorProps {
   modelName: string;
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
 }
 
 /** Human-readable labels for each role. */
-const ROLE_OPTIONS: Array<{ value: ModelRole; label: string }> = [
+const ROLE_OPTIONS: Array<{ value: TableRole; label: string }> = [
   { value: 'conformed-dim', label: 'Conformed Dimension' },
   { value: 'domain-dim', label: 'Domain Dimension' },
   { value: 'transaction-fact', label: 'Transaction Fact' },
@@ -40,7 +40,7 @@ export function RoleEditor({ modelName, modelRole }: RoleEditorProps) {
         type: 'updateModelRole',
         payload: {
           modelName,
-          modelRole: (value || null) as ModelRole | null,
+          modelRole: (value || null) as TableRole | null,
         },
       });
     },

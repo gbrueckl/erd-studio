@@ -19,7 +19,7 @@ vi.mock('../../webview/hooks/useVsCodeApi', () => ({
 
 import { useStatePersistence, type PersistedState } from '../../webview/hooks/useStatePersistence';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
@@ -31,7 +31,7 @@ const domain = {
   relationships: [],
   viewConfig: { positions: {} },
   readOnly: false,
-} as unknown as DisplayDomain;
+} as unknown as DisplaySubjectArea;
 
 let visibility: DocumentVisibilityState = 'visible';
 

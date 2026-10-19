@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 
 import { buildLogicalDisplayDomain, dbtKeyIndexOf, withDbtKeyHints } from '../../src/services/stageDisplay';
-import type { SemanticDomain, SemanticModel } from '../../src/types/semantic';
+import type { SemanticSubjectArea, SemanticTable } from '../../src/types/semantic';
 
-function model(name: string, columns: Array<Record<string, unknown>>, extra: Partial<SemanticModel> = {}): SemanticModel {
-  return { name, description: `${name} desc`, columns, ...extra } as unknown as SemanticModel;
+function model(name: string, columns: Array<Record<string, unknown>>, extra: Partial<SemanticTable> = {}): SemanticTable {
+  return { name, description: `${name} desc`, columns, ...extra } as unknown as SemanticTable;
 }
 
-function domain(overrides: Partial<SemanticDomain> = {}): SemanticDomain {
+function domain(overrides: Partial<SemanticSubjectArea> = {}): SemanticSubjectArea {
   return {
     schemaVersion: 5,
     domain: 'orders',
@@ -20,7 +20,7 @@ function domain(overrides: Partial<SemanticDomain> = {}): SemanticDomain {
         { name: 'customer_id', dataType: 'int', description: 'fk by relationship' },
         { name: 'legacy_ref', dataType: 'string', description: 'declared fk', isForeignKey: true },
         { name: 'amount', dataType: 'decimal', description: '', additiveType: 'additive' },
-      ], { grain: 'one row per order', modelRole: 'fact' } as Partial<SemanticModel>),
+      ], { grain: 'one row per order', modelRole: 'fact' } as Partial<SemanticTable>),
       model('dim_customer', [
         { name: 'customer_id', dataType: 'int', description: '', isPrimaryKey: 'yes', isNaturalKey: 1, scdType: 2 },
       ]),
@@ -29,7 +29,7 @@ function domain(overrides: Partial<SemanticDomain> = {}): SemanticDomain {
       { fromModel: 'fct_order', fromColumn: 'customer_id', toModel: 'dim_customer', toColumn: 'customer_id', cardinality: 'many-to-one' },
     ],
     ...overrides,
-  } as SemanticDomain;
+  } as SemanticSubjectArea;
 }
 
 describe('buildLogicalDisplayDomain', () => {
@@ -82,7 +82,7 @@ describe('buildLogicalDisplayDomain', () => {
   });
 
   it('tolerates a model with no columns array', () => {
-    const d = domain({ models: [{ name: 'bare' } as SemanticModel], relationships: [] });
+    const d = domain({ models: [{ name: 'bare' } as SemanticTable], relationships: [] });
     const out = buildLogicalDisplayDomain(d, {});
     expect(out.models[0]).toEqual({ name: 'bare', schema: '', description: '', columns: [] });
   });

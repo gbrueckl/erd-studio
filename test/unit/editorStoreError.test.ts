@@ -9,9 +9,9 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
-const domain: DisplayDomain = {
+const domain: DisplaySubjectArea = {
   schemaVersion: 4,
   domain: 'orders',
   layer: 'silver',
@@ -22,7 +22,7 @@ const domain: DisplayDomain = {
   viewConfig: {},
   readOnly: false,
   positionDraggable: true,
-} as DisplayDomain;
+} as DisplaySubjectArea;
 
 beforeEach(() => {
   useEditorStore.setState({ domain: null, error: null, errorKind: null, errorMergeConflict: false });

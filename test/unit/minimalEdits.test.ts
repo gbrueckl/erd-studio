@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { parseLogicalModelText } from '@erd-studio/core';
+import { parseTableText } from '@erd-studio/core';
 
 import { relationshipsRewriteLoses, rewriteJsonScalars, setDomainRelationships, setYamlRelationships } from '../../src/services/minimalEdits';
-import type { ModelRelationship, Relationship } from '../../src/types/semantic';
+import type { TableRelationship, Relationship } from '../../src/types/semantic';
 
 // ---------------------------------------------------------------------------
 // YAML
@@ -34,8 +34,8 @@ columns:
 # trailing comment stays
 `;
 
-const REL_A: ModelRelationship = { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' };
-const REL_B: ModelRelationship = { fromColumn: 'product_key', toModel: 'dim_product', toColumn: 'product_key', cardinality: 'one-to-one' };
+const REL_A: TableRelationship = { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' };
+const REL_B: TableRelationship = { fromColumn: 'product_key', toModel: 'dim_product', toColumn: 'product_key', cardinality: 'one-to-one' };
 
 const BLOCK_2 = `relationships:
   - fromColumn: customer_key
@@ -59,11 +59,11 @@ function withoutBlock(text: string): string {
 }
 
 function parse(text: string) {
-  return parseLogicalModelText(text.replace(/^﻿/, ''), 'fallback');
+  return parseTableText(text.replace(/^﻿/, ''), 'fallback');
 }
 
 /** The output parses to the input's model with exactly `relationships`. */
-function expectSameModel(input: string, output: string, relationships: readonly ModelRelationship[]): void {
+function expectSameModel(input: string, output: string, relationships: readonly TableRelationship[]): void {
   const before = parse(input)!;
   const after = parse(output)!;
   expect(after.relationships ?? []).toEqual(relationships);
@@ -226,10 +226,10 @@ function splitAroundRelationships(text: string): [string, string] {
 
 describe('setYamlRelationships — role (#133)', () => {
   it('writes a role after the cardinality, and the parser reads it back', () => {
-    const rel: ModelRelationship = { fromColumn: 'ship_date_key', toModel: 'dim_date', toColumn: 'date_key', cardinality: 'many-to-one', role: 'ship: date' };
+    const rel: TableRelationship = { fromColumn: 'ship_date_key', toModel: 'dim_date', toColumn: 'date_key', cardinality: 'many-to-one', role: 'ship: date' };
     const text = setYamlRelationships('name: fct_order\n', [rel]);
     expect(text).toContain('    cardinality: many-to-one\n    role: "ship: date"\n');
-    expect(parseLogicalModelText(text, 'fct_order')?.relationships).toEqual([rel]);
+    expect(parseTableText(text, 'fct_order')?.relationships).toEqual([rel]);
   });
 });
 

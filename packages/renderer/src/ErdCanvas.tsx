@@ -41,7 +41,7 @@ import {
   useNodesInitialized,
   type NodeChange,
 } from '@xyflow/react';
-import type { DisplayColumn, DisplayDomain, DisplayModel } from '@erd-studio/core';
+import type { DisplayColumn, DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 
 import {
   CanvasStoreProvider,
@@ -65,7 +65,7 @@ import { Legend } from './components/Legend/Legend';
 
 export interface ErdCanvasProps {
   /** The domain to render. It is shown read-only whatever its `readOnly` flag says. */
-  domain: DisplayDomain;
+  domain: DisplaySubjectArea;
   /** Let readers drag model and annotation nodes. Moves are never saved. Default false. */
   nodesDraggable?: boolean;
   /**
@@ -96,7 +96,7 @@ export interface ErdCanvasHandle {
  * model's columns, each column's data type). Objects with nothing missing are
  * reused as they are.
  */
-export function toRenderableDomain(domain: DisplayDomain): DisplayDomain {
+export function toRenderableDomain(domain: DisplaySubjectArea): DisplaySubjectArea {
   let modelsChanged = false;
   const models = (domain.models ?? []).map((model) => {
     const renderable = toRenderableModel(model);
@@ -125,7 +125,7 @@ export function toRenderableDomain(domain: DisplayDomain): DisplayDomain {
   };
 }
 
-function toRenderableModel(model: DisplayModel): DisplayModel {
+function toRenderableModel(model: DisplayTable): DisplayTable {
   if (model.columns == null) return { ...model, columns: [] };
   if (model.columns.every((col) => col.dataType != null)) return model;
   return { ...model, columns: model.columns.map(toRenderableColumn) };

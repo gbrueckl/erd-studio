@@ -13,7 +13,7 @@
 import ELK from 'elkjs/lib/elk-api';
 import type { ELK as IELK, ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api';
 import type { ModelFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
-import type { NodePosition, LayoutOptions, ModelRole } from '../../src/types/semantic';
+import type { NodePosition, LayoutOptions, TableRole } from '../../src/types/semantic';
 import { resolveNodeDimensions } from '@erd-studio/renderer/sizing';
 
 // ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ export {
  *   3 — Factless facts / bridge tables
  *   4 — Gold aggregates (gold-dim, gold-fact)
  */
-export function roleToPartition(role: ModelRole | undefined): number {
+export function roleToPartition(role: TableRole | undefined): number {
   switch (role) {
     case 'conformed-dim':
     case 'domain-dim':

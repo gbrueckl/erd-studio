@@ -23,7 +23,7 @@ import { SelectorsService } from '../../src/services/selectorsService';
 import { LogicalModelService } from '../../src/services/logicalModelService';
 import { OwnWriteTracker } from '../../src/services/ownWriteTracker';
 import { telemetry } from '../../src/services/telemetryService';
-import type { Relationship, SemanticModel } from '../../src/types/semantic';
+import type { Relationship, SemanticTable } from '../../src/types/semantic';
 
 // Switches for the two failure paths no real input reaches: a self-check that
 // fails, and a planner that throws something other than a refusal.
@@ -51,7 +51,7 @@ vi.mock('../../src/services/libraryRelationships', async (importOriginal) => {
 });
 
 const col = (name: string, pk = false) => ({ name, dataType: 'string', description: '', ...(pk ? { isPrimaryKey: true } : {}) });
-const MODELS: SemanticModel[] = [
+const MODELS: SemanticTable[] = [
   { name: 'fct_order', columns: [col('order_key', true), col('customer_key'), col('store_id'), col('region'), col('region_code')] },
   { name: 'dim_customer', columns: [col('customer_key', true)] },
   { name: 'dim_store', columns: [col('store_id', true), col('region', true)] },
@@ -69,7 +69,7 @@ interface Harness {
 }
 
 async function createHarness(options: {
-  library?: Record<string, SemanticModel['relationships']>;
+  library?: Record<string, SemanticTable['relationships']>;
   domains?: Record<string, { models: string[]; relationships?: Relationship[] }>;
 } = {}): Promise<Harness> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-rel-telemetry-'));

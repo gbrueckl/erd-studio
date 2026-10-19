@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 
 import { DomainService, renameDomainInRaw } from './services/domainService';
 import { LayerService } from './services/layerService';
-import { CURRENT_SCHEMA_VERSION, getRawDomainModelNames, type DomainSummary, type Layer, type Stage, type UnifiedDomain, type StageData } from './types/semantic';
+import { CURRENT_SCHEMA_VERSION, getRawSubjectAreaTableNames, type SubjectAreaSummary, type Layer, type Stage, type UnifiedSubjectArea, type StageData } from './types/semantic';
 import { ManifestService, type ManifestLoadFailure } from './services/manifestService';
 import { TemplateService } from './services/templateService';
 import { DomainTreeProvider, type TreeElement } from './providers/DomainTreeProvider';
@@ -36,7 +36,7 @@ import { ModelLibraryTreeProvider, type ModelLibraryNode } from './providers/Mod
 import { describeOrganizePlan, planOrganizeByLayer, type DomainModelUsage } from './services/modelLibraryOrganizer';
 import { describeDuplicateFix, planDuplicateFix, repointDomainModel, suggestDuplicateName, type DomainReference } from './services/duplicateModelResolver';
 import { validateModelName } from './providers/payloadValidation';
-import { parseLogicalModelText } from '@erd-studio/core';
+import { parseTableText } from '@erd-studio/core';
 import { DOMAIN_EDITOR_VIEW_TYPE, hasOpenDomainCanvas, saveAllAndReload } from './services/recoveryService';
 import { submitFeedback } from './services/feedbackService';
 import { clearFeedbackApiKey, setFeedbackApiKey } from './services/feedbackAnalysisService';
@@ -469,8 +469,8 @@ export const SAME_CHECKOUT_WINDOW_MS = 5_000;
  * `SAME_CHECKOUT_WINDOW_MS` — a fresh clone — the first domain in list (tree)
  * order is returned instead of an arbitrary checkout-order pick.
  */
-export function mostRecentlyModified(domains: readonly DomainSummary[]): DomainSummary | undefined {
-  let best: DomainSummary | undefined;
+export function mostRecentlyModified(domains: readonly SubjectAreaSummary[]): SubjectAreaSummary | undefined {
+  let best: SubjectAreaSummary | undefined;
   let bestTime = -Infinity;
   let oldest = Infinity;
   for (const d of domains) {
@@ -541,7 +541,7 @@ async function handleUnsavedChanges(
 function validateDomainSlug(
   value: string,
   layer: Layer,
-  existingDomains: DomainSummary[],
+  existingDomains: SubjectAreaSummary[],
   currentDomainName?: string,
 ): string | undefined {
   if (!value || !value.trim()) {
@@ -1372,7 +1372,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       for (const summary of domainService.listDomains(workspaceRoot, semanticDir)) {
         try {
           const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as unknown;
-          usage.push({ layer: summary.layer, modelNames: getRawDomainModelNames(raw) });
+          usage.push({ layer: summary.layer, modelNames: getRawSubjectAreaTableNames(raw) });
         } catch {
           // An unreadable domain contributes no usage; its models stay put.
         }
@@ -1463,7 +1463,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const dup = entry;
 
       const model = (() => {
-        try { return parseLogicalModelText(fs.readFileSync(dup.filePath, 'utf-8'), dup.name); } catch { return null; }
+        try { return parseTableText(fs.readFileSync(dup.filePath, 'utf-8'), dup.name); } catch { return null; }
       })();
       if (!model) {
         void vscode.window.showErrorMessage(`${libPath(dup.filePath)} could not be read as a table file. Fix or rename it by hand.`);
@@ -1485,7 +1485,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       for (const summary of domainService.listDomains(workspaceRoot, semanticDir)) {
         try {
           const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as unknown;
-          if (getRawDomainModelNames(raw).includes(dup.name)) {
+          if (getRawSubjectAreaTableNames(raw).includes(dup.name)) {
             references.push({ filePath: summary.filePath, domain: summary.domain, layer: summary.layer });
           }
         } catch {
@@ -1733,7 +1733,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
 
         const emptyStage: StageData = { models: [], relationships: [] };
-        const domainData: UnifiedDomain = {
+        const domainData: UnifiedSubjectArea = {
           schemaVersion: CURRENT_SCHEMA_VERSION,
           domain: slug,
           layer,

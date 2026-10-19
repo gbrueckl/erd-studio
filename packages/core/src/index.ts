@@ -24,12 +24,12 @@ export {
   RATIONALE_KEYS,
   YamlNodeLimitError,
   YamlCharLimitError,
-  parseLogicalModelText,
-  isSafeModelName,
-  isValidModelAlias,
-  MODEL_ALIAS_MAX_LENGTH,
-  MODEL_ALIAS_RULE,
-  type ParseLogicalModelOptions,
+  parseTableText,
+  isSafeTableName,
+  isValidTableAlias,
+  TABLE_ALIAS_MAX_LENGTH,
+  TABLE_ALIAS_RULE,
+  type ParseTableOptions,
 } from './logicalModel.js';
 export * from './layers.js';
 export * from './meta.js';

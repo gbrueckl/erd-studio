@@ -17,9 +17,9 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { DomainValidationError } from '@erd-studio/core';
+import { SubjectAreaValidationError } from '@erd-studio/core';
 import { classifyDomainLoadFailure, SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainFileError, DomainService } from '../../src/services/domainService';
+import { SubjectAreaFileError, DomainService } from '../../src/services/domainService';
 import { telemetry } from '../../src/services/telemetryService';
 import { LayerService } from '../../src/services/layerService';
 import { LogicalModelService } from '../../src/services/logicalModelService';
@@ -171,7 +171,7 @@ describe('a domain file caught mid-write', () => {
     let locked = 2;
     vi.spyOn(DomainService.prototype, 'getDomain').mockImplementation(function (this: DomainService, p: string) {
       if (p === file && locked-- > 0) {
-        throw new DomainFileError('unreadable', p, `Failed to read domain file: EBUSY: resource busy or locked, open '${p}'`);
+        throw new SubjectAreaFileError('unreadable', p, `Failed to read domain file: EBUSY: resource busy or locked, open '${p}'`);
       }
       return real.call(this, p);
     });
@@ -190,7 +190,7 @@ describe('a domain file caught mid-write', () => {
   it('reports a file that stays unreadable once the retries run out', async () => {
     const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
     vi.spyOn(DomainService.prototype, 'getDomain').mockImplementation((p: string) => {
-      throw new DomainFileError('unreadable', p, 'Failed to read domain file: EACCES: permission denied');
+      throw new SubjectAreaFileError('unreadable', p, 'Failed to read domain file: EACCES: permission denied');
     });
 
     const { panel } = await open(root, file);
@@ -279,7 +279,7 @@ describe('a domain file with unresolved git merge conflicts (#145)', () => {
   });
 
   it('is still a json failure to telemetry', () => {
-    const err = new DomainFileError('invalid-json', '/x.json', 'conflict', { mergeConflict: true, line: 3 });
+    const err = new SubjectAreaFileError('invalid-json', '/x.json', 'conflict', { mergeConflict: true, line: 3 });
     expect(err.transient).toBe(false);
     expect(classifyDomainLoadFailure(err)).toBe('json');
   });
@@ -352,11 +352,11 @@ describe('an error the user is already looking at', () => {
 
 describe('domainLoad telemetry carries a fixed reason', () => {
   it('classifies each kind of failure without reading its message', () => {
-    expect(classifyDomainLoadFailure(new DomainFileError('missing', '/x.json', 'gone'))).toBe('missing');
-    expect(classifyDomainLoadFailure(new DomainFileError('unreadable', '/x.json', 'EBUSY'))).toBe('unreadable');
-    expect(classifyDomainLoadFailure(new DomainFileError('empty', '/x.json', 'empty'))).toBe('json');
-    expect(classifyDomainLoadFailure(new DomainFileError('invalid-json', '/x.json', 'bad'))).toBe('json');
-    expect(classifyDomainLoadFailure(new DomainValidationError('no schemaVersion'))).toBe('invalid');
+    expect(classifyDomainLoadFailure(new SubjectAreaFileError('missing', '/x.json', 'gone'))).toBe('missing');
+    expect(classifyDomainLoadFailure(new SubjectAreaFileError('unreadable', '/x.json', 'EBUSY'))).toBe('unreadable');
+    expect(classifyDomainLoadFailure(new SubjectAreaFileError('empty', '/x.json', 'empty'))).toBe('json');
+    expect(classifyDomainLoadFailure(new SubjectAreaFileError('invalid-json', '/x.json', 'bad'))).toBe('json');
+    expect(classifyDomainLoadFailure(new SubjectAreaValidationError('no schemaVersion'))).toBe('invalid');
     expect(classifyDomainLoadFailure(new TypeError("Cannot read properties of undefined (reading 'x')"))).toBe('internal');
     expect(classifyDomainLoadFailure('a string')).toBe('internal');
   });

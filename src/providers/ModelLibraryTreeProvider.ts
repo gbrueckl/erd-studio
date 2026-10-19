@@ -21,7 +21,7 @@ import * as path from 'path';
 import type { LogicalModelService, ModelFileEntry, ModelFileError } from '../services/logicalModelService';
 import type { DomainService } from '../services/domainService';
 import type { LayerConfig } from '../types/layer';
-import { getRawDomainModelNames } from '../types/semantic';
+import { getRawSubjectAreaTableNames } from '../types/semantic';
 
 // ---------------------------------------------------------------------------
 // Tree element type
@@ -246,7 +246,7 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
         const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as unknown;
         // Format-agnostic: honours v4 inline objects, v5 name strings, and
         // (for usage counting only) hybrid/legacy documents awaiting migration.
-        const modelNames = getRawDomainModelNames(raw);
+        const modelNames = getRawSubjectAreaTableNames(raw);
 
         for (const name of modelNames) {
           const existing = map.get(name);

@@ -10,11 +10,11 @@
  * or act as type guards — no vscode imports so they are trivially testable.
  */
 
-import type { Cardinality, ColumnDef, ModelRole, Stage } from '../types/semantic';
+import type { Cardinality, ColumnDef, TableRole, Stage } from '../types/semantic';
 import { COLUMN_NAME_PATTERN, MODEL_NAME_PATTERN, MODEL_NAME_RULE, findDuplicateNames } from '../types/naming';
 import type { DuplicateMode, FeedbackKind } from '../types/feedback';
 import { ADD_EXISTING_MODELS_LIMIT } from '../types/messages';
-import { MAX_COMPOSITE_PAIRS, MODEL_ALIAS_MAX_LENGTH, MODEL_ALIAS_RULE, RELATIONSHIP_ROLE_MAX_LENGTH, isValidModelAlias } from '@erd-studio/core';
+import { MAX_COMPOSITE_PAIRS, TABLE_ALIAS_MAX_LENGTH, TABLE_ALIAS_RULE, RELATIONSHIP_ROLE_MAX_LENGTH, isValidTableAlias } from '@erd-studio/core';
 import { DUPLICATE_MODES, FEEDBACK_KINDS, isFeedbackAiProviderChoice } from '../types/feedback';
 
 // ---------------------------------------------------------------------------
@@ -83,11 +83,11 @@ export function validateModelAliasPayload(payload: unknown): string | null {
     return 'Warehouse name must be a string.';
   }
   const trimmed = alias.trim();
-  if (trimmed.length > MODEL_ALIAS_MAX_LENGTH) {
-    return `Warehouse name is longer than ${MODEL_ALIAS_MAX_LENGTH} characters.`;
+  if (trimmed.length > TABLE_ALIAS_MAX_LENGTH) {
+    return `Warehouse name is longer than ${TABLE_ALIAS_MAX_LENGTH} characters.`;
   }
-  if (trimmed && !isValidModelAlias(trimmed)) {
-    return MODEL_ALIAS_RULE;
+  if (trimmed && !isValidTableAlias(trimmed)) {
+    return TABLE_ALIAS_RULE;
   }
   return null;
 }
@@ -307,7 +307,7 @@ export function validateMarkKey(markKey: unknown, link: LinkPayloadEnds): string
   return ends.some(([m, cols]) => sameText(m, model) && sameColumnSet(columns, cols)) ? null : invalid;
 }
 
-export const MODEL_ROLES: readonly ModelRole[] = [
+export const MODEL_ROLES: readonly TableRole[] = [
   'conformed-dim',
   'domain-dim',
   'transaction-fact',
@@ -319,7 +319,7 @@ export const MODEL_ROLES: readonly ModelRole[] = [
   'gold-dim',
 ];
 
-export function isValidModelRole(value: unknown): value is ModelRole {
+export function isValidModelRole(value: unknown): value is TableRole {
   return typeof value === 'string' && (MODEL_ROLES as readonly string[]).includes(value);
 }
 

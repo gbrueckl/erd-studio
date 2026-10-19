@@ -18,7 +18,7 @@ import * as path from 'path';
 
 import { canonicalRelationship, linkKey } from '@erd-studio/core';
 import { CURRENT_SCHEMA_VERSION } from '../types/semantic';
-import type { ColumnDef, Relationship, SemanticModel } from '../types/semantic';
+import type { ColumnDef, Relationship, SemanticTable } from '../types/semantic';
 import type { YmlData } from '../types/ymlData';
 import type { ManifestData } from '../types/manifest';
 import type { CatalogColumn, CatalogData } from '../types/catalog';
@@ -114,7 +114,7 @@ export interface BuildDbtDraftInput {
   /** True when `logical-models/` already has this model — it is referenced, not re-created. */
   libraryHas: (name: string) => boolean;
   /** Seeds a new library model; defaults to {@link seedModelFromDbt}. */
-  seed?: (name: string) => SemanticModel | undefined;
+  seed?: (name: string) => SemanticTable | undefined;
   /** Models already in the target domain (batch add): skipped as picks, but joined to by relationships. */
   existingModelNames?: readonly string[];
   /** Relationships already in the target domain, never emitted twice. */
@@ -133,7 +133,7 @@ export interface DbtDraft {
   /** Every accepted name, in order: what the domain's `logical.models` gains. */
   modelNames: string[];
   /** Library files to create (seeded from dbt). */
-  newModels: SemanticModel[];
+  newModels: SemanticTable[];
   /** Accepted names the library already has — only referenced. */
   reusedModels: string[];
   relationships: Relationship[];
@@ -451,7 +451,7 @@ export function seedModelFromDbt(
   ymlData?: YmlData,
   manifest?: ManifestData,
   catalog?: CatalogData,
-): SemanticModel | undefined {
+): SemanticTable | undefined {
   const key = normaliseName(name);
   const yml = ymlData?.models.get(name)
     ?? [...(ymlData?.models.values() ?? [])].find((m) => normaliseName(m.name) === key);
@@ -486,7 +486,7 @@ export function seedModelFromDbt(
       description: col.description ?? '',
     }));
 
-  const model: SemanticModel = { name: yml?.name ?? man!.name };
+  const model: SemanticTable = { name: yml?.name ?? man!.name };
   if (man?.schema) { model.schema = man.schema; }
   model.description = yml?.description || man?.description || '';
   model.columns = columns;
@@ -500,10 +500,10 @@ export function seedModelFromDbt(
  * draft relationship leaves from it. Returns a new model; existing flags win.
  */
 export function markDraftKeys(
-  model: SemanticModel,
+  model: SemanticTable,
   unique: DraftUniqueInfo,
   relationships: readonly Relationship[],
-): SemanticModel {
+): SemanticTable {
   const key = normaliseName(model.name);
   const uniqueCols = new Set<string>();
   let hasComposite = false;
@@ -599,7 +599,7 @@ export function buildDbtDraft(input: BuildDbtDraftInput): DbtDraft {
 
   const skipped: DraftSkipped[] = [];
   const seen = new Set<string>();
-  const accepted: Array<{ name: string; model?: SemanticModel }> = [];
+  const accepted: Array<{ name: string; model?: SemanticTable }> = [];
   let truncated = false;
 
   for (const raw of input.modelNames) {
@@ -612,7 +612,7 @@ export function buildDbtDraft(input: BuildDbtDraftInput): DbtDraft {
     if (inDomain.has(key)) { skipped.push({ name, reason: 'already-in-domain' }); continue; }
     if (disabled.has(key)) { skipped.push({ name, reason: 'disabled' }); continue; }
 
-    let model: SemanticModel | undefined;
+    let model: SemanticTable | undefined;
     if (!input.libraryHas(name)) {
       model = seed(name);
       if (!model) { skipped.push({ name, reason: 'not-found' }); continue; }

@@ -15,7 +15,7 @@ import ts from 'typescript';
 import { parse as parseYaml } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-import { CURRENT_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION, detectDomainFormat } from '../../packages/core/src/types/semantic';
+import { CURRENT_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION, detectSubjectAreaFormat } from '../../packages/core/src/types/semantic';
 import { LAYERS_SCHEMA_VERSION } from '../../packages/core/src/types/layer';
 import { RATIONALE_KEYS } from '../../packages/core/src/logicalModel';
 import { VALID_CARDINALITIES } from '../../packages/core/src/domain';
@@ -298,12 +298,12 @@ describe('what a hand-editor is told', () => {
     ];
     for (const [version, models] of cases) {
       const raw = domain(version, models);
-      expect(detectDomainFormat(raw)).toBe('hybrid');
+      expect(detectSubjectAreaFormat(raw)).toBe('hybrid');
       expect(validate('domain.schema.json', raw)).not.toEqual([]);
     }
     for (const [version, models, format] of [[5, ['dim_a'], 'v5'], [5, [], 'v5'], [4, [{ name: 'dim_a' }], 'v4']] as const) {
       const raw = domain(version, [...models]);
-      expect(detectDomainFormat(raw)).toBe(format);
+      expect(detectSubjectAreaFormat(raw)).toBe(format);
       expect(validate('domain.schema.json', raw)).toEqual([]);
     }
   });

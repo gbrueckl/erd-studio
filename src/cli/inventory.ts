@@ -12,11 +12,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type { DisplayDomain, PhysicalColumnSource } from '../types/display';
+import type { DisplaySubjectArea, PhysicalColumnSource } from '../types/display';
 import { MODEL_NAME_PATTERN } from '../types/naming';
 import { readMeta } from '@erd-studio/core';
-import type { Cardinality, Meta, UnifiedDomain } from '../types/semantic';
-import { getRawDomainModelNames } from '../types/semantic';
+import type { Cardinality, Meta, UnifiedSubjectArea } from '../types/semantic';
+import { getRawSubjectAreaTableNames } from '../types/semantic';
 import { mergeCompositeGroups, mergeUniqueMaps } from '../services/domainService';
 import { normaliseName } from '../services/nameUtils';
 import { catalogNodeFor } from '../services/columnTypes';
@@ -194,7 +194,7 @@ export function listDomainFiles(ctx: CliContext): InventoryResult['domains'] {
   return ctx.domainService.listDomains(ctx.root, ctx.semanticDir).map((d) => {
     let models: string[] = [];
     try {
-      models = getRawDomainModelNames(JSON.parse(fs.readFileSync(d.filePath, 'utf-8')));
+      models = getRawSubjectAreaTableNames(JSON.parse(fs.readFileSync(d.filePath, 'utf-8')));
     } catch {
       // Unreadable or invalid JSON: listed with no models; `diff` reports the error.
     }
@@ -203,9 +203,9 @@ export function listDomainFiles(ctx: CliContext): InventoryResult['domains'] {
 }
 
 /** The physical stage for `names`, built exactly as the canvas builds it for a domain holding them. */
-export function buildInventoryDomain(ctx: CliContext, names: readonly string[]): DisplayDomain {
+export function buildInventoryDomain(ctx: CliContext, names: readonly string[]): DisplaySubjectArea {
   const layerIds = ctx.layerService.getValidLayerIds();
-  const unified: UnifiedDomain = {
+  const unified: UnifiedSubjectArea = {
     schemaVersion: 5,
     domain: INVENTORY_DOMAIN,
     layer: layerIds[0] ?? 'silver',

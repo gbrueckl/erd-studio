@@ -17,7 +17,7 @@ import { Panel } from '@xyflow/react';
 import { useEditorStore } from '../../store/editorStore';
 import { useSend } from '../../hooks/useMessageBus';
 import { KeyBadgeGroup } from '@erd-studio/renderer/editor';
-import type { ColumnDef, DesignModel, ModelRole, ModelTemplate } from '../../../src/types/semantic';
+import type { ColumnDef, DesignTable, TableRole, TableTemplate } from '../../../src/types/semantic';
 import { COLUMN_NAME_PATTERN, COLUMN_NAME_RULE, MODEL_NAME_PATTERN, findDuplicateNames, sameName } from '../../../src/types/naming';
 import './NewModelDialog.css';
 
@@ -63,7 +63,7 @@ function resolvePlaceholders(
  */
 function validateForm(
   modelName: string,
-  template: ModelTemplate,
+  template: TableTemplate,
   leftEntity: string,
   rightEntity: string,
   existingModelNames: string[],
@@ -111,7 +111,7 @@ function validateForm(
 }
 
 /** Auto-suggested model role based on template ID. */
-const TEMPLATE_ROLE_MAP: Record<string, ModelRole> = {
+const TEMPLATE_ROLE_MAP: Record<string, TableRole> = {
   dimension: 'domain-dim',
   fact: 'transaction-fact',
   bridge: 'factless-fact',
@@ -231,7 +231,7 @@ export function NewModelDialog() {
     const finalColumns = [...templateCols, ...validCustomColumns];
 
     const suggestedRole = TEMPLATE_ROLE_MAP[templateId];
-    const newModel: DesignModel = {
+    const newModel: DesignTable = {
       name: modelName.trim(),
       description: description.trim(),
       columns: finalColumns,

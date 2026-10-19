@@ -7,7 +7,7 @@ import { DomainTreeProvider, type TreeElement } from '../../src/providers/Domain
 import type { DomainService } from '../../src/services/domainService';
 import type { LayerService } from '../../src/services/layerService';
 import type { LayerConfig } from '../../src/types/layer';
-import type { DomainSummary, UnifiedDomain, StageData } from '../../src/types/semantic';
+import type { SubjectAreaSummary, UnifiedSubjectArea, StageData } from '../../src/types/semantic';
 
 // Must be at module level for vitest to hoist correctly
 vi.mock('fs', async () => {
@@ -46,7 +46,7 @@ function createMockLayerService(): LayerService {
 
 const emptyStageData: StageData = { models: [], relationships: [] };
 
-function makeUnifiedDomain(overrides: Partial<UnifiedDomain> = {}): UnifiedDomain {
+function makeUnifiedDomain(overrides: Partial<UnifiedSubjectArea> = {}): UnifiedSubjectArea {
   return {
     schemaVersion: 4,
     domain: 'test',
@@ -59,8 +59,8 @@ function makeUnifiedDomain(overrides: Partial<UnifiedDomain> = {}): UnifiedDomai
 }
 
 function createMockDomainService(
-  summaries: DomainSummary[] = [],
-  domains: Map<string, UnifiedDomain> = new Map(),
+  summaries: SubjectAreaSummary[] = [],
+  domains: Map<string, UnifiedSubjectArea> = new Map(),
 ): DomainService {
   return {
     listDomains: vi.fn().mockReturnValue(summaries),
@@ -76,19 +76,19 @@ function createMockDomainService(
 // Test data
 // ---------------------------------------------------------------------------
 
-const SILVER_DOMAINS: DomainSummary[] = [
+const SILVER_DOMAINS: SubjectAreaSummary[] = [
   { domain: 'customer-360', layer: 'silver', filePath: '/project/.erd-studio/silver/customer-360.json' },
   { domain: 'orders', layer: 'silver', filePath: '/project/.erd-studio/silver/orders.json' },
 ];
 
-const GOLD_DOMAINS: DomainSummary[] = [
+const GOLD_DOMAINS: SubjectAreaSummary[] = [
   { domain: 'reporting', layer: 'gold', filePath: '/project/.erd-studio/gold/reporting.json' },
 ];
 
 const ALL_SUMMARIES = [...SILVER_DOMAINS, ...GOLD_DOMAINS];
 
-function buildDomainMap(): Map<string, UnifiedDomain> {
-  const map = new Map<string, UnifiedDomain>();
+function buildDomainMap(): Map<string, UnifiedSubjectArea> {
+  const map = new Map<string, UnifiedSubjectArea>();
   map.set('/project/.erd-studio/silver/customer-360.json', makeUnifiedDomain({
     domain: 'customer-360',
     layer: 'silver',
@@ -410,8 +410,8 @@ describe('DomainTreeProvider', () => {
     });
 
     function realFileProvider(models: unknown[]): { provider: DomainTreeProvider; getDomain: ReturnType<typeof vi.fn> } {
-      const summaries: DomainSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
-      const domains = new Map<string, UnifiedDomain>();
+      const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
+      const domains = new Map<string, UnifiedSubjectArea>();
       domains.set(domainPath, makeUnifiedDomain({
         domain: 'orders',
         logical: { models: models as any, relationships: [] },
@@ -466,7 +466,7 @@ describe('DomainTreeProvider', () => {
     });
 
     it('does not cache a failed parse', () => {
-      const summaries: DomainSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
+      const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
       const svc = createMockDomainService(summaries, new Map()); // getDomain throws
       const p = new DomainTreeProvider(svc, layerService, tempDir);
 

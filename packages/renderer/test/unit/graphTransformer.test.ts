@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { transformDomain, pickHandleSides } from '../../src/lib/graphTransformer';
-import type { DisplayDomain, DisplayModel } from '@erd-studio/core';
+import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 import type { FkFlowEdge } from '../../src/types/graph';
 
 function col(name: string, isPrimaryKey = false) {
   return { name, dataType: 'string', isPrimaryKey, isForeignKey: false, isNaturalKey: false };
 }
 
-function model(name: string, columnCount: number): DisplayModel {
+function model(name: string, columnCount: number): DisplayTable {
   return {
     name,
     columns: Array.from({ length: columnCount }, (_, i) => col(i === 0 ? `${name}_id` : `c${i}`, i === 0)),
-  } as DisplayModel;
+  } as DisplayTable;
 }
 
-function domain(models: DisplayModel[], positions: Record<string, { x: number; y: number }>, rels: Array<[string, string]>): DisplayDomain {
+function domain(models: DisplayTable[], positions: Record<string, { x: number; y: number }>, rels: Array<[string, string]>): DisplaySubjectArea {
   return {
     domain: 'test',
     layer: 'silver',
@@ -29,7 +29,7 @@ function domain(models: DisplayModel[], positions: Record<string, { x: number; y
     })),
     viewConfig: { positions },
     readOnly: false,
-  } as unknown as DisplayDomain;
+  } as unknown as DisplaySubjectArea;
 }
 
 describe('pickHandleSides', () => {

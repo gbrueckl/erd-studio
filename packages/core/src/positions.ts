@@ -42,7 +42,7 @@ export interface PositionContext {
  * Returns a map of model name → position for ONLY the new models.
  * Existing positions are never included or modified in the output.
  */
-export function computeNewModelPositions(
+export function computeNewTablePositions(
   ctx: PositionContext,
 ): Record<string, NodePosition> {
   if (ctx.newModels.length === 0) return {};

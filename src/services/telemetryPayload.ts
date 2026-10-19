@@ -14,7 +14,7 @@
  * together, and bump `HEARTBEAT_VERSION` when a field changes meaning.
  */
 
-import type { ModelLoadErrorKind } from '@erd-studio/core';
+import type { TableLoadErrorKind } from '@erd-studio/core';
 
 export const HEARTBEAT_VERSION = 1;
 
@@ -678,7 +678,7 @@ export function recordFeatureOnce(state: DailyCounters, feature: TelemetryFeatur
   return state.features[feature] ? state : recordFeature(state, feature);
 }
 
-const MODEL_FILE_ERROR_CODES: Record<ModelLoadErrorKind, TelemetryErrorCode> = {
+const MODEL_FILE_ERROR_CODES: Record<TableLoadErrorKind, TelemetryErrorCode> = {
   read: 'modelFileRead',
   yamlIndent: 'modelFileYamlIndent',
   yamlScalar: 'modelFileYamlScalar',
@@ -688,7 +688,7 @@ const MODEL_FILE_ERROR_CODES: Record<ModelLoadErrorKind, TelemetryErrorCode> = {
 };
 
 /** The error sub-code counted for a model-file failure of `kind`; recorded alongside `modelFileParse`. */
-export function modelFileErrorCode(kind: ModelLoadErrorKind): TelemetryErrorCode {
+export function modelFileErrorCode(kind: TableLoadErrorKind): TelemetryErrorCode {
   return MODEL_FILE_ERROR_CODES[kind] ?? 'modelFileYamlOther';
 }
 

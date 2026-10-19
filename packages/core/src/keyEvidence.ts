@@ -112,7 +112,7 @@ export interface KeyColumn {
 }
 
 /** The parts of a model key evidence reads. `name` is needed only to look dbt evidence up in an index. */
-export interface KeyedModel {
+export interface KeyedTable {
   name?: string;
   columns?: ReadonlyArray<KeyColumn>;
 }
@@ -130,7 +130,7 @@ const sameSet = (a: readonly string[], b: readonly string[]): boolean =>
 
 /** {@link keyEvidenceOf}, with the source of the answer. */
 export function keyEvidenceDetail(
-  model: KeyedModel | null | undefined,
+  model: KeyedTable | null | undefined,
   columns: readonly string[],
   dbt?: DbtKeyIndex,
 ): KeyEvidenceDetail {
@@ -172,11 +172,11 @@ export function keyEvidenceDetail(
  * index is consulted only for a column without a `dbtKey` of its own, and only
  * when the model flags no key.
  */
-export function keyEvidenceOf(model: KeyedModel | null | undefined, columns: readonly string[], dbt?: DbtKeyIndex): KeyEvidence {
+export function keyEvidenceOf(model: KeyedTable | null | undefined, columns: readonly string[], dbt?: DbtKeyIndex): KeyEvidence {
   return keyEvidenceDetail(model, columns, dbt).evidence;
 }
 
 /** The single-column form: `keyEvidenceOf(model, [column], dbt)`. */
-export function keyEvidence(model: KeyedModel | null | undefined, column: string, dbt?: DbtKeyIndex): KeyEvidence {
+export function keyEvidence(model: KeyedTable | null | undefined, column: string, dbt?: DbtKeyIndex): KeyEvidence {
   return keyEvidenceOf(model, [column], dbt);
 }

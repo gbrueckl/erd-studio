@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { applyMoveToModel, moveTargets, planRelationshipWrite, resolveConflict, usesLibraryRelationships } from '../../src/services/libraryRelationships';
 import type { RelationshipWriteInput, RelationshipWriteOp, MoveToLibraryPlan, ConflictDefinition } from '../../src/services/libraryRelationships';
 import { auditRelationshipWrite, checkLibraryRewrite } from '../../src/services/relationshipHealth';
-import type { SemanticModel } from '../../src/types/semantic';
+import type { SemanticTable } from '../../src/types/semantic';
 import {
   clone, dbtIndex, describeState, libModels, libraryMode, movePlan, opsFor, pickSets, states, worldOf,
 } from './relationshipStateSpace.model';
@@ -42,15 +42,15 @@ function audit(op: RelationshipWriteOp, input: RelationshipWriteInput): string[]
 }
 
 /** The Move's rewrite of `models` under `plan`, checked as the command checks it. */
-function moveCheck(models: SemanticModel[], plan0: MoveToLibraryPlan, picks: Array<ConflictDefinition | undefined>): string[] {
+function moveCheck(models: SemanticTable[], plan0: MoveToLibraryPlan, picks: Array<ConflictDefinition | undefined>): string[] {
   let plan = plan0;
   plan0.conflicts.forEach((c, i) => { if (picks[i]) plan = resolveConflict(plan, c, picks[i]!); });
-  const before: SemanticModel[] = [];
-  const after: SemanticModel[] = [];
+  const before: SemanticTable[] = [];
+  const after: SemanticTable[] = [];
   for (const name of moveTargets(plan)) {
     const model = models.find((m) => m.name === name.toLowerCase());
     if (!model) continue;
-    const copy: SemanticModel = { ...clone(model), relationships: model.relationships ? clone(model.relationships) : undefined };
+    const copy: SemanticTable = { ...clone(model), relationships: model.relationships ? clone(model.relationships) : undefined };
     before.push(clone(model));
     applyMoveToModel(plan, copy);
     after.push(copy);

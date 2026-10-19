@@ -16,7 +16,7 @@ export interface DiscrepancyReport {
   sourceStage: Stage;
   /** The stage being compared against. */
   targetStage: Stage;
-  models: ModelDiscrepancy[];
+  models: TableDiscrepancy[];
   relationships: RelationshipDiscrepancy[];
   summary: {
     totalModels: number;
@@ -33,7 +33,7 @@ export interface DiscrepancyReport {
   };
 }
 
-export interface ModelDiscrepancy {
+export interface TableDiscrepancy {
   name: string;
   status: 'matched' | 'extra' | 'missing';
   columns: ColumnDiscrepancy[];

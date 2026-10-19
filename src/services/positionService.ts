@@ -8,6 +8,6 @@ export {
   NODE_WIDTH,
   NODE_HEIGHT,
   PADDING,
-  computeNewModelPositions,
+  computeNewTablePositions,
   findOpenPosition,
 } from '@erd-studio/core';

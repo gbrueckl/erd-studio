@@ -6,11 +6,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { parseLogicalModelText } from '@erd-studio/core';
+import { parseTableText } from '@erd-studio/core';
 import { LogicalModelService } from '../../src/services/logicalModelService';
 import { OwnWriteTracker } from '../../src/services/ownWriteTracker';
 import type { ManifestData, ManifestModelInfo } from '../../src/types/manifest';
-import type { SemanticModel } from '../../src/types/semantic';
+import type { SemanticTable } from '../../src/types/semantic';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -1424,7 +1424,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
       '',
     ].join('\n');
     fs.writeFileSync(file, yml);
-    const read = (): string[] => parseLogicalModelText(fs.readFileSync(file, 'utf-8'), 'fct_order')!
+    const read = (): string[] => parseTableText(fs.readFileSync(file, 'utf-8'), 'fct_order')!
       .columns!.map((c) => c.dataType);
     // The yaml library writes an anchored empty value as `&x ` (trailing space), which reads the same.
     const text = (): string => fs.readFileSync(file, 'utf-8').replace(/ +$/gm, '');
@@ -1499,7 +1499,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
 
   describe('a YAML alias (*x) as the value', () => {
     const DEFS = 'name: fct_order\nx-defs:\n  t: &tv INT\n  b: &tv2 BOOLEAN\n';
-    const save = (yml: string, edit?: (m: SemanticModel) => void): string => {
+    const save = (yml: string, edit?: (m: SemanticTable) => void): string => {
       fs.writeFileSync(file, yml);
       const model = service.getModel('fct_order')!;
       model.description = 'Orders';
@@ -1554,7 +1554,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
         m.columns![0].dataType = 'BIGINT';
       });
       expect(out).toBe(`${DEFS}columns:\n  - name: a\n    # above\n    dataType: BIGINT # c\n  - name: b\n    dataType: *tv\ndescription: Orders\n`);
-      expect(parseLogicalModelText(out, 'fct_order')!.columns!.map((c) => c.dataType)).toEqual(['BIGINT', 'INT']);
+      expect(parseTableText(out, 'fct_order')!.columns!.map((c) => c.dataType)).toEqual(['BIGINT', 'INT']);
 
       // The same for a renamed data_type alias.
       expect(save(`${DEFS}columns:\n  - name: a\n    data_type: *tv2 # ct-dt\n`, (m) => { m.columns![0].dataType = 'TEXT'; }))
@@ -1564,7 +1564,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
     it('never lets a kept alias follow an anchor the same save rewrites', () => {
       // Keys are synced in a fixed order, not file order: whichever comes first,
       // an alias of a key the canvas rewrote keeps what it read, and its comments.
-      const edit = (yml: string, change: (m: SemanticModel) => void): string => {
+      const edit = (yml: string, change: (m: SemanticTable) => void): string => {
         fs.writeFileSync(file, yml);
         const model = service.getModel('fct_order')!;
         change(model);
@@ -1584,7 +1584,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
         (m) => { m.columns![0].dataType = 'Y'; },
       );
       expect(out).toBe('name: fct_order\ncolumns:\n  - name: a\n    dataType: &t Y # a type\n  - name: b\n    # above b\n    dataType: X # b type\n');
-      expect(parseLogicalModelText(out, 'fct_order')!.columns!.map((c) => c.dataType)).toEqual(['Y', 'X']);
+      expect(parseTableText(out, 'fct_order')!.columns!.map((c) => c.dataType)).toEqual(['Y', 'X']);
     });
 
     it('reads a number changed in place as its new value when settling the aliases kept beside it', () => {
@@ -1598,11 +1598,11 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
       const cols = '  - name: a\n    dataType: INT\n    scdType: &s 2 # a scd\n';
       const other = edit(`name: fct_order\ncolumns:\n${cols}  - name: b\n    dataType: INT\n    scdType: *s # b scd\n`);
       expect(other).toBe(`name: fct_order\ncolumns:\n${cols.replace('&s 2', '&s 1')}  - name: b\n    dataType: INT\n    scdType: 2 # b scd\n`);
-      expect(parseLogicalModelText(other, 'fct_order')!.columns!.map((c) => c.scdType)).toEqual([1, 2]);
+      expect(parseTableText(other, 'fct_order')!.columns!.map((c) => c.scdType)).toEqual([1, 2]);
 
       const later = edit(`name: fct_order\ncolumns:\n${cols}description: *s # why\n`);
       expect(later).toBe(`name: fct_order\ncolumns:\n${cols.replace('&s 2', '&s 1')}description: 2 # why\n`);
-      expect(parseLogicalModelText(later, 'fct_order')!.description).toBe('2');
+      expect(parseTableText(later, 'fct_order')!.description).toBe('2');
     });
   });
 });
@@ -1621,14 +1621,14 @@ describe('LogicalModelService — YAML anchors, aliases and text a save did not 
   afterEach(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
   /** Write `yml`, apply `change` to the model as read, save, and return the file. */
-  const save = (yml: string, change: (m: SemanticModel) => void = () => {}): string => {
+  const save = (yml: string, change: (m: SemanticTable) => void = () => {}): string => {
     fs.writeFileSync(file, yml);
     const model = service.getModel('fct_order')!;
     change(model);
     service.saveModel(model);
     return fs.readFileSync(file, 'utf-8');
   };
-  const read = (yml: string): SemanticModel => parseLogicalModelText(yml, 'fct_order')!;
+  const read = (yml: string): SemanticTable => parseTableText(yml, 'fct_order')!;
 
   describe('an alias inside a relationships: entry', () => {
     const DEFS = 'name: fct_order\nx-defs:\n  r: &r buyer\ncolumns:\n  - name: cust_id\n    dataType: INT\n';

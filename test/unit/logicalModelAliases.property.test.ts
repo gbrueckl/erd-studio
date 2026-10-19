@@ -22,9 +22,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { parse, parseDocument } from 'yaml';
-import { parseLogicalModelText } from '@erd-studio/core';
+import { parseTableText } from '@erd-studio/core';
 import { LogicalModelService } from '../../src/services/logicalModelService';
-import type { SemanticModel } from '../../src/types/semantic';
+import type { SemanticTable } from '../../src/types/semantic';
 
 const CASES = 1500;
 
@@ -104,8 +104,8 @@ function buildFile(r: () => number): string {
   return lines.join('\n') + '\n';
 }
 
-const SWAP = (m: SemanticModel): string => { m.columns!.reverse(); return 'swap the columns'; };
-const RENAME = (m: SemanticModel): string => {
+const SWAP = (m: SemanticTable): string => { m.columns!.reverse(); return 'swap the columns'; };
+const RENAME = (m: SemanticTable): string => {
   const col = m.columns!.find((c) => c.name === 'customer_key');
   if (!col) return 'no customer_key';
   col.name = 'buyer_key';
@@ -114,7 +114,7 @@ const RENAME = (m: SemanticModel): string => {
 };
 
 /** Canvas edits; each says what it did, for the failure message. */
-const EDITS: Array<(m: SemanticModel, r: () => number) => string> = [
+const EDITS: Array<(m: SemanticTable, r: () => number) => string> = [
   (m) => { m.description = 'Edited description'; return 'set description'; },
   (m) => { delete m.description; return 'clear description'; },
   (m) => { m.grain = 'one row per line'; return 'set grain'; },
@@ -163,7 +163,7 @@ describe('a save over YAML anchors and aliases (#157, randomised)', () => {
   });
   afterAll(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
-  const save = (text: string, edit: (m: SemanticModel) => void): { out: string; model: SemanticModel } => {
+  const save = (text: string, edit: (m: SemanticTable) => void): { out: string; model: SemanticTable } => {
     fs.writeFileSync(file, text);
     service.invalidateCache();
     const model = service.getModel('fct_order')!;
@@ -178,7 +178,7 @@ describe('a save over YAML anchors and aliases (#157, randomised)', () => {
       const input = buildFile(r);
       const count = Math.floor(r() * 4); // 0–3 edits; 0 is the "nothing changed" save
       const applied: string[] = [];
-      const edit = (m: SemanticModel): void => {
+      const edit = (m: SemanticTable): void => {
         for (let k = 0; k < count; k++) {
           const next = EDITS[Math.floor(r() * EDITS.length)];
           // A rename and a reorder never reach one save from the canvas (each
@@ -189,7 +189,7 @@ describe('a save over YAML anchors and aliases (#157, randomised)', () => {
       };
       const label = (): string => `seed ${seed} (${applied.join(', ') || 'no edit'})\n--- in\n${input}`;
 
-      let result: { out: string; model: SemanticModel };
+      let result: { out: string; model: SemanticTable };
       try {
         result = save(input, edit);
       } catch (err) {
@@ -199,7 +199,7 @@ describe('a save over YAML anchors and aliases (#157, randomised)', () => {
       const at = `${label()}--- out\n${out}`;
 
       expect(parseDocument(out).errors, at).toEqual([]);
-      expect(parseLogicalModelText(out, 'fct_order'), at).toEqual(model);
+      expect(parseTableText(out, 'fct_order'), at).toEqual(model);
       const renamed = applied.includes('rename customer_key') ? { buyer_key: 'customer_key' } : {};
       expect(unmanaged(out, renamed), at).toEqual(unmanaged(input, {}));
       if (count === 0) expect(out, at).toBe(input);

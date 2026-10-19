@@ -6,7 +6,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createElement, type ReactNode } from 'react';
 import { renderHook } from '@testing-library/react';
-import type { DisplayDomain } from '@erd-studio/core';
+import type { DisplaySubjectArea } from '@erd-studio/core';
 import {
   createCanvasSlice,
   createCanvasStore,
@@ -16,7 +16,7 @@ import {
   type CanvasSet,
 } from '../../src/store/editorStore';
 
-const domain = (stage: 'logical' | 'physical' = 'logical'): DisplayDomain => ({
+const domain = (stage: 'logical' | 'physical' = 'logical'): DisplaySubjectArea => ({
   schemaVersion: 5,
   domain: 'sales',
   layer: 'silver',

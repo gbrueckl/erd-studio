@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  computeNewModelPositions,
+  computeNewTablePositions,
   findOpenPosition,
   NODE_WIDTH,
   NODE_HEIGHT,
@@ -31,7 +31,7 @@ function assertNoOverlap(positions: Record<string, NodePosition>): void {
 describe('positionService', () => {
   describe('computeNewModelPositions', () => {
     it('places first model at (100, 100) in empty domain', () => {
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: ['dim_customer'],
         relationships: [],
         existingPositions: {},
@@ -43,7 +43,7 @@ describe('positionService', () => {
 
     it('does not modify existing positions in output', () => {
       const existing = { dim_customer: { x: 100, y: 100 } };
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: ['fct_orders'],
         relationships: [],
         existingPositions: existing,
@@ -58,7 +58,7 @@ describe('positionService', () => {
 
     it('places orphan model via grid scan (no relationships)', () => {
       const existing = { dim_customer: { x: 100, y: 100 } };
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: ['dim_product'],
         relationships: [],
         existingPositions: existing,
@@ -83,7 +83,7 @@ describe('positionService', () => {
         },
       ];
 
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: ['fct_orders'],
         relationships,
         existingPositions: existing,
@@ -119,7 +119,7 @@ describe('positionService', () => {
         },
       ];
 
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: ['fct_orders', 'fct_line_items'],
         relationships,
         existingPositions: existing,
@@ -140,7 +140,7 @@ describe('positionService', () => {
         model_c: { x: 100 + CELL_WIDTH * 2, y: 100 },
       };
 
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: ['model_d'],
         relationships: [],
         existingPositions: existing,
@@ -150,7 +150,7 @@ describe('positionService', () => {
     });
 
     it('handles multiple orphan models without overlap', () => {
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: ['model_a', 'model_b', 'model_c', 'model_d'],
         relationships: [],
         existingPositions: {},
@@ -161,7 +161,7 @@ describe('positionService', () => {
     });
 
     it('returns empty object for empty newModels array', () => {
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: [],
         relationships: [],
         existingPositions: { dim_customer: { x: 100, y: 100 } },
@@ -192,7 +192,7 @@ describe('positionService', () => {
         },
       ];
 
-      const result = computeNewModelPositions({
+      const result = computeNewTablePositions({
         newModels: ['fct_orders'],
         relationships,
         existingPositions: existing,

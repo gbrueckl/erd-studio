@@ -36,7 +36,7 @@ vi.mock('@xyflow/react', () => ({
 import { useCanvasShortcuts } from '../../webview/hooks/useCanvasShortcuts';
 import { useEditorStore } from '../../webview/store/editorStore';
 import type { ModelFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
@@ -75,7 +75,7 @@ const domain = {
     annotations: [{ id: 'n1', text: 'one', x: 0, y: 0 }, { id: 'n2', text: 'two', x: 0, y: 0 }],
   },
   readOnly: false,
-} as unknown as DisplayDomain;
+} as unknown as DisplaySubjectArea;
 
 function press(key: string, init: KeyboardEventInit = {}) {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
@@ -175,7 +175,7 @@ describe('useCanvasShortcuts', () => {
   it('deleting a composite foreign key\'s one edge sends its first pair (#133 L2)', () => {
     const member = (fromColumn: string, toColumn: string) =>
       ({ fromModel: 'b', fromColumn, toModel: 'c', toColumn, cardinality: 'many-to-one' as const, compositeKey: 'fk_c' });
-    useEditorStore.setState({ domain: { ...domain, relationships: [member('c_id', 'id'), member('c_date', 'valid_from')] } as unknown as DisplayDomain });
+    useEditorStore.setState({ domain: { ...domain, relationships: [member('c_id', 'id'), member('c_date', 'valid_from')] } as unknown as DisplaySubjectArea });
     renderHook(() => useCanvasShortcuts());
     act(() => {
       useEditorStore.getState().setSelectedEdges(['fk-b-c_id+c_date-c-id+valid_from']);

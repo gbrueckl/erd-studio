@@ -7,12 +7,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 import type { DiscrepancyReport } from '../../src/types/discrepancy';
 import type { FeedbackAnalysis } from '../../src/types/feedback';
 import type { FkEdgeData } from '@erd-studio/renderer/editor';
 
-function domain(stage: 'logical' | 'physical', extra: Partial<DisplayDomain> = {}): DisplayDomain {
+function domain(stage: 'logical' | 'physical', extra: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'orders',
@@ -25,7 +25,7 @@ function domain(stage: 'logical' | 'physical', extra: Partial<DisplayDomain> = {
     readOnly: stage === 'physical',
     positionDraggable: true,
     ...extra,
-  } as DisplayDomain;
+  } as DisplaySubjectArea;
 }
 
 /** A minimal analysis reply, for the feedback-dialog lifecycle assertions. */

@@ -10,7 +10,7 @@
 import { parseDocument, isAlias, isMap, isNode, isPair, isScalar, isSeq, visit } from 'yaml';
 import type { Alias, Document, Node, Pair } from 'yaml';
 
-import type { Cardinality, ColumnDef, ModelLoadWarning, ModelRelationship, ModelWithLoadWarning, SemanticModel } from './types/semantic.js';
+import type { Cardinality, ColumnDef, TableLoadWarning, TableRelationship, TableWithLoadWarning, SemanticTable } from './types/semantic.js';
 import { readMeta } from './meta.js';
 import { checkLimit } from './limits.js';
 import { normaliseCompositeKey, normaliseRelationshipRole } from './relationships.js';
@@ -57,7 +57,7 @@ export class YamlCharLimitError extends Error {
  * happened to stop; `classifyModelLoadError` turns it into a `ModelLoadError`
  * with `mergeConflict` set. Not exported from the package: hosts see the flag.
  */
-export class ModelMergeConflictError extends Error {
+export class TableMergeConflictError extends Error {
   readonly mergeConflict = true;
 
   constructor(readonly line: number, yamlError: unknown) {
@@ -68,7 +68,7 @@ export class ModelMergeConflictError extends Error {
   }
 }
 
-export interface ParseLogicalModelOptions {
+export interface ParseTableOptions {
   /**
    * Most YAML nodes (map keys and values, sequence items, scalars, aliases
    * followed) the document may expand to. Unlimited by default.
@@ -84,7 +84,7 @@ export interface ParseLogicalModelOptions {
    * What a key written twice in one block does (#164). `'error'` (the
    * default) throws yaml's `DUPLICATE_KEY` error like any other. `'last'`
    * reads the file the way dbt's PyYAML does — the last copy wins — and puts
-   * a {@link ModelLoadWarning} on the model as `loadWarning`. Only a file whose
+   * a {@link TableLoadWarning} on the model as `loadWarning`. Only a file whose
    * every error is a duplicate key is read; anything else still throws.
    */
   duplicateKeys?: 'error' | 'last';
@@ -94,7 +94,7 @@ export interface ParseLogicalModelOptions {
  * Shape of a model as stored in YAML.
  * Matches SemanticModel but with explicit field types for YAML serialization.
  */
-interface YamlModel {
+interface YamlTable {
   name: string;
   schema?: string;
   alias?: string;
@@ -175,17 +175,17 @@ function aliasTargets(doc: Document): Map<Alias, unknown> {
  * is not a number of at least 0 (or Infinity) throws a TypeError.
  * `fallbackName` names the model when its `name` is not a usable string.
  */
-export function parseLogicalModelText(
+export function parseTableText(
   text: string,
   fallbackName: string,
-  opts: ParseLogicalModelOptions = {},
-): SemanticModel | null {
-  return parseLogicalModelTextWithUsage(text, fallbackName, opts).model;
+  opts: ParseTableOptions = {},
+): SemanticTable | null {
+  return parseTableTextWithUsage(text, fallbackName, opts).model;
 }
 
-/** What a parse of a model file used of its budgets; see {@link parseLogicalModelTextWithUsage}. */
-export interface LogicalModelParse {
-  model: SemanticModel | null;
+/** What a parse of a model file used of its budgets; see {@link parseTableTextWithUsage}. */
+export interface TableParse {
+  model: SemanticTable | null;
   /** YAML nodes the document expanded to, or 0 when `maxNodes` was unlimited (nothing is counted then). */
   nodes: number;
   /** Characters of scalar text it expanded to, or 0 when `maxChars` was unlimited. */
@@ -197,23 +197,23 @@ export interface LogicalModelParse {
  * document used, so a caller that repeats the model can charge every repeat.
  * Not part of the package's public API.
  */
-export function parseLogicalModelTextWithUsage(
+export function parseTableTextWithUsage(
   text: string,
   fallbackName: string,
-  opts: ParseLogicalModelOptions = {},
-): LogicalModelParse {
+  opts: ParseTableOptions = {},
+): TableParse {
   const { maxNodes = Infinity, maxChars = Infinity, duplicateKeys = 'error' } = opts;
   checkLimit('parseLogicalModelText', 'maxNodes', maxNodes);
   checkLimit('parseLogicalModelText', 'maxChars', maxChars);
-  const { raw, state, loadWarning } = parseModelFile(text, maxNodes, maxChars, duplicateKeys === 'last');
+  const { raw, state, loadWarning } = parseTableFile(text, maxNodes, maxChars, duplicateKeys === 'last');
   const nodes = maxNodes === Infinity ? 0 : maxNodes - state.remaining;
   const chars = maxChars === Infinity ? 0 : maxChars - state.remainingChars;
   if (!raw || raw.name === undefined || raw.name === null || raw.name === '') {
     return { model: null, nodes, chars };
   }
-  const model = yamlToModel(raw, fallbackName);
+  const model = yamlToTable(raw, fallbackName);
   if (loadWarning) {
-    (model as ModelWithLoadWarning).loadWarning = loadWarning;
+    (model as TableWithLoadWarning).loadWarning = loadWarning;
   }
   return { model, nodes, chars };
 }
@@ -223,18 +223,18 @@ export function parseLogicalModelTextWithUsage(
  * is kept as written — `Date` and `date` are both fine — because some
  * warehouses show it, and dbt passes the alias through unchanged.
  */
-const MODEL_ALIAS_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const TABLE_ALIAS_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Longest alias accepted (Snowflake and Postgres cap identifiers well below common limits). */
-export const MODEL_ALIAS_MAX_LENGTH = 128;
+export const TABLE_ALIAS_MAX_LENGTH = 128;
 
 /** Human-readable statement of the alias rule (used in error messages). */
-export const MODEL_ALIAS_RULE =
+export const TABLE_ALIAS_RULE =
   'A warehouse name must start with a letter or underscore and use only letters, numbers and underscores.';
 
 /** Whether `alias` is a usable table name for a model's `alias`. */
-export function isValidModelAlias(alias: unknown): alias is string {
-  return typeof alias === 'string' && alias.length <= MODEL_ALIAS_MAX_LENGTH && MODEL_ALIAS_PATTERN.test(alias);
+export function isValidTableAlias(alias: unknown): alias is string {
+  return typeof alias === 'string' && alias.length <= TABLE_ALIAS_MAX_LENGTH && TABLE_ALIAS_PATTERN.test(alias);
 }
 
 /** A C0 control character (NUL included) or DEL. */
@@ -245,7 +245,7 @@ const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
  * a non-blank string with no path separators, no `..` and no control
  * characters (a NUL makes most file APIs throw rather than miss).
  */
-export function isSafeModelName(name: unknown): name is string {
+export function isSafeTableName(name: unknown): name is string {
   return (
     typeof name === 'string' &&
     name.trim() !== '' &&
@@ -267,20 +267,20 @@ export function isSafeModelName(name: unknown): name is string {
  * `state` holds what is left of the budgets. Throws on YAML syntax errors —
  * a `ModelMergeConflictError` when the text holds git conflict markers.
  */
-function parseModelFile(
+function parseTableFile(
   content: string,
   maxNodes: number,
   maxChars: number,
   lastDuplicateWins: boolean,
-): { raw: YamlModel | null; state: ToPlainState; loadWarning?: ModelLoadWarning } {
+): { raw: YamlTable | null; state: ToPlainState; loadWarning?: TableLoadWarning } {
   let doc = parseDocument(content);
-  let loadWarning: ModelLoadWarning | undefined;
+  let loadWarning: TableLoadWarning | undefined;
   if (doc.errors.length > 0) {
     // Checked only once the parse has failed: a marker-like line inside a
     // block scalar that parses is the user's text, not a conflict.
     const conflictLine = findConflictMarkers(content);
     if (conflictLine !== null) {
-      throw new ModelMergeConflictError(conflictLine, doc.errors[0]);
+      throw new TableMergeConflictError(conflictLine, doc.errors[0]);
     }
     const firstError = doc.errors[0];
     if (!lastDuplicateWins || !doc.errors.every((e) => e.code === 'DUPLICATE_KEY')) {
@@ -308,7 +308,7 @@ function parseModelFile(
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { raw: null, state };
   }
-  return { raw: raw as YamlModel, state, ...(loadWarning ? { loadWarning } : {}) };
+  return { raw: raw as YamlTable, state, ...(loadWarning ? { loadWarning } : {}) };
 }
 
 /**
@@ -316,7 +316,7 @@ function parseModelFile(
  * later copy (the one whose value is read), or null when there is none. Keys
  * are compared as yaml compares scalars: by their resolved text.
  */
-function firstDuplicateKey(doc: Document, content: string): ModelLoadWarning | null {
+function firstDuplicateKey(doc: Document, content: string): TableLoadWarning | null {
   let found: { key: string; offset: number } | null = null;
   visit(doc, {
     Map: (_key, map) => {
@@ -415,13 +415,13 @@ function scalarValue(node: { value: unknown; source?: string }): unknown {
   return node.source ?? String(v);
 }
 
-function yamlToModel(raw: YamlModel, fallbackName: string): SemanticModel {
+function yamlToTable(raw: YamlTable, fallbackName: string): SemanticTable {
   const str = (v: unknown): string | undefined =>
     v === undefined || v === null ? undefined : String(v);
   const bool = (v: unknown): boolean =>
     v === true || (typeof v === 'string' && /^(true|yes|on)$/i.test(v.trim()));
 
-  const model: SemanticModel = {
+  const model: SemanticTable = {
     name: str(raw.name) || fallbackName,
   };
 
@@ -434,7 +434,7 @@ function yamlToModel(raw: YamlModel, fallbackName: string): SemanticModel {
   if (alias) model.alias = alias;
   if (description) model.description = description;
   if (grain) model.grain = grain;
-  if (modelRole) model.modelRole = modelRole as SemanticModel['modelRole'];
+  if (modelRole) model.modelRole = modelRole as SemanticTable['modelRole'];
   if (raw.rationale && typeof raw.rationale === 'object') {
     model.rationale = {};
     for (const key of RATIONALE_KEYS) {
@@ -484,9 +484,9 @@ const CARDINALITIES: ReadonlySet<string> = new Set<Cardinality>(['many-to-one', 
  * string endpoints is skipped; an unrecognised cardinality reads as
  * many-to-one, as it does in a domain file.
  */
-function readRelationships(value: unknown): ModelRelationship[] {
+function readRelationships(value: unknown): TableRelationship[] {
   if (!Array.isArray(value)) return [];
-  const relationships: ModelRelationship[] = [];
+  const relationships: TableRelationship[] = [];
   for (const entry of value) {
     const r = entry as Record<string, unknown> | null;
     if (!r || typeof r !== 'object' || Array.isArray(r)) continue;

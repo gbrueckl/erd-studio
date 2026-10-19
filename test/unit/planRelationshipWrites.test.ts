@@ -10,12 +10,12 @@ import { describe, it, expect } from 'vitest';
 
 import { planRelationshipWrite, planRelationshipWrites } from '../../src/services/libraryRelationships';
 import type { RelationshipWriteOp } from '../../src/services/libraryRelationships';
-import type { Relationship, SemanticModel } from '../../src/types/semantic';
+import type { Relationship, SemanticTable } from '../../src/types/semantic';
 
 const col = (name: string, isPrimaryKey = false) => ({ name, dataType: 'int', description: '', isPrimaryKey });
 
 /** dim_customer saved by 1.6.7 with two backwards many-to-ones, one to each fact. */
-const models = (): SemanticModel[] => [
+const models = (): SemanticTable[] => [
   {
     name: 'dim_customer', description: '', columns: [col('customer_key', true)],
     relationships: [
@@ -25,7 +25,7 @@ const models = (): SemanticModel[] => [
   },
   { name: 'fct_order', description: '', columns: [col('order_key', true), col('customer_key')] },
   { name: 'fct_return', description: '', columns: [col('return_key', true), col('customer_key')] },
-] as SemanticModel[];
+] as SemanticTable[];
 
 /** ⇄ on a backwards line, as the ⚠'s Turn round sends it. */
 const turnRound = (toModel: string): RelationshipWriteOp => ({

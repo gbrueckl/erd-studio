@@ -14,7 +14,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type { DomainSummary, Layer } from '../types/semantic';
+import type { SubjectAreaSummary, Layer } from '../types/semantic';
 import { DomainService } from '../services/domainService';
 import type { LayerService } from '../services/layerService';
 
@@ -32,7 +32,7 @@ interface LayerNode {
 
 interface DomainNode {
   readonly type: 'domain';
-  readonly summary: DomainSummary;
+  readonly summary: SubjectAreaSummary;
   readonly modelCount: number;
   readonly designCount: number;
 }

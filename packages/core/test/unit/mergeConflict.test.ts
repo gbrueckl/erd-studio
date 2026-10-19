@@ -10,9 +10,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { findConflictMarkers } from '../../src/mergeConflict';
-import { DomainFileError, classifyModelLoadError, describeModelLoadError, parseDomainJson } from '../../src/domain';
-import { parseLogicalModelText } from '../../src/logicalModel';
-import { loadDisplayDomain } from '../../src/loadDisplayDomain';
+import { SubjectAreaFileError, classifyTableLoadError, describeTableLoadError, parseSubjectAreaJson } from '../../src/domain';
+import { parseTableText } from '../../src/logicalModel';
+import { loadDisplaySubjectArea } from '../../src/loadDisplayDomain';
 
 const FILE = '/proj/.erd-studio/silver/sales.json';
 const ERRORS_ROOT = path.resolve(__dirname, '../fixtures/errors');
@@ -80,9 +80,9 @@ describe('parseDomainJson on a file with conflict markers', () => {
   ];
 
   it.each(cases)('reports a merge conflict %s, with the line of the first marker', (_name, raw, line) => {
-    const err = caught(() => parseDomainJson(raw, FILE));
-    expect(err).toBeInstanceOf(DomainFileError);
-    const e = err as DomainFileError;
+    const err = caught(() => parseSubjectAreaJson(raw, FILE));
+    expect(err).toBeInstanceOf(SubjectAreaFileError);
+    const e = err as SubjectAreaFileError;
     expect(e.reason).toBe('invalid-json');
     expect(e.mergeConflict).toBe(true);
     expect(e.line).toBe(line);
@@ -96,11 +96,11 @@ describe('parseDomainJson on a file with conflict markers', () => {
 
   it('parses valid JSON whose text quotes marker-like lines', () => {
     const doc = { schemaVersion: 5, description: '=======\n<<<<<<< x\n=======\n>>>>>>> y' };
-    expect(parseDomainJson(JSON.stringify(doc, null, 2), FILE)).toEqual(doc);
+    expect(parseSubjectAreaJson(JSON.stringify(doc, null, 2), FILE)).toEqual(doc);
   });
 
   it('keeps invalid JSON with only a lone separator line an ordinary, transient invalid-json', () => {
-    const err = caught(() => parseDomainJson(lines('{', '  "schemaVersion": 5,', '=======', '}'), FILE)) as DomainFileError;
+    const err = caught(() => parseSubjectAreaJson(lines('{', '  "schemaVersion": 5,', '=======', '}'), FILE)) as SubjectAreaFileError;
     expect(err.reason).toBe('invalid-json');
     expect(err.mergeConflict).toBe(false);
     expect(err.line).toBeUndefined();
@@ -109,7 +109,7 @@ describe('parseDomainJson on a file with conflict markers', () => {
   });
 
   it('still reports an empty file as empty', () => {
-    const err = caught(() => parseDomainJson('', FILE)) as DomainFileError;
+    const err = caught(() => parseSubjectAreaJson('', FILE)) as SubjectAreaFileError;
     expect(err.reason).toBe('empty');
     expect(err.mergeConflict).toBe(false);
     expect(err.transient).toBe(true);
@@ -119,7 +119,7 @@ describe('parseDomainJson on a file with conflict markers', () => {
 describe('DomainFileError.mergeConflict', () => {
   it('defaults to false, so every existing constructor call is unchanged', () => {
     for (const reason of ['missing', 'unreadable', 'empty', 'invalid-json'] as const) {
-      const err = new DomainFileError(reason, FILE, 'm');
+      const err = new SubjectAreaFileError(reason, FILE, 'm');
       expect(err.mergeConflict).toBe(false);
       expect(err.line).toBeUndefined();
     }
@@ -161,23 +161,23 @@ describe('a model file with conflict markers', () => {
   );
 
   it('throws an error core classifies as a merge conflict at the first marker', () => {
-    const err = caught(() => parseLogicalModelText(CONFLICTED, 'fct_order'));
+    const err = caught(() => parseTableText(CONFLICTED, 'fct_order'));
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toBe('Unresolved git merge conflict (first at line 4)');
-    expect(classifyModelLoadError(err)).toEqual({ kind: 'yamlOther', line: 4, mergeConflict: true });
+    expect(classifyTableLoadError(err)).toEqual({ kind: 'yamlOther', line: 4, mergeConflict: true });
   });
 
   it('describes it as a merge conflict, and an ordinary YAML error as before', () => {
-    expect(describeModelLoadError({ kind: 'yamlOther', line: 4, mergeConflict: true }))
+    expect(describeTableLoadError({ kind: 'yamlOther', line: 4, mergeConflict: true }))
       .toBe('logical-models file has an unresolved git merge conflict on line 4');
-    expect(describeModelLoadError({ kind: 'yamlOther', mergeConflict: true }))
+    expect(describeTableLoadError({ kind: 'yamlOther', mergeConflict: true }))
       .toBe('logical-models file has an unresolved git merge conflict');
-    expect(describeModelLoadError({ kind: 'yamlScalar', line: 4 })).toBe('logical-models file has a YAML error on line 4');
+    expect(describeTableLoadError({ kind: 'yamlScalar', line: 4 })).toBe('logical-models file has a YAML error on line 4');
   });
 
   it('leaves a marker-like line in a block scalar that parses alone', () => {
     const text = lines('name: dim_x', 'description: |', '  <<<<<<< a', '  =======', '  >>>>>>> b', 'columns: []');
-    expect(parseLogicalModelText(text, 'dim_x')?.description).toBe('<<<<<<< a\n=======\n>>>>>>> b\n');
+    expect(parseTableText(text, 'dim_x')?.description).toBe('<<<<<<< a\n=======\n>>>>>>> b\n');
   });
 
   it('reaches the DisplayDomain through loadDisplayDomain', async () => {
@@ -186,7 +186,7 @@ describe('a model file with conflict markers', () => {
       '.erd-studio/logical-models/fct_order.yml': CONFLICTED,
     };
     const warnings: string[] = [];
-    const domain = await loadDisplayDomain({
+    const domain = await loadDisplaySubjectArea({
       domainPath: '.erd-studio/silver/sales.json',
       readFile: async (p) => files[p] ?? null,
       readOnly: true,
@@ -211,13 +211,13 @@ describe('loadDisplayDomain on the conflicted fixtures', () => {
     ['conflict-models.json', 9],
   ])('rejects %s with a merge-conflict DomainFileError', async (file, line) => {
     const domainPath = `.erd-studio/silver/${file}`;
-    const err = await loadDisplayDomain({ domainPath, readFile, readOnly: true, warn: () => {} }).then(
+    const err = await loadDisplaySubjectArea({ domainPath, readFile, readOnly: true, warn: () => {} }).then(
       () => { throw new Error('expected a rejection'); },
       (e: unknown) => e,
     );
-    expect(err).toBeInstanceOf(DomainFileError);
-    expect((err as DomainFileError).reason).toBe('invalid-json');
-    expect((err as DomainFileError).mergeConflict).toBe(true);
-    expect((err as DomainFileError).line).toBe(line);
+    expect(err).toBeInstanceOf(SubjectAreaFileError);
+    expect((err as SubjectAreaFileError).reason).toBe('invalid-json');
+    expect((err as SubjectAreaFileError).mergeConflict).toBe(true);
+    expect((err as SubjectAreaFileError).line).toBe(line);
   });
 });
