@@ -48,4 +48,5 @@ erDiagram
   %% fct_order.order_date_key -> dim_date.date_key, many-to-one
   "fct_order" }o--|| "dim_date" : "order_date_key"
   %% dim_product.product_key -> fct_order.product_key, many-to-one
+  %% This starts at dim_product's key (product_key), so it was probably drawn backwards.
   "dim_product" }o--|| "fct_order" : "product_key"

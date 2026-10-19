@@ -413,6 +413,62 @@ export function planRelationshipWrite(op: RelationshipWriteOp, input: Relationsh
   return { ...plan, changed: [...plan.changed.filter((m) => !same(m.name, target.name)), marked] };
 }
 
+/** One step of {@link planRelationshipWrites}: the op, what it was planned against, and its plan. */
+export interface RelationshipWriteStep {
+  op: RelationshipWriteOp;
+  input: RelationshipWriteInput;
+  plan: Extract<RelationshipWritePlan, { ok: true }>;
+}
+
+/**
+ * Several canvas relationship edits as one write (#163's "Turn round" for
+ * every relationship drawn backwards): each op is planned by
+ * `planRelationshipWrite` against the models and domain relationships the
+ * ops before it left, so two ops touching one model file build on each other
+ * instead of each replacing it from the same snapshot. The plan saves each
+ * changed model once, as the last op left it. The first refusal refuses all.
+ * Pure, like the planner it folds.
+ */
+export function planRelationshipWrites(
+  ops: readonly RelationshipWriteOp[],
+  input: RelationshipWriteInput,
+): { plan: RelationshipWritePlan; steps: RelationshipWriteStep[] } {
+  let models = input.models;
+  let domainRelationships = input.domainRelationships;
+  let domainChanged = false;
+  const changed = new Map<string, SemanticModel>();
+  const steps: RelationshipWriteStep[] = [];
+  let grouped: { count: number; compositeKey: string } | undefined;
+  for (const op of ops) {
+    const stepInput: RelationshipWriteInput = { ...input, models, domainRelationships };
+    const plan = planRelationshipWrite(op, stepInput);
+    if (!plan.ok) return { plan, steps };
+    // A v4 domain's inline key mark is the caller's to apply, for one op only.
+    if (plan.inlineMarkKey) return { plan: refuse('Mark a primary key one relationship at a time.'), steps };
+    steps.push({ op, input: stepInput, plan });
+    for (const model of plan.changed) {
+      changed.set(model.name.toLowerCase(), model);
+      models = models.some((m) => same(m.name, model.name))
+        ? models.map((m) => (same(m.name, model.name) ? model : m))
+        : [...models, model];
+    }
+    if (plan.domainRelationships) {
+      domainRelationships = plan.domainRelationships;
+      domainChanged = true;
+    }
+    grouped = plan.grouped ?? grouped;
+  }
+  return {
+    plan: {
+      ok: true,
+      changed: [...changed.values()],
+      domainRelationships: domainChanged ? [...domainRelationships] : null,
+      ...(grouped ? { grouped } : {}),
+    },
+    steps,
+  };
+}
+
 /**
  * `model` with `columns` (matched without case) flagged `isPrimaryKey`, or
  * the refusal when the model already flags a key (`{was}` names what did not

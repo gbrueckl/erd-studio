@@ -83,6 +83,8 @@ import {
   computeMissingPositions,
   DomainValidationError,
   EMPTY_DBT_KEY_INDEX,
+  backwardsRelationshipNote,
+  linkKey,
   parseDomainJson,
   sameLink,
   setMetaEntry,
@@ -133,7 +135,7 @@ import type {
 import type { ManifestData } from '../types/manifest';
 import type { YmlData } from '../types/ymlData';
 import type { DiscrepancyReport } from '../types/discrepancy';
-import type { DisplayDomain } from '../types/display';
+import type { DisplayDomain, DisplayRelationship } from '../types/display';
 import type { Rationale, Cardinality, ColumnDef, DesignModel, Meta, Stage } from '../types/semantic';
 import type { UpdateColumnPayloadColumn, UpdateMetaMessage } from '../types/messages';
 import type { GroundTruth } from '../types/syncPlan';
@@ -161,6 +163,7 @@ import {
   drawnDiagramCopies,
   markPrimaryKey,
   planRelationshipWrite,
+  planRelationshipWrites,
   removeColumnFromDomainRelationships,
   removeColumnRelationships,
   renameColumnInDomainRelationships,
@@ -441,6 +444,17 @@ export const MANIFEST_HINT_DISMISSED_KEY = 'erdStudio.manifestHintDismissed';
  */
 export const RELATIONSHIP_MOVE_DECLINED_KEY = 'erdStudio.relationshipMoveDeclined';
 
+/**
+ * workspaceState key: "Don't Ask Again" on the offer to turn round
+ * relationships drawn backwards (#163). Per workspace; the ⚠ stays.
+ */
+export const RELATIONSHIP_BACKWARDS_DECLINED_KEY = 'erdStudio.relationshipBackwardsDeclined';
+
+/** A backwards group as the turn-round offer matches it again after the toast (#163): its links and cardinality. */
+function backwardsGroupId(members: readonly Relationship[]): string {
+  return `${members[0]?.cardinality}\u0002${members.map(linkKey).sort().join('\u0001')}`;
+}
+
 /** Error posted to the webview when a mutation is attempted while viewing the physical stage. */
 export const PHYSICAL_READ_ONLY_MESSAGE = 'Physical stage is read-only. Switch to the Logical stage to make changes.';
 
@@ -495,6 +509,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly pendingUpdates = new Map<string, boolean>();
   /** The move-to-library offer is made at most once per session (#126). */
   private relationshipMoveOffered = false;
+  private relationshipBackwardsOffered = false;
+  /** Each document's logical relationships flagged `keysContradict` when its canvas last loaded (#163). */
+  private readonly backwardsDrawn = new Map<string, DisplayRelationship[]>();
 
   /**
    * The last load failure posted to each panel, so an error the user is
@@ -1008,7 +1025,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             // The initial load is the one refresh path allowed to persist
             // auto-computed positions for models that lack them.
             await this.sendDomainData(document, webviewPanel.webview, panelKey, { persistPositions: true });
-            void this.maybeOfferRelationshipMove();
+            void this.offerRelationshipPrompts(document, webviewPanel.webview, panelKey);
             break;
           case 'requestReload':
             // Webview detected it was orphaned (e.g. extension update before
@@ -1690,6 +1707,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       clearTimeout(this.nativeUndoTimers.get(panelKey));
       this.nativeUndoTimers.delete(panelKey);
       this.lastLoadError.delete(panelKey);
+      this.backwardsDrawn.delete(document.uri.toString());
     });
   }
 
@@ -1832,15 +1850,15 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * has its two models together in more than one diagram. Writes nothing; the
    * command it opens explains the move and asks before changing a file.
    */
-  private async maybeOfferRelationshipMove(): Promise<void> {
-    if (this.relationshipMoveOffered) return;
+  private async maybeOfferRelationshipMove(): Promise<boolean> {
+    if (this.relationshipMoveOffered) return false;
     this.relationshipMoveOffered = true;
     try {
-      if (this.context.workspaceState?.get<boolean>(RELATIONSHIP_MOVE_DECLINED_KEY)) return;
-      if (this.relationshipsInLibrary(this.logicalModelService.listModels())) return;
+      if (this.context.workspaceState?.get<boolean>(RELATIONSHIP_MOVE_DECLINED_KEY)) return false;
+      if (this.relationshipsInLibrary(this.logicalModelService.listModels())) return false;
       const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.logicalModelService.getModelsDir()));
       const shared = sharedRelationshipCount(readDomainRelationships(this.domainService, this.workspaceRoot, semanticDir));
-      if (shared === 0) return;
+      if (shared === 0) return false;
       telemetry.feature('relMoveOffered');
       const choice = await vscode.window.showInformationMessage(
         `Relationships can now be defined once and shared. ${shared === 1 ? '1 relationship here is' : `${shared} relationships here are`} ` +
@@ -1867,10 +1885,100 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       } else {
         telemetry.feature('relMoveNotNow');
       }
+      // Only the move itself turns backwards copies round; after Not Now the next offer may still ask.
+      return choice === 'Review the Move…';
     } catch (err) {
       console.warn('[SemanticEditorProvider] Relationship move offer skipped:', err);
+      return false;
     }
   }
+
+  /**
+   * The relationship offers a canvas's `ready` may make, one at a time: the
+   * move to the model library first — it also turns backwards copies round —
+   * and, unless the user chose the move, the offer to turn round this
+   * diagram's relationships drawn backwards (#163).
+   */
+  private async offerRelationshipPrompts(document: vscode.TextDocument, webview: vscode.Webview, panelKey: string): Promise<void> {
+    if (await this.maybeOfferRelationshipMove()) return;
+    await this.maybeOfferTurnRound(document, webview, panelKey);
+  }
+
+  /**
+   * Offer to turn round the relationships in this diagram that look drawn
+   * backwards (#163, `keysContradictedRelationships`): once a session, never
+   * after "Don't Ask Again", on the logical stage only. Writes nothing until
+   * the user picks; **Turn Round** (all) and **Review…** (those ticked) are
+   * one edit and one undo step, through `commitRelationshipWrite`.
+   */
+  private async maybeOfferTurnRound(document: vscode.TextDocument, webview: vscode.Webview, panelKey: string): Promise<void> {
+    if (this.relationshipBackwardsOffered) return;
+    try {
+      if (this.context.workspaceState?.get<boolean>(RELATIONSHIP_BACKWARDS_DECLINED_KEY)) return;
+      if (this.openPanels.get(panelKey)?.activeStage === 'physical') return;
+      const groups = this.backwardsRelationshipGroups(document);
+      if (groups.length === 0) return;
+      this.relationshipBackwardsOffered = true;
+      const one = groups.length === 1;
+      const choice = await vscode.window.showInformationMessage(
+        `${one ? '1 relationship in this diagram looks' : `${groups.length} relationships in this diagram look`} drawn backwards ` +
+        `(${one ? 'it starts' : 'they start'} at a model's key). Turn ${one ? 'it' : 'them'} round?`,
+        'Turn Round',
+        'Review…',
+        'Not Now',
+        "Don't Ask Again",
+      );
+      let chosen: Relationship[][] = [];
+      if (choice === 'Turn Round') {
+        chosen = groups;
+      } else if (choice === 'Review…') {
+        const picked = await vscode.window.showQuickPick(
+          groups.map((members) => ({
+            label: `${members[0].fromModel}.${members.map((m) => m.fromColumn).join(', ')} \u2192 ${members[0].toModel}.${members.map((m) => m.toColumn).join(', ')}`,
+            detail: backwardsRelationshipNote(members[0], members),
+            picked: true,
+            members,
+          })),
+          { canPickMany: true, title: 'Turn these relationships round', placeHolder: 'Untick any you drew this way on purpose' },
+        );
+        chosen = (picked ?? []).map((item) => item.members);
+      } else if (choice === "Don't Ask Again") {
+        await this.context.workspaceState?.update(RELATIONSHIP_BACKWARDS_DECLINED_KEY, true);
+      }
+      // The toast may have waited a while: turn round only what the canvas still draws backwards, as it was.
+      const still = new Set(this.backwardsRelationshipGroups(document).map((members) => backwardsGroupId(members)));
+      chosen = chosen.filter((members) => still.has(backwardsGroupId(members)));
+      if (chosen.length === 0) return;
+      // ⇄ on each: a backwards many-to-one becomes the one-to-many it reads as, stored the right way round.
+      const ops: RelationshipWriteOp[] = chosen.map((members) => ({
+        kind: 'update',
+        ends: { fromModel: members[0].fromModel, fromColumn: members[0].fromColumn, toModel: members[0].toModel, toColumn: members[0].toColumn },
+        cardinality: members[0].cardinality === 'many-to-one' ? 'one-to-many' : 'many-to-one',
+      }));
+      await this.queueEdit(panelKey, async () => {
+        try {
+          await this.commitRelationshipWrite(document, webview, ops, 'logical', 'Failed to turn relationships round.');
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.recordRelationshipFailure(err);
+          webview.postMessage({ type: 'error', payload: { message: `Failed to turn relationships round: ${message}` } });
+        }
+      });
+    } catch (err) {
+      console.warn('[SemanticEditorProvider] Turn-round offer skipped:', err);
+    }
+  }
+
+  /** This diagram's relationships drawn backwards, a composite's members together, as its canvas last drew them. */
+  private backwardsRelationshipGroups(document: vscode.TextDocument): Relationship[][] {
+    const groups = new Map<string, Relationship[]>();
+    for (const rel of this.backwardsDrawn.get(document.uri.toString()) ?? []) {
+      const id = rel.compositeKey ? [rel.fromModel, rel.toModel, rel.compositeKey].join('\u0000').toLowerCase() : `\u0001${groups.size}`;
+      groups.set(id, [...(groups.get(id) ?? []), rel]);
+    }
+    return [...groups.values()];
+  }
+
 
   /**
    * What dbt's tests say about keys (#133 L1), from the cached yml and
@@ -2373,6 +2481,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   ): DisplayDomain {
     const editorPayload = this.buildWebviewPayload(domain, manifest, ymlData, domain.modelFolder);
     const readOnly = domain.stage === 'physical';
+    const dbtKeyIndex = dbtKeyIndexOf(ymlData, manifest);
 
     const display = toDisplayDomain(domain, {
       viewConfig,
@@ -2380,9 +2489,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       layerConfig: this.layerService.getLayer(domain.layer),
       readOnly,
       editorPayload,
+      // A relationship drawn backwards is flagged on dbt's evidence too (#163).
+      dbtKeyIndex,
     });
     // dbt's key evidence orients new relationships on an editable canvas (#133 L1).
-    return readOnly ? display : withDbtKeyHints(display, dbtKeyIndexOf(ymlData, manifest));
+    return readOnly ? display : withDbtKeyHints(display, dbtKeyIndex);
   }
 
   /** The "deleted or renamed" screen's payload (#161), naming the file project-relative. */
@@ -2503,6 +2614,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       } else {
         const domain = DomainService.toLogicalStage(unifiedDomain);
         const displayDomain = this.buildDisplayDomain(domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns);
+        // What the turn-round offer asks about (#163): the lines this canvas flags, without reading the file again.
+        this.backwardsDrawn.set(document.uri.toString(), displayDomain.relationships.filter((r) => r.keysContradict));
         this.post(webview, {
           type: 'domainLoaded',
           payload: displayDomain,
@@ -3372,7 +3485,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   /**
-   * Write one relationship edit (#133): `planRelationshipWrite` decides it
+   * Write one relationship edit (#133), or several as one (#163's Turn
+   * Round, folded by `planRelationshipWrites`): `planRelationshipWrite` decides it
    * from this domain file's relationships and the model library, inside one
    * `applyDomainEdit` — the domain file and every model file it changes are
    * one WorkspaceEdit and one undo step. In a project that keeps
@@ -3384,10 +3498,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   private async commitRelationshipWrite(
     document: vscode.TextDocument,
     webview: vscode.Webview,
-    op: RelationshipWriteOp,
+    op: RelationshipWriteOp | readonly RelationshipWriteOp[],
     stage: 'logical',
     errorLabel: string,
   ): Promise<{ home: 'library' | 'domain'; changed: SemanticModel[] } | null> {
+    // Several ops (Turn round all, #163) are folded into one plan, so they are one edit and one undo step.
+    const ops: readonly RelationshipWriteOp[] = Array.isArray(op) ? op : [op as RelationshipWriteOp];
     const parsed = this.parseDomainDocument(document);
     const v5 = this.isDomainV5(parsed);
     const models = v5 ? this.logicalModelService.listModels() : [];
@@ -3401,23 +3517,33 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       document,
       (section) => {
         const input: RelationshipWriteInput = { home, models, domainRelationships: (section.relationships ?? []) as Relationship[], dbt };
-        const plan = planRelationshipWrite(op, input);
+        const { plan, steps } = ops.length === 1
+          ? (() => {
+            const single = planRelationshipWrite(ops[0], input);
+            return { plan: single, steps: single.ok ? [{ op: ops[0], input, plan: single }] : [] };
+          })()
+          : planRelationshipWrites(ops, input);
         if (!plan.ok) {
           if (plan.reason === 'keysWin') telemetry.feature('relSwapRefusedKey');
           throw new EditRefused(plan.missingModel ? this.modelUnavailableMessage(plan.missingModel) : plan.error);
         }
-        // Self-check of the planned result (#133 telemetry): recorded and logged, never blocking or altering the edit.
-        audit = auditRelationshipWrite(op, input, plan, v5 ? models : (section.models ?? []) as SemanticModel[]);
-        if (audit.broken.length > 0) {
-          telemetry.relationshipInvariants(audit.broken);
-          console.warn(`[SemanticEditorProvider] relationship self-check (${op.kind}): ${audit.broken.join(', ')}`);
+        // Self-check of each planned step (#133 telemetry): recorded and logged, never blocking or altering the edit.
+        const usage: RelationshipAudit['usage'] = [];
+        for (const step of steps) {
+          const stepAudit = auditRelationshipWrite(step.op, step.input, step.plan, v5 ? step.input.models : (section.models ?? []) as SemanticModel[]);
+          usage.push(...stepAudit.usage);
+          if (stepAudit.broken.length > 0) {
+            telemetry.relationshipInvariants(stepAudit.broken);
+            console.warn(`[SemanticEditorProvider] relationship self-check (${step.op.kind}): ${stepAudit.broken.join(', ')}`);
+          }
+          audit = { ...stepAudit, usage };
         }
         if (plan.inlineMarkKey) {
           // A v4 domain keeps its models inline: the key is marked there.
           const inline = ((section.models ?? []) as SemanticModel[]).findIndex((m) => sameName(m.name, plan.inlineMarkKey!.model));
           if (inline === -1) throw new EditRefused(`Model "${plan.inlineMarkKey.model}" not found.`);
           const marked = markPrimaryKey((section.models as SemanticModel[])[inline], plan.inlineMarkKey.columns);
-          if (typeof marked === 'string') throw new EditRefused(marked.replace('{was}', op.kind === 'add' ? 'added' : 'changed'));
+          if (typeof marked === 'string') throw new EditRefused(marked.replace('{was}', ops[0].kind === 'add' ? 'added' : 'changed'));
           (section.models as SemanticModel[])[inline] = marked;
         }
         if (plan.domainRelationships) section.relationships = plan.domainRelationships;

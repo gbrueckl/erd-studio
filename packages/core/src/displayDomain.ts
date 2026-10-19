@@ -7,7 +7,8 @@ import type { DisplayDomain, ExistingModelPreview, ManifestModelPreview } from '
 import type { LayerConfig } from './types/layer.js';
 import { computeNewModelPositions } from './positions.js';
 import { modelLoadErrorOf, modelLoadWarningOf } from './types/semantic.js';
-import { foreignKeyEnd } from './relationships.js';
+import { foreignKeyEnd, keysContradictedRelationships } from './relationships.js';
+import type { DbtKeyIndex } from './keyEvidence.js';
 
 /**
  * Detect models in logical.models that lack entries in viewConfig.positions
@@ -48,6 +49,12 @@ export interface ToDisplayDomainOptions {
   readOnly: boolean;
   /** Templates and addable models, when the host offers editing. */
   editorPayload?: DisplayDomainEditorPayload;
+  /**
+   * dbt's key evidence for models that flag no key (#133 L1), so a
+   * relationship drawn backwards is flagged as the canvas's dialog would warn
+   * of it (`keysContradict`). Without it only the models' key flags count.
+   */
+  dbtKeyIndex?: DbtKeyIndex;
 }
 
 /**
@@ -102,6 +109,12 @@ export function toDisplayDomain(domain: SemanticDomain, options: ToDisplayDomain
     };
   });
 
+  // Logical only: a physical relationship comes from a dbt test, whose `from`
+  // is always the child column, so it is never "drawn" either way (#163).
+  const byName = new Map(domain.models.map((m) => [m.name.toLowerCase(), m]));
+  const backwards = domain.stage !== 'physical'
+    ? keysContradictedRelationships(domain.relationships, (name) => byName.get(name.toLowerCase()), options.dbtKeyIndex)
+    : new Set<Relationship>();
   const relationships = domain.relationships.map((rel) => ({
     fromModel: rel.fromModel,
     fromColumn: rel.fromColumn,
@@ -110,6 +123,7 @@ export function toDisplayDomain(domain: SemanticDomain, options: ToDisplayDomain
     cardinality: rel.cardinality,
     ...(rel.role ? { role: rel.role } : {}),
     ...(rel.compositeKey ? { compositeKey: rel.compositeKey } : {}),
+    ...(backwards.has(rel) ? { keysContradict: true as const } : {}),
   }));
 
   return {

@@ -42,4 +42,5 @@ Table gold.dim_product {
 
 Ref: gold.dim_customer.customer_key < gold.fct_order.customer_key
 Ref: gold.fct_order.order_date_key > gold.dim_date.date_key
+// This starts at dim_product's key (product_key), so it was probably drawn backwards.
 Ref: gold.dim_product.product_key > gold.fct_order.product_key

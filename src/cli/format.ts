@@ -4,6 +4,7 @@
  */
 
 import { describeUnreadable, mergeConflictHumanHint, type DiffResult, type DomainDiff, type Fix } from './diff';
+import { foreignKeyAtTo } from '@erd-studio/core';
 import type { DoctorResult } from './doctor';
 import type { InventoryResult } from './inventory';
 
@@ -144,6 +145,11 @@ export function formatDoctor(r: DoctorResult, p: Paint): string {
         + ' — read as dataType, but kept as written: a YAML anchor sits on the empty dataType or the data_type key,'
         + ' and renaming would break what refers to it');
     }
+  }
+  for (const b of r.erd.backwardsRelationships) {
+    const ends = (model: string, cols: string[]): string => `${model}.${cols.length === 1 ? cols[0] : `(${cols.join(', ')})`}`;
+    lines.push(`${p.yellow('!')} ${ends(b.fromModel, b.fromColumns)} → ${ends(b.toModel, b.toColumns)} looks drawn backwards`
+      + ` (it starts at ${foreignKeyAtTo(b.cardinality) ? b.toModel : b.fromModel}'s key) — in ${b.domains.join(', ')}`);
   }
   lines.push(`${ok(r.harness.schemaSkill === 'current')} Claude skills: schema ${r.harness.schemaSkill}, setup ${r.harness.setupSkill}`);
   lines.push('', 'Next steps:');

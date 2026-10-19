@@ -779,7 +779,7 @@ describe('HarnessService', () => {
 
   describe('HARNESS_VERSION', () => {
     it('is 30 (write each key once per block, #164)', () => {
-      expect(HARNESS_VERSION).toBe('30');
+      expect(HARNESS_VERSION).toBe('31');
     });
 
     it('tells assistants to write each key once per block (#164)', () => {

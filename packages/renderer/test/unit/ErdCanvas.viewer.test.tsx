@@ -122,6 +122,21 @@ for (const readOnly of [false, true]) {
       expect(panel.querySelector('.detail-panel__rel-delete')).toBeNull();
     });
 
+    it('shows readers no ⚠ or Turn round on a relationship drawn backwards (#163)', async () => {
+      const domain = makeDomain(readOnly);
+      domain.relationships = domain.relationships.map((r) => ({ ...r, keysContradict: true as const }));
+      const { container } = render(
+        <div style={{ width: 1200, height: 800 }}>
+          <ErdCanvas domain={domain} nodesDraggable />
+        </div>,
+      );
+      await flush();
+      expect(container.querySelector('.fk-edge__backwards')).toBeNull();
+      const panel = await openPanel(container, 'orders');
+      expect(panel.querySelector('.detail-panel__rel-backwards')).toBeNull();
+      expect(panel.textContent).not.toContain('Turn round');
+    });
+
     it('keeps the key-badge arrows hidden but in place, and the menu closed', async () => {
       const { container } = await renderCanvas(readOnly);
       const panel = await openPanel(container, 'orders');

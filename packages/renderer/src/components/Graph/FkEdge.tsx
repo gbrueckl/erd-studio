@@ -25,7 +25,8 @@ import {
   type EdgeProps,
 } from '@xyflow/react';
 import type { FkFlowEdge } from '../../types/graph';
-import { useCanvasHost } from '../../host/canvasEnvironment';
+import { backwardsRelationshipNote } from '@erd-studio/core';
+import { useCanvasHost, useIsViewer } from '../../host/canvasEnvironment';
 import { swapCardinality } from '../../lib/cardinalityUtils';
 import { edgeHoverText } from '../../lib/badgeLabels';
 import {
@@ -150,7 +151,9 @@ function FkEdgeComponent({
   }, [positionsKey, neighbourIds, storeApi]);
 
   const host = useCanvasHost();
+  const viewer = useIsViewer();
   const [hovered, setHovered] = useState(false);
+  const [backwardsHovered, setBackwardsHovered] = useState(false);
 
   const handleSwap = useCallback(
     (e: React.MouseEvent) => {
@@ -362,7 +365,36 @@ function FkEdgeComponent({
             !
           </span>
         )}
-        {!readOnly && discrepancyStatus !== 'missing' && (
+        {viewer ? null : (data.keysContradict && !readOnly && discrepancyStatus !== 'missing' && (
+          <span
+            className={`fk-edge__backwards${dimmed ? ' fk-edge__backwards--dimmed' : ''}`}
+            // On the midpoint, in place of the ⇄ zone (Turn round is ⇄): the icon
+            // is centred on the line and Turn round opens to its right, clear of
+            // the role above and the composite chip below.
+            style={{
+              transform: `translate(-9px, -50%) translate(${midX}px, ${midY}px)`,
+            }}
+            onMouseEnter={(e) => { e.stopPropagation(); setBackwardsHovered(true); }}
+            onMouseLeave={(e) => { e.stopPropagation(); setBackwardsHovered(false); }}
+          >
+            <span
+              className="fk-edge__backwards-icon"
+              role="img"
+              aria-label="Probably drawn backwards"
+              title={backwardsRelationshipNote(data, data.pairs ?? [{ fromColumn, toColumn }])}
+            >
+              &#x26A0;
+            </span>
+            {backwardsHovered && (
+              // Turn round is ⇄: a backwards many-to-one becomes the one-to-many it
+              // reads as, which the host stores the right way round (#163).
+              <button className="fk-edge__backwards-btn" onClick={handleSwap} title="Turn this relationship round">
+                Turn round
+              </button>
+            )}
+          </span>
+        ))}
+        {!readOnly && discrepancyStatus !== 'missing' && !(data.keysContradict && !viewer) && (
           <span
             className={`fk-edge__swap-zone${dimmed ? ' fk-edge__swap-zone--dimmed' : ''}`}
             style={{

@@ -159,6 +159,13 @@ export interface DisplayRelationship {
   role?: string;
   /** Set only on the members of a valid composite foreign key (see `Relationship.compositeKey`). */
   compositeKey?: string;
+  /**
+   * Set (only ever `true`) on a logical relationship stored the way round its
+   * keys contradict (#163, `keysContradictedRelationships`): it starts at a
+   * model's whole key, so it was probably drawn backwards. Absent when the
+   * keys do not decide, and in a DisplayDomain from a core before it.
+   */
+  keysContradict?: true;
 }
 
 // ---------------------------------------------------------------------------

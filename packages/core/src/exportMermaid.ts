@@ -28,6 +28,7 @@
  * | many-to-one / one-to-many         | `"from" }o--|| "to"` / `"from" ||--o{ "to"`                               |
  * | one-to-one / many-to-many         | `"from" ||--|| "to"` / `"from" }o--o{ "to"`                               |
  * | relationship columns              | a `%% from.col -> to.col, cardinality` line above the relationship       |
+ * | relationship drawn backwards (`keysContradict`) | a `%% This starts at …'s key (…), so it was probably drawn backwards.` line under that one |
  * | relationship role                 | the label; without a role, the foreign-key column(s)                     |
  * | composite foreign key             | one relationship, label (or comment) naming every column                 |
  * | sticky note                       | `%% Sticky note <n>: …` lines at the end                                 |
@@ -48,7 +49,7 @@
  */
 
 import type { DisplayDomain } from './types/display.js';
-import { describeEnds, foreignKeyColumns, oneLine, prepareDomain } from './exportShared.js';
+import { backwardsNoteOf, describeEnds, foreignKeyColumns, oneLine, prepareDomain } from './exportShared.js';
 import type { ExportColumn, ExportLink, ExportModel } from './exportShared.js';
 
 export const MERMAID_EXPORT_HEADER = '%% erd-studio mermaid-export v1';
@@ -153,6 +154,8 @@ function relationshipLines(link: ExportLink): string[] {
   const label = link.role ?? foreignKeyColumns(link).columns.join(', ');
   return [
     `  %% ${describeEnds(link.from.name, link.fromColumns, link.to.name, link.toColumns)}, ${link.cardinality}`,
+    // Drawn as stored, with the canvas's ⚠ sentence (#163).
+    ...(link.keysContradict ? [`  %% ${backwardsNoteOf(link)}`] : []),
     `  ${entity(link.from)} ${CONNECTORS[link.cardinality]} ${entity(link.to)} : "${quotedText(label)}"`,
   ];
 }

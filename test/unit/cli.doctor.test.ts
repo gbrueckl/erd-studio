@@ -292,6 +292,39 @@ describe('doctor via main', () => {
     expect(out).toContain('fct_task_event.yml line 3: `description` is written twice in one block');
   });
 
+  it('names a relationship drawn backwards, once, with a next step (#163)', async () => {
+    const root = copyFixture('dbt-project');
+    const before = await runDoctor({ project: root, semanticDir: '.erd-studio', noDbt: true, env: cleanEnv, homeDir: home });
+    expect(before.erd.backwardsRelationships).toEqual([]);
+    expect(before.nextSteps.map((s) => s.id)).not.toContain('turn-round-relationships');
+
+    // 1.6.7's shape: the customer link stored from dim_customer's key into the fact.
+    const file = path.join(root, '.erd-studio/silver/showcase.json');
+    const domain = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    domain.logical.relationships = domain.logical.relationships.map((r: Record<string, string>) =>
+      r.fromModel === 'fct_order' && r.toModel === 'dim_customer'
+        ? { ...r, fromModel: 'dim_customer', fromColumn: r.toColumn, toModel: 'fct_order', toColumn: r.fromColumn }
+        : r);
+    fs.writeFileSync(file, JSON.stringify(domain, null, 2) + '\n');
+
+    const r = await runDoctor({ project: root, semanticDir: '.erd-studio', noDbt: true, env: cleanEnv, homeDir: home });
+    expect(r.erd.backwardsRelationships).toEqual([{
+      fromModel: 'dim_customer', fromColumns: ['customer_key'], toModel: 'fct_order', toColumns: ['customer_key'],
+      cardinality: 'many-to-one', domains: ['.erd-studio/silver/showcase.json'],
+    }]);
+    expect(r.nextSteps.map((s) => s.id)).toContain('turn-round-relationships');
+    expect(r.nextSteps.find((s) => s.id === 'turn-round-relationships')!.why).toMatch(/^1 relationship looks drawn backwards/);
+
+    let out = '';
+    await main(['doctor', '--project', root, '--no-dbt'], {
+      stdout: { write: (s: string) => { out += s; } },
+      stderr: { write: () => undefined },
+      cwd: root,
+      env: cleanEnv,
+    });
+    expect(out).toContain("dim_customer.customer_key → fct_order.customer_key looks drawn backwards (it starts at dim_customer's key)");
+  });
+
   it('names model files that spell a column type data_type, as a warning and never a next step (#144)', async () => {
     const root = copyFixture('dbt-project');
     const before = await runDoctor({ project: root, semanticDir: '.erd-studio', noDbt: true, env: cleanEnv, homeDir: home });

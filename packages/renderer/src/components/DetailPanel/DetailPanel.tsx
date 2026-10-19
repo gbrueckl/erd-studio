@@ -19,7 +19,9 @@ import { ColumnEditor } from './ColumnEditor';
 import { MetaEditor } from './MetaEditor';
 import { useEditorStore } from '../../store/editorStore';
 import { useCanvasHost, useIsViewer } from '../../host/canvasEnvironment';
+import { backwardsRelationshipNote } from '@erd-studio/core';
 import type { ColumnPair, DisplayRelationship, PhysicalColumnSource, PhysicalProvenance } from '@erd-studio/core';
+import { swapCardinality } from '../../lib/cardinalityUtils';
 import type { FkEdgeData } from '../../types/graph';
 import { columnPairs, foldComposites, relationshipEdgeId } from '../../lib/relationshipDisplayKey';
 import './DetailPanel.css';
@@ -207,6 +209,24 @@ export function DetailPanel() {
           fromColumn: rel.fromColumn,
           toModel: rel.toModel,
           toColumn: rel.toColumn,
+        },
+      });
+    },
+    [host],
+  );
+
+  // Turn round a relationship drawn backwards (#163): the ⇄ the line offers,
+  // which the host stores the right way round. A composite sends its first pair.
+  const handleTurnRound = useCallback(
+    (rel: PanelRelationship) => {
+      host.postMessage({
+        type: 'updateRelationship',
+        payload: {
+          fromModel: rel.fromModel,
+          fromColumn: rel.fromColumn,
+          toModel: rel.toModel,
+          toColumn: rel.toColumn,
+          cardinality: swapCardinality(rel.cardinality),
         },
       });
     },
@@ -481,6 +501,18 @@ export function DetailPanel() {
                 <span className="detail-panel__rel-cardinality">
                   {rel.cardinality}
                 </span>
+                {viewer ? null : (!isReadOnly && rel.keysContradict && (
+                  <button
+                    className="detail-panel__rel-backwards"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTurnRound(rel);
+                    }}
+                    title={`${backwardsRelationshipNote(rel, rel.pairs ?? [rel])} Click to turn it round.`}
+                  >
+                    &#x26A0; Turn round
+                  </button>
+                ))}
                 {!isReadOnly && (
                   <button
                     className="detail-panel__rel-delete"
@@ -528,6 +560,18 @@ export function DetailPanel() {
                 <span className="detail-panel__rel-cardinality">
                   {rel.cardinality}
                 </span>
+                {viewer ? null : (!isReadOnly && rel.keysContradict && (
+                  <button
+                    className="detail-panel__rel-backwards"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTurnRound(rel);
+                    }}
+                    title={`${backwardsRelationshipNote(rel, rel.pairs ?? [rel])} Click to turn it round.`}
+                  >
+                    &#x26A0; Turn round
+                  </button>
+                ))}
                 {!isReadOnly && (
                   <button
                     className="detail-panel__rel-delete"

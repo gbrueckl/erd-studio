@@ -35,6 +35,7 @@
  * | one-to-one / many-to-many          | `Ref: from.col - to.col` / `Ref: from.col <> to.col`                    |
  * | composite foreign key              | one `Ref: a.(x, y) > b.(u, v)`                                          |
  * | relationship role                  | the Ref's name: `Ref "ship date": …`; a `// Role: …` line above the Ref when the role holds `"` or `\` |
+ * | relationship drawn backwards (`keysContradict`) | a `// This starts at …'s key (…), so it was probably drawn backwards.` line above the Ref, which stays as stored |
  * | sticky note                        | `// Sticky note <n>: …` lines at the end, a linked model named          |
  *
  * Strings: a one-line note without a backslash is single-quoted with `\'`
@@ -55,7 +56,7 @@
  */
 
 import type { DisplayDomain } from './types/display.js';
-import { describeEnds, foreignKeyColumns, oneLine, prepareDomain } from './exportShared.js';
+import { backwardsNoteOf, describeEnds, foreignKeyColumns, oneLine, prepareDomain } from './exportShared.js';
 import type { ExportColumn, ExportLink, ExportMeta, ExportModel } from './exportShared.js';
 
 export const DBML_EXPORT_HEADER = '// erd-studio dbml-export v1';
@@ -227,6 +228,12 @@ function refEnd(model: ExportModel, columns: string[]): string {
 const OPERATORS = { 'many-to-one': '>', 'one-to-many': '<', 'one-to-one': '-', 'many-to-many': '<>' } as const;
 
 function refLines(link: ExportLink): string[] {
+  // Drawn as stored, with the canvas's ⚠ sentence above it (#163).
+  const note = link.keysContradict ? [`// ${backwardsNoteOf(link)}`] : [];
+  return [...note, ...refBody(link)];
+}
+
+function refBody(link: ExportLink): string[] {
   const ref = `${refEnd(link.from, link.fromColumns)} ${OPERATORS[link.cardinality]} ${refEnd(link.to, link.toColumns)}`;
   if (!link.role) return [`Ref: ${ref}`];
   // A Ref name in quotes cannot hold `"` or `\` for the older parsers; such a role is a comment instead.
