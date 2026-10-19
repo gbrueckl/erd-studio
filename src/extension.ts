@@ -42,6 +42,7 @@ import { submitFeedback } from './services/feedbackService';
 import { clearFeedbackApiKey, setFeedbackApiKey } from './services/feedbackAnalysisService';
 import { ReportTrackingService } from './services/reportTrackingService';
 import { TelemetryService, telemetry } from './services/telemetryService';
+import { startKnownFixes } from './services/knownFixesService';
 import type { TelemetryErrorCode, TelemetryFeature } from './services/telemetryPayload';
 import { modelFileErrorCode } from './services/telemetryPayload';
 import { notifyModelFileError } from './commands/openModelFile';
@@ -691,6 +692,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const telemetryService = new TelemetryService(context);
   context.subscriptions.push(telemetryService);
   telemetryService.start();
+
+  // "ERD Studio X fixes this — Update": checks recorded error codes against
+  // the known-fixes registry. Independent of telemetry (it sends nothing about
+  // the user); its own switch is erdStudio.checkKnownFixes.
+  startKnownFixes(context);
 
   // "Send Feedback" is registered before any early return so it is always
   // reachable from the command palette, even when no dbt project is open.

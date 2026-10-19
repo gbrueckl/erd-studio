@@ -36,10 +36,21 @@
  * handler below (a daily Cron Trigger). Only per-day aggregates with no install
  * ids are ever kept longer, and those live on the operator's machine, not here.
  *
+ * ## The known-fixes registry
+ *
+ * `GET /known-fixes` (or `HEAD`) returns `known-fixes.json` from this
+ * directory, bundled at deploy time — the list of error codes a newer release
+ * fixes, which the extension matches on the user's machine to offer an update
+ * (format in README.md). It is static: the response is the same for everyone,
+ * nothing about the request is read, stored or logged (not even a counted log
+ * line, since how often it is asked would say how often errors happen), and it
+ * touches no D1. A merged entry goes live with the next Worker deploy, without
+ * an extension release.
+ *
  * ## The rules it enforces, and why
  *
- *   - **Route** — `POST /v1/heartbeat` and nothing else: another path is 404,
- *     another method on the right path is 405.
+ *   - **Routes** — `POST /v1/heartbeat` and `GET`/`HEAD /known-fixes`, nothing
+ *     else: another path is 404, another method on a known path is 405.
  *   - **Kill switch** — `KILL_SWITCH` truthy makes every request 503 before
  *     anything else, with no D1 access. `wrangler.toml` is its source of truth.
  *   - **Body cap** — a real heartbeat is a few hundred bytes. More than
@@ -58,8 +69,23 @@
  * browser, so no preflight is answered and no origin is blessed.
  */
 
-/** The one path this Worker serves. */
+import KNOWN_FIXES from '../known-fixes.json' with { type: 'json' };
+
+/** The heartbeat path. */
 const ROUTE = '/v1/heartbeat';
+
+/** The known-fixes registry path. */
+const KNOWN_FIXES_ROUTE = '/known-fixes';
+
+/**
+ * How long a client or cache may reuse the registry. Short, so a newly merged
+ * entry reaches users within the hour; the extension caches it for a day on
+ * its own side anyway.
+ */
+const KNOWN_FIXES_MAX_AGE_SECONDS = 300;
+
+/** Serialised once per isolate: the registry cannot change without a deploy. */
+const KNOWN_FIXES_BODY = JSON.stringify(KNOWN_FIXES);
 
 /**
  * Largest body accepted. A real heartbeat is under a kilobyte; every feature
@@ -368,7 +394,11 @@ export default {
     }
 
     try {
-      if (new URL(request.url).pathname !== ROUTE) {
+      const pathname = new URL(request.url).pathname;
+      if (pathname === KNOWN_FIXES_ROUTE) {
+        return serveKnownFixes(request);
+      }
+      if (pathname !== ROUTE) {
         return refuse(404, 'path');
       }
       if (request.method !== 'POST') {
@@ -403,6 +433,26 @@ export default {
     );
   },
 };
+
+/**
+ * The bundled registry, identical for every caller. Deliberately reads nothing
+ * from the request but its method and logs nothing at all.
+ *
+ * @param {Request} request
+ * @returns {Response}
+ */
+function serveKnownFixes(request) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return new Response(null, { status: 405, headers: { ...baseHeaders(), Allow: 'GET, HEAD' } });
+  }
+  return new Response(request.method === 'HEAD' ? null : KNOWN_FIXES_BODY, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': `public, max-age=${KNOWN_FIXES_MAX_AGE_SECONDS}`,
+    },
+  });
+}
 
 /**
  * Read, validate, upsert.

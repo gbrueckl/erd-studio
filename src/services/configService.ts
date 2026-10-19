@@ -14,7 +14,8 @@ import * as vscode from 'vscode';
  * going through `get()` and so does not inherit VS Code's own scope filtering.
  *
  * `telemetry.enabled` is here for the same reason in the other direction: a
- * checked-in file must not be able to switch the user's telemetry choice.
+ * checked-in file must not be able to switch the user's telemetry choice, and
+ * `checkKnownFixes` (the "a newer version fixes this" check) likewise.
  *
  * Keys are written without the `erdStudio.` / `dbtSemantic.` prefix, exactly as
  * they are passed to {@link getErdStudioSetting}.
@@ -26,6 +27,7 @@ export const USER_SCOPED_SETTINGS: ReadonlySet<string> = new Set([
   'feedback.hostedFallback',
   'feedback.provider',
   'telemetry.enabled',
+  'checkKnownFixes',
 ]);
 
 /**

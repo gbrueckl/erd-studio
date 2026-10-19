@@ -57,9 +57,13 @@ the local archive together.
 
 ## What it does
 
-- `POST /v1/heartbeat` — validate, upsert, `204`. Everything else is `404`
-  (another path) or `405` (another method on this path). No CORS headers: the
-  caller is the VS Code extension host, not a browser.
+- `POST /v1/heartbeat` — validate, upsert, `204`.
+- `GET` / `HEAD /known-fixes` — the bundled [known-fixes registry](#known-fixes-registry),
+  `200`, `Cache-Control: public, max-age=300`. Static, the same for every
+  caller, no D1, and **not logged at all** (see below).
+- Everything else is `404` (another path) or `405` (another method on a known
+  path). No CORS headers: the caller is the VS Code extension host, not a
+  browser.
 - `KILL_SWITCH` truthy → every request `503` before any D1 access.
 - Body over **8,192 bytes** → `413`, counted while streaming, so a missing or
   lying `Content-Length` does not help. (A heartbeat with every feature and
@@ -72,6 +76,73 @@ the local archive together.
 - Upsert on `(install_id, day)`, last write wins.
 - A D1 failure → `503`. The extension drops failed heartbeats silently and never
   retries, so a D1 outage loses a day of data and nothing else.
+
+## Known-fixes registry
+
+[`known-fixes.json`](known-fixes.json) lists error codes that a newer release
+fixes. When the extension records one of those codes on an older version, it
+shows one notification: *"ERD Studio 1.7.0 fixes this: … You're on 1.6.9."*
+with **Update** (opens ERD Studio in the Extensions view) or **Reload Window**
+(when that version is already installed and waiting), and **Not now**. It is
+shown at most once per code per running version.
+
+**How it is served.** The Worker bundles the file at deploy time and serves it
+at `GET https://erd-studio-telemetry.w2solutions.ai/known-fixes`. A change to
+it is a change to `telemetry/`, so `deploy.yml` redeploys the Worker when it
+reaches `main` — **no extension release is needed** for a new entry to go live.
+The extension fetches the **whole** list, with no query string, id, version
+or error code, the first time an error is recorded in a session (at most once
+a day; cached in `globalState` for 24 hours; 3 s timeout; every failure
+ignored), and matches it on the user's machine. The server cannot tell which
+error happened, so the Worker logs nothing about these requests, not even a
+count. The check has its own user-scoped setting, `erdStudio.checkKnownFixes`
+(default on), and does not depend on telemetry being enabled.
+
+### Format
+
+The file is a JSON array of objects. Each object has exactly these keys:
+
+| Key | Required | Rule |
+|---|---|---|
+| `code` | yes | An `ERROR_CODES` key from `src/services/telemetryPayload.ts`, spelt exactly (e.g. `"domainLoadJson"`). This is the code the **old** version records when it hits the bug, which may not be the code the fixed version records. |
+| `fixedIn` | yes | The first released extension version with the fix, `major.minor.patch` (e.g. `"1.7.0"`). No `v` prefix, no pre-release suffix. It must be a version that is published or about to be published from `main`. |
+| `summary` | yes | One plain-language sentence, at most **140 characters**, saying what the fix changes for the user. It is shown after "ERD Studio 1.7.0 fixes this:", so start with the thing they noticed ("A diagram with … now …"). No file paths, no line breaks, no markdown, no names from anyone's project. |
+| `issue` | no | The GitHub issue number it fixed, as a number (`110`, not `"#110"`). |
+
+```json
+[
+  {
+    "code": "modelFileParse",
+    "fixedIn": "1.6.2",
+    "summary": "A model file with a YAML mistake now shows the line of the error and an Open file button, instead of looking empty or not found.",
+    "issue": 110
+  }
+]
+```
+
+Rules for adding entries:
+
+- **Add entries only, in `fixedIn` order** (oldest first). Never edit or remove
+  an entry for a fix that has shipped; if a fix turns out incomplete, add a new
+  entry with the later `fixedIn`.
+- **One code may have several entries** (a second cause fixed later). A user
+  on a version older than more than one of them sees the newest one, since
+  updating installs every fix.
+- **Only list a fix once it is released.** `fixedIn` is the version heading in
+  `CHANGELOG.md` on `main` whose notes include the fix. The deploy workflow
+  picks that number at release time (a patch bump unless one is pinned), so it
+  is not known before then, and an entry pointing at a version not yet on the
+  Marketplace would send users to an update that does not exist.
+- **An entry only fires for users on a version that has the prompt** (the
+  first release after 1.6.8). Entries whose `fixedIn` is 1.6.8 or earlier can
+  never show a notification: anyone on a version with the prompt already has
+  those fixes. The seed entries (all 1.6.5 or earlier) are kept as worked examples of
+  the format, not because they do anything.
+- `test/unit/knownFixesRegistry.test.ts` (the root `npm test`) checks every
+  entry: known code, valid `fixedIn`, summary ≤ 140 characters with no path or
+  line break, integer `issue`, no unknown keys, no duplicate `code` + `fixedIn`,
+  and `fixedIn` order. The extension also drops any fetched entry that fails
+  those rules, so one bad entry cannot break the others.
 
 ## Deploy
 
@@ -457,4 +528,5 @@ One anonymous heartbeat per UTC day, describing the **previous** day. The body i
 - **Switches.** Nothing is recorded or sent unless `vscode.env.isTelemetryEnabled` **and** `erdStudio.telemetry.enabled` (read via `getErdStudioSetting`, user scope only) allow it; switching either off (`onDidChangeTelemetryEnabled`, `onDidChangeConfiguration`) discards the day's counters so they are never sent later. The service is constructed at the top of `activate()`, before the no-project return, so `no_project` activations count.
 - **Call sites** use the `telemetry` facade — one short line each, taking only fixed keys, booleans and counts, and a no-op while no service exists (tests, the CLI, the MCP server). Canvas edit kinds are counted in one place, the `EDIT_FEATURES` map in `SemanticEditorProvider` (one per accepted message, after the physical guard); layout timing comes from the webview's `layoutFinished` message (telemetry only, physical allowlist) and video progress from the Welcome panel's `videoProgress`. Detected assistants (`detectAiAssistants()`, deferred off the activation path) and version-marked harness targets are recorded on activation; `domainCreatedExternal` comes from the semantic watcher's `created` flag, with `domainsCreatedHere` excluding createDomain / renameDomain, which write outside the own-write tracker. They live in `extension.ts` (activation outcome, Draw from dbt via `src/commands/drawFromDbt.ts`, Export Diagram via `src/commands/exportDiagram.ts`, harness installs via `recordHarnessInstalls`, `migrateToV5`, `layersInvalid`, the no-canvas Send Feedback), `SemanticEditorProvider` (canvas open on `ready` with stage / format / model count / manifest state / catalog, physical stage, compare, sync plan, dbt compile, Execute with Claude, notes, host-requested auto layout, add model / relationship, `addModelsFromDbt` (`addFromDbt`), a logical canvas opening on zero models (`emptyCanvas`), feedback dialog open, `domainLoad`, `editRejected`) and `GettingStartedPanel` (the Claude setup-skill install). Services the CLI and MCP server share stay vscode-free: `ManifestService` (`onLoadFailure`: missing / malformed / timeout — `ManifestParseTimeoutError`), `CatalogService` (`onReadFailure`) and `LogicalModelService` (`onParseFailure`, once per broken file) take a plain callback that only `activate()` sets. The generic `agents` harness target is counted as `harnessInstallAgents`.
 - **Relationship health (#133)** — `src/services/relationshipHealth.ts` (pure, vscode-free, linear, never throws, returns fixed codes and counts only): `commitRelationshipWrite` runs `auditRelationshipWrite(op, input, plan)` on the planned result inside the `applyDomainEdit` mutator, **before** `applyEdit` — broken invariants go to `telemetry.relationshipInvariants` (`relInv*` errors) plus one `console.warn` of codes; it **never blocks or alters the edit** — and, on success, the behaviours used to `telemetry.relationshipUsage` (`relDragTurned` = a one-to-many drawn in a library project, stored turned; `relDirectionAsked` / `relCreateAnyway` are read at the host from the payload and key evidence, so no telemetry message was added). The Move runs `checkLibraryRewrite` before writing and records `moveUsage(plan)` on completion; `recordCanvasOpen` (logical) records `surveyLibrary` as once-a-day `relState*` presence flags. Refusals the user is told about throw `EditRefused` (provider) or `RelationshipsRewriteRefused` (`LogicalModelService`, which also calls `onSyncRefused` → `relSyncRefused`); only other throws in a relationship handler count as `relHandlerFailed`. `planRelationshipWrite`'s keys-win refusal carries `reason: 'keysWin'` (→ `relSwapRefusedKey`). Invariant groups come from what the canvas draws (as `drawnGroupOf`), so `relationshipHealth.statespace.test.ts` holds the check silent over the exhaustive checker's universes — a new false positive fails CI. Monitoring queries and the release checklist are in `telemetry/README.md`.
+- **Known fixes ("a newer version fixes this").** `telemetry/known-fixes.json` (format in `telemetry/README.md` → Known-fixes registry; `test/unit/knownFixesRegistry.test.ts` validates it) lists `{ code, fixedIn, summary, issue? }` entries; the Worker bundles it and serves it at `GET /known-fixes` (static, never logged), so a merged entry goes live with the next Worker deploy, no extension release. `src/services/knownFixes.ts` (pure, vscode-free, every dependency injected: `KnownFixesChecker`, `parseKnownFixes`, `fixFor` — newest unfixed entry wins, `knownFixProblem`) and `src/services/knownFixesService.ts` (`startKnownFixes`, called right after the `TelemetryService` in `activate()`, `KNOWN_FIXES_ENDPOINT`, `installedVersions` — sibling `liamwynne.erd-studio-*` folders minus `.obsolete`, for **Reload Window** instead of **Update**). The telemetry facade calls `setErrorCodeListener`'s listener from `telemetry.error()` and `relationshipInvariants()` **before** the telemetry switches are consulted: the check sends nothing about the user (one GET of the whole list, no query, once per session, 24 h `globalState` cache, 3 s timeout, every failure silent), so its only switch is `erdStudio.checkKnownFixes`. At most one notification per code per running version (`erdStudio.knownFixes.shown`). Only entries with `fixedIn` after the first release carrying the prompt can ever fire.
 - **`telemetry/`** is the Cloudflare Worker behind `TELEMETRY_ENDPOINT` — separate from `proxy/`, on the same terms except deployment: `deploy.yml`'s `telemetry-worker` job applies its tracked D1 migrations (`wrangler d1 migrations apply`, recorded in `d1_migrations`; `schema.sql` is the reference shape, held to `migrations/` and the Worker's `INSERT` by `telemetry/test/schema.test.mjs`) and deploys it whenever `main`'s `telemetry/` differs from the `telemetry-worker-deployed` tag, before and as a gate on the extension release (secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`; manual fallback in its README), a D1 database (`erd-studio-telemetry`) with a daily cron that deletes raw rows older than 90 days (only per-day aggregates without install ids are archived), no IP / user-agent / header ever stored, excluded from the VSIX by `.vscodeignore`, and never a dependency of `esbuild.js`, the tsconfigs, vitest or the npm scripts.
