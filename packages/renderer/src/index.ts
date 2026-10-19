@@ -7,7 +7,7 @@
 export { ErdCanvas, type ErdCanvasProps, type ErdCanvasHandle } from './ErdCanvas';
 
 export {
-  transformDomain,
+  transformSubjectArea,
   pickHandleSides,
   type TransformResult,
   type TransformOptions,
@@ -49,8 +49,8 @@ export {
 } from '@erd-studio/core';
 
 export type {
-  ModelFlowNode,
-  ModelNodeData,
+  TableFlowNode,
+  TableNodeData,
   FkFlowEdge,
   FkEdgeData,
   AnnotationFlowNode,

@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { estimateNodeHeight, toElkChildren } from '../../webview/lib/elkLayout';
 import { COLLAPSED_COLUMN_LIMIT } from '@erd-studio/renderer/editor';
-import type { ModelFlowNode, ColumnDisplay } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, ColumnDisplay } from '@erd-studio/renderer/editor';
 
 function cols(n: number, keyEvery = 0): ColumnDisplay[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -16,7 +16,7 @@ function cols(n: number, keyEvery = 0): ColumnDisplay[] {
   }));
 }
 
-function node(columns: ColumnDisplay[], extra: Partial<ModelFlowNode['data']> = {}, measured?: { width: number; height: number }): ModelFlowNode {
+function node(columns: ColumnDisplay[], extra: Partial<TableFlowNode['data']> = {}, measured?: { width: number; height: number }): TableFlowNode {
   return {
     id: 'n',
     type: 'model',

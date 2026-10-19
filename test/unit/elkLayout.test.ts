@@ -8,13 +8,13 @@ import {
   DEFAULT_ELK_OPTIONS,
 } from '../../webview/lib/elkLayout';
 import type { TableRole } from '../../src/types/semantic';
-import type { ModelFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeNode(id: string, role?: TableRole | string): ModelFlowNode {
+function makeNode(id: string, role?: TableRole | string): TableFlowNode {
   return {
     id,
     type: 'model',

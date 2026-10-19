@@ -96,10 +96,10 @@ export interface ErdCanvasHandle {
  * model's columns, each column's data type). Objects with nothing missing are
  * reused as they are.
  */
-export function toRenderableDomain(domain: DisplaySubjectArea): DisplaySubjectArea {
+export function toRenderableSubjectArea(domain: DisplaySubjectArea): DisplaySubjectArea {
   let modelsChanged = false;
   const models = (domain.models ?? []).map((model) => {
-    const renderable = toRenderableModel(model);
+    const renderable = toRenderableTable(model);
     if (renderable !== model) modelsChanged = true;
     return renderable;
   });
@@ -125,7 +125,7 @@ export function toRenderableDomain(domain: DisplaySubjectArea): DisplaySubjectAr
   };
 }
 
-function toRenderableModel(model: DisplayTable): DisplayTable {
+function toRenderableTable(model: DisplayTable): DisplayTable {
   if (model.columns == null) return { ...model, columns: [] };
   if (model.columns.every((col) => col.dataType != null)) return model;
   return { ...model, columns: model.columns.map(toRenderableColumn) };
@@ -370,7 +370,7 @@ function ErdCanvasInner({
 // ---------------------------------------------------------------------------
 
 export const ErdCanvas = forwardRef<ErdCanvasHandle, ErdCanvasProps>(function ErdCanvas(props, ref) {
-  const renderable = useMemo(() => toRenderableDomain(props.domain), [props.domain]);
+  const renderable = useMemo(() => toRenderableSubjectArea(props.domain), [props.domain]);
   const [store] = useState(() => createCanvasStore({ domain: renderable }));
 
   return (

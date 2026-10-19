@@ -102,9 +102,9 @@ vi.mock('../../webview/store/editorStore', () => ({
 // ---------------------------------------------------------------------------
 
 import { Toolbar } from '../../webview/components/Toolbar/Toolbar';
-import type { ModelFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
 
-function makeNode(id: string): ModelFlowNode {
+function makeNode(id: string): TableFlowNode {
   return {
     id,
     type: 'model',

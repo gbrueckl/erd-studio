@@ -12,7 +12,7 @@ import type { DisplaySubjectArea } from '@erd-studio/core';
 import { createCanvasStore, CanvasStoreProvider } from '../../src/store/editorStore';
 import { DetailPanel } from '../../src/components/DetailPanel/DetailPanel';
 
-function domain(readOnly: boolean): DisplaySubjectArea {
+function subjectArea(readOnly: boolean): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',
@@ -48,7 +48,7 @@ function domain(readOnly: boolean): DisplaySubjectArea {
 }
 
 function renderPanel(readOnly: boolean) {
-  const store = createCanvasStore({ domain: domain(readOnly), selectedNode: 'orders', detailPanelOpen: true });
+  const store = createCanvasStore({ domain: subjectArea(readOnly), selectedNode: 'orders', detailPanelOpen: true });
   return render(
     <CanvasStoreProvider store={store}>
       <ReactFlowProvider>

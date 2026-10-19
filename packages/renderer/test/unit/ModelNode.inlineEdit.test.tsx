@@ -53,8 +53,8 @@ vi.mock('../../src/store/editorStore', () => ({
 // Fixtures
 // ---------------------------------------------------------------------------
 
-import { ModelNode } from '../../src/components/Graph/ModelNode';
-import type { ModelFlowNode, ColumnDisplay } from '../../src/types/graph';
+import { TableNode } from '../../src/components/Graph/ModelNode';
+import type { TableFlowNode, ColumnDisplay } from '../../src/types/graph';
 
 const scdColumn: ColumnDisplay = {
   name: 'customer_name',
@@ -76,7 +76,7 @@ const plainColumn: ColumnDisplay = {
 };
 
 function renderNode(columns: ColumnDisplay[]) {
-  const data: ModelFlowNode['data'] = {
+  const data: TableFlowNode['data'] = {
     modelName: 'dim_customer',
     stage: 'logical',
     layer: 'silver',
@@ -84,7 +84,7 @@ function renderNode(columns: ColumnDisplay[]) {
     isStub: false,
     readOnly: false,
   };
-  const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+  const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
   return render(<Node data={data} selected={false} />);
 }
 

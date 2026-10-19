@@ -10,7 +10,7 @@
  * own.
  */
 
-import type { ModelFlowNode, ModelNodeData } from '../types/graph';
+import type { TableFlowNode, TableNodeData } from '../types/graph';
 import { COLLAPSED_COLUMN_LIMIT } from '../hooks/useColumnExpansion';
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ export function estimateNodeHeight(rowCount: number, hasGrain: boolean): number 
  * `(columns - 5) * rowHeight` per node on auto-collapsed domains (≥30 models).
  */
 export function countVisibleColumnRows(
-  data: Pick<ModelNodeData, 'columns' | 'isStub' | 'isExpanded'>,
+  data: Pick<TableNodeData, 'columns' | 'isStub' | 'isExpanded'>,
 ): number {
   const visible = data.isStub
     ? data.columns.filter((c) => c.isPrimaryKey || c.isNaturalKey)
@@ -92,7 +92,7 @@ export function countVisibleColumnRows(
  * available, otherwise an estimate from the rows that will be rendered.
  */
 export function resolveNodeDimensions(
-  node: Pick<ModelFlowNode, 'data' | 'measured'>,
+  node: Pick<TableFlowNode, 'data' | 'measured'>,
 ): { width: number; height: number } {
   return {
     width: node.measured?.width ?? estimateNodeWidth(node.data),
@@ -167,7 +167,7 @@ const MAX_NODE_WIDTH = 560;
  * slightly more space than the minimum estimate, preventing overlap
  * when font rendering or badge widths differ from the approximation.
  */
-export function estimateNodeWidth(data: Pick<ModelNodeData, 'modelName' | 'label' | 'columns' | 'provenance'>): number {
+export function estimateNodeWidth(data: Pick<TableNodeData, 'modelName' | 'label' | 'columns' | 'provenance'>): number {
   const { modelName, label, columns, provenance } = data;
 
   // Header: label (+ the model name beside it when they differ) + layer badge

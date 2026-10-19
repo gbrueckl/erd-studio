@@ -40,8 +40,8 @@ vi.mock('../../src/store/editorStore', () => ({
 // Fixtures
 // ---------------------------------------------------------------------------
 
-import { ModelNode } from '../../src/components/Graph/ModelNode';
-import type { ColumnDisplay, ModelFlowNode } from '../../src/types/graph';
+import { TableNode } from '../../src/components/Graph/ModelNode';
+import type { ColumnDisplay, TableFlowNode } from '../../src/types/graph';
 
 function cols(...types: string[]): ColumnDisplay[] {
   return types.map((dataType, i) => ({
@@ -53,8 +53,8 @@ function cols(...types: string[]): ColumnDisplay[] {
   }));
 }
 
-function renderNode(extra: Partial<ModelFlowNode['data']> = {}) {
-  const data: ModelFlowNode['data'] = {
+function renderNode(extra: Partial<TableFlowNode['data']> = {}) {
+  const data: TableFlowNode['data'] = {
     modelName: 'dim_customer',
     stage: 'physical',
     layer: 'silver',
@@ -63,7 +63,7 @@ function renderNode(extra: Partial<ModelFlowNode['data']> = {}) {
     readOnly: true,
     ...extra,
   };
-  const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+  const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
   return render(<Node data={data} selected={false} />);
 }
 

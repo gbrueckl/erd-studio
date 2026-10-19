@@ -42,7 +42,7 @@ export interface ColumnDisplay {
 // ---------------------------------------------------------------------------
 
 /** Data payload for a ModelNode React Flow node. */
-export type ModelNodeData = {
+export type TableNodeData = {
   /** Model name (unique within a domain). */
   modelName: string;
   /**
@@ -130,7 +130,7 @@ export type ModelNodeData = {
 };
 
 /** Typed React Flow node for a semantic model. */
-export type ModelFlowNode = Node<ModelNodeData, 'model'>;
+export type TableFlowNode = Node<TableNodeData, 'model'>;
 
 // ---------------------------------------------------------------------------
 // FkEdge

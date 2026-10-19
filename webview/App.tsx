@@ -33,7 +33,7 @@ import {
   CanvasEnvironmentProvider,
   DetailPanel,
   Legend,
-  type ModelFlowNode,
+  type TableFlowNode,
   type FkFlowEdge,
   type AnnotationFlowNode,
   type AnnotationFlowEdge,
@@ -407,13 +407,13 @@ function EditorCanvas() {
 
   // Handle right-click on nodes (model or annotation) to show context menu
   const onNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: ModelFlowNode | AnnotationFlowNode) => {
+    (event: React.MouseEvent, node: TableFlowNode | AnnotationFlowNode) => {
       event.preventDefault();
       if (node.type === 'annotation') {
         const annData = (node as AnnotationFlowNode).data;
         openAnnotationContextMenu(event.clientX, event.clientY, annData.annotationId);
       } else {
-        const modelData = (node as ModelFlowNode).data;
+        const modelData = (node as TableFlowNode).data;
         openNodeContextMenu(event.clientX, event.clientY, modelData.modelName);
       }
     },

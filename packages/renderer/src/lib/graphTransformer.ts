@@ -19,7 +19,7 @@ import type {
   TableDiscrepancy,
 } from '@erd-studio/core';
 import type {
-  ModelFlowNode,
+  TableFlowNode,
   FkFlowEdge,
   AnnotationFlowNode,
   AnnotationFlowEdge,
@@ -27,13 +27,13 @@ import type {
 } from '../types/graph';
 import { resolveNodeDimensions } from './nodeSizing';
 import { columnPairs, foldComposites, relationshipDisplayKey, relationshipEdgeId } from './relationshipDisplayKey';
-import { computeModelLabels } from './modelLabels';
+import { computeTableLabels } from './modelLabels';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface TransformResult {
-  nodes: (ModelFlowNode | AnnotationFlowNode)[];
+  nodes: (TableFlowNode | AnnotationFlowNode)[];
   edges: (FkFlowEdge | AnnotationFlowEdge)[];
 }
 
@@ -142,7 +142,7 @@ export function pickHandleSides(
  * @param options — optional discrepancy report and ghost positions
  * @returns nodes and edges ready for React Flow's `<ReactFlow>` component
  */
-export function transformDomain(
+export function transformSubjectArea(
   domain: DisplaySubjectArea,
   options?: TransformOptions,
 ): TransformResult {
@@ -171,7 +171,7 @@ export function transformDomain(
     const dims = dimensionMap.get(id) ?? { width: 0, height: 0 };
     return { x: pos.x, y: pos.y, width: dims.width, height: dims.height };
   };
-  const dimensionsFor = (id: string, data: ModelFlowNode['data']): NodeDimensions =>
+  const dimensionsFor = (id: string, data: TableFlowNode['data']): NodeDimensions =>
     options?.nodeDimensions?.get(id)
       ?? resolveNodeDimensions({
         data: { ...data, isExpanded: options?.isExpanded?.(id) ?? false },
@@ -180,13 +180,13 @@ export function transformDomain(
 
   // --- Nodes ---------------------------------------------------------------
 
-  const labels = computeModelLabels(models);
-  const nodes: (ModelFlowNode | AnnotationFlowNode)[] = models.map((model) => {
+  const labels = computeTableLabels(models);
+  const nodes: (TableFlowNode | AnnotationFlowNode)[] = models.map((model) => {
     const columns = mapColumns(model);
     const position = positionMap.get(model.name) ?? DEFAULT_POSITION;
     const disc = discrepancyMap.get(model.name);
 
-    const node: ModelFlowNode = {
+    const node: TableFlowNode = {
       id: model.name,
       type: 'model' as const,
       position,
@@ -241,7 +241,7 @@ export function transformDomain(
         const position = positions[md.name] ?? { x: 50 + ghostIndex * 260, y: -150 };
         ghostIndex++;
         positionMap.set(md.name, position);
-        const ghost: ModelFlowNode = {
+        const ghost: TableFlowNode = {
           id: md.name,
           type: 'model' as const,
           position,

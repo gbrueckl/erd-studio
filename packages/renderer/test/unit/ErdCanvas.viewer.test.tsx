@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, fireEvent, act, cleanup } from '@testing-library/react';
 import type { DisplaySubjectArea } from '@erd-studio/core';
 import { ErdCanvas } from '../../src/ErdCanvas';
-import { toRenderableDomain } from '../../src/ErdCanvas';
+import { toRenderableSubjectArea } from '../../src/ErdCanvas';
 
 beforeAll(() => {
   // React Flow measures nodes with a ResizeObserver, which jsdom lacks.
@@ -22,7 +22,7 @@ beforeAll(() => {
 
 afterEach(cleanup);
 
-function makeDomain(readOnly: boolean): DisplaySubjectArea {
+function makeSubjectArea(readOnly: boolean): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',
@@ -67,21 +67,21 @@ const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 20)
 async function renderCanvas(readOnly: boolean) {
   const view = render(
     <div style={{ width: 1200, height: 800 }}>
-      <ErdCanvas domain={makeDomain(readOnly)} nodesDraggable />
+      <ErdCanvas domain={makeSubjectArea(readOnly)} nodesDraggable />
     </div>,
   );
   await flush();
   return view;
 }
 
-function modelNode(container: HTMLElement, name: string): HTMLElement {
+function tableNode(container: HTMLElement, name: string): HTMLElement {
   const node = container.querySelector<HTMLElement>(`.react-flow__node-model[data-id="${name}"]`);
   if (!node) throw new Error(`model node ${name} not rendered`);
   return node;
 }
 
 async function openPanel(container: HTMLElement, name: string): Promise<HTMLElement> {
-  fireEvent.click(modelNode(container, name));
+  fireEvent.click(tableNode(container, name));
   await flush();
   const panel = container.querySelector<HTMLElement>('.detail-panel');
   if (!panel) throw new Error('detail panel did not open');
@@ -94,7 +94,7 @@ for (const readOnly of [false, true]) {
       const { container } = await renderCanvas(readOnly);
       expect(container.querySelectorAll('.react-flow__node-model')).toHaveLength(2);
       expect(container.querySelectorAll('.react-flow__node-annotation')).toHaveLength(1);
-      expect(modelNode(container, 'customers').textContent).toContain('customer_id');
+      expect(tableNode(container, 'customers').textContent).toContain('customer_id');
     });
 
     it('opens the detail panel on a click, without editing controls', async () => {
@@ -123,7 +123,7 @@ for (const readOnly of [false, true]) {
     });
 
     it('shows readers no ⚠ or Turn round on a relationship drawn backwards (#163)', async () => {
-      const domain = makeDomain(readOnly);
+      const domain = makeSubjectArea(readOnly);
       domain.relationships = domain.relationships.map((r) => ({ ...r, keysContradict: true as const }));
       const { container } = render(
         <div style={{ width: 1200, height: 800 }}>
@@ -181,7 +181,7 @@ for (const readOnly of [false, true]) {
     it('leaves a right-click on a model to the browser', async () => {
       const { container } = await renderCanvas(readOnly);
       const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
-      modelNode(container, 'orders').querySelector('.model-node')!.dispatchEvent(event);
+      tableNode(container, 'orders').querySelector('.model-node')!.dispatchEvent(event);
       expect(event.defaultPrevented).toBe(false);
     });
 
@@ -204,7 +204,7 @@ for (const readOnly of [false, true]) {
 describe('ErdCanvas onReady', () => {
   it('fires once for a domain with nothing to draw', async () => {
     const onReady = vi.fn();
-    const empty: DisplaySubjectArea = { ...makeDomain(true), models: [], relationships: [], viewConfig: {} };
+    const empty: DisplaySubjectArea = { ...makeSubjectArea(true), models: [], relationships: [], viewConfig: {} };
     const { rerender } = render(<ErdCanvas domain={empty} onReady={onReady} />);
     await flush();
     rerender(<ErdCanvas domain={empty} onReady={onReady} />);
@@ -215,7 +215,7 @@ describe('ErdCanvas onReady', () => {
 
 describe('ErdCanvas with a domain that has no layer', () => {
   it('leaves the layer badge of a model without a schema empty', async () => {
-    const { layer: _omitted, ...rest } = makeDomain(true);
+    const { layer: _omitted, ...rest } = makeSubjectArea(true);
     const domain = {
       ...rest,
       models: [{ ...rest.models[0], schema: '' }],
@@ -228,7 +228,7 @@ describe('ErdCanvas with a domain that has no layer', () => {
       </div>,
     );
     await flush();
-    const badge = modelNode(container, 'orders').querySelector('.model-node__badge--layer');
+    const badge = tableNode(container, 'orders').querySelector('.model-node__badge--layer');
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toBe('');
   });
@@ -245,7 +245,7 @@ describe('toRenderableDomain', () => {
       positionDraggable: false,
     } as unknown as DisplaySubjectArea;
 
-    expect(toRenderableDomain(partial)).toEqual({
+    expect(toRenderableSubjectArea(partial)).toEqual({
       ...partial,
       layer: '',
       stage: 'logical',
@@ -257,8 +257,8 @@ describe('toRenderableDomain', () => {
   });
 
   it('gives a column without a data type an empty one, leaving other objects alone', () => {
-    const domain = makeDomain(true);
-    const renderable = toRenderableDomain(domain);
+    const domain = makeSubjectArea(true);
+    const renderable = toRenderableSubjectArea(domain);
     expect(renderable).not.toBe(domain);
     expect(renderable.models[0]).toBe(domain.models[0]);
     expect(renderable.models[1].columns[0]).toEqual({ ...domain.models[1].columns[0], dataType: '' });
@@ -267,8 +267,8 @@ describe('toRenderableDomain', () => {
   });
 
   it('returns a complete read-only domain unchanged', () => {
-    const domain = makeDomain(true);
+    const domain = makeSubjectArea(true);
     domain.models[1].columns[0] = { ...domain.models[1].columns[0], dataType: 'bigint' };
-    expect(toRenderableDomain(domain)).toBe(domain);
+    expect(toRenderableSubjectArea(domain)).toBe(domain);
   });
 });

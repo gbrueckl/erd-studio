@@ -22,12 +22,12 @@ vi.mock('../../webview/hooks/useVsCodeApi', () => ({
 
 import { usePositionPersistence } from '../../webview/hooks/usePositionPersistence';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { ModelFlowNode } from '@erd-studio/renderer/editor';
+import type { TableFlowNode } from '@erd-studio/renderer/editor';
 import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
-function makeNode(id: string): ModelFlowNode {
+function makeNode(id: string): TableFlowNode {
   return {
     id,
     type: 'model',
@@ -73,7 +73,7 @@ describe('usePositionPersistence', () => {
           type: 'annotation',
           position: { x: 0, y: 0 },
           data: { annotationId: 'n1', text: '', color: 'yellow' },
-        } as unknown as ModelFlowNode,
+        } as unknown as TableFlowNode,
       ],
       domain: {
         ...domain,

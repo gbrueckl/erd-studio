@@ -33,14 +33,14 @@ export function hasRationaleContent(rationale: Rationale | undefined): boolean {
   ].some(Boolean);
 }
 
-interface ModelRationaleProps {
+interface TableRationaleProps {
   modelName: string;
   rationale?: Rationale;
   modelRole?: TableRole;
   grain?: string;
 }
 
-export function ModelRationale({ modelName, rationale, modelRole, grain }: ModelRationaleProps) {
+export function TableRationale({ modelName, rationale, modelRole, grain }: TableRationaleProps) {
   const viewer = useIsViewer();
   const [open, setOpen] = useState(false);
   // Track whether user has clicked "Add Rationale" to force-show and auto-edit

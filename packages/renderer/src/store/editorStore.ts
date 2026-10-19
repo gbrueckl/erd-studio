@@ -16,7 +16,7 @@
 import { createContext, createElement, useContext, type ReactNode } from 'react';
 import { createStore, useStore, type StoreApi } from 'zustand';
 import type { DisplaySubjectArea, ExistingTablePreview } from '@erd-studio/core';
-import type { ModelFlowNode, FkFlowEdge, FkEdgeData, AnnotationFlowNode, AnnotationFlowEdge } from '../types/graph';
+import type { TableFlowNode, FkFlowEdge, FkEdgeData, AnnotationFlowNode, AnnotationFlowEdge } from '../types/graph';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,7 +84,7 @@ export interface CanvasState {
   /** The loaded domain data from the extension host (already reconciled with manifest). */
   domain: DisplaySubjectArea | null;
   /** React Flow nodes (local state for selection/drag). */
-  nodes: (ModelFlowNode | AnnotationFlowNode)[];
+  nodes: (TableFlowNode | AnnotationFlowNode)[];
   /** React Flow edges. */
   edges: (FkFlowEdge | AnnotationFlowEdge)[];
   /** Annotation currently being edited (auto-focus textarea), or null. */
@@ -124,7 +124,7 @@ export interface CanvasActions {
   /** Set pending delete confirmation state (triggered by Delete key). */
   setPendingDeleteConfirmation: (pending: boolean) => void;
   setDomain: (domain: DisplaySubjectArea) => void;
-  setNodes: (nodes: (ModelFlowNode | AnnotationFlowNode)[]) => void;
+  setNodes: (nodes: (TableFlowNode | AnnotationFlowNode)[]) => void;
   setEdges: (edges: (FkFlowEdge | AnnotationFlowEdge)[]) => void;
   /** Set the annotation currently being edited (auto-focus). */
   setEditingAnnotationId: (id: string | null) => void;

@@ -12,7 +12,7 @@
 
 import ELK from 'elkjs/lib/elk-api';
 import type { ELK as IELK, ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api';
-import type { ModelFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
 import type { NodePosition, LayoutOptions, TableRole } from '../../src/types/semantic';
 import { resolveNodeDimensions } from '@erd-studio/renderer/sizing';
 
@@ -88,7 +88,7 @@ export function roleToPartition(role: TableRole | undefined): number {
  * from any source are assigned depth 0.
  */
 export function computeDepthPartitions(
-  nodes: ModelFlowNode[],
+  nodes: TableFlowNode[],
   edges: FkFlowEdge[],
 ): Map<string, number> {
   const nodeIds = new Set(nodes.map((n) => n.id));
@@ -337,7 +337,7 @@ function layoutWithGuard(elk: IELK, graph: ElkNode): Promise<ElkNode> {
  * assigning it to the given spatial partition index.
  */
 export function toElkChildren(
-  nodes: ModelFlowNode[],
+  nodes: TableFlowNode[],
   partitions: Map<string, number> | null,
 ): ElkNode[] {
   return nodes.map((node) => {
@@ -406,7 +406,7 @@ export function detectLayerBound(nodeCount: number): number {
  * `partitionStrategy` is 'auto'.
  */
 export function detectStrategy(
-  nodes: ModelFlowNode[],
+  nodes: TableFlowNode[],
   edges: FkFlowEdge[],
 ): 'role' | 'depth' | 'none' {
   const distinctRoleBands = new Set(
@@ -432,7 +432,7 @@ export function detectStrategy(
  *   `viewConfig.positions`.
  */
 export async function runElkLayout(
-  nodes: ModelFlowNode[],
+  nodes: TableFlowNode[],
   edges: FkFlowEdge[],
   layoutOptions?: LayoutOptions,
   partitionStrategy: PartitionStrategy = 'auto',

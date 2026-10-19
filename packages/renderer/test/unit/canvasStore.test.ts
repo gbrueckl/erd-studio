@@ -16,7 +16,7 @@ import {
   type CanvasSet,
 } from '../../src/store/editorStore';
 
-const domain = (stage: 'logical' | 'physical' = 'logical'): DisplaySubjectArea => ({
+const subjectArea = (stage: 'logical' | 'physical' = 'logical'): DisplaySubjectArea => ({
   schemaVersion: 5,
   domain: 'sales',
   layer: 'silver',
@@ -69,7 +69,7 @@ describe('createCanvasSlice', () => {
 
 describe('createCanvasStore', () => {
   it('seeds the initial state over the defaults', () => {
-    const d = domain();
+    const d = subjectArea();
     const store = createCanvasStore({ domain: d, legendOpen: true });
     expect(store.getState().domain).toBe(d);
     expect(store.getState().legendOpen).toBe(true);
@@ -88,7 +88,7 @@ describe('createCanvasStore', () => {
     const store = createCanvasStore();
     store.getState().selectColumn('id');
     store.getState().setEditingColumn('id');
-    const d = domain();
+    const d = subjectArea();
     store.getState().setDomain(d);
     expect(store.getState()).toMatchObject({
       domain: d,

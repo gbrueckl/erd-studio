@@ -19,7 +19,7 @@
 
 import { canonicalRelationship, linkKey, mergeLibraryRelationships, toDisplaySubjectArea } from '@erd-studio/core';
 import type { DisplaySubjectArea } from '@erd-studio/core';
-import { transformDomain } from '@erd-studio/renderer/editor';
+import { transformSubjectArea } from '@erd-studio/renderer/editor';
 import type { FkFlowEdge } from '@erd-studio/renderer/editor';
 import {
   applyMoveToModel, groupOf, moveTargets, planMoveToLibrary, planRelationshipWrite, removeColumnFromDomainRelationships,
@@ -312,7 +312,7 @@ function oneEdge(w: GWorld): Violation[] {
       { schemaVersion: 5, domain: d, layer: 'silver', stage: 'logical', description: '', models: gModels(w, w.domModels[d]), relationships: drawn },
       { viewConfig: {}, layerConfig: undefined, readOnly: false },
     );
-    const edges = transformDomain(display).edges.filter((e) => e.type === 'fk') as FkFlowEdge[];
+    const edges = transformSubjectArea(display).edges.filter((e) => e.type === 'fk') as FkFlowEdge[];
     const keysOf = (e: FkFlowEdge) => (e.data!.pairs ?? [{ fromColumn: e.data!.fromColumn, toColumn: e.data!.toColumn }])
       .map((p) => linkKey({ fromModel: e.data!.fromModel, fromColumn: p.fromColumn, toModel: e.data!.toModel, toColumn: p.toColumn }));
     const touching = edges.filter((e) => keysOf(e).some((k) => k === L || k === LX));

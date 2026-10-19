@@ -35,12 +35,12 @@ vi.mock('@xyflow/react', () => ({
 
 import { useCanvasShortcuts } from '../../webview/hooks/useCanvasShortcuts';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { ModelFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
 import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
-function modelNode(name: string, selected = false): ModelFlowNode {
+function modelNode(name: string, selected = false): TableFlowNode {
   return {
     id: name,
     type: 'model',

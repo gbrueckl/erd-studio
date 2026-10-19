@@ -16,7 +16,7 @@
 
 import { memo, useCallback, useMemo, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { ModelFlowNode, ModelNodeData, ColumnDisplay } from '../../types/graph';
+import type { TableFlowNode, TableNodeData, ColumnDisplay } from '../../types/graph';
 import type { TableLoadError, TableLoadWarning, Stage } from '@erd-studio/core';
 import type { ColumnDiscrepancy } from '@erd-studio/core';
 import type { PhysicalColumnSource, PhysicalProvenance } from '@erd-studio/core';
@@ -67,7 +67,7 @@ const SCHEMA_BADGE: Record<string, string> = {
  * now it means the model is not in the project at all, or dbt refuses to build
  * it, and those two are worth telling apart.
  */
-const GHOST_REASON_TITLE: Record<NonNullable<ModelNodeData['ghostReason']>, string> = {
+const GHOST_REASON_TITLE: Record<NonNullable<TableNodeData['ghostReason']>, string> = {
   'not-in-project': 'not found in your dbt project (no .sql/.py/.csv file, no schema .yml entry, no manifest node)',
   'disabled': 'disabled in dbt (enabled: false), so ref() to it does not compile',
   'missing-in-comparison': 'not present in the stage being compared against',
@@ -567,7 +567,7 @@ function describeLoadWarning(warning: TableLoadWarning): string {
   return `${key} is written twice (line ${warning.line}) — the last one is shown. Remove the other copy to edit this table.`;
 }
 
-function ModelNodeComponent({ data, selected }: NodeProps<ModelFlowNode>) {
+function TableNodeComponent({ data, selected }: NodeProps<TableFlowNode>) {
   const { modelName, label, stage, layer, layerConfig, schema, columns, grain, meta, dimmed, readOnly, isGhost, ghostReason, provenance, loadError, loadWarning, isStub, isExpanded = false, onToggleExpansion, discrepancy, discrepancySourceStage, discrepancyTargetStage } = data;
   const openNodeContextMenu = useEditorStore((s) => s.openNodeContextMenu);
   const send = useSend();
@@ -839,4 +839,4 @@ function ModelNodeComponent({ data, selected }: NodeProps<ModelFlowNode>) {
   );
 }
 
-export const ModelNode = memo(ModelNodeComponent);
+export const TableNode = memo(TableNodeComponent);

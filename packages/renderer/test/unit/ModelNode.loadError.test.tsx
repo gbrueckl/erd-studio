@@ -29,13 +29,13 @@ vi.mock('../../src/store/editorStore', () => ({
 }));
 
 import type { CanvasEditMessage } from '@erd-studio/core';
-import { ModelNode } from '../../src/components/Graph/ModelNode';
+import { TableNode } from '../../src/components/Graph/ModelNode';
 import { CanvasEnvironmentProvider } from '../../src/host/canvasEnvironment';
-import type { ModelFlowNode } from '../../src/types/graph';
+import type { TableFlowNode } from '../../src/types/graph';
 
-function renderNode(extra: Partial<ModelFlowNode['data']> = {}, viewer = false) {
+function renderNode(extra: Partial<TableFlowNode['data']> = {}, viewer = false) {
   const posted: CanvasEditMessage[] = [];
-  const data: ModelFlowNode['data'] = {
+  const data: TableFlowNode['data'] = {
     modelName: 'dim_broken',
     stage: 'logical',
     layer: 'silver',
@@ -43,7 +43,7 @@ function renderNode(extra: Partial<ModelFlowNode['data']> = {}, viewer = false) 
     isStub: false,
     ...extra,
   };
-  const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+  const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
   const utils = render(
     <CanvasEnvironmentProvider host={{ postMessage: (m) => posted.push(m) }} viewer={viewer}>
       <Node data={data} selected={false} />

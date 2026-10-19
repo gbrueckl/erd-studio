@@ -26,16 +26,16 @@ vi.mock('../../src/store/editorStore', () => ({
   useEditorStore: (selector: (s: typeof mockStoreState) => unknown) => selector(mockStoreState),
 }));
 
-import { computeModelLabels, matchesModelSearch } from '../../src/lib/modelLabels';
-import { transformDomain } from '../../src/lib/graphTransformer';
+import { computeTableLabels, matchesTableSearch } from '../../src/lib/modelLabels';
+import { transformSubjectArea } from '../../src/lib/graphTransformer';
 import { estimateNodeWidth } from '../../src/lib/nodeSizing';
-import { ModelNode } from '../../src/components/Graph/ModelNode';
+import { TableNode } from '../../src/components/Graph/ModelNode';
 import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
-import type { ModelFlowNode } from '../../src/types/graph';
+import type { TableFlowNode } from '../../src/types/graph';
 
 describe('computeModelLabels', () => {
   it('labels an aliased model with its table name, and leaves the rest alone', () => {
-    const labels = computeModelLabels([
+    const labels = computeTableLabels([
       { name: 'gold_date', schema: 'gold', alias: 'date' },
       { name: 'fct_sale', schema: 'gold' },
     ]);
@@ -43,7 +43,7 @@ describe('computeModelLabels', () => {
   });
 
   it('qualifies labels two models share by schema', () => {
-    const labels = computeModelLabels([
+    const labels = computeTableLabels([
       { name: 'silver_date', schema: 'silver', alias: 'date' },
       { name: 'gold_date', schema: 'gold', alias: 'Date' },
     ]);
@@ -52,7 +52,7 @@ describe('computeModelLabels', () => {
   });
 
   it('also qualifies a plain model whose name another model uses as its alias', () => {
-    const labels = computeModelLabels([
+    const labels = computeTableLabels([
       { name: 'date', schema: 'silver' },
       { name: 'gold_date', schema: 'gold', alias: 'date' },
     ]);
@@ -61,7 +61,7 @@ describe('computeModelLabels', () => {
   });
 
   it('cannot qualify a clash without a schema, so the label stays the alias', () => {
-    const labels = computeModelLabels([
+    const labels = computeTableLabels([
       { name: 'a_date', alias: 'date' },
       { name: 'b_date', alias: 'date' },
     ]);
@@ -69,9 +69,9 @@ describe('computeModelLabels', () => {
   });
 
   it('search matches the name or the label', () => {
-    expect(matchesModelSearch({ modelName: 'gold_date', label: 'date' }, 'gold')).toBe(true);
-    expect(matchesModelSearch({ modelName: 'gold_date', label: 'calendar' }, 'calen')).toBe(true);
-    expect(matchesModelSearch({ modelName: 'fct_sale' }, 'calen')).toBe(false);
+    expect(matchesTableSearch({ modelName: 'gold_date', label: 'date' }, 'gold')).toBe(true);
+    expect(matchesTableSearch({ modelName: 'gold_date', label: 'calendar' }, 'calen')).toBe(true);
+    expect(matchesTableSearch({ modelName: 'fct_sale' }, 'calen')).toBe(false);
   });
 });
 
@@ -84,8 +84,8 @@ describe('transformDomain: node labels', () => {
   });
 
   it('sets label only on the aliased node; the id stays the model name', () => {
-    const { nodes } = transformDomain(domain([model('gold_date', { alias: 'date' }), model('fct_sale')]));
-    const byId = new Map(nodes.map((n) => [n.id, n as ModelFlowNode]));
+    const { nodes } = transformSubjectArea(domain([model('gold_date', { alias: 'date' }), model('fct_sale')]));
+    const byId = new Map(nodes.map((n) => [n.id, n as TableFlowNode]));
     expect(byId.get('gold_date')!.data.label).toBe('date');
     expect(byId.get('gold_date')!.data.modelName).toBe('gold_date');
     expect(byId.get('fct_sale')!.data).not.toHaveProperty('label');
@@ -101,11 +101,11 @@ describe('transformDomain: node labels', () => {
 });
 
 describe('ModelNode header', () => {
-  function renderNode(extra: Partial<ModelFlowNode['data']>) {
-    const data: ModelFlowNode['data'] = {
+  function renderNode(extra: Partial<TableFlowNode['data']>) {
+    const data: TableFlowNode['data'] = {
       modelName: 'gold_date', stage: 'logical', layer: 'gold', columns: [], isStub: false, ...extra,
     };
-    const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+    const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
     return render(<Node data={data} selected={false} />);
   }
 
