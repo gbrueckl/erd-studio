@@ -139,8 +139,13 @@ export interface ErrorMessage {
      * - `not-a-domain` — this JSON lives under the semantic dir but is not a
      *   domain file (a template, a reserved directory). Retrying can never
      *   help; opening it as text is the only sensible action.
+     * - `domain-missing` — the domain file no longer exists: it was deleted or
+     *   renamed outside ERD Studio (#161) while the canvas was open, or before
+     *   VS Code restored the tab. Sent on load and as soon as the delete is
+     *   seen, so it replaces a loaded canvas too. Retry and Open as Text cannot
+     *   help; the screen offers Close and Open Another Diagram instead.
      */
-    kind?: 'domain-file' | 'not-a-domain';
+    kind?: 'domain-file' | 'not-a-domain' | 'domain-missing';
     /**
      * With `kind: 'domain-file'`: the file holds unresolved git merge
      * conflicts (#145). Retrying cannot help — the screen drops Retry and
@@ -643,6 +648,24 @@ export interface RequestReloadMessage {
 }
 
 /**
+ * Close this canvas tab. Sent by the "deleted or renamed" screen (#161), whose
+ * file is gone, so the tab has nothing left to show. No payload; writes
+ * nothing, so it is allowed on the physical stage.
+ */
+export interface CloseEditorMessage {
+  type: 'closeEditor';
+}
+
+/**
+ * Pick another diagram to open (`erdStudio.openDomain` with no file). Sent by
+ * the "deleted or renamed" screen (#161) — the renamed copy is one pick away.
+ * No payload; allowed on the physical stage.
+ */
+export interface OpenAnotherDomainMessage {
+  type: 'openAnotherDomain';
+}
+
+/**
  * Open the "Welcome to ERD Studio" panel (the getting-started video). Sent by
  * the canvas WelcomeModal's "Watch the short tour" link; the host runs
  * `erdStudio.showGettingStarted`. No payload; allowed on the physical stage.
@@ -775,6 +798,8 @@ export type WebviewMessage =
   | CopyFeedbackReportMessage
   | OpenFeedbackLinkMessage
   | RequestReloadMessage
+  | CloseEditorMessage
+  | OpenAnotherDomainMessage
   | OpenGettingStartedMessage
   | ExportDiagramMessage
   | GenerateSyncPlanMessage

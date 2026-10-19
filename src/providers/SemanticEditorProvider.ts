@@ -19,7 +19,7 @@
  *                         openFeedbackLink),
  *                         viewFile, requestReload, dismissWelcome,
  *                         dismissManifestHint, openGettingStarted,
- *                         exportDiagram
+ *                         exportDiagram, closeEditor, openAnotherDomain
  *   Extension → Webview:  domainLoaded, stageData (echoes switchStage
  *                         requestId), discrepancyReport, manifestStaleness,
  *                         syncPlanGenerated, openFeedback, feedbackContext,
@@ -978,7 +978,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           'refreshManifest', 'dismissWelcome',
           'viewFile', 'generateSyncPlan', 'runDbtCompile', 'runDbtParse', 'launchClaudeSync',
           'addAnnotation', 'updateAnnotation', 'removeAnnotation', 'removeAnnotations',
-          'requestReload', 'openGettingStarted',
+          'requestReload', 'openGettingStarted', 'closeEditor', 'openAnotherDomain',
           'requestFeedbackContext', 'analyzeFeedback', 'setFeedbackProvider',
           'submitFeedback', 'copyFeedbackReport', 'openFeedbackLink',
           'openModelFile', 'layoutFinished', 'exportDiagram',
@@ -1014,6 +1014,15 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             saveAllAndReload('ERD Studio canvas connection lost').catch(err => {
               console.error('[ERD Studio] requestReload handling failed:', err);
             });
+            break;
+          case 'closeEditor':
+            // The "deleted or renamed" screen (#161): the file is gone, so the
+            // tab has nothing left to show. No payload to validate; writes
+            // nothing, so both are on the physical allowlist.
+            webviewPanel.dispose();
+            break;
+          case 'openAnotherDomain':
+            await vscode.commands.executeCommand('erdStudio.openDomain');
             break;
           case 'dismissWelcome':
             await this.context.globalState.update('welcomeDismissed', true);
@@ -1650,7 +1659,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         this.scheduleNativeUndoFlush(document, webviewPanel.webview, panelKey);
         return;
       }
-      if (document.isDirty) {
+      // A file deleted outside ERD Studio is not saved back into existence (#161).
+      if (document.isDirty && fs.existsSync(document.uri.fsPath)) {
         await document.save();
       }
       await this.sendDomainData(document, webviewPanel.webview, panelKey);
@@ -2021,6 +2031,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     webview: vscode.Webview,
     panelKey: string,
   ): Promise<void> {
+    this.refuseIfDomainFileGone(document);
     this.pendingUpdates.set(panelKey, true);
     try {
       await vscode.commands.executeCommand(command);
@@ -2035,6 +2046,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * the model files this canvas wrote, then redraw — one refresh for the step.
    */
   private async flushUndoRedo(document: vscode.TextDocument, webview: vscode.Webview, panelKey: string): Promise<void> {
+    // Cmd+Z on a canvas whose file was deleted outside ERD Studio rewinds the
+    // document in memory only; saving it would recreate the file (#161).
+    if (!fs.existsSync(document.uri.fsPath)) return;
     await document.save();
     this.ownWriteTracker.recordWrite(document.uri.fsPath);
     await this.saveDirtyModelDocuments(panelKey);
@@ -2108,6 +2122,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     const { refreshWebview = true, webview, stage, modelFiles, errorLabel, onSuccess } = options;
     const panelKey = document.uri.toString();
 
+    // The open document outlives its file: saving this edit would bring back a
+    // diagram an AI assistant, git or the file explorer just removed (#161).
+    this.refuseIfDomainFileGone(document);
     const text = document.getText();
     const parsed = this.parseDomainDocument(document, text);
     const section = this.getStageSection(parsed, stage);
@@ -2353,6 +2370,44 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     return readOnly ? display : withDbtKeyHints(display, dbtKeyIndexOf(ymlData, manifest));
   }
 
+  /** The "deleted or renamed" screen's payload (#161), naming the file project-relative. */
+  private domainMissingPayload(document: vscode.TextDocument): ErrorMessage['payload'] {
+    const shown = path.relative(this.workspaceRoot, document.uri.fsPath).split(path.sep).join('/');
+    return { message: `${shown} was deleted or renamed outside ERD Studio.`, kind: 'domain-missing' };
+  }
+
+  /** Throws `EditRefused` when the domain file is no longer on disk, before anything is written (#161). */
+  private refuseIfDomainFileGone(document: vscode.TextDocument): void {
+    if (!fs.existsSync(document.uri.fsPath)) {
+      throw new EditRefused(`${this.domainMissingPayload(document).message} Nothing was saved.`);
+    }
+  }
+
+  /**
+   * A domain file was deleted, created or changed outside ERD Studio (the
+   * watcher's `onSemanticFileDeleted` / `onSemanticFileChanged`). Every open
+   * canvas whose file is really gone switches to the "deleted or renamed"
+   * screen now, rather than drawing a stale, editable diagram until an
+   * unrelated refresh fails (#161); one showing that screen whose file is back
+   * (a `git checkout` back, an assistant rewriting it) is re-read, since a
+   * file restored with the same text fires no document change. Each panel is
+   * checked on disk rather than matched against the event's paths: git's
+   * delete-then-rename fires deletes for files that are still there, and
+   * those canvases are left alone. Writes nothing.
+   */
+  syncDomainFilePresence(): void {
+    for (const [panelKey, panel] of this.openPanels) {
+      const { document, webview } = panel;
+      if (document.uri.scheme !== 'file') continue;
+      const missing = this.domainMissingPayload(document);
+      if (!fs.existsSync(document.uri.fsPath)) {
+        this.postLoadError(webview, panelKey, missing, undefined, 'missing');
+      } else if (this.lastLoadError.get(panelKey) === missing.message) {
+        void this.sendDomainData(document, webview, panelKey);
+      }
+    }
+  }
+
   /**
    * Parse the document, build display domain for the active stage, and send to webview.
    * On parse failure, sends an error message instead.
@@ -2449,6 +2504,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // A payload went out, so the next failure is news again.
       this.lastLoadError.delete(errorKey);
     } catch (err) {
+      // A restored tab, or a refresh, whose file is gone (#161): the same
+      // screen as a delete seen live, so Retry and Open as Text never show.
+      if (err instanceof DomainFileError && err.reason === 'missing') {
+        this.postLoadError(webview, errorKey, this.domainMissingPayload(document), err, 'missing');
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
       this.postLoadError(webview, errorKey, {
         message,

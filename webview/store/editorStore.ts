@@ -314,10 +314,16 @@ export const useEditorStore = create<EditorState & EditorActions>()((set) => ({
   dismissPhysicalSourceNotice: () => set({ physicalSourceNoticeDismissed: true }),
   setManifestMissing: (missing) => set({ manifestMissing: missing }),
   dismissManifestHint: () => set({ manifestHintDismissed: true }),
-  setError: (error, kind, mergeConflict) => set({
-    error,
-    errorKind: error === null ? null : (kind ?? null),
-    errorMergeConflict: error !== null && mergeConflict === true,
+  setError: (error, kind, mergeConflict) => set((state) => {
+    // The "deleted or renamed" screen (#161) stands until a fresh domain
+    // arrives: a later host error (a refused edit, a failed physical refresh)
+    // would otherwise turn it back into a toast over the stale canvas.
+    if (state.errorKind === 'domain-missing' && error !== null && kind !== 'domain-missing') return {};
+    return {
+      error,
+      errorKind: error === null ? null : (kind ?? null),
+      errorMergeConflict: error !== null && mergeConflict === true,
+    };
   }),
   setTemplates: (templates) => set({ templates }),
   setManifestModels: (models) => set({ manifestModels: models }),
