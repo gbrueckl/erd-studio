@@ -1137,6 +1137,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // edit or a git pull. createDomain / renameDomain write outside the own-write
     // tracker, so they mark their paths in domainsCreatedHere instead.
     if (created && !domainsCreatedHere.delete(uri.fsPath)) { telemetry.feature('domainCreatedExternal'); }
+    // A canvas showing "deleted or renamed" whose file is back redraws (#161).
+    editorProvider.syncDomainFilePresence();
     treeProvider.invalidateDomain(uri.fsPath);
     treeProvider.refresh();
     modelLibraryProvider.refresh();
@@ -1164,7 +1166,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
 
-  // Domain file(s) deleted → refresh tree + model library, prompt for tag cleanup.
+  // Domain file(s) deleted → flag open canvases, refresh tree + model library, prompt for tag cleanup.
   // The watcher coalesces a delete storm (branch switch) into one event and
   // filters out layers.json / templates / logical-models / .sync-plan.json, so
   // one toast covers the whole burst and only real domain files trigger it.
@@ -1173,6 +1175,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // then-rename) and macOS (atomic rename via FSEvents), causing mass YAML
   // modifications. Instead, offer to run the manual sync command.
   const semanticDeletedSubscription = fileWatcherService.onSemanticFileDeleted(({ uris }) => {
+    // An open canvas whose file is gone says so at once, instead of staying
+    // editable until a refresh fails (#161).
+    editorProvider.syncDomainFilePresence();
     for (const uri of uris) {
       treeProvider.invalidateDomain(uri.fsPath);
     }

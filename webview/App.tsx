@@ -273,6 +273,15 @@ function EditorCanvas() {
     vscode.postMessage({ type: 'viewFile' });
   }, [vscode]);
 
+  // The "deleted or renamed" screen's two ways on (#161): close this tab, or
+  // pick another diagram — a renamed copy is one pick away.
+  const handleCloseEditor = useCallback(() => {
+    vscode.postMessage({ type: 'closeEditor' });
+  }, [vscode]);
+  const handleOpenAnotherDomain = useCallback(() => {
+    vscode.postMessage({ type: 'openAnotherDomain' });
+  }, [vscode]);
+
   // Host error toast dismissal (canvas stays mounted; see render below)
   const dismissError = useCallback(() => setError(null), [setError]);
 
@@ -435,6 +444,31 @@ function EditorCanvas() {
   // over the whole editor. Once a domain has loaded, host errors are surfaced
   // as a dismissable toast over the live canvas (see below) and are cleared
   // automatically by the next domainLoaded / domainUpdated / stageData.
+  //
+  // The one exception is a domain file that no longer exists (#161): it was
+  // deleted or renamed outside ERD Studio, so the loaded diagram is stale and
+  // nothing drawn on it can be saved. That screen replaces the canvas too,
+  // until the file comes back and a fresh domain arrives.
+
+  if (error && errorKind === 'domain-missing') {
+    return (
+      <div className="editor-message editor-message--error" role="alert">
+        <p className="editor-message__title">This diagram&apos;s file was deleted or renamed</p>
+        <p className="editor-message__detail">
+          It was removed or renamed outside ERD Studio — by an AI assistant, a git checkout, the file explorer or
+          another tool — so there is nothing left to draw, and nothing changed here could be saved. If the file
+          comes back, the diagram reloads by itself.
+        </p>
+        <p className="editor-message__detail editor-message__detail--dim">{error}</p>
+        <button type="button" className="editor-message__button" onClick={handleOpenAnotherDomain}>
+          Open Another Diagram…
+        </button>
+        <button type="button" className="editor-message__button" onClick={handleCloseEditor}>
+          Close
+        </button>
+      </div>
+    );
+  }
 
   if (error && !domain) {
     // `not-a-domain` is settled: this JSON is a template or lives in a
