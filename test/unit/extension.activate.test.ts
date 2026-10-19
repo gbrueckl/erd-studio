@@ -331,6 +331,24 @@ describe('activate() with a dbt project', () => {
     expect(result).toBe('opened');
   });
 
+  // #167: a click in the Domains tree (and the picker, the status bar, the
+  // Welcome panel) opens a preview tab, so browsing diagrams reuses one tab
+  // until an edit pins it, as a single click in the Explorer does.
+  it('erdStudio.openDomain opens the diagram in a preview tab', async () => {
+    await activate(context);
+    const real = vscode.commands.executeCommand;
+    const exec = vi.spyOn(vscode.commands, 'executeCommand').mockImplementation((async (command: string, ...args: unknown[]) =>
+      real(command, ...args)) as never);
+
+    await vscode.commands.executeCommand('erdStudio.openDomain', '/x/orders.json');
+
+    const opened = exec.mock.calls.filter((c) => c[0] === 'vscode.openWith');
+    expect(opened).toHaveLength(1);
+    expect((opened[0][1] as { fsPath: string }).fsPath).toBe(vscode.Uri.file('/x/orders.json').fsPath);
+    expect(opened[0][2]).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(opened[0][3]).toEqual({ preview: true });
+  });
+
   it('wires the domain editor (retaining webview context), both tree views and the decoration providers', async () => {
     const registerEditor = vi.spyOn(vscode.window, 'registerCustomEditorProvider');
     const createTreeView = vi.spyOn(vscode.window, 'createTreeView');
@@ -1144,6 +1162,8 @@ describe('erdStudio.drawFromDbt', () => {
     expect(opened()).toHaveLength(1);
     expect(String((opened()[0][1] as { fsPath: string }).fsPath)).toBe(domainPath);
     expect(opened()[0][2]).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    // A diagram the user just made opens in a tab that stays (#167).
+    expect(opened()[0][3]).toBeUndefined();
   });
 
   it('keeps a flat library flat and only references models the library already has', async () => {
