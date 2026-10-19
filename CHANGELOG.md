@@ -8,7 +8,7 @@ The `Unreleased` heading below is renamed to the released version by the deploy 
 Releases are patch bumps by default. To ship a minor or major version, write it into the
 heading — `## Unreleased — 1.0.0` — and the workflow releases exactly that.
 
-## Unreleased
+## 1.6.9 — 2026-10-19
 
 ### Added
 - **Add several existing models at once** ([#160](https://github.com/liam-machine/erd-studio/issues/160)). In **Add Existing Model**, clicking a row now ticks it, so you can pick as many models as you like, and **Select all N shown** ticks every model your search and filters show (up to 200 at a time). **Add N Models** adds them all in one step: one undo removes them together, and relationships between them and the diagram come along as with a single add. Double-click still adds one model straight away. Only the ticked rows you can see are added, so narrowing the search drops ticks it hides. Several at once needs the central model store; older diagrams can still add one at a time.
