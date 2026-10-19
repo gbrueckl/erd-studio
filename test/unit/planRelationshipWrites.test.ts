@@ -15,7 +15,7 @@ import type { Relationship, SemanticTable } from '../../src/types/semantic';
 const col = (name: string, isPrimaryKey = false) => ({ name, dataType: 'int', description: '', isPrimaryKey });
 
 /** dim_customer saved by 1.6.7 with two backwards many-to-ones, one to each fact. */
-const models = (): SemanticTable[] => [
+const tables = (): SemanticTable[] => [
   {
     name: 'dim_customer', description: '', columns: [col('customer_key', true)],
     relationships: [
@@ -34,7 +34,7 @@ const turnRound = (toModel: string): RelationshipWriteOp => ({
   cardinality: 'one-to-many',
 });
 
-const input = () => ({ home: 'library' as const, models: models(), domainRelationships: [] as Relationship[] });
+const input = () => ({ home: 'library' as const, models: tables(), domainRelationships: [] as Relationship[] });
 
 describe('planRelationshipWrites — Turn round all, one write (#163)', () => {
   it('turns both round and saves each changed file once, as the last op left it', () => {

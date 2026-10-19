@@ -46,7 +46,7 @@ function createMockLayerService(): LayerService {
 
 const emptyStageData: StageData = { models: [], relationships: [] };
 
-function makeUnifiedDomain(overrides: Partial<UnifiedSubjectArea> = {}): UnifiedSubjectArea {
+function makeUnifiedSubjectArea(overrides: Partial<UnifiedSubjectArea> = {}): UnifiedSubjectArea {
   return {
     schemaVersion: 4,
     domain: 'test',
@@ -58,7 +58,7 @@ function makeUnifiedDomain(overrides: Partial<UnifiedSubjectArea> = {}): Unified
   };
 }
 
-function createMockDomainService(
+function createMockSubjectAreaService(
   summaries: SubjectAreaSummary[] = [],
   domains: Map<string, UnifiedSubjectArea> = new Map(),
 ): SubjectAreaService {
@@ -76,20 +76,20 @@ function createMockDomainService(
 // Test data
 // ---------------------------------------------------------------------------
 
-const SILVER_DOMAINS: SubjectAreaSummary[] = [
+const SILVER_SUBJECT_AREAS: SubjectAreaSummary[] = [
   { domain: 'customer-360', layer: 'silver', filePath: '/project/.erd-studio/silver/customer-360.json' },
   { domain: 'orders', layer: 'silver', filePath: '/project/.erd-studio/silver/orders.json' },
 ];
 
-const GOLD_DOMAINS: SubjectAreaSummary[] = [
+const GOLD_SUBJECT_AREAS: SubjectAreaSummary[] = [
   { domain: 'reporting', layer: 'gold', filePath: '/project/.erd-studio/gold/reporting.json' },
 ];
 
-const ALL_SUMMARIES = [...SILVER_DOMAINS, ...GOLD_DOMAINS];
+const ALL_SUMMARIES = [...SILVER_SUBJECT_AREAS, ...GOLD_SUBJECT_AREAS];
 
-function buildDomainMap(): Map<string, UnifiedSubjectArea> {
+function buildSubjectAreaMap(): Map<string, UnifiedSubjectArea> {
   const map = new Map<string, UnifiedSubjectArea>();
-  map.set('/project/.erd-studio/silver/customer-360.json', makeUnifiedDomain({
+  map.set('/project/.erd-studio/silver/customer-360.json', makeUnifiedSubjectArea({
     domain: 'customer-360',
     layer: 'silver',
     logical: {
@@ -97,7 +97,7 @@ function buildDomainMap(): Map<string, UnifiedSubjectArea> {
       relationships: [],
     },
   }));
-  map.set('/project/.erd-studio/silver/orders.json', makeUnifiedDomain({
+  map.set('/project/.erd-studio/silver/orders.json', makeUnifiedSubjectArea({
     domain: 'orders',
     layer: 'silver',
     logical: {
@@ -105,7 +105,7 @@ function buildDomainMap(): Map<string, UnifiedSubjectArea> {
       relationships: [],
     },
   }));
-  map.set('/project/.erd-studio/gold/reporting.json', makeUnifiedDomain({
+  map.set('/project/.erd-studio/gold/reporting.json', makeUnifiedSubjectArea({
     domain: 'reporting',
     layer: 'gold',
     logical: {
@@ -132,7 +132,7 @@ describe('DomainTreeProvider', () => {
 
   beforeEach(() => {
     layerService = createMockLayerService();
-    domainService = createMockDomainService(ALL_SUMMARIES, buildDomainMap());
+    domainService = createMockSubjectAreaService(ALL_SUMMARIES, buildSubjectAreaMap());
     provider = new SubjectAreaTreeProvider(domainService, layerService, PROJECT_PATH);
   });
 
@@ -240,7 +240,7 @@ describe('DomainTreeProvider', () => {
     });
 
     it('handles getDomain errors gracefully with 0 model count', () => {
-      const failService = createMockDomainService(
+      const failService = createMockSubjectAreaService(
         [{ domain: 'broken', layer: 'silver', filePath: '/broken.json' }],
         new Map(), // empty — getDomain will throw
       );
@@ -412,11 +412,11 @@ describe('DomainTreeProvider', () => {
     function realFileProvider(models: unknown[]): { provider: SubjectAreaTreeProvider; getDomain: ReturnType<typeof vi.fn> } {
       const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
       const domains = new Map<string, UnifiedSubjectArea>();
-      domains.set(domainPath, makeUnifiedDomain({
+      domains.set(domainPath, makeUnifiedSubjectArea({
         domain: 'orders',
         logical: { models: models as any, relationships: [] },
       }));
-      const svc = createMockDomainService(summaries, domains);
+      const svc = createMockSubjectAreaService(summaries, domains);
       return {
         provider: new SubjectAreaTreeProvider(svc, layerService, tempDir),
         getDomain: svc.getSubjectArea as unknown as ReturnType<typeof vi.fn>,
@@ -467,7 +467,7 @@ describe('DomainTreeProvider', () => {
 
     it('does not cache a failed parse', () => {
       const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
-      const svc = createMockDomainService(summaries, new Map()); // getDomain throws
+      const svc = createMockSubjectAreaService(summaries, new Map()); // getDomain throws
       const p = new SubjectAreaTreeProvider(svc, layerService, tempDir);
 
       p.getChildren({ type: 'layer', layer: 'silver' });

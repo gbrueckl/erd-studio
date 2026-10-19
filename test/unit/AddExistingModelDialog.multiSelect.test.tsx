@@ -20,7 +20,7 @@ import { AddExistingTableDialog } from '../../webview/components/AddExistingMode
 import { useEditorStore } from '../../webview/store/editorStore';
 import { ADD_EXISTING_TABLES_LIMIT } from '../../src/types/messages';
 
-const model = (name: string) => ({
+const table = (name: string) => ({
   name, schema: '', description: '', columnCount: 1, source: 'logical' as const,
   sourcePath: `.erd-studio/logical-models/${name}.yml`,
 });
@@ -31,7 +31,7 @@ const ticked = () => screen.getAllByRole('option')
 
 beforeEach(() => {
   mockPostMessage.mockClear();
-  useEditorStore.getState().setExistingModels([model('sap_a'), model('sap_b'), model('other')]);
+  useEditorStore.getState().setExistingModels([table('sap_a'), table('sap_b'), table('other')]);
   useEditorStore.getState().setAddExistingModelDialogOpen(true);
 });
 afterEach(cleanup);
@@ -79,8 +79,8 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
   });
 
   it('a tick hidden by the search does not count toward the limit', () => {
-    const many = Array.from({ length: ADD_EXISTING_TABLES_LIMIT }, (_, i) => model(`m_${String(i).padStart(3, '0')}`));
-    useEditorStore.getState().setExistingModels([...many, model('sap_a')]);
+    const many = Array.from({ length: ADD_EXISTING_TABLES_LIMIT }, (_, i) => table(`m_${String(i).padStart(3, '0')}`));
+    useEditorStore.getState().setExistingModels([...many, table('sap_a')]);
     render(<AddExistingTableDialog />);
     fireEvent.change(screen.getByPlaceholderText('Search tables...'), { target: { value: 'm_' } });
     fireEvent.click(screen.getByRole('button', { name: `Select all ${ADD_EXISTING_TABLES_LIMIT} shown` }));
@@ -141,7 +141,7 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
   });
 
   it(`stops at ${ADD_EXISTING_TABLES_LIMIT} models`, () => {
-    const many = Array.from({ length: ADD_EXISTING_TABLES_LIMIT + 5 }, (_, i) => model(`m_${String(i).padStart(3, '0')}`));
+    const many = Array.from({ length: ADD_EXISTING_TABLES_LIMIT + 5 }, (_, i) => table(`m_${String(i).padStart(3, '0')}`));
     useEditorStore.getState().setExistingModels(many);
     render(<AddExistingTableDialog />);
     fireEvent.click(screen.getByRole('button', { name: `Select first ${ADD_EXISTING_TABLES_LIMIT} shown` }));

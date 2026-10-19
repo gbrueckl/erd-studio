@@ -24,12 +24,12 @@ import { YmlParserService } from '../../src/services/ymlParserService';
 import type { ConflictDefinition } from '../../src/services/libraryRelationships';
 import type { Relationship } from '../../src/types/semantic';
 import { DBT, columnsOf } from './relationshipStateSpace.model';
-import type { DbtSpec, DomainName, ModelName, MovePick, World } from './relationshipStateSpace.model';
+import type { DbtSpec, SubjectAreaName, TableName, MovePick, World } from './relationshipStateSpace.model';
 import { dbtKeyIndexOf } from '../../src/services/stageDisplay';
 
 export const SEMANTIC_DIR = '.erd-studio';
 
-export interface Project { root: string; logicalModelService: TableLibraryService; domainService: SubjectAreaService; domainPath: (d: DomainName) => string }
+export interface Project { root: string; logicalModelService: TableLibraryService; domainService: SubjectAreaService; domainPath: (d: SubjectAreaName) => string }
 
 export function materialise(w: World): Project {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-statespace-'));
@@ -45,7 +45,7 @@ export function materialise(w: World): Project {
   writeDbtTests(root, DBT[w.profile]);
   const domainDir = path.join(root, SEMANTIC_DIR, 'silver');
   fs.mkdirSync(domainDir, { recursive: true });
-  const domainPath = (d: DomainName) => path.join(domainDir, `${d}.json`);
+  const domainPath = (d: SubjectAreaName) => path.join(domainDir, `${d}.json`);
   for (const d of ['D1', 'D2', 'D3'] as const) {
     fs.writeFileSync(domainPath(d), JSON.stringify({
       schemaVersion: 5, domain: d, layer: 'silver', description: '',
@@ -90,7 +90,7 @@ export function readBack(p: Project, profile: World['profile']): World {
   const dom = {} as World['dom'];
   const domModels = {} as World['domModels'];
   for (const d of ['D1', 'D2', 'D3'] as const) {
-    const raw = JSON.parse(fs.readFileSync(p.domainPath(d), 'utf-8')) as { logical: { models: ModelName[]; relationships?: Relationship[] } };
+    const raw = JSON.parse(fs.readFileSync(p.domainPath(d), 'utf-8')) as { logical: { models: TableName[]; relationships?: Relationship[] } };
     dom[d] = raw.logical.relationships ?? [];
     domModels[d] = raw.logical.models;
   }
@@ -104,7 +104,7 @@ export const norm = (w: World): string => JSON.stringify({
 });
 
 /** Send one canvas message from `domain`; returns the error toasts and the information messages shown. */
-export async function sendToProvider(p: Project, message: unknown, domain: DomainName = 'D1'): Promise<{ errors: string[]; infos: string[] }> {
+export async function sendToProvider(p: Project, message: unknown, domain: SubjectAreaName = 'D1'): Promise<{ errors: string[]; infos: string[] }> {
   const selectorsService = new SelectorsService(p.domainService, p.root, SEMANTIC_DIR);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
   const infos: string[] = [];

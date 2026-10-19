@@ -27,7 +27,7 @@ import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 const MISSING = { message: '.erd-studio/silver/showcase.json was deleted or renamed outside ERD Studio.', kind: 'domain-missing' };
-const domain = {
+const subjectArea = {
   schemaVersion: 5, domain: 'showcase', layer: 'silver', stage: 'logical', description: '',
   models: [], relationships: [], viewConfig: {}, readOnly: false, positionDraggable: true,
 } as unknown as DisplaySubjectArea;
@@ -63,7 +63,7 @@ describe('the deleted-or-renamed screen', () => {
   });
 
   it('replaces a loaded canvas, not just the initial load', () => {
-    useEditorStore.getState().setDomain(domain);
+    useEditorStore.getState().setDomain(subjectArea);
     useEditorStore.getState().setError(MISSING.message, 'domain-missing');
     render(<App />);
     expect(screen.getByRole('alert').textContent).toContain("This diagram's file was deleted or renamed");

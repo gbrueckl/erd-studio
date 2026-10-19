@@ -356,7 +356,7 @@ describe('diff — an undeclared composite is advisory, blocking only under --st
     fs.rmSync(path.join(root, '.erd-studio'), { recursive: true, force: true });
     const models = ['fct_order', 'dim_customer'];
     const inventory = JSON.parse((await run(['inventory', '--models', models.join(','), '--json'], root)).out) as InventoryResult;
-    const file = writeModelFromInventory(root, inventory, 'silver', 'orders', 'library');
+    const file = writeTableFromInventory(root, inventory, 'silver', 'orders', 'library');
     const ymlPath = path.join(root, '.erd-studio', 'logical-models', 'fct_order.yml');
     const yml = parseYaml(fs.readFileSync(ymlPath, 'utf-8')) as { relationships: Array<Record<string, unknown>> };
     yml.relationships = [
@@ -450,7 +450,7 @@ describe('fixesFromPlan', () => {
 // ---------------------------------------------------------------------------
 
 /** What the skill's "building-the-model" recipe writes, done mechanically. */
-function writeModelFromInventory(
+function writeTableFromInventory(
   root: string,
   inventory: InventoryResult,
   layer: string,
@@ -512,7 +512,7 @@ describe('end to end: inventory → logical model → diff exits 0', () => {
     expect(inventory.models.map((m) => m.name).sort()).toEqual([...models].sort());
     expect(inventory.relationships.length).toBeGreaterThan(0);
 
-    const file = writeModelFromInventory(root, inventory, 'silver', 'orders');
+    const file = writeTableFromInventory(root, inventory, 'silver', 'orders');
 
     const diff = await run(['diff', '--domain', path.relative(root, file), '--json'], root);
     const result = JSON.parse(diff.out) as DiffResult;
@@ -553,7 +553,7 @@ describe('end to end, relationships in the model library (#126): inventory → l
     const models = ['fct_order', 'dim_customer', 'dim_project', 'dim_task', 'fct_task_event', 'fct_sale', 'dim_region', 'dim_date'];
     const inventory = JSON.parse((await run(['inventory', '--models', models.join(','), '--json'], root)).out) as InventoryResult;
 
-    const file = writeModelFromInventory(root, inventory, 'silver', 'orders', 'library');
+    const file = writeTableFromInventory(root, inventory, 'silver', 'orders', 'library');
     expect(JSON.parse(fs.readFileSync(file, 'utf-8')).logical.relationships).toEqual([]);
 
     const diff = await run(['diff', '--domain', path.relative(root, file), '--json'], root);

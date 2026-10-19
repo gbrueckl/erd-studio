@@ -167,7 +167,7 @@ describe('MigrationService.findV4Domains honours semanticDir', () => {
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  function writeV4Domain(semanticDir: string): string {
+  function writeV4SubjectArea(semanticDir: string): string {
     const layerDir = path.join(workspaceRoot, semanticDir, 'silver');
     fs.mkdirSync(layerDir, { recursive: true });
     const filePath = path.join(layerDir, 'orders.json');
@@ -197,21 +197,21 @@ describe('MigrationService.findV4Domains honours semanticDir', () => {
   }
 
   it('detects v4 domains under the default .erd-studio dir', () => {
-    const filePath = writeV4Domain('.erd-studio');
+    const filePath = writeV4SubjectArea('.erd-studio');
     const svc = makeService('.erd-studio');
     expect(svc.findV4SubjectAreas()).toEqual([filePath]);
     expect(svc.needsMigration()).toBe(true);
   });
 
   it('detects v4 domains under a custom semanticDir', () => {
-    const filePath = writeV4Domain('custom/models');
+    const filePath = writeV4SubjectArea('custom/models');
     const svc = makeService('custom/models');
     expect(svc.findV4SubjectAreas()).toEqual([filePath]);
     expect(svc.needsMigration()).toBe(true);
   });
 
   it('migrates a custom semanticDir project into logical-models under that dir', () => {
-    const filePath = writeV4Domain('custom/models');
+    const filePath = writeV4SubjectArea('custom/models');
     const svc = makeService('custom/models');
     const result = svc.migrate();
     expect(result.domainsConverted).toBe(1);
@@ -224,7 +224,7 @@ describe('MigrationService.findV4Domains honours semanticDir', () => {
   });
 
   it('does not look in .erd-studio when a custom semanticDir is configured', () => {
-    writeV4Domain('.erd-studio');
+    writeV4SubjectArea('.erd-studio');
     expect(makeService('custom/models').needsMigration()).toBe(false);
   });
 });
@@ -238,7 +238,7 @@ describe('MigrationService (domain format → v5)', () => {
   let migration: MigrationService;
   let lms: TableLibraryService;
 
-  function writeDomain(name: string, body: unknown): string {
+  function writeSubjectArea(name: string, body: unknown): string {
     const dir = path.join(workspaceRoot, '.erd-studio', 'silver');
     fs.mkdirSync(dir, { recursive: true });
     const filePath = path.join(dir, `${name}.json`);
@@ -263,11 +263,11 @@ describe('MigrationService (domain format → v5)', () => {
   });
 
   it('does not flag clean v5 files or empty v4 files', () => {
-    writeDomain('clean', {
+    writeSubjectArea('clean', {
       schemaVersion: 5, domain: 'clean', layer: 'silver',
       logical: { models: ['dim_a'], relationships: [] }, viewConfig: {},
     });
-    writeDomain('empty4', {
+    writeSubjectArea('empty4', {
       schemaVersion: 4, domain: 'empty4', layer: 'silver',
       logical: { models: [], relationships: [] }, viewConfig: {},
     });
@@ -279,7 +279,7 @@ describe('MigrationService (domain format → v5)', () => {
     // A scratch file that happens to have a top-level `models` array would be
     // classified 'legacy' by detectDomainFormat alone — but it is not a domain
     // file and must never be offered for migration or rewritten.
-    const notesPath = writeDomain('notes', {
+    const notesPath = writeSubjectArea('notes', {
       note: 'my scratch file',
       models: [{ name: 'x' }, { name: 'y' }],
       relationships: [{ a: 1 }],
@@ -298,7 +298,7 @@ describe('MigrationService (domain format → v5)', () => {
   });
 
   it('migrates a v4 file with inline models', () => {
-    const p = writeDomain('v4', {
+    const p = writeSubjectArea('v4', {
       schemaVersion: 4, domain: 'v4', layer: 'silver',
       logical: {
         models: [{ name: 'dim_a', columns: [{ name: 'a_id', dataType: 'INT', description: '', isPrimaryKey: true }] }],
@@ -322,7 +322,7 @@ describe('MigrationService (domain format → v5)', () => {
   });
 
   it('keeps a CRLF domain file CRLF when it converts it', () => {
-    const p = writeDomain('crlf', {
+    const p = writeSubjectArea('crlf', {
       schemaVersion: 4, domain: 'crlf', layer: 'silver',
       logical: { models: [{ name: 'dim_a', columns: [{ name: 'a_id', dataType: 'INT', description: '' }] }], relationships: [] },
       viewConfig: {},
@@ -361,7 +361,7 @@ describe('MigrationService (domain format → v5)', () => {
   it('extracts to the top level when the library already holds flat model files (no folder created)', () => {
     lms.saveTable({ name: 'dim_existing', columns: [] });
     expect(lms.groupsByFolder()).toBe(false);
-    const p = writeDomain('v4', {
+    const p = writeSubjectArea('v4', {
       schemaVersion: 4, domain: 'v4', layer: 'silver',
       logical: {
         models: [
@@ -414,7 +414,7 @@ describe('MigrationService (domain format → v5)', () => {
     // Existing central definition — richer than the frozen inline copy
     lms.saveTable({ name: 'dim_a', columns: [{ name: 'a_id', dataType: 'INT', description: '' }, { name: 'newer_col', dataType: 'INT', description: '' }] });
 
-    const p = writeDomain('hybrid', {
+    const p = writeSubjectArea('hybrid', {
       schemaVersion: 5, domain: 'hybrid', layer: 'silver',
       logical: {
         models: [
@@ -442,7 +442,7 @@ describe('MigrationService (domain format → v5)', () => {
   });
 
   it('lifts a legacy (schemaVersion 2, top-level models) file into a v5 document', () => {
-    const p = writeDomain('legacy', {
+    const p = writeSubjectArea('legacy', {
       schemaVersion: 2, domain: 'legacy', layer: 'silver', stage: 'logical',
       models: [{ name: 'dim_x', columns: [{ name: 'x_id', dataType: 'INT', description: '' }] }],
       relationships: [{ fromModel: 'fct_y', fromColumn: 'x_id', toModel: 'dim_x', toColumn: 'x_id', cardinality: 'many-to-one' }],

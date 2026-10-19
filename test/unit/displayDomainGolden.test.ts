@@ -65,7 +65,7 @@ const DBT_PROJECT = path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project');
 const SEMANTIC_DIR = '.erd-studio';
 
 /** Fixture projects that load successfully: name -> domain file under the project root. */
-const DOMAIN_CASES: Record<string, string> = {
+const SUBJECT_AREA_CASES: Record<string, string> = {
   showcase: 'silver/showcase.json',
   'v4-inline': 'bronze/orders.json',
   'missing-model': 'silver/partial.json',
@@ -102,7 +102,7 @@ const ERROR_CASES: Record<string, string> = {
 };
 
 const EXPECTED_FILES = [
-  ...Object.keys(DOMAIN_CASES).flatMap((c) => [`${c}.host.json`, `${c}.unified.json`]),
+  ...Object.keys(SUBJECT_AREA_CASES).flatMap((c) => [`${c}.host.json`, `${c}.unified.json`]),
   'missing-positions.persist.json',
   'showcase.stage-logical.json',
   'dbt-project.stage-physical.json',
@@ -110,7 +110,7 @@ const EXPECTED_FILES = [
   ...Object.keys(ERROR_CASES).map((c) => `errors.${c}.host.json`),
   'logs.json',
   // The diagram export goldens, owned by packages/core/test/unit/exportDiagram.golden.test.ts.
-  ...Object.keys(DOMAIN_CASES).flatMap((c) => [`${c}.dbml`, `${c}.mmd`]),
+  ...Object.keys(SUBJECT_AREA_CASES).flatMap((c) => [`${c}.dbml`, `${c}.mmd`]),
 ].sort();
 
 const LINE_COLUMN = / \(line \d+ column \d+\)/g;
@@ -253,7 +253,7 @@ function buildHost(root: string, options: { dbt?: boolean } = {}): Host {
   return { provider, domainService };
 }
 
-function domainFile(root: string, relative: string): string {
+function subjectAreaFile(root: string, relative: string): string {
   return path.join(root, SEMANTIC_DIR, relative);
 }
 
@@ -265,7 +265,7 @@ function openDocument(filePath: string, options: { persist?: boolean } = {}) {
 type Posted = { type: string; payload?: unknown };
 
 /** Run sendDomainData once and return what was posted, round-tripped through JSON. */
-async function sendDomainData(
+async function sendSubjectAreaData(
   host: Host,
   filePath: string,
   options: { stage?: 'logical' | 'physical'; persistPositions?: boolean; persistDocument?: boolean } = {},
@@ -326,11 +326,11 @@ afterEach(() => {
 });
 
 describe('DisplayDomain golden output (extension host)', () => {
-  describe.each(Object.entries(DOMAIN_CASES))('%s', (name, relative) => {
+  describe.each(Object.entries(SUBJECT_AREA_CASES))('%s', (name, relative) => {
     const root = path.join(FIXTURES, name);
 
     it('posts the logical DisplayDomain from sendDomainData', async () => {
-      const posted = await sendDomainData(buildHost(root), domainFile(root, relative));
+      const posted = await sendSubjectAreaData(buildHost(root), subjectAreaFile(root, relative));
       expect(posted).toHaveLength(1);
       expect(posted[0].type).toBe('domainLoaded');
       matchGolden(`${name}.host.json`, normalise(posted[0], root));
@@ -339,7 +339,7 @@ describe('DisplayDomain golden output (extension host)', () => {
 
     it('reads the UnifiedDomain with getDomain', () => {
       const { domainService } = buildHost(root);
-      const unified = JSON.parse(JSON.stringify(domainService.getSubjectArea(domainFile(root, relative))));
+      const unified = JSON.parse(JSON.stringify(domainService.getSubjectArea(subjectAreaFile(root, relative))));
       matchGolden(`${name}.unified.json`, normalise(unified, root));
       matchLogs(`${name}.unified`, root);
     });
@@ -358,8 +358,8 @@ describe('DisplayDomain golden output (extension host)', () => {
     });
 
     it('posts the domain and writes the computed positions through one WorkspaceEdit', async () => {
-      const file = domainFile(tmpRoot, DOMAIN_CASES['missing-positions']);
-      const posted = await sendDomainData(buildHost(tmpRoot), file, {
+      const file = subjectAreaFile(tmpRoot, SUBJECT_AREA_CASES['missing-positions']);
+      const posted = await sendSubjectAreaData(buildHost(tmpRoot), file, {
         persistPositions: true,
         persistDocument: true,
       });
@@ -384,7 +384,7 @@ describe('DisplayDomain golden output (extension host)', () => {
   describe('stage switching', () => {
     it('replies to a switch to the logical stage with stageData', async () => {
       const root = path.join(FIXTURES, 'showcase');
-      const posted = await switchStage(buildHost(root), domainFile(root, DOMAIN_CASES.showcase), 'logical');
+      const posted = await switchStage(buildHost(root), subjectAreaFile(root, SUBJECT_AREA_CASES.showcase), 'logical');
       expect(posted).toHaveLength(1);
       expect(posted[0].type).toBe('stageData');
       matchGolden('showcase.stage-logical.json', normalise(posted[0], root));
@@ -394,7 +394,7 @@ describe('DisplayDomain golden output (extension host)', () => {
     it('replies to a switch to the physical stage with stageData (real dbt project)', async () => {
       const posted = await switchStage(
         buildHost(DBT_PROJECT, { dbt: true }),
-        domainFile(DBT_PROJECT, 'silver/showcase.json'),
+        subjectAreaFile(DBT_PROJECT, 'silver/showcase.json'),
         'physical',
       );
       expect(posted).toHaveLength(1);
@@ -404,9 +404,9 @@ describe('DisplayDomain golden output (extension host)', () => {
     });
 
     it('posts the physical domain from sendDomainData on a panel showing physical', async () => {
-      const posted = await sendDomainData(
+      const posted = await sendSubjectAreaData(
         buildHost(DBT_PROJECT, { dbt: true }),
-        domainFile(DBT_PROJECT, 'silver/showcase.json'),
+        subjectAreaFile(DBT_PROJECT, 'silver/showcase.json'),
         { stage: 'physical' },
       );
       expect(posted).toHaveLength(1);
@@ -420,7 +420,7 @@ describe('DisplayDomain golden output (extension host)', () => {
     const root = path.join(FIXTURES, 'errors');
 
     it('posts an error message', async () => {
-      const posted = await sendDomainData(buildHost(root), domainFile(root, relative));
+      const posted = await sendSubjectAreaData(buildHost(root), subjectAreaFile(root, relative));
       expect(posted).toHaveLength(1);
       expect(posted[0].type).toBe('error');
       matchGolden(`errors.${name}.host.json`, normalise(posted[0], root));

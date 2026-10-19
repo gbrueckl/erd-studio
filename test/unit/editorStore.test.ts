@@ -12,7 +12,7 @@ import type { DiscrepancyReport } from '../../src/types/discrepancy';
 import type { FeedbackAnalysis } from '../../src/types/feedback';
 import type { FkEdgeData } from '@erd-studio/renderer/editor';
 
-function domain(stage: 'logical' | 'physical', extra: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
+function subjectArea(stage: 'logical' | 'physical', extra: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'orders',
@@ -82,11 +82,11 @@ afterEach(() => {
 
 describe('editorStore domain lifecycle', () => {
   it('a stage switch clears discrepancy, sync state and the canvas mode', () => {
-    state().setDomain(domain('logical'));
+    state().setDomain(subjectArea('logical'));
     startSyncSession();
     state().setCanvasMode('select');
 
-    state().setDomain(domain('physical'));
+    state().setDomain(subjectArea('physical'));
 
     const s = state();
     expect(s.domain?.stage).toBe('physical');
@@ -101,11 +101,11 @@ describe('editorStore domain lifecycle', () => {
   });
 
   it('a same-stage reload keeps discrepancy state and the canvas mode', () => {
-    state().setDomain(domain('logical'));
+    state().setDomain(subjectArea('logical'));
     startSyncSession();
     state().setCanvasMode('select');
 
-    state().setDomain(domain('logical', { description: 'reloaded' }));
+    state().setDomain(subjectArea('logical', { description: 'reloaded' }));
 
     const s = state();
     expect(s.domain?.description).toBe('reloaded');
@@ -118,16 +118,16 @@ describe('editorStore domain lifecycle', () => {
 
   it('the first domain payload does not reset the canvas mode (nothing to switch from)', () => {
     state().setCanvasMode('select');
-    state().setDomain(domain('logical'));
+    state().setDomain(subjectArea('logical'));
     expect(state().canvasMode).toBe('select');
   });
 
   it('every domain payload clears column selection and editing', () => {
-    state().setDomain(domain('logical'));
+    state().setDomain(subjectArea('logical'));
     state().selectColumn('customer_id');
     state().setEditingColumn('customer_id');
 
-    state().setDomain(domain('logical'));
+    state().setDomain(subjectArea('logical'));
 
     expect(state().selectedColumns).toEqual([]);
     expect(state().lastSelectedColumn).toBeNull();
@@ -483,20 +483,20 @@ describe('editorStore transient interaction state', () => {
     it('survives a setDomain that does not change the dbt artifacts', () => {
       // usePositionPersistence calls setDomain locally ~300ms after a drag to
       // merge optimistic positions. That must not undo a dismissal.
-      state().setDomain(domain('physical', { physicalSources: sources }));
+      state().setDomain(subjectArea('physical', { physicalSources: sources }));
       state().dismissPhysicalSourceNotice();
       expect(state().physicalSourceNoticeDismissed).toBe(true);
 
-      state().setDomain(domain('physical', { physicalSources: { ...sources } }));
+      state().setDomain(subjectArea('physical', { physicalSources: { ...sources } }));
 
       expect(state().physicalSourceNoticeDismissed).toBe(true);
     });
 
     it('speaks again once dbt has actually been run', () => {
-      state().setDomain(domain('physical', { physicalSources: sources }));
+      state().setDomain(subjectArea('physical', { physicalSources: sources }));
       state().dismissPhysicalSourceNotice();
 
-      state().setDomain(domain('physical', { physicalSources: { ...sources, manifest: true } }));
+      state().setDomain(subjectArea('physical', { physicalSources: { ...sources, manifest: true } }));
 
       expect(state().physicalSourceNoticeDismissed).toBe(false);
     });

@@ -43,13 +43,13 @@ function makeWebview() {
 }
 
 // The domain file must exist: an edit to one deleted outside ERD Studio is refused (#161).
-const DOMAIN_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'erd-updatecolumn-')), '.erd-studio', 'silver', 'test.json');
-fs.mkdirSync(path.dirname(DOMAIN_PATH), { recursive: true });
-fs.writeFileSync(DOMAIN_PATH, '{}');
+const SUBJECT_AREA_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'erd-updatecolumn-')), '.erd-studio', 'silver', 'test.json');
+fs.mkdirSync(path.dirname(SUBJECT_AREA_PATH), { recursive: true });
+fs.writeFileSync(SUBJECT_AREA_PATH, '{}');
 
 function makeDocument(text: string) {
   return {
-    uri: vscode.Uri.file(DOMAIN_PATH),
+    uri: vscode.Uri.file(SUBJECT_AREA_PATH),
     getText: () => text,
     positionAt: (offset: number) => new vscode.Position(0, offset),
     save: async () => true,
@@ -226,7 +226,7 @@ describe('handleUpdateColumn (V4) scdType / additiveType', () => {
   }
 
   /** Capture the JSON the handler writes through vscode.workspace.applyEdit. */
-  function captureWrittenDomain() {
+  function captureWrittenSubjectArea() {
     let written: Record<string, unknown> | null = null;
     vi.spyOn(vscode.workspace, 'applyEdit').mockImplementation(async (edit: unknown) => {
       const ops = (edit as vscode.WorkspaceEdit & { _ops: Array<{ kind: string; newText?: string }> })._ops;
@@ -246,7 +246,7 @@ describe('handleUpdateColumn (V4) scdType / additiveType', () => {
 
   it('keeps existing scdType and additiveType across a canvas rename', async () => {
     const { provider } = makeProvider([]);
-    const readColumn = captureWrittenDomain();
+    const readColumn = captureWrittenSubjectArea();
     const { webview, posted } = makeWebview();
 
     await runUpdate(provider, v4Document(), webview, {
@@ -265,7 +265,7 @@ describe('handleUpdateColumn (V4) scdType / additiveType', () => {
 
   it('clears scdType and additiveType when the payload sets them to null', async () => {
     const { provider } = makeProvider([]);
-    const readColumn = captureWrittenDomain();
+    const readColumn = captureWrittenSubjectArea();
     const { webview } = makeWebview();
 
     await runUpdate(provider, v4Document(), webview, {
@@ -281,7 +281,7 @@ describe('handleUpdateColumn (V4) scdType / additiveType', () => {
 
   it('overwrites scdType and additiveType when the payload provides values', async () => {
     const { provider } = makeProvider([]);
-    const readColumn = captureWrittenDomain();
+    const readColumn = captureWrittenSubjectArea();
     const { webview } = makeWebview();
 
     await runUpdate(provider, v4Document(), webview, {

@@ -56,7 +56,7 @@ import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
-function makeDomain(stage: 'logical' | 'physical' = 'logical'): DisplaySubjectArea {
+function makeSubjectArea(stage: 'logical' | 'physical' = 'logical'): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'fresh',
@@ -96,7 +96,7 @@ async function renderToolbar(nodeList: ModelFlowNode[] = nodes) {
 }
 
 /** What App.tsx does on a `domainLoaded` message. */
-function deliverDomainLoaded(domain: DisplaySubjectArea, autoLayout?: boolean) {
+function deliverSubjectAreaLoaded(domain: DisplaySubjectArea, autoLayout?: boolean) {
   act(() => {
     useEditorStore.getState().setDomain(domain);
     useEditorStore.getState().setPendingAutoLayout(autoLayout === true);
@@ -118,7 +118,7 @@ afterEach(() => {
 
 describe('first-open auto layout (Toolbar + store)', () => {
   it('runs the ELK layout exactly once on a flagged load and persists it once', async () => {
-    deliverDomainLoaded(makeDomain(), true);
+    deliverSubjectAreaLoaded(makeSubjectArea(), true);
     await renderToolbar();
 
     await vi.waitFor(() => expect(updatePositionsPosts()).toHaveLength(1));
@@ -133,12 +133,12 @@ describe('first-open auto layout (Toolbar + store)', () => {
     expect(useEditorStore.getState().domain?.viewConfig.positions?.model_b).toEqual({ x: 300, y: 20 });
 
     // The host's refresh after the write carries no flag; nothing runs again.
-    deliverDomainLoaded(makeDomain());
+    deliverSubjectAreaLoaded(makeSubjectArea());
     expect(mockRunElkLayout).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing on an unflagged load', async () => {
-    deliverDomainLoaded(makeDomain());
+    deliverSubjectAreaLoaded(makeSubjectArea());
     await renderToolbar();
 
     expect(mockRunElkLayout).not.toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe('first-open auto layout (Toolbar + store)', () => {
   it('keeps positions unpersisted when ELK fails, so the next open retries', async () => {
     mockRunElkLayout.mockRejectedValueOnce(new Error('boom'));
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    deliverDomainLoaded(makeDomain(), true);
+    deliverSubjectAreaLoaded(makeSubjectArea(), true);
     await renderToolbar();
 
     await vi.waitFor(() => expect(useEditorStore.getState().toastMessage).toMatch(/Auto layout failed: boom/));
@@ -165,7 +165,7 @@ describe('first-open auto layout (Toolbar + store)', () => {
 describe('useFirstOpenAutoLayout', () => {
   it('waits until every model has a node on the canvas', () => {
     const runLayout = vi.fn().mockResolvedValue(undefined);
-    deliverDomainLoaded(makeDomain(), true);
+    deliverSubjectAreaLoaded(makeSubjectArea(), true);
 
     const { rerender } = renderHook(
       ({ nodeList }) => useFirstOpenAutoLayout(runLayout, useEditorStore.getState().domain, nodeList, false),
@@ -182,13 +182,13 @@ describe('useFirstOpenAutoLayout', () => {
 
   it('is cancelled by a later load without the flag', () => {
     const runLayout = vi.fn().mockResolvedValue(undefined);
-    deliverDomainLoaded(makeDomain(), true);
+    deliverSubjectAreaLoaded(makeSubjectArea(), true);
 
     const { rerender } = renderHook(
       ({ nodeList }) => useFirstOpenAutoLayout(runLayout, useEditorStore.getState().domain, nodeList, false),
       { initialProps: { nodeList: [] as ModelFlowNode[] } },
     );
-    deliverDomainLoaded(makeDomain());
+    deliverSubjectAreaLoaded(makeSubjectArea());
     rerender({ nodeList: nodes });
 
     expect(runLayout).not.toHaveBeenCalled();
@@ -196,7 +196,7 @@ describe('useFirstOpenAutoLayout', () => {
 
   it('waits while a layout is already running', () => {
     const runLayout = vi.fn().mockResolvedValue(undefined);
-    deliverDomainLoaded(makeDomain(), true);
+    deliverSubjectAreaLoaded(makeSubjectArea(), true);
 
     const { rerender } = renderHook(
       ({ busy }) => useFirstOpenAutoLayout(runLayout, useEditorStore.getState().domain, nodes, busy),
@@ -210,7 +210,7 @@ describe('useFirstOpenAutoLayout', () => {
 
   it('never runs on the physical stage', () => {
     const runLayout = vi.fn().mockResolvedValue(undefined);
-    deliverDomainLoaded(makeDomain('physical'), true);
+    deliverSubjectAreaLoaded(makeSubjectArea('physical'), true);
 
     renderHook(() => useFirstOpenAutoLayout(runLayout, useEditorStore.getState().domain, nodes, false));
     expect(runLayout).not.toHaveBeenCalled();

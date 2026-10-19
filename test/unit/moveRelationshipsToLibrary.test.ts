@@ -39,17 +39,17 @@ import type { Relationship } from '../../src/types/semantic';
 import { buildDbtKeyIndex } from '@erd-studio/core';
 
 const SEMANTIC_DIR = '.erd-studio';
-const MODEL_COUNT = 70;
-const DOMAIN_COUNT = 10;
-const PER_DOMAIN = MODEL_COUNT / DOMAIN_COUNT;
+const TABLE_COUNT = 70;
+const SUBJECT_AREA_COUNT = 10;
+const PER_SUBJECT_AREA = TABLE_COUNT / SUBJECT_AREA_COUNT;
 
-const modelName = (i: number): string => `model_${String(i).padStart(2, '0')}`;
+const tableName = (i: number): string => `model_${String(i).padStart(2, '0')}`;
 
 /** A hand-written model file: comments, a folded scalar, odd quoting, CRLF on every third. */
-function messyModelYaml(i: number): string {
+function messyTableYaml(i: number): string {
   const lines = [
-    `# ${modelName(i)} — written by hand, keep these comments`,
-    `name: ${modelName(i)}    # the model`,
+    `# ${tableName(i)} — written by hand, keep these comments`,
+    `name: ${tableName(i)}    # the model`,
     'description: >',
     '  A folded description that runs over',
     '  two lines and must survive the move.',
@@ -69,7 +69,7 @@ function messyModelYaml(i: number): string {
 }
 
 /** A hand-formatted domain file: 4-space indent, one-line positions, odd key order. */
-function messyDomainJson(name: string, models: string[], relationships: Relationship[]): string {
+function messySubjectAreaJson(name: string, models: string[], relationships: Relationship[]): string {
   const rels = relationships
     .map((r) => `            { "fromModel": "${r.fromModel}", "fromColumn": "${r.fromColumn}", "toModel": "${r.toModel}", "toColumn": "${r.toColumn}", "cardinality": "${r.cardinality}" }`)
     .join(',\n');
@@ -147,26 +147,26 @@ function createProject(): Project {
 
   const modelsDir = logicalModelService.getTablesDir();
   fs.mkdirSync(modelsDir, { recursive: true });
-  const modelPath = (i: number) => path.join(modelsDir, `${modelName(i)}.yml`);
-  for (let i = 0; i < MODEL_COUNT; i++) {
-    fs.writeFileSync(modelPath(i), messyModelYaml(i));
-    originals.set(modelPath(i), messyModelYaml(i));
+  const modelPath = (i: number) => path.join(modelsDir, `${tableName(i)}.yml`);
+  for (let i = 0; i < TABLE_COUNT; i++) {
+    fs.writeFileSync(modelPath(i), messyTableYaml(i));
+    originals.set(modelPath(i), messyTableYaml(i));
   }
 
   const domainDir = path.join(root, SEMANTIC_DIR, 'silver');
   fs.mkdirSync(domainDir, { recursive: true });
   const domainPaths: string[] = [];
-  for (let d = 0; d < DOMAIN_COUNT; d++) {
-    const models = Array.from({ length: PER_DOMAIN }, (_, j) => modelName(d * PER_DOMAIN + j));
+  for (let d = 0; d < SUBJECT_AREA_COUNT; d++) {
+    const models = Array.from({ length: PER_SUBJECT_AREA }, (_, j) => tableName(d * PER_SUBJECT_AREA + j));
     const relationships: Relationship[] = models.slice(1).map((m) => ({
       fromModel: m, fromColumn: 'parent_id', toModel: models[0], toColumn: 'id', cardinality: 'many-to-one',
     }));
     if (d === 1) {
-      models.push(modelName(0), modelName(1));
-      relationships.push({ fromModel: modelName(1), fromColumn: 'parent_id', toModel: modelName(0), toColumn: 'id', cardinality: 'many-to-one' });
+      models.push(tableName(0), tableName(1));
+      relationships.push({ fromModel: tableName(1), fromColumn: 'parent_id', toModel: tableName(0), toColumn: 'id', cardinality: 'many-to-one' });
     }
     const filePath = path.join(domainDir, `domain_${d}.json`);
-    const text = messyDomainJson(`domain_${d}`, models, relationships);
+    const text = messySubjectAreaJson(`domain_${d}`, models, relationships);
     fs.writeFileSync(filePath, text);
     originals.set(filePath, text);
     domainPaths.push(filePath);
@@ -206,10 +206,10 @@ describe('moveRelationshipsToLibrary — writes disk directly (#126)', () => {
   it('moves every relationship of a large project, changing only the relationships, and leaves nothing dirty', async () => {
     // Some files are open in VS Code (unchanged), some of those then disposed —
     // what broke 1.6.6. None of it matters to a move that never edits a document.
-    for (let i = 0; i < MODEL_COUNT; i += 5) {
+    for (let i = 0; i < TABLE_COUNT; i += 5) {
       createMockTextDocument(p.modelPath(i), p.originals.get(p.modelPath(i))!, { persist: true });
     }
-    for (let i = 0; i < MODEL_COUNT; i += 10) _closeMockDocument(p.modelPath(i));
+    for (let i = 0; i < TABLE_COUNT; i += 10) _closeMockDocument(p.modelPath(i));
     const info = acceptModal();
     const error = vi.spyOn(vscode.window, 'showErrorMessage');
     const feature = vi.spyOn(telemetry, 'feature');
@@ -218,22 +218,22 @@ describe('moveRelationshipsToLibrary — writes disk directly (#126)', () => {
 
     expect(messages(error)).toEqual([]);
     expect(messages(info).filter((m) => SUCCESS.test(m))).toHaveLength(1);
-    expect(messages(info).find((m) => SUCCESS.test(m))).toContain(`Moved ${DOMAIN_COUNT * (PER_DOMAIN - 1)} relationships`);
+    expect(messages(info).find((m) => SUCCESS.test(m))).toContain(`Moved ${SUBJECT_AREA_COUNT * (PER_SUBJECT_AREA - 1)} relationships`);
     expect(feature).toHaveBeenCalledWith('relMoveCompleted');
     expect(p.onWritten).toHaveBeenCalledWith(p.domainPaths);
 
-    for (let i = 0; i < MODEL_COUNT; i++) {
+    for (let i = 0; i < TABLE_COUNT; i++) {
       const before = p.originals.get(p.modelPath(i))!;
       const after = fs.readFileSync(p.modelPath(i), 'utf-8');
-      if (i % PER_DOMAIN === 0) {
+      if (i % PER_SUBJECT_AREA === 0) {
         expect(after).toBe(before); // a diagram's first model points at nothing
         continue;
       }
       expect(after).not.toBe(before);
       expect(withoutRelationshipsBlock(after)).toBe(before);
       if (i % 3 === 0) expect(after.replace(/\r\n/g, '')).not.toMatch(/\n/); // CRLF stays CRLF
-      const first = modelName(Math.floor(i / PER_DOMAIN) * PER_DOMAIN);
-      expect(p.logicalModelService.getTable(modelName(i))?.relationships).toEqual([
+      const first = tableName(Math.floor(i / PER_SUBJECT_AREA) * PER_SUBJECT_AREA);
+      expect(p.logicalModelService.getTable(tableName(i))?.relationships).toEqual([
         { fromColumn: 'parent_id', toModel: first, toColumn: 'id', cardinality: 'many-to-one' },
       ]);
     }
@@ -251,7 +251,7 @@ describe('moveRelationshipsToLibrary — writes disk directly (#126)', () => {
   it('keeps the domain file\'s hand formatting — only the moved entries go', async () => {
     acceptModal();
     // domain_0 keeps one relationship whose from-model has no file.
-    const kept = { fromModel: 'not_in_library', fromColumn: 'a', toModel: modelName(0), toColumn: 'id', cardinality: 'many-to-one' };
+    const kept = { fromModel: 'not_in_library', fromColumn: 'a', toModel: tableName(0), toColumn: 'id', cardinality: 'many-to-one' };
     const original = p.originals.get(p.domainPaths[0])!.replace(
       '"relationships": [\n',
       `"relationships": [\n            ${JSON.stringify(kept)},\n`,
@@ -303,7 +303,7 @@ describe('moveRelationshipsToLibrary — writes disk directly (#126)', () => {
     await p.run();
 
     const after = fs.readFileSync(p.modelPath(4), 'utf-8');
-    expect(p.logicalModelService.getTable(modelName(4))?.relationships).toHaveLength(1);
+    expect(p.logicalModelService.getTable(tableName(4))?.relationships).toHaveLength(1);
     expect(after.endsWith('\r\n')).toBe(true);
     expect(after.replace(/\r\n/g, '')).not.toMatch(/\n/);
   });

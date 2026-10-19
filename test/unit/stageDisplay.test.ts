@@ -3,11 +3,11 @@ import { describe, it, expect } from 'vitest';
 import { buildLogicalDisplaySubjectArea, dbtKeyIndexOf, withDbtKeyHints } from '../../src/services/stageDisplay';
 import type { SemanticSubjectArea, SemanticTable } from '../../src/types/semantic';
 
-function model(name: string, columns: Array<Record<string, unknown>>, extra: Partial<SemanticTable> = {}): SemanticTable {
+function table(name: string, columns: Array<Record<string, unknown>>, extra: Partial<SemanticTable> = {}): SemanticTable {
   return { name, description: `${name} desc`, columns, ...extra } as unknown as SemanticTable;
 }
 
-function domain(overrides: Partial<SemanticSubjectArea> = {}): SemanticSubjectArea {
+function subjectArea(overrides: Partial<SemanticSubjectArea> = {}): SemanticSubjectArea {
   return {
     schemaVersion: 5,
     domain: 'orders',
@@ -15,13 +15,13 @@ function domain(overrides: Partial<SemanticSubjectArea> = {}): SemanticSubjectAr
     stage: 'logical',
     description: 'Order domain',
     models: [
-      model('fct_order', [
+      table('fct_order', [
         { name: 'order_id', dataType: 'int', description: 'pk', isPrimaryKey: true },
         { name: 'customer_id', dataType: 'int', description: 'fk by relationship' },
         { name: 'legacy_ref', dataType: 'string', description: 'declared fk', isForeignKey: true },
         { name: 'amount', dataType: 'decimal', description: '', additiveType: 'additive' },
       ], { grain: 'one row per order', modelRole: 'fact' } as Partial<SemanticTable>),
-      model('dim_customer', [
+      table('dim_customer', [
         { name: 'customer_id', dataType: 'int', description: '', isPrimaryKey: 'yes', isNaturalKey: 1, scdType: 2 },
       ]),
     ],
@@ -34,7 +34,7 @@ function domain(overrides: Partial<SemanticSubjectArea> = {}): SemanticSubjectAr
 
 describe('buildLogicalDisplayDomain', () => {
   it('derives isForeignKey from relationships and keeps declared FKs', () => {
-    const out = buildLogicalDisplaySubjectArea(domain(), {});
+    const out = buildLogicalDisplaySubjectArea(subjectArea(), {});
     const cols = out.models[0].columns;
     expect(cols.find((c) => c.name === 'customer_id')!.isForeignKey).toBe(true);
     expect(cols.find((c) => c.name === 'legacy_ref')!.isForeignKey).toBe(true);
@@ -44,7 +44,7 @@ describe('buildLogicalDisplayDomain', () => {
   });
 
   it('coerces key flags with === true', () => {
-    const out = buildLogicalDisplaySubjectArea(domain(), {});
+    const out = buildLogicalDisplaySubjectArea(subjectArea(), {});
     expect(out.models[0].columns[0].isPrimaryKey).toBe(true);
     const cust = out.models[1].columns[0];
     expect(cust.isPrimaryKey).toBe(false); // 'yes' is not true
@@ -53,7 +53,7 @@ describe('buildLogicalDisplayDomain', () => {
   });
 
   it('carries optional model/column fields only when set', () => {
-    const out = buildLogicalDisplaySubjectArea(domain(), {});
+    const out = buildLogicalDisplaySubjectArea(subjectArea(), {});
     expect(out.models[0]).toMatchObject({ grain: 'one row per order', modelRole: 'fact', schema: '' });
     expect(out.models[1]).not.toHaveProperty('grain');
     expect(out.models[0].columns[3]).toMatchObject({ additiveType: 'additive' });
@@ -62,7 +62,7 @@ describe('buildLogicalDisplayDomain', () => {
 
   it('builds the stage envelope with no canvas extras', () => {
     const viewConfig = { positions: { fct_order: { x: 1, y: 2 } } };
-    const out = buildLogicalDisplaySubjectArea(domain(), viewConfig as never);
+    const out = buildLogicalDisplaySubjectArea(subjectArea(), viewConfig as never);
     expect(out).toMatchObject({
       schemaVersion: 5, domain: 'orders', layer: 'gold', stage: 'logical',
       description: 'Order domain', readOnly: false, positionDraggable: true,
@@ -77,12 +77,12 @@ describe('buildLogicalDisplayDomain', () => {
   });
 
   it('includes stubColumns only when non-empty', () => {
-    expect(buildLogicalDisplaySubjectArea(domain(), {}, [])).not.toHaveProperty('stubColumns');
-    expect(buildLogicalDisplaySubjectArea(domain(), {}, ['dim_customer']).stubColumns).toEqual(['dim_customer']);
+    expect(buildLogicalDisplaySubjectArea(subjectArea(), {}, [])).not.toHaveProperty('stubColumns');
+    expect(buildLogicalDisplaySubjectArea(subjectArea(), {}, ['dim_customer']).stubColumns).toEqual(['dim_customer']);
   });
 
   it('tolerates a model with no columns array', () => {
-    const d = domain({ models: [{ name: 'bare' } as SemanticTable], relationships: [] });
+    const d = subjectArea({ models: [{ name: 'bare' } as SemanticTable], relationships: [] });
     const out = buildLogicalDisplaySubjectArea(d, {});
     expect(out.models[0]).toEqual({ name: 'bare', schema: '', description: '', columns: [] });
   });
@@ -90,7 +90,7 @@ describe('buildLogicalDisplayDomain', () => {
 
 describe('withDbtKeyHints — dbt evidence on the editable payload (#133 L1)', () => {
   it('adds dbtKey only to the columns dbt\'s tests name, from the yml and the manifest', () => {
-    const display = buildLogicalDisplaySubjectArea(domain(), {});
+    const display = buildLogicalDisplaySubjectArea(subjectArea(), {});
     const index = dbtKeyIndexOf(
       { uniqueColumns: new Map([['FCT_ORDER', new Set(['order_id'])]]), compositeUniqueGroups: new Map(), relationshipTests: [] } as never,
       { uniqueColumns: new Map(), compositeUniqueGroups: new Map(), relationshipTests: [{ fromModel: 'fct_order', fromColumn: 'customer_id', toModel: 'dim_customer', toColumn: 'customer_id' }] } as never,
@@ -108,7 +108,7 @@ describe('withDbtKeyHints — dbt evidence on the editable payload (#133 L1)', (
   });
 
   it('returns the payload itself when dbt says nothing', () => {
-    const display = buildLogicalDisplaySubjectArea(domain(), {});
+    const display = buildLogicalDisplaySubjectArea(subjectArea(), {});
     expect(withDbtKeyHints(display, dbtKeyIndexOf(undefined, undefined))).toBe(display);
   });
 });

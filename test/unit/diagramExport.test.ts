@@ -27,7 +27,7 @@ const DBT_PROJECT = path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project');
 const SHOWCASE = path.join(DBT_PROJECT, '.erd-studio', 'silver', 'showcase.json');
 const CORE_FIXTURES = path.join(REPO_ROOT, 'packages', 'core', 'test', 'fixtures');
 
-function domainServiceFor(root: string): SubjectAreaService {
+function subjectAreaServiceFor(root: string): SubjectAreaService {
   const domainService = new SubjectAreaService(new LayerService(root, '.erd-studio'));
   domainService.setTableLibraryService(new TableLibraryService(root, '.erd-studio'));
   return domainService;
@@ -58,7 +58,7 @@ describe('exportDomainFile', () => {
   });
 
   it.each(['dbml', 'mermaid'] as const)('exports the showcase domain as %s, built as the canvas builds its logical stage', async (format) => {
-    const domainService = domainServiceFor(DBT_PROJECT);
+    const domainService = subjectAreaServiceFor(DBT_PROJECT);
     const result = await exportSubjectAreaFile(domainService, SHOWCASE, format);
 
     const unified = domainService.getSubjectArea(SHOWCASE);
@@ -83,7 +83,7 @@ describe('exportDomainFile', () => {
   describe.each(Object.entries(CORE_CASES))('matches core\'s golden for %s', (name, domainPath) => {
     it.each(['dbml', 'mermaid'] as const)('%s', async (format) => {
       const root = path.join(CORE_FIXTURES, name);
-      const result = await exportSubjectAreaFile(domainServiceFor(root), path.join(root, domainPath), format);
+      const result = await exportSubjectAreaFile(subjectAreaServiceFor(root), path.join(root, domainPath), format);
       const golden = fs.readFileSync(path.join(CORE_FIXTURES, 'golden', `${name}.${EXTENSIONS[format]}`), 'utf-8');
       expect(result.content).toBe(golden);
     });
@@ -91,12 +91,12 @@ describe('exportDomainFile', () => {
 
   it('merges the model library\'s relationships, as the canvas draws them', async () => {
     const root = path.join(CORE_FIXTURES, 'library-relationships');
-    const { content } = await exportSubjectAreaFile(domainServiceFor(root), path.join(root, CORE_CASES['library-relationships']), 'dbml');
+    const { content } = await exportSubjectAreaFile(subjectAreaServiceFor(root), path.join(root, CORE_CASES['library-relationships']), 'dbml');
     expect(content).toContain('Ref: gold.fct_order.order_date_key > gold.dim_date.date_key');
   });
 
   it('passes dbt\'s key evidence to the read when given', async () => {
-    const domainService = domainServiceFor(DBT_PROJECT);
+    const domainService = subjectAreaServiceFor(DBT_PROJECT);
     const spy = vi.spyOn(domainService, 'getDomain');
     const dbtKeyIndex = buildDbtKeyIndex([]);
     await exportSubjectAreaFile(domainService, SHOWCASE, 'dbml', { dbtKeyIndex });
@@ -105,11 +105,11 @@ describe('exportDomainFile', () => {
 
   it('throws what getDomain throws', async () => {
     const missing = path.join(DBT_PROJECT, '.erd-studio', 'silver', 'no-such-domain.json');
-    await expect(exportSubjectAreaFile(domainServiceFor(DBT_PROJECT), missing, 'dbml')).rejects.toBeInstanceOf(SubjectAreaFileError);
+    await expect(exportSubjectAreaFile(subjectAreaServiceFor(DBT_PROJECT), missing, 'dbml')).rejects.toBeInstanceOf(SubjectAreaFileError);
   });
 
   it('refuses an unknown format before reading anything', async () => {
-    const domainService = domainServiceFor(DBT_PROJECT);
+    const domainService = subjectAreaServiceFor(DBT_PROJECT);
     const spy = vi.spyOn(domainService, 'getDomain');
     await expect(exportSubjectAreaFile(domainService, SHOWCASE, 'svg' as DiagramExportFormat)).rejects.toThrow('Unknown diagram export format: svg');
     expect(spy).not.toHaveBeenCalled();

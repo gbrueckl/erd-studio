@@ -109,7 +109,7 @@ const countType = (panel: MockPanel, type: string) => posted(panel).filter((m) =
 const lastError = (panel: MockPanel) =>
   posted(panel).filter((m) => m.type === 'error').at(-1)?.payload?.message as string | undefined;
 
-const readDomain = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
+const readSubjectArea = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 
 let root: string;
 let applyEditSpy: ReturnType<typeof vi.spyOn>;
@@ -191,7 +191,7 @@ describe('removeAnnotations (H27)', () => {
   it('removes every listed annotation in ONE edit, one save and one domainLoaded', async () => {
     const { doc, panel, file } = await openShowcase();
     await addAnnotations(panel, ['n1', 'n2', 'n3', 'keep']);
-    expect(readDomain(file).viewConfig.annotations).toHaveLength(4);
+    expect(readSubjectArea(file).viewConfig.annotations).toHaveLength(4);
 
     const before = counters(panel, doc);
     await panel._simulateMessage({ type: 'removeAnnotations', payload: { ids: ['n1', 'n2', 'n3', 'ghost'] } });
@@ -200,7 +200,7 @@ describe('removeAnnotations (H27)', () => {
     expect(after.edits - before.edits).toBe(1);
     expect(after.saves - before.saves).toBe(1);
     expect(after.loads - before.loads).toBe(1);
-    expect(readDomain(file).viewConfig.annotations.map((a: { id: string }) => a.id)).toEqual(['keep']);
+    expect(readSubjectArea(file).viewConfig.annotations.map((a: { id: string }) => a.id)).toEqual(['keep']);
     expect(lastError(panel)).toBeUndefined();
   });
 
@@ -212,7 +212,7 @@ describe('removeAnnotations (H27)', () => {
     await panel._simulateMessage({ type: 'removeAnnotation', payload: { id: 'solo' } });
 
     expect(counters(panel, doc).edits - before.edits).toBe(1);
-    expect(readDomain(file).viewConfig.annotations.map((a: { id: string }) => a.id)).toEqual(['other']);
+    expect(readSubjectArea(file).viewConfig.annotations.map((a: { id: string }) => a.id)).toEqual(['other']);
   });
 
   it('ignores an empty or malformed ids list', async () => {
@@ -228,7 +228,7 @@ describe('removeAnnotations (H27)', () => {
     await addAnnotations(panel, ['p1', 'p2']);
     await panel._simulateMessage({ type: 'switchStage', payload: { stage: 'physical' } });
     await panel._simulateMessage({ type: 'removeAnnotations', payload: { ids: ['p1', 'p2'] } });
-    expect(readDomain(file).viewConfig.annotations).toHaveLength(0);
+    expect(readSubjectArea(file).viewConfig.annotations).toHaveLength(0);
     expect(lastError(panel)).toBeUndefined();
   });
 });
@@ -236,7 +236,7 @@ describe('removeAnnotations (H27)', () => {
 describe('removeRelationships (H27)', () => {
   it('removes every listed relationship in ONE edit, one save and one domainLoaded', async () => {
     const { doc, panel, file } = await openShowcase();
-    const initial = readDomain(file).logical.relationships.length;
+    const initial = readSubjectArea(file).logical.relationships.length;
 
     const before = counters(panel, doc);
     await panel._simulateMessage({ type: 'removeRelationships', payload: { relationships: [REL_A, REL_B] } });
@@ -245,7 +245,7 @@ describe('removeRelationships (H27)', () => {
     expect(after.edits - before.edits).toBe(1);
     expect(after.saves - before.saves).toBe(1);
     expect(after.loads - before.loads).toBe(1);
-    const rels = readDomain(file).logical.relationships;
+    const rels = readSubjectArea(file).logical.relationships;
     expect(rels).toHaveLength(initial - 2);
     expect(rels.some((r: any) => r.fromModel === REL_A.fromModel && r.fromColumn === REL_A.fromColumn && r.toModel === REL_A.toModel)).toBe(false);
     expect(rels.some((r: any) => r.fromModel === REL_B.fromModel && r.fromColumn === REL_B.fromColumn && r.toModel === REL_B.toModel)).toBe(false);
@@ -254,9 +254,9 @@ describe('removeRelationships (H27)', () => {
 
   it('skips keys that no longer exist but still removes the rest', async () => {
     const { panel, file } = await openShowcase();
-    const initial = readDomain(file).logical.relationships.length;
+    const initial = readSubjectArea(file).logical.relationships.length;
     await panel._simulateMessage({ type: 'removeRelationships', payload: { relationships: [REL_MISSING, REL_A] } });
-    expect(readDomain(file).logical.relationships).toHaveLength(initial - 1);
+    expect(readSubjectArea(file).logical.relationships).toHaveLength(initial - 1);
     expect(lastError(panel)).toBeUndefined();
   });
 
@@ -307,7 +307,7 @@ describe('updatePositions with annotations (H27)', () => {
     expect(after.saves - before.saves).toBe(1);
     expect(after.loads).toBe(before.loads);
 
-    const domain = readDomain(file);
+    const domain = readSubjectArea(file);
     expect(domain.viewConfig.positions.dim_task).toEqual({ x: 1, y: 2 });
     expect(domain.viewConfig.annotations).toEqual([expect.objectContaining({ id: 'note', x: 10, y: 21 })]);
     expect(lastError(panel)).toBeUndefined();
@@ -399,7 +399,7 @@ describe('applyDomainEdit pipeline (H35)', () => {
   it('a V4 handler that aborts inside the mutator reports its own reason and writes nothing', async () => {
     // Downgrade the showcase to a v4 inline-model domain so the V4 branch runs.
     const { doc, panel, file } = await openShowcase();
-    const v4 = readDomain(file);
+    const v4 = readSubjectArea(file);
     v4.schemaVersion = 4;
     v4.logical.models = v4.logical.models.map((name: string) => ({ name, schema: '', description: '', columns: [] }));
     fs.writeFileSync(file, JSON.stringify(v4, null, 2) + '\n');
@@ -423,7 +423,7 @@ describe('applyDomainEdit pipeline (H35)', () => {
     expect(after.edits - before.edits).toBe(1);
     expect(after.saves - before.saves).toBe(1);
     expect(after.loads - before.loads).toBe(1);
-    const model = readDomain(file).logical.models.find((m: { name: string }) => m.name === 'dim_task');
+    const model = readSubjectArea(file).logical.models.find((m: { name: string }) => m.name === 'dim_task');
     expect(model.columns.map((c: { name: string }) => c.name)).toEqual(['new_col']);
   });
 });
@@ -434,7 +434,7 @@ describe('applyDomainEdit pipeline (H35)', () => {
 
 /** Rewrite the open domain as a v4 inline-model file so the V4 arm runs. */
 function downgradeToV4(file: string, doc: MockDoc) {
-  const v4 = readDomain(file);
+  const v4 = readSubjectArea(file);
   v4.schemaVersion = 4;
   v4.logical.models = v4.logical.models.map((name: string) => ({ name, schema: '', description: '', columns: [] }));
   fs.writeFileSync(file, JSON.stringify(v4, null, 2) + '\n');
@@ -448,7 +448,7 @@ async function linkNotes(panel: MockPanel) {
 }
 
 function expectPruned(file: string) {
-  const domain = readDomain(file);
+  const domain = readSubjectArea(file);
   expect(domain.viewConfig.positions).not.toHaveProperty('dim_task');
   expect(domain.viewConfig.positions).toHaveProperty('dim_project');
   const notes = domain.viewConfig.annotations as Array<Record<string, unknown>>;
@@ -460,7 +460,7 @@ describe('removeModels viewConfig cleanup (H35)', () => {
   it('V5: prunes the removed model\'s position and annotation links in ONE edit', async () => {
     const { doc, panel, file } = await openShowcase();
     await linkNotes(panel);
-    expect(readDomain(file).viewConfig.positions).toHaveProperty('dim_task');
+    expect(readSubjectArea(file).viewConfig.positions).toHaveProperty('dim_task');
 
     const before = counters(panel, doc);
     await panel._simulateMessage({ type: 'removeModels', payload: { modelNames: ['dim_task'] } });
@@ -469,7 +469,7 @@ describe('removeModels viewConfig cleanup (H35)', () => {
     expect(after.edits - before.edits).toBe(1);
     expect(after.saves - before.saves).toBe(1);
     expect(after.loads - before.loads).toBe(1);
-    expect(readDomain(file).logical.models).not.toContain('dim_task');
+    expect(readSubjectArea(file).logical.models).not.toContain('dim_task');
     expectPruned(file);
     expect(lastError(panel)).toBeUndefined();
   });
@@ -481,7 +481,7 @@ describe('removeModels viewConfig cleanup (H35)', () => {
 
     await panel._simulateMessage({ type: 'removeModel', payload: { modelName: 'dim_task' } });
 
-    const domain = readDomain(file);
+    const domain = readSubjectArea(file);
     expect(domain.logical.models.map((m: { name: string }) => m.name)).not.toContain('dim_task');
     expectPruned(file);
     expect(lastError(panel)).toBeUndefined();
@@ -489,7 +489,7 @@ describe('removeModels viewConfig cleanup (H35)', () => {
 
   it('does not invent a viewConfig for a domain that has none', async () => {
     const { doc, panel, file } = await openShowcase();
-    const domain = readDomain(file);
+    const domain = readSubjectArea(file);
     delete domain.viewConfig;
     fs.writeFileSync(file, JSON.stringify(domain, null, 2) + '\n');
     doc._setText(fs.readFileSync(file, 'utf-8'));
@@ -497,7 +497,7 @@ describe('removeModels viewConfig cleanup (H35)', () => {
 
     await panel._simulateMessage({ type: 'removeModels', payload: { modelNames: ['dim_task'] } });
 
-    const afterV5 = readDomain(file);
+    const afterV5 = readSubjectArea(file);
     expect(afterV5.logical.models).not.toContain('dim_task');
     expect(afterV5).not.toHaveProperty('viewConfig');
 
@@ -505,7 +505,7 @@ describe('removeModels viewConfig cleanup (H35)', () => {
     downgradeToV4(file, doc);
     await panel._simulateMessage({ type: 'removeModels', payload: { modelNames: ['dim_project'] } });
 
-    const afterV4 = readDomain(file);
+    const afterV4 = readSubjectArea(file);
     expect(afterV4.logical.models.map((m: { name: string }) => m.name)).not.toContain('dim_project');
     expect(afterV4).not.toHaveProperty('viewConfig');
     expect(lastError(panel)).toBeUndefined();

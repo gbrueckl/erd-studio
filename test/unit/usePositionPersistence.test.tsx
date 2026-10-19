@@ -36,7 +36,7 @@ function makeNode(id: string): TableFlowNode {
   };
 }
 
-const domain = {
+const subjectArea = {
   domain: 'test',
   layer: 'silver',
   stage: 'logical',
@@ -51,7 +51,7 @@ let visibility: DocumentVisibilityState = 'visible';
 beforeEach(() => {
   vi.clearAllMocks();
   useEditorStore.setState(initialStoreState, true);
-  useEditorStore.setState({ nodes: [makeNode('a'), makeNode('b')], domain });
+  useEditorStore.setState({ nodes: [makeNode('a'), makeNode('b')], domain: subjectArea });
   visibility = 'visible';
   Object.defineProperty(document, 'visibilityState', {
     configurable: true,
@@ -76,9 +76,9 @@ describe('usePositionPersistence', () => {
         } as unknown as TableFlowNode,
       ],
       domain: {
-        ...domain,
+        ...subjectArea,
         viewConfig: {
-          ...domain.viewConfig,
+          ...subjectArea.viewConfig,
           annotations: [{ id: 'n1', text: '', x: 0, y: 0 }, { id: 'n2', text: '', x: 5, y: 5 }],
         },
       } as unknown as DisplaySubjectArea,

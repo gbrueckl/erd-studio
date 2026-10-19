@@ -326,7 +326,7 @@ describe('LogicalModelService', () => {
   });
 
   describe('hand-edited files survive UI edits (comment/ordering preservation)', () => {
-    function writeModelFile(name: string, content: string): string {
+    function writeTableFile(name: string, content: string): string {
       service.ensureDir();
       const filePath = service.tablePath(name);
       fs.writeFileSync(filePath, content, 'utf-8');
@@ -334,7 +334,7 @@ describe('LogicalModelService', () => {
     }
 
     it('keeps comments, key order and unknown keys when a column is edited', () => {
-      const filePath = writeModelFile('dim_customer', [
+      const filePath = writeTableFile('dim_customer', [
         '# Owned by the customer data team',
         'name: dim_customer',
         'description: Customer dimension',
@@ -379,7 +379,7 @@ describe('LogicalModelService', () => {
         '    dataType: INT',
         '',
       ].join('\n');
-      const filePath = writeModelFile('fct_orders', original);
+      const filePath = writeTableFile('fct_orders', original);
 
       const model = service.getTable('fct_orders')!;
       model.columns!.push({ name: 'order_total', dataType: 'DECIMAL', description: '' });
@@ -391,7 +391,7 @@ describe('LogicalModelService', () => {
     });
 
     it('keeps date-like and numeric-looking scalars as strings on read and write', () => {
-      const filePath = writeModelFile('dim_date', [
+      const filePath = writeTableFile('dim_date', [
         'name: dim_date',
         'description: 2024-01-01',
         'columns:',
@@ -421,7 +421,7 @@ describe('LogicalModelService', () => {
     });
 
     it('removes managed keys the model no longer has and preserves a renamed column\'s comment', () => {
-      const filePath = writeModelFile('dim_product', [
+      const filePath = writeTableFile('dim_product', [
         'name: dim_product',
         'grain: One row per product',
         'columns:',
@@ -447,7 +447,7 @@ describe('LogicalModelService', () => {
     });
 
     it('carries the existing document across a rename', () => {
-      writeModelFile('old_model', [
+      writeTableFile('old_model', [
         '# keep me',
         'name: old_model',
         'description: Test',
@@ -462,7 +462,7 @@ describe('LogicalModelService', () => {
     });
 
     it('returns null for a file with YAML syntax errors instead of a partial model', () => {
-      writeModelFile('broken', 'name: broken\ncolumns: [unclosed\n');
+      writeTableFile('broken', 'name: broken\ncolumns: [unclosed\n');
       expect(service.getTable('broken')).toBeNull();
       expect(service.listTables()).toHaveLength(0);
     });
@@ -471,15 +471,15 @@ describe('LogicalModelService', () => {
       const reported: string[] = [];
       service.onParseFailure = (e) => reported.push(e.name);
 
-      writeModelFile('flaky', 'name: flaky\ncolumns: [unclosed\n');
+      writeTableFile('flaky', 'name: flaky\ncolumns: [unclosed\n');
       expect(service.getTableFileError('flaky')).not.toBeNull();
       expect(service.getTable('flaky')).toBeNull();
 
-      writeModelFile('flaky', 'name: flaky\ndescription: fixed now, a longer file\n');
+      writeTableFile('flaky', 'name: flaky\ndescription: fixed now, a longer file\n');
       expect(service.getTableFileError('flaky')).toBeNull();
       expect(service.getTable('flaky')).not.toBeNull();
 
-      writeModelFile('flaky', 'name: flaky\ncolumns: [still unclosed\n');
+      writeTableFile('flaky', 'name: flaky\ncolumns: [still unclosed\n');
       expect(service.getTableFileError('flaky')).not.toBeNull();
       expect(service.getTable('flaky')).toBeNull();
 

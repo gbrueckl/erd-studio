@@ -275,7 +275,7 @@ describe('DomainService', () => {
   });
 
   describe('buildPhysicalDomain', () => {
-    function createUnifiedDomain(): UnifiedSubjectArea {
+    function createUnifiedSubjectArea(): UnifiedSubjectArea {
       return {
         schemaVersion: 4,
         domain: 'test-domain',
@@ -390,7 +390,7 @@ describe('DomainService', () => {
     }
 
     it('creates a physical DisplayDomain with stage=physical and readOnly=true', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       expect(result.stage).toBe('physical');
       expect(result.readOnly).toBe(true);
@@ -399,7 +399,7 @@ describe('DomainService', () => {
     });
 
     it('populates found models with manifest columns', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer');
       expect(customer).toBeDefined();
@@ -410,7 +410,7 @@ describe('DomainService', () => {
     });
 
     it('carries forward PK/FK/NK flags from logical domain', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer');
       const pkCol = customer!.columns.find(c => c.name === 'customer_id');
@@ -418,7 +418,7 @@ describe('DomainService', () => {
     });
 
     it('emits a model found in no physical source as a phantom rather than dropping it', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       // fct_orders is in the design but nowhere in the dbt project: it renders
       // as a ghost, with nothing claimed about its shape.
@@ -432,14 +432,14 @@ describe('DomainService', () => {
     });
 
     it('excludes relationships when referenced models not in manifest', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       // fct_orders is not in manifest, so no relationship tests can match
       expect(result.relationships).toHaveLength(0);
     });
 
     it('derives relationships from manifest relationship tests with cardinality', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifestWithBothModels());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifestWithBothModels());
 
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].fromModel).toBe('fct_orders');
@@ -451,7 +451,7 @@ describe('DomainService', () => {
     });
 
     it('uses global viewConfig positions', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       expect(result.viewConfig.positions).toEqual({
         dim_customer: { x: 100, y: 200 },
@@ -460,14 +460,14 @@ describe('DomainService', () => {
     });
 
     it('does not include templates or manifestModels', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       expect(result.templates).toBeUndefined();
       expect(result.manifestModels).toBeUndefined();
     });
 
     it('carries forward grain and modelRole from logical domain', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer');
       expect(customer!.grain).toBe('One row per customer');
@@ -501,7 +501,7 @@ describe('DomainService', () => {
 
     it('includes manifest-only models when yml covers other models (partial yml is not all-or-nothing)', () => {
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), createPartialYmlData(), createManifestWithBothModels(),
+        createUnifiedSubjectArea(), createPartialYmlData(), createManifestWithBothModels(),
       );
 
       expect(result.models.map(m => m.name).sort()).toEqual(['dim_customer', 'fct_orders']);
@@ -519,7 +519,7 @@ describe('DomainService', () => {
 
     it('prefers yml columns over manifest columns when both exist, enriching data types from manifest', () => {
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), createPartialYmlData(), createManifestWithBothModels(),
+        createUnifiedSubjectArea(), createPartialYmlData(), createManifestWithBothModels(),
       );
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
@@ -533,7 +533,7 @@ describe('DomainService', () => {
 
     it('derives relationships from manifest tests even when yml has none', () => {
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), createPartialYmlData(), createManifestWithBothModels(),
+        createUnifiedSubjectArea(), createPartialYmlData(), createManifestWithBothModels(),
       );
 
       expect(result.relationships).toHaveLength(1);
@@ -564,7 +564,7 @@ describe('DomainService', () => {
         fromModel: 'dim_customer', fromColumn: 'customer_name', toModel: 'fct_orders', toColumn: 'order_id',
       });
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, manifest);
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, manifest);
 
       expect(result.relationships).toHaveLength(2);
       const keys = result.relationships.map(r => `${r.fromModel}.${r.fromColumn}->${r.toModel}.${r.toColumn}`).sort();
@@ -575,7 +575,7 @@ describe('DomainService', () => {
     });
 
     it('emits a model found nowhere with existsInProject false and no columns', () => {
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), createPartialYmlData(), undefined);
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), createPartialYmlData(), undefined);
 
       expect(result.models.map(m => m.name)).toEqual(['dim_customer', 'fct_orders']);
 
@@ -613,7 +613,7 @@ describe('DomainService', () => {
       // an empty ManifestData (never undefined) when dbt has not been compiled,
       // and every model used to grey out because of it.
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), createPartialYmlData(), emptyManifest(),
+        createUnifiedSubjectArea(), createPartialYmlData(), emptyManifest(),
       );
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
@@ -630,7 +630,7 @@ describe('DomainService', () => {
         sourceFiles: new Map([['fct_orders', 'models/silver/fct_orders.sql']]),
       };
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, emptyManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, emptyManifest());
 
       const orders = result.models.find(m => m.name === 'fct_orders')!;
       expect(orders.existsInProject).toBe(true);
@@ -650,7 +650,7 @@ describe('DomainService', () => {
         sourceFiles: new Map([['fct_orders', 'models/silver/fct_orders.sql']]),
       };
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, manifest);
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, manifest);
 
       const orders = result.models.find(m => m.name === 'fct_orders')!;
       expect(orders.existsInProject).toBe(false);
@@ -664,7 +664,7 @@ describe('DomainService', () => {
       const manifest = emptyManifest();
       manifest.disabledModels = new Set(['dim_customer']);
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), createPartialYmlData(), manifest);
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), createPartialYmlData(), manifest);
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
       expect(customer.existsInProject).toBe(true);
@@ -675,7 +675,7 @@ describe('DomainService', () => {
       // yml resolves the model and declares one type; the manifest fills the
       // other. The yml is the more authoritative of the two, so it is named.
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), createPartialYmlData(), createManifestWithBothModels(),
+        createUnifiedSubjectArea(), createPartialYmlData(), createManifestWithBothModels(),
       );
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
@@ -697,7 +697,7 @@ describe('DomainService', () => {
         ]),
       };
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, emptyManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, emptyManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
       expect(customer.columns[0].dataType).toBe('');
@@ -710,7 +710,7 @@ describe('DomainService', () => {
         { name: 'customer_id', description: '', dataType: null },
       ];
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
       expect(customer.columns[0].dataType).toBe('bigint');
@@ -719,12 +719,12 @@ describe('DomainService', () => {
 
     it('reports which dbt artifacts fed the physical stage', () => {
       const withoutManifest = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), createPartialYmlData(), emptyManifest(),
+        createUnifiedSubjectArea(), createPartialYmlData(), emptyManifest(),
       );
       expect(withoutManifest.physicalSources).toEqual({ yml: true, manifest: false, catalog: false });
 
       const withManifest = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), EMPTY_YML_DATA, createManifest(),
+        createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest(),
       );
       expect(withManifest.physicalSources).toEqual({ yml: false, manifest: true, catalog: false });
     });
@@ -774,7 +774,7 @@ describe('DomainService', () => {
         ]),
       ]);
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, createManifest(), catalog);
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, createManifest(), catalog);
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
       const byName = new Map(customer.columns.map(c => [c.name, c.dataType]));
@@ -797,7 +797,7 @@ describe('DomainService', () => {
       ]);
 
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), yml, emptyManifest(), catalog,
+        createUnifiedSubjectArea(), yml, emptyManifest(), catalog,
       );
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
@@ -823,13 +823,13 @@ describe('DomainService', () => {
       };
 
       const withManifest = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), EMPTY_YML_DATA, createManifest(), catalog,
+        createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest(), catalog,
       );
       expect(withManifest.models.find(m => m.name === 'dim_customer')!.columns.map(c => c.name))
         .toContain('V1_COL');
 
       const withoutManifest = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), EMPTY_YML_DATA, emptyManifest(), catalog,
+        createUnifiedSubjectArea(), EMPTY_YML_DATA, emptyManifest(), catalog,
       );
       expect(withoutManifest.models.find(m => m.name === 'dim_customer')!.columns.map(c => c.name))
         .toEqual(['V2_COL']);
@@ -844,14 +844,14 @@ describe('DomainService', () => {
       // The manifest carries dim_customer only; both spellings name the same
       // schema and differ only in case, so the one the user wrote wins.
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), EMPTY_YML_DATA, createManifest(), catalog,
+        createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest(), catalog,
       );
       expect(result.models.find(m => m.name === 'dim_customer')!.schema).toBe('silver_schema');
       expect(result.models.find(m => m.name === 'fct_orders')!.schema).toBe('ANALYTICS');
 
       // Neither source: '' , and the node badge falls back to the layer.
       const noSources = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), createPartialYmlData(), emptyManifest(),
+        createUnifiedSubjectArea(), createPartialYmlData(), emptyManifest(),
       );
       expect(noSources.models.find(m => m.name === 'dim_customer')!.schema).toBe('');
     });
@@ -864,7 +864,7 @@ describe('DomainService', () => {
       ]);
 
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), EMPTY_YML_DATA, emptyManifest(), catalog,
+        createUnifiedSubjectArea(), EMPTY_YML_DATA, emptyManifest(), catalog,
       );
 
       const orders = result.models.find(m => m.name === 'fct_orders')!;
@@ -891,7 +891,7 @@ describe('DomainService', () => {
       ]);
 
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), yml, emptyManifest(), catalog,
+        createUnifiedSubjectArea(), yml, emptyManifest(), catalog,
       );
 
       // Highest authority that supplied ANY type, not a majority count: the
@@ -916,8 +916,8 @@ describe('DomainService', () => {
         catNode('model.my_project.fct_orders', 'fct_orders', [catCol('CUSTOMER_ID', 0, 'NUMBER')]),
       ]);
 
-      const without = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, emptyManifest());
-      const withCatalog = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, emptyManifest(), catalog);
+      const without = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, emptyManifest());
+      const withCatalog = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, emptyManifest(), catalog);
 
       expect(without.relationships).toHaveLength(1);
       expect(withCatalog.relationships).toEqual(without.relationships);
@@ -929,7 +929,7 @@ describe('DomainService', () => {
       ]);
 
       const result = service.buildPhysicalSubjectArea(
-        createUnifiedDomain(), createPartialYmlData(), emptyManifest(), catalog,
+        createUnifiedSubjectArea(), createPartialYmlData(), emptyManifest(), catalog,
       );
       expect(result.physicalSources).toEqual({ yml: true, manifest: false, catalog: true });
     });
@@ -954,7 +954,7 @@ describe('DomainService', () => {
         compositeUniqueGroups: new Map(),
       };
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), yml, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer');
       expect(customer).toBeDefined();
@@ -971,7 +971,7 @@ describe('DomainService', () => {
         fromModel: 'FCT_ORDERS', fromColumn: 'customer_id', toModel: 'Dim_Customer', toColumn: 'Customer_Id',
       }];
 
-      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, manifest);
+      const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, manifest);
 
       expect(result.relationships).toHaveLength(1);
       // Edge model names are rewritten to the domain's (logical) spelling
@@ -1197,7 +1197,7 @@ describe('DomainService format handling', () => {
   let service: SubjectAreaService;
 
   /** Write a domain JSON into a temp .erd-studio/silver/ dir and return its path. */
-  function writeDomain(name: string, body: unknown): string {
+  function writeSubjectArea(name: string, body: unknown): string {
     const dir = path.join(tmpRoot, '.erd-studio', 'silver');
     fs.mkdirSync(dir, { recursive: true });
     const filePath = path.join(dir, `${name}.json`);
@@ -1218,11 +1218,11 @@ describe('DomainService format handling', () => {
 
   describe('countDomainFileRelationships', () => {
     it('counts a domain file that does not parse but still lists relationships', () => {
-      const filePath = writeDomain('orders', {
+      const filePath = writeSubjectArea('orders', {
         schemaVersion: 5, domain: 'orders', layer: 'silver',
         logical: { models: ['a', 'b'], relationships: [{ fromModel: 'a', fromColumn: 'x', toModel: 'b', toColumn: 'x' }] },
       });
-      writeDomain('empty', { schemaVersion: 5, domain: 'empty', layer: 'silver', logical: { models: [], relationships: [] } });
+      writeSubjectArea('empty', { schemaVersion: 5, domain: 'empty', layer: 'silver', logical: { models: [], relationships: [] } });
       expect(service.countSubjectAreaFileRelationships(tmpRoot)).toBe(1);
       // A merge conflict must not make the project look like it keeps none.
       fs.appendFileSync(filePath, '\n<<<<<<< HEAD\n');
@@ -1234,7 +1234,7 @@ describe('DomainService format handling', () => {
 
   describe('legacy (pre-v4) documents', () => {
     it('throws a clear error naming the migration command instead of loading an empty domain', () => {
-      const filePath = writeDomain('legacy', {
+      const filePath = writeSubjectArea('legacy', {
         schemaVersion: 2,
         domain: 'legacy',
         layer: 'silver',
@@ -1248,7 +1248,7 @@ describe('DomainService format handling', () => {
     });
 
     it('rejects a top-level models array even at schemaVersion 5', () => {
-      const filePath = writeDomain('toplevel', {
+      const filePath = writeSubjectArea('toplevel', {
         schemaVersion: 5,
         domain: 'toplevel',
         layer: 'silver',
@@ -1262,7 +1262,7 @@ describe('DomainService format handling', () => {
 
   describe('hybrid documents', () => {
     it('rejects schemaVersion 5 with inline model objects', () => {
-      const filePath = writeDomain('inline5', {
+      const filePath = writeSubjectArea('inline5', {
         schemaVersion: 5,
         domain: 'inline5',
         layer: 'silver',
@@ -1273,7 +1273,7 @@ describe('DomainService format handling', () => {
     });
 
     it('rejects mixed string/object model arrays instead of creating placeholder nodes', () => {
-      const filePath = writeDomain('mixed', {
+      const filePath = writeSubjectArea('mixed', {
         schemaVersion: 5,
         domain: 'mixed',
         layer: 'silver',
@@ -1286,7 +1286,7 @@ describe('DomainService format handling', () => {
 
   describe('per-entry validation', () => {
     it('skips inline v4 models that lack a string name', () => {
-      const filePath = writeDomain('v4bad', {
+      const filePath = writeSubjectArea('v4bad', {
         schemaVersion: 4,
         domain: 'v4bad',
         layer: 'silver',
@@ -1301,7 +1301,7 @@ describe('DomainService format handling', () => {
     });
 
     it('drops malformed relationship entries and defaults invalid cardinality', () => {
-      const filePath = writeDomain('rels', {
+      const filePath = writeSubjectArea('rels', {
         schemaVersion: 5,
         domain: 'rels',
         layer: 'silver',
@@ -1326,7 +1326,7 @@ describe('DomainService format handling', () => {
     });
 
     it('keeps only viewConfig.positions entries with finite numeric x/y', () => {
-      const filePath = writeDomain('positions', {
+      const filePath = writeSubjectArea('positions', {
         schemaVersion: 5,
         domain: 'positions',
         layer: 'silver',

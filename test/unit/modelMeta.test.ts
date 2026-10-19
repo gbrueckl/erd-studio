@@ -15,7 +15,7 @@ import { parseTableText, toDisplaySubjectArea } from '@erd-studio/core';
 import { TableLibraryService } from '../../src/services/logicalModelService';
 import { validateMetaPayload } from '../../src/providers/payloadValidation';
 
-const MODEL_WITH_META = [
+const TABLE_WITH_META = [
   'name: dim_customer',
   'description: Customer dimension',
   'meta:',
@@ -38,7 +38,7 @@ const MODEL_WITH_META = [
 
 describe('parsing meta', () => {
   it('reads model and column meta, numbers as their source text', () => {
-    const model = parseTableText(MODEL_WITH_META, 'dim_customer');
+    const model = parseTableText(TABLE_WITH_META, 'dim_customer');
     expect(model.meta).toEqual({
       owner: 'finance',
       tier: '1',
@@ -54,7 +54,7 @@ describe('parsing meta', () => {
   });
 
   it('reaches the display domain only where it is set', () => {
-    const model = parseTableText(MODEL_WITH_META, 'dim_customer');
+    const model = parseTableText(TABLE_WITH_META, 'dim_customer');
     const plain = parseTableText('name: dim_plain\ncolumns:\n  - name: id\n    dataType: int\n', 'dim_plain');
     const display = toDisplaySubjectArea({
       schemaVersion: 5, domain: 'd', layer: 'silver', stage: 'logical', description: '',
@@ -77,7 +77,7 @@ describe('writing meta', () => {
     service = new TableLibraryService(root, '.erd-studio');
     service.ensureDir();
     filePath = service.tablePath('dim_customer');
-    fs.writeFileSync(filePath, MODEL_WITH_META, 'utf-8');
+    fs.writeFileSync(filePath, TABLE_WITH_META, 'utf-8');
   });
 
   afterEach(() => {
@@ -88,7 +88,7 @@ describe('writing meta', () => {
     const model = service.getTable('dim_customer')!;
     model.meta = { ...model.meta!, owner: 'sales' };
     const after = service.serializeTable(model);
-    expect(after).toBe(MODEL_WITH_META.replace('owner: finance #', 'owner: sales #'));
+    expect(after).toBe(TABLE_WITH_META.replace('owner: finance #', 'owner: sales #'));
   });
 
   it('removes only the key that was removed', () => {
@@ -96,21 +96,21 @@ describe('writing meta', () => {
     const { owner: _owner, ...rest } = model.meta!;
     model.meta = rest;
     const after = service.serializeTable(model);
-    expect(after).toBe(MODEL_WITH_META.replace('  owner: finance # the team that answers questions\n', ''));
+    expect(after).toBe(TABLE_WITH_META.replace('  owner: finance # the team that answers questions\n', ''));
   });
 
   it('adds a new key at the end of the map', () => {
     const model = service.getTable('dim_customer')!;
     model.columns![0].meta = { ...model.columns![0].meta!, source_field: 'KUNNR' };
     const after = service.serializeTable(model);
-    expect(after).toBe(MODEL_WITH_META.replace('      steward: jane\n', '      steward: jane\n      source_field: KUNNR\n'));
+    expect(after).toBe(TABLE_WITH_META.replace('      steward: jane\n', '      steward: jane\n      source_field: KUNNR\n'));
   });
 
   it('keeps meta byte-identical through an unrelated edit', () => {
     const model = service.getTable('dim_customer')!;
     model.description = 'Everyone we sell to';
     const after = service.serializeTable(model);
-    expect(after).toBe(MODEL_WITH_META.replace('Customer dimension', 'Everyone we sell to'));
+    expect(after).toBe(TABLE_WITH_META.replace('Customer dimension', 'Everyone we sell to'));
   });
 
   it('leaves an alias an alias rather than expanding it', () => {

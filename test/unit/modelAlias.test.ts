@@ -56,7 +56,7 @@ function manifest(models: ManifestModelInfo[], tests: ManifestData['relationship
   };
 }
 
-function domain(models: SemanticTable[], layer = 'gold'): UnifiedSubjectArea {
+function subjectArea(models: SemanticTable[], layer = 'gold'): UnifiedSubjectArea {
   return {
     schemaVersion: 5,
     domain: 'finance',
@@ -72,7 +72,7 @@ const service = new SubjectAreaService({} as LayerService);
 describe('physical stage: matching by warehouse relation', () => {
   it('matches by model name first — the alias never overrides the identity', () => {
     const result = service.buildPhysicalSubjectArea(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       manifest([manifestModel('gold_date', 'gold', 'date', ['date_key', 'fiscal_year'])]),
     );
@@ -84,7 +84,7 @@ describe('physical stage: matching by warehouse relation', () => {
 
   it('falls back to (schema, alias) when the dbt model has another name', () => {
     const result = service.buildPhysicalSubjectArea(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       // dbt calls it dim_date, built as gold.date
       manifest([manifestModel('dim_date', 'gold', 'date', ['date_key', 'fiscal_year'])]),
@@ -97,7 +97,7 @@ describe('physical stage: matching by warehouse relation', () => {
 
   it('never matches on the alias alone: silver.date is not gold.date', () => {
     const result = service.buildPhysicalSubjectArea(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       manifest([manifestModel('silver_date', 'silver', 'date')]),
     );
@@ -106,7 +106,7 @@ describe('physical stage: matching by warehouse relation', () => {
 
   it('does not use the relation route for a model with no schema', () => {
     const result = service.buildPhysicalSubjectArea(
-      domain([{ name: 'gold_date', alias: 'date' }]),
+      subjectArea([{ name: 'gold_date', alias: 'date' }]),
       EMPTY_YML,
       manifest([manifestModel('dim_date', 'gold', 'date')]),
     );
@@ -115,7 +115,7 @@ describe('physical stage: matching by warehouse relation', () => {
 
   it('treats a relation two dbt models share as ambiguous, not a guess', () => {
     const result = service.buildPhysicalSubjectArea(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       manifest([manifestModel('dim_date_a', 'gold', 'date'), manifestModel('dim_date_b', 'GOLD', 'DATE')]),
     );
@@ -124,7 +124,7 @@ describe('physical stage: matching by warehouse relation', () => {
 
   it('matches the relation case-insensitively', () => {
     const result = service.buildPhysicalSubjectArea(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'Date' }]),
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'Date' }]),
       EMPTY_YML,
       manifest([manifestModel('dim_date', 'GOLD', 'DATE')]),
     );
@@ -133,7 +133,7 @@ describe('physical stage: matching by warehouse relation', () => {
 
   it('draws relationship tests for a relation-matched model on its logical node', () => {
     const result = service.buildPhysicalSubjectArea(
-      domain([
+      subjectArea([
         { name: 'gold_date', schema: 'gold', alias: 'date' },
         { name: 'fct_sale', schema: 'gold' },
       ]),
@@ -150,7 +150,7 @@ describe('physical stage: matching by warehouse relation', () => {
 
   it('shows the alias dbt builds under, falling back to the design', () => {
     const result = service.buildPhysicalSubjectArea(
-      domain([
+      subjectArea([
         { name: 'gold_date', schema: 'gold', alias: 'date' },
         { name: 'gold_calendar', schema: 'gold', alias: 'calendar' },
       ]),
@@ -179,7 +179,7 @@ describe('physical stage: matching by warehouse relation', () => {
       partial: false,
     };
     const result = service.buildPhysicalSubjectArea(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       undefined,
       catalog,

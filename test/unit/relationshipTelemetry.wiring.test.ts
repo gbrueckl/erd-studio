@@ -51,7 +51,7 @@ vi.mock('../../src/services/libraryRelationships', async (importOriginal) => {
 });
 
 const col = (name: string, pk = false) => ({ name, dataType: 'string', description: '', ...(pk ? { isPrimaryKey: true } : {}) });
-const MODELS: SemanticTable[] = [
+const TABLES: SemanticTable[] = [
   { name: 'fct_order', columns: [col('order_key', true), col('customer_key'), col('store_id'), col('region'), col('region_code')] },
   { name: 'dim_customer', columns: [col('customer_key', true)] },
   { name: 'dim_store', columns: [col('store_id', true), col('region', true)] },
@@ -80,14 +80,14 @@ async function createHarness(options: {
   domainService.setTableLibraryService(logicalModelService);
   const selectorsService = new SelectorsService(domainService, root, semanticDir);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
-  for (const model of MODELS) {
+  for (const model of TABLES) {
     const relationships = options.library?.[model.name];
     logicalModelService.saveTable({ ...model, ...(relationships ? { relationships } : {}) });
   }
   const domainDir = path.join(root, semanticDir, 'silver');
   fs.mkdirSync(domainDir, { recursive: true });
   const domainPath = (name: string) => path.join(domainDir, `${name}.json`);
-  const domains = options.domains ?? { orders: { models: MODELS.map((m) => m.name) } };
+  const domains = options.domains ?? { orders: { models: TABLES.map((m) => m.name) } };
   for (const [name, d] of Object.entries(domains)) {
     fs.writeFileSync(domainPath(name), JSON.stringify({
       schemaVersion: 5, domain: name, layer: 'silver', description: '',

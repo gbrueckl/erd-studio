@@ -63,7 +63,7 @@ function parse(text: string) {
 }
 
 /** The output parses to the input's model with exactly `relationships`. */
-function expectSameModel(input: string, output: string, relationships: readonly TableRelationship[]): void {
+function expectSameTable(input: string, output: string, relationships: readonly TableRelationship[]): void {
   const before = parse(input)!;
   const after = parse(output)!;
   expect(after.relationships ?? []).toEqual(relationships);
@@ -77,26 +77,26 @@ describe('setYamlRelationships', () => {
   it('appends a block to a messy file and changes nothing else', () => {
     const out = setYamlRelationships(MESSY_BODY, [REL_A]);
     expect(out).toBe(MESSY_BODY + BLOCK_2);
-    expectSameModel(MESSY_BODY, out, [REL_A]);
+    expectSameTable(MESSY_BODY, out, [REL_A]);
   });
 
   it('uses the indentation of the file\'s other sequences', () => {
     const four = MESSY_BODY.replace(/^  - /gm, '    - ').replace(/^    (\w|<)/gm, '      $1');
     const out = setYamlRelationships(four, [REL_A]);
     expect(out).toBe(four + BLOCK_2.replace(/^  - /m, '    - ').replace(/^    (?=\w)/gm, '      '));
-    expectSameModel(four, out, [REL_A]);
+    expectSameTable(four, out, [REL_A]);
 
     const zero = 'name: m\ncolumns:\n- name: a\n  dataType: int\n';
     const out0 = setYamlRelationships(zero, [REL_A]);
     expect(out0).toBe(zero + 'relationships:\n- fromColumn: customer_key\n  toModel: dim_customer\n  toColumn: customer_key\n  cardinality: many-to-one\n');
-    expectSameModel(zero, out0, [REL_A]);
+    expectSameTable(zero, out0, [REL_A]);
   });
 
   it('keeps a file without a trailing newline that way', () => {
     const input = 'name: m\ncolumns:\n  - name: a';
     const out = setYamlRelationships(input, [REL_A]);
     expect(out).toBe(input + '\n' + BLOCK_2.slice(0, -1));
-    expectSameModel(input, out, [REL_A]);
+    expectSameTable(input, out, [REL_A]);
     // and removal drops the line break it added
     expect(setYamlRelationships(out, [])).toBe(input);
   });
@@ -107,14 +107,14 @@ describe('setYamlRelationships', () => {
     expect(out.startsWith(crlf)).toBe(true);
     expect(out.slice(crlf.length)).not.toMatch(/(?<!\r)\n/);
     expect(out.slice(crlf.length).endsWith('\r\n')).toBe(true);
-    expectSameModel(crlf, out, [REL_A, REL_B]);
+    expectSameTable(crlf, out, [REL_A, REL_B]);
   });
 
   it('keeps a leading BOM', () => {
     const input = '﻿' + MESSY_BODY;
     const out = setYamlRelationships(input, [REL_A]);
     expect(out).toBe(input + BLOCK_2);
-    expectSameModel(input, out, [REL_A]);
+    expectSameTable(input, out, [REL_A]);
   });
 
   it('replaces a block-style relationships list in place', () => {
@@ -123,14 +123,14 @@ describe('setYamlRelationships', () => {
     expect(withoutBlock(out)).toBe(withoutBlock(middle));
     expect(withoutBlock(middle)).toBe(MESSY_BODY);
     expect(out).toContain(BLOCK_2 + '  - fromColumn: product_key\n');
-    expectSameModel(middle, out, [REL_A, REL_B]);
+    expectSameTable(middle, out, [REL_A, REL_B]);
   });
 
   it('replaces a flow-style relationships list in place', () => {
     const flow = MESSY_BODY.replace('schema: gold\n', 'schema: gold\nrelationships: [{fromColumn: a, toModel: b, toColumn: c}]  # old\n');
     const out = setYamlRelationships(flow, [REL_A]);
     expect(out).toBe(MESSY_BODY.replace('schema: gold\n', 'schema: gold\n' + BLOCK_2));
-    expectSameModel(flow, out, [REL_A]);
+    expectSameTable(flow, out, [REL_A]);
   });
 
   it('replaces a block at the end of a file without a final newline', () => {
@@ -146,7 +146,7 @@ describe('setYamlRelationships', () => {
     const middle = MESSY_BODY.replace('schema: gold\n', 'schema: gold\n' + BLOCK_2);
     const out = setYamlRelationships(middle, []);
     expect(out).toBe(MESSY_BODY);
-    expectSameModel(middle, out, []);
+    expectSameTable(middle, out, []);
 
     const empty = MESSY_BODY.replace('schema: gold\n', 'schema: gold\nrelationships: []\n');
     expect(setYamlRelationships(empty, [])).toBe(MESSY_BODY);
@@ -185,7 +185,7 @@ describe('setYamlRelationships', () => {
 const R1: Relationship = { fromModel: 'fct_order', fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' };
 const R2: Relationship = { fromModel: 'fct_order', fromColumn: 'product_key', toModel: 'dim_product', toColumn: 'product_key', cardinality: 'many-to-one' };
 
-function domainText(indent: string, rels: string): string {
+function subjectAreaText(indent: string, rels: string): string {
   const i = (n: number) => indent.repeat(n);
   return `{
 ${i(1)}"schemaVersion": 5,
@@ -261,7 +261,7 @@ describe('setDomainRelationships', () => {
     ['4-space', '    '],
     ['tab', '\t'],
   ])('replaces only the array with %s indentation', (_label, indent) => {
-    const input = domainText(indent, '[{"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}]');
+    const input = subjectAreaText(indent, '[{"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}]');
     const out = setSubjectAreaRelationships(input, [R1, R2]);
     expect(splitAroundRelationships(out)).toEqual(splitAroundRelationships(input));
     expectOnlyRelationshipsChanged(input, out, [R1, R2]);
@@ -275,18 +275,18 @@ describe('setDomainRelationships', () => {
   });
 
   it('renders an empty list as []', () => {
-    const input = domainText('  ', '[\n      {"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}\n    ]');
+    const input = subjectAreaText('  ', '[\n      {"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}\n    ]');
     const out = setSubjectAreaRelationships(input, []);
-    expect(out).toBe(domainText('  ', '[]'));
+    expect(out).toBe(subjectAreaText('  ', '[]'));
   });
 
   it('is idempotent', () => {
-    const once = setSubjectAreaRelationships(domainText('  ', '[]'), [R1]);
+    const once = setSubjectAreaRelationships(subjectAreaText('  ', '[]'), [R1]);
     expect(setSubjectAreaRelationships(once, [R1])).toBe(once);
   });
 
   it('keeps CRLF and a BOM', () => {
-    const input = '﻿' + domainText('  ', '[]').replace(/\n/g, '\r\n');
+    const input = '﻿' + subjectAreaText('  ', '[]').replace(/\n/g, '\r\n');
     const out = setSubjectAreaRelationships(input, [R1]);
     expect(out.startsWith('﻿{\r\n')).toBe(true);
     expect(out).not.toMatch(/(?<!\r)\n/);

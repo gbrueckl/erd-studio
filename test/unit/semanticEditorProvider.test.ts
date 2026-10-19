@@ -1145,7 +1145,7 @@ describe('layer folders in the edit pipeline (issue #76)', () => {
   }
 
   /** Write an empty v5 domain at {layer}/{domain}.json, open it in a fresh provider and wait for the first load. */
-  async function openNewDomain(layer: string, domain: string) {
+  async function openNewSubjectArea(layer: string, domain: string) {
     const file = path.join(root, '.erd-studio', layer, `${domain}.json`);
     fs.writeFileSync(file, JSON.stringify({
       schemaVersion: 5,
@@ -1289,7 +1289,7 @@ describe('layer folders in the edit pipeline (issue #76)', () => {
   it('addExistingModel from a gold domain seeds into gold/', async () => {
     fs.unlinkSync(path.join(lib(), 'fct_sale.yml'));
     moveIntoFolder('dim_location', 'silver'); // the library has opted into (layer) folders
-    const { panel } = await openNewDomain('gold', 'reporting');
+    const { panel } = await openNewSubjectArea('gold', 'reporting');
     const loads = types(panel).filter((t) => t === 'domainLoaded').length;
 
     panel._simulateMessage({ type: 'addExistingModel', payload: { modelName: 'fct_sale' } });
@@ -1301,7 +1301,7 @@ describe('layer folders in the edit pipeline (issue #76)', () => {
 
   it('addExistingModel of a model already in another layer folder references it without moving or copying', async () => {
     const inSilver = moveIntoFolder('fct_sale', 'silver');
-    const { panel, doc } = await openNewDomain('gold', 'reporting');
+    const { panel, doc } = await openNewSubjectArea('gold', 'reporting');
     const loads = types(panel).filter((t) => t === 'domainLoaded').length;
 
     panel._simulateMessage({ type: 'addExistingModel', payload: { modelName: 'fct_sale' } });
@@ -1351,7 +1351,7 @@ describe('addModelsFromDbt', () => {
     });
   }
 
-  async function openEmptyDomain(layer: string, domain: string) {
+  async function openEmptySubjectArea(layer: string, domain: string) {
     const file = path.join(root, '.erd-studio', layer, `${domain}.json`);
     fs.writeFileSync(file, JSON.stringify({
       schemaVersion: 5,
@@ -1378,7 +1378,7 @@ describe('addModelsFromDbt', () => {
 
   it('records emptyCanvas when a logical canvas opens on a domain with no models', async () => {
     const feature = vi.spyOn(telemetry, 'feature');
-    await openEmptyDomain('gold', 'reporting');
+    await openEmptySubjectArea('gold', 'reporting');
     expect(feature).toHaveBeenCalledWith('emptyCanvas');
   });
 
@@ -1391,7 +1391,7 @@ describe('addModelsFromDbt', () => {
   it('fills an empty domain in one edit, seeds missing library files and asks for an auto layout', async () => {
     fs.unlinkSync(path.join(lib(), 'fct_sale.yml'));
     const feature = vi.spyOn(telemetry, 'feature');
-    const { panel, doc } = await openEmptyDomain('gold', 'reporting');
+    const { panel, doc } = await openEmptySubjectArea('gold', 'reporting');
     const edits = applyEditSpy.mock.calls.length;
     const loads = types(panel).filter((t) => t === 'domainLoaded').length;
     pickFolder('silver');

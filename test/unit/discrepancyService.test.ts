@@ -7,7 +7,7 @@ import type { DisplaySubjectArea, DisplayTable, DisplayRelationship } from '../.
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDomain(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
+function makeSubjectArea(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 2,
     domain: 'test',
@@ -22,7 +22,7 @@ function makeDomain(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubject
   };
 }
 
-function makeModel(name: string, columns: DisplayTable['columns'] = []): DisplayTable {
+function makeTable(name: string, columns: DisplayTable['columns'] = []): DisplayTable {
   return { name, schema: '', description: '', columns };
 }
 
@@ -43,8 +43,8 @@ function makeRel(
  * `targetType` in the target stage, and return the resulting status.
  */
 function columnStatus(sourceType: string, targetType: string) {
-  const source = makeDomain({ models: [makeModel('m', [makeColumn('c', sourceType)])] });
-  const target = makeDomain({ models: [makeModel('m', [makeColumn('c', targetType)])] });
+  const source = makeSubjectArea({ models: [makeTable('m', [makeColumn('c', sourceType)])] });
+  const target = makeSubjectArea({ models: [makeTable('m', [makeColumn('c', targetType)])] });
   return compare(source, target).models[0].columns[0].status;
 }
 
@@ -55,8 +55,8 @@ function columnStatus(sourceType: string, targetType: string) {
 describe('DiscrepancyService.compare', () => {
   describe('model matching', () => {
     it('reports all models as matched when both domains have the same models', () => {
-      const source = makeDomain({ models: [makeModel('dim_customer'), makeModel('fct_orders')] });
-      const target = makeDomain({ models: [makeModel('dim_customer'), makeModel('fct_orders')] });
+      const source = makeSubjectArea({ models: [makeTable('dim_customer'), makeTable('fct_orders')] });
+      const target = makeSubjectArea({ models: [makeTable('dim_customer'), makeTable('fct_orders')] });
 
       const report = compare(source, target);
 
@@ -68,8 +68,8 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('reports extra models that exist in source but not target', () => {
-      const source = makeDomain({ models: [makeModel('dim_customer'), makeModel('stg_raw')] });
-      const target = makeDomain({ models: [makeModel('dim_customer')] });
+      const source = makeSubjectArea({ models: [makeTable('dim_customer'), makeTable('stg_raw')] });
+      const target = makeSubjectArea({ models: [makeTable('dim_customer')] });
 
       const report = compare(source, target);
 
@@ -79,8 +79,8 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('reports missing models that exist in target but not source', () => {
-      const source = makeDomain({ models: [makeModel('dim_customer')] });
-      const target = makeDomain({ models: [makeModel('dim_customer'), makeModel('fct_orders')] });
+      const source = makeSubjectArea({ models: [makeTable('dim_customer')] });
+      const target = makeSubjectArea({ models: [makeTable('dim_customer'), makeTable('fct_orders')] });
 
       const report = compare(source, target);
 
@@ -92,11 +92,11 @@ describe('DiscrepancyService.compare', () => {
 
   describe('column matching', () => {
     it('reports matched columns with identical name and dataType', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
       });
 
       const report = compare(source, target);
@@ -106,11 +106,11 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('reports extra columns in source but not target', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id'), makeColumn('_loaded_at')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id'), makeColumn('_loaded_at')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id')])],
       });
 
       const report = compare(source, target);
@@ -122,11 +122,11 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('reports missing columns in target but not source', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id'), makeColumn('email')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id'), makeColumn('email')])],
       });
 
       const report = compare(source, target);
@@ -138,11 +138,11 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('reports data type mismatches for genuinely different types', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('email_hash', 'string')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('email_hash', 'string')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('email_hash', 'int')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('email_hash', 'int')])],
       });
 
       const report = compare(source, target);
@@ -155,15 +155,15 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('treats VARCHAR and TEXT as equivalent to string (no type-mismatch)', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [
           makeColumn('a', 'VARCHAR'),
           makeColumn('b', 'TEXT'),
           makeColumn('c', 'String'),
         ])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [
           makeColumn('a', 'string'),
           makeColumn('b', 'string'),
           makeColumn('c', 'string'),
@@ -177,11 +177,11 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('treats integer and INT as equivalent (case-insensitive)', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INTEGER')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INTEGER')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'int')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'int')])],
       });
 
       const report = compare(source, target);
@@ -190,11 +190,11 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('normalises decimal spacing: decimal(15, 5) matches decimal(15,5)', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('amount', 'decimal(15, 5)')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('amount', 'decimal(15, 5)')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('amount', 'decimal(15,5)')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('amount', 'decimal(15,5)')])],
       });
 
       const report = compare(source, target);
@@ -203,11 +203,11 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('reports a type declared on one side only as undeclared, not a mismatch', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'bigint')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'bigint')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', '')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', '')])],
       });
 
       const report = compare(source, target);
@@ -228,8 +228,8 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('matches columns where neither stage declares a type', () => {
-      const source = makeDomain({ models: [makeModel('m', [makeColumn('c', '')])] });
-      const target = makeDomain({ models: [makeModel('m', [makeColumn('c', '  ')])] });
+      const source = makeSubjectArea({ models: [makeTable('m', [makeColumn('c', '')])] });
+      const target = makeSubjectArea({ models: [makeTable('m', [makeColumn('c', '  ')])] });
 
       const report = compare(source, target);
       expect(report.models[0].columns[0].status).toBe('matched');
@@ -238,9 +238,9 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('populates columns as missing for missing models', () => {
-      const source = makeDomain({ models: [] });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
+      const source = makeSubjectArea({ models: [] });
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
       });
 
       const report = compare(source, target);
@@ -253,10 +253,10 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('populates columns as extra for extra models', () => {
-      const source = makeDomain({
-        models: [makeModel('stg_raw', [makeColumn('id', 'INT'), makeColumn('val', 'TEXT')])],
+      const source = makeSubjectArea({
+        models: [makeTable('stg_raw', [makeColumn('id', 'INT'), makeColumn('val', 'TEXT')])],
       });
-      const target = makeDomain({ models: [] });
+      const target = makeSubjectArea({ models: [] });
 
       const report = compare(source, target);
       const model = report.models.find((m) => m.name === 'stg_raw')!;
@@ -270,8 +270,8 @@ describe('DiscrepancyService.compare', () => {
   describe('relationship matching', () => {
     it('reports matched relationships with same composite key and cardinality', () => {
       const rel = makeRel(['fct_orders', 'customer_id'], ['dim_customer', 'id']);
-      const source = makeDomain({ relationships: [rel] });
-      const target = makeDomain({ relationships: [rel] });
+      const source = makeSubjectArea({ relationships: [rel] });
+      const target = makeSubjectArea({ relationships: [rel] });
 
       const report = compare(source, target);
       expect(report.relationships).toHaveLength(1);
@@ -280,8 +280,8 @@ describe('DiscrepancyService.compare', () => {
 
     it('reports extra relationships in source but not target', () => {
       const rel = makeRel(['fct_orders', 'customer_id'], ['dim_customer', 'id']);
-      const source = makeDomain({ relationships: [rel] });
-      const target = makeDomain({ relationships: [] });
+      const source = makeSubjectArea({ relationships: [rel] });
+      const target = makeSubjectArea({ relationships: [] });
 
       const report = compare(source, target);
       expect(report.relationships[0].status).toBe('extra');
@@ -290,8 +290,8 @@ describe('DiscrepancyService.compare', () => {
 
     it('reports missing relationships in target but not source', () => {
       const rel = makeRel(['fct_orders', 'customer_id'], ['dim_customer', 'id']);
-      const source = makeDomain({ relationships: [] });
-      const target = makeDomain({ relationships: [rel] });
+      const source = makeSubjectArea({ relationships: [] });
+      const target = makeSubjectArea({ relationships: [rel] });
 
       const report = compare(source, target);
       expect(report.relationships[0].status).toBe('missing');
@@ -301,8 +301,8 @@ describe('DiscrepancyService.compare', () => {
     it('reports cardinality mismatches', () => {
       const sourceRel = makeRel(['fct_orders', 'customer_id'], ['dim_customer', 'id'], 'many-to-one');
       const targetRel = makeRel(['fct_orders', 'customer_id'], ['dim_customer', 'id'], 'one-to-one');
-      const source = makeDomain({ relationships: [sourceRel] });
-      const target = makeDomain({ relationships: [targetRel] });
+      const source = makeSubjectArea({ relationships: [sourceRel] });
+      const target = makeSubjectArea({ relationships: [targetRel] });
 
       const report = compare(source, target);
       expect(report.relationships[0].status).toBe('cardinality-mismatch');
@@ -318,8 +318,8 @@ describe('DiscrepancyService.compare', () => {
       const PAIRS = [{ fromColumn: 'hk', toColumn: 'hk' }, { fromColumn: 'as_of', toColumn: 'load_date' }];
 
       it('an undeclared composite is one informational extra entry, and raises no missing', () => {
-        const source = makeDomain({ relationships: group() });
-        const target = makeDomain({ relationships: [member('hk', 'hk')] });
+        const source = makeSubjectArea({ relationships: group() });
+        const target = makeSubjectArea({ relationships: [member('hk', 'hk')] });
         expect(compare(source, target).relationships).toEqual([{
           fromModel: 'pit', fromColumn: 'hk', toModel: 'sat', toColumn: 'hk', pairs: PAIRS, compositeKey: 'fk_sat',
           status: 'extra', sourceCardinality: 'many-to-one', composite: true, undeclaredPairs: [PAIRS[1]],
@@ -327,29 +327,29 @@ describe('DiscrepancyService.compare', () => {
       });
 
       it('a composite dbt declares the same way matches, whatever its name or the end it is read from', () => {
-        const target = makeDomain({ relationships: [
+        const target = makeSubjectArea({ relationships: [
           { ...makeRel(['sat', 'load_date'], ['pit', 'as_of'], 'one-to-many'), compositeKey: 'other' },
           { ...makeRel(['sat', 'hk'], ['pit', 'hk'], 'one-to-many'), compositeKey: 'other' },
         ] });
-        expect(compare(makeDomain({ relationships: group() }), target).relationships)
+        expect(compare(makeSubjectArea({ relationships: group() }), target).relationships)
           .toEqual([expect.objectContaining({ status: 'matched', pairs: PAIRS, compositeKey: 'fk_sat' })]);
       });
 
       it('singles a 1.6.7 save left match a dbt composite pair by pair, with no missing entry', () => {
-        const source = makeDomain({ relationships: [member('hk', 'hk'), member('as_of', 'load_date')] });
-        const target = makeDomain({ relationships: group('fk_dbt') });
+        const source = makeSubjectArea({ relationships: [member('hk', 'hk'), member('as_of', 'load_date')] });
+        const target = makeSubjectArea({ relationships: group('fk_dbt') });
         expect(compare(source, target).relationships.map((r) => r.status)).toEqual(['matched', 'matched']);
       });
 
       it('a cardinality difference is one entry for the composite', () => {
-        const target = makeDomain({ relationships: [member('hk', 'hk', 'one-to-one', 'k'), member('as_of', 'load_date', 'one-to-one', 'k')] });
-        expect(compare(makeDomain({ relationships: group() }), target).relationships).toEqual([expect.objectContaining({
+        const target = makeSubjectArea({ relationships: [member('hk', 'hk', 'one-to-one', 'k'), member('as_of', 'load_date', 'one-to-one', 'k')] });
+        expect(compare(makeSubjectArea({ relationships: group() }), target).relationships).toEqual([expect.objectContaining({
           status: 'cardinality-mismatch', pairs: PAIRS, sourceCardinality: 'many-to-one', targetCardinality: 'one-to-one',
         })]);
       });
 
       it('a composite only the target declares is one missing entry with all its pairs', () => {
-        expect(compare(makeDomain(), makeDomain({ relationships: group('fk_dbt') })).relationships).toEqual([{
+        expect(compare(makeSubjectArea(), makeSubjectArea({ relationships: group('fk_dbt') })).relationships).toEqual([{
           fromModel: 'pit', fromColumn: 'hk', toModel: 'sat', toColumn: 'hk', pairs: PAIRS, compositeKey: 'fk_dbt',
           status: 'missing', targetCardinality: 'many-to-one',
         }]);
@@ -357,14 +357,14 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('a self-reference matches dbt\'s, read from either column (#133 L3)', () => {
-      const source = makeDomain({ relationships: [makeRel(['employee', 'manager_id'], ['employee', 'employee_id'])] });
-      const target = makeDomain({ relationships: [makeRel(['employee', 'employee_id'], ['employee', 'manager_id'], 'one-to-many')] });
+      const source = makeSubjectArea({ relationships: [makeRel(['employee', 'manager_id'], ['employee', 'employee_id'])] });
+      const target = makeSubjectArea({ relationships: [makeRel(['employee', 'employee_id'], ['employee', 'manager_id'], 'one-to-many')] });
       expect(compare(source, target).relationships.map((r) => r.status)).toEqual(['matched']);
     });
 
     it('matches a link whose model and column differ only in case (#133 L4)', () => {
-      const source = makeDomain({ relationships: [makeRel(['Fct_Orders', 'Customer_ID'], ['DIM_CUSTOMER', 'id'])] });
-      const target = makeDomain({ relationships: [makeRel(['fct_orders', 'customer_id'], ['dim_customer', 'ID'])] });
+      const source = makeSubjectArea({ relationships: [makeRel(['Fct_Orders', 'Customer_ID'], ['DIM_CUSTOMER', 'id'])] });
+      const target = makeSubjectArea({ relationships: [makeRel(['fct_orders', 'customer_id'], ['dim_customer', 'ID'])] });
 
       const report = compare(source, target);
       expect(report.relationships.map((r) => r.status)).toEqual(['matched']);
@@ -373,8 +373,8 @@ describe('DiscrepancyService.compare', () => {
 
   describe('report metadata', () => {
     it('populates domain, layer, and stage fields from source/target', () => {
-      const source = makeDomain({ domain: 'orders', layer: 'silver', stage: 'physical' });
-      const target = makeDomain({ domain: 'orders', layer: 'silver', stage: 'logical' });
+      const source = makeSubjectArea({ domain: 'orders', layer: 'silver', stage: 'physical' });
+      const target = makeSubjectArea({ domain: 'orders', layer: 'silver', stage: 'logical' });
 
       const report = compare(source, target);
       expect(report.domain).toBe('orders');
@@ -384,8 +384,8 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('produces correct totalModels count including missing', () => {
-      const source = makeDomain({ models: [makeModel('a'), makeModel('b')] });
-      const target = makeDomain({ models: [makeModel('a'), makeModel('c')] });
+      const source = makeSubjectArea({ models: [makeTable('a'), makeTable('b')] });
+      const target = makeSubjectArea({ models: [makeTable('a'), makeTable('c')] });
 
       const report = compare(source, target);
       // a=matched, b=extra, c=missing → total=3
@@ -398,11 +398,11 @@ describe('DiscrepancyService.compare', () => {
       // source = physical (id, name), target = logical (id, name, email)
       // Without stub: email would be 'missing' (in target but not source)
       // With stub: email should be suppressed
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR'), makeColumn('email', 'VARCHAR')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR'), makeColumn('email', 'VARCHAR')])],
       });
 
       const report = compare(source, target, new Set(['dim_customer']));
@@ -415,11 +415,11 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('still surfaces type mismatches for stub models', () => {
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'BIGINT')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'BIGINT')])],
       });
 
       const report = compare(source, target, new Set(['dim_customer']));
@@ -434,11 +434,11 @@ describe('DiscrepancyService.compare', () => {
 
     it('still surfaces extra columns for stub models', () => {
       // source has A, B, C; target has A, B → C is 'extra' (in source not target)
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR'), makeColumn('audit_ts', 'TIMESTAMP')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR'), makeColumn('audit_ts', 'TIMESTAMP')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
       });
 
       const report = compare(source, target, new Set(['dim_customer']));
@@ -453,11 +453,11 @@ describe('DiscrepancyService.compare', () => {
     it('summary counters exclude suppressed stub columns', () => {
       // source (physical) has A, B; target (logical) has A, B, C, D
       // C and D are 'missing' normally but suppressed with stub
-      const source = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
+      const source = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR')])],
       });
-      const target = makeDomain({
-        models: [makeModel('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR'), makeColumn('email', 'VARCHAR'), makeColumn('phone', 'VARCHAR')])],
+      const target = makeSubjectArea({
+        models: [makeTable('dim_customer', [makeColumn('id', 'INT'), makeColumn('name', 'VARCHAR'), makeColumn('email', 'VARCHAR'), makeColumn('phone', 'VARCHAR')])],
       });
 
       const withStub = compare(source, target, new Set(['dim_customer']));
@@ -475,13 +475,13 @@ describe('DiscrepancyService.compare', () => {
 
   describe('case-insensitive name matching (H32)', () => {
     it('matches columns whose names differ only in case, keeping the source spelling', () => {
-      const source = makeDomain({
+      const source = makeSubjectArea({
         stage: 'logical',
-        models: [makeModel('dim_customer', [makeColumn('customer_id', 'int'), makeColumn('name', 'varchar')])],
+        models: [makeTable('dim_customer', [makeColumn('customer_id', 'int'), makeColumn('name', 'varchar')])],
       });
-      const target = makeDomain({
+      const target = makeSubjectArea({
         stage: 'physical',
-        models: [makeModel('dim_customer', [makeColumn('CUSTOMER_ID', 'int'), makeColumn('NAME', 'varchar')])],
+        models: [makeTable('dim_customer', [makeColumn('CUSTOMER_ID', 'int'), makeColumn('NAME', 'varchar')])],
       });
 
       const report = compare(source, target);
@@ -492,8 +492,8 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('still reports type mismatches on case-differing column names', () => {
-      const source = makeDomain({ models: [makeModel('m', [makeColumn('amount', 'int')])] });
-      const target = makeDomain({ models: [makeModel('m', [makeColumn('AMOUNT', 'decimal(15,2)')])] });
+      const source = makeSubjectArea({ models: [makeTable('m', [makeColumn('amount', 'int')])] });
+      const target = makeSubjectArea({ models: [makeTable('m', [makeColumn('AMOUNT', 'decimal(15,2)')])] });
 
       const report = compare(source, target);
 
@@ -501,8 +501,8 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('matches models whose names differ only in case, keeping the source spelling', () => {
-      const source = makeDomain({ models: [makeModel('dim_customer', [makeColumn('id')])] });
-      const target = makeDomain({ models: [makeModel('DIM_CUSTOMER', [makeColumn('id')])] });
+      const source = makeSubjectArea({ models: [makeTable('dim_customer', [makeColumn('id')])] });
+      const target = makeSubjectArea({ models: [makeTable('DIM_CUSTOMER', [makeColumn('id')])] });
 
       const report = compare(source, target);
 
@@ -512,12 +512,12 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('matches relationships case-insensitively on model and column names', () => {
-      const source = makeDomain({
-        models: [makeModel('a'), makeModel('b')],
+      const source = makeSubjectArea({
+        models: [makeTable('a'), makeTable('b')],
         relationships: [makeRel(['fct_orders', 'customer_id'], ['dim_customer', 'customer_id'])],
       });
-      const target = makeDomain({
-        models: [makeModel('a'), makeModel('b')],
+      const target = makeSubjectArea({
+        models: [makeTable('a'), makeTable('b')],
         relationships: [makeRel(['FCT_ORDERS', 'CUSTOMER_ID'], ['DIM_CUSTOMER', 'CUSTOMER_ID'])],
       });
 
@@ -528,8 +528,8 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('applies stubColumns suppression case-insensitively', () => {
-      const source = makeDomain({ models: [makeModel('dim_ref', [makeColumn('id')])] });
-      const target = makeDomain({ models: [makeModel('DIM_REF', [makeColumn('ID'), makeColumn('extra_col')])] });
+      const source = makeSubjectArea({ models: [makeTable('dim_ref', [makeColumn('id')])] });
+      const target = makeSubjectArea({ models: [makeTable('DIM_REF', [makeColumn('ID'), makeColumn('extra_col')])] });
 
       const report = compare(source, target, new Set(['dim_ref']));
 
@@ -572,14 +572,14 @@ describe('DiscrepancyService.compare', () => {
   describe('models that do not exist in the dbt project', () => {
     /** A physical model the dbt project does not have — emitted so it can ghost. */
     function phantom(name: string): DisplayTable {
-      return { ...makeModel(name), existsInProject: false, missingReason: 'absent' };
+      return { ...makeTable(name), existsInProject: false, missingReason: 'absent' };
     }
 
     it('excludes a phantom from both sides, leaving the report as it was before ghosts existed', () => {
       // Logical → physical: the logical model is still 'extra', because the
       // physical side's phantom does not count as a match.
-      const logical = makeDomain({ models: [makeModel('dim_customer', [makeColumn('id')])] });
-      const physical = makeDomain({ stage: 'physical', models: [phantom('dim_customer')] });
+      const logical = makeSubjectArea({ models: [makeTable('dim_customer', [makeColumn('id')])] });
+      const physical = makeSubjectArea({ stage: 'physical', models: [phantom('dim_customer')] });
 
       const fromLogical = compare(logical, physical);
       expect(fromLogical.models).toEqual([
@@ -594,10 +594,10 @@ describe('DiscrepancyService.compare', () => {
     });
 
     it('keeps summary.totalModels in step with the rows it emitted', () => {
-      const logical = makeDomain({ models: [makeModel('dim_customer'), makeModel('fct_orders')] });
-      const physical = makeDomain({
+      const logical = makeSubjectArea({ models: [makeTable('dim_customer'), makeTable('fct_orders')] });
+      const physical = makeSubjectArea({
         stage: 'physical',
-        models: [makeModel('dim_customer'), phantom('fct_orders'), phantom('dim_nowhere')],
+        models: [makeTable('dim_customer'), phantom('fct_orders'), phantom('dim_nowhere')],
       });
 
       const report = compare(physical, logical);
@@ -609,15 +609,15 @@ describe('DiscrepancyService.compare', () => {
   describe('a model with no column evidence', () => {
     /** A model known only by the .sql file that defines it — its shape is unverified. */
     function fileOnly(name: string): DisplayTable {
-      return { ...makeModel(name), existsInProject: true, provenance: { columns: ['file'], types: 'file' } };
+      return { ...makeTable(name), existsInProject: true, provenance: { columns: ['file'], types: 'file' } };
     }
 
-    const documented = () => makeDomain({
-      models: [makeModel('dim_customer', [makeColumn('id'), makeColumn('name')])],
+    const documented = () => makeSubjectArea({
+      models: [makeTable('dim_customer', [makeColumn('id'), makeColumn('name')])],
     });
 
     it('is matched with no columns when it is the target', () => {
-      const report = compare(documented(), makeDomain({ stage: 'physical', models: [fileOnly('dim_customer')] }));
+      const report = compare(documented(), makeSubjectArea({ stage: 'physical', models: [fileOnly('dim_customer')] }));
       expect(report.models[0]).toEqual({ name: 'dim_customer', status: 'matched', columns: [] });
       expect(report.summary.totalColumns).toBe(0);
     });
@@ -625,7 +625,7 @@ describe('DiscrepancyService.compare', () => {
     it('is matched with no columns when it is the source', () => {
       // Physical is the default comparison SOURCE, so one-directional
       // suppression would still emit every logical column as 'missing'.
-      const report = compare(makeDomain({ stage: 'physical', models: [fileOnly('dim_customer')] }), documented());
+      const report = compare(makeSubjectArea({ stage: 'physical', models: [fileOnly('dim_customer')] }), documented());
       expect(report.models[0]).toEqual({ name: 'dim_customer', status: 'matched', columns: [] });
       expect(report.summary.missingColumns).toBe(0);
     });
@@ -635,16 +635,16 @@ describe('DiscrepancyService.compare', () => {
       // the yml declares the model and documents no columns, which is a real
       // difference from a logical design that documents two.
       const undocumented: DisplayTable = {
-        ...makeModel('dim_customer'), existsInProject: true, provenance: { columns: ['yml'], types: 'yml' },
+        ...makeTable('dim_customer'), existsInProject: true, provenance: { columns: ['yml'], types: 'yml' },
       };
-      const report = compare(makeDomain({ stage: 'physical', models: [undocumented] }), documented());
+      const report = compare(makeSubjectArea({ stage: 'physical', models: [undocumented] }), documented());
       expect(report.models[0].columns.map((c) => c.status)).toEqual(['missing', 'missing']);
     });
   });
 
   describe('empty domains', () => {
     it('returns empty report when both domains have no models', () => {
-      const report = compare(makeDomain(), makeDomain());
+      const report = compare(makeSubjectArea(), makeSubjectArea());
       expect(report.models).toHaveLength(0);
       expect(report.relationships).toHaveLength(0);
       expect(report.summary.totalModels).toBe(0);
@@ -658,12 +658,12 @@ describe('DiscrepancyService.compare', () => {
 // ---------------------------------------------------------------------------
 
 describe('DiscrepancyService.compare — a link matches whichever end each stage reads it from (#133)', () => {
-  const models = [makeModel('fct_order', [makeColumn('customer_key')]), makeModel('dim_customer', [makeColumn('customer_key')])];
+  const models = [makeTable('fct_order', [makeColumn('customer_key')]), makeTable('dim_customer', [makeColumn('customer_key')])];
   const fromFact = (c: DisplayRelationship['cardinality']) => makeRel(['fct_order', 'customer_key'], ['dim_customer', 'customer_key'], c);
   const fromDim = (c: DisplayRelationship['cardinality']) => makeRel(['dim_customer', 'customer_key'], ['fct_order', 'customer_key'], c);
   const run = (logical: DisplayRelationship, physical: DisplayRelationship) => compare(
-    makeDomain({ models, relationships: [logical] }),
-    makeDomain({ stage: 'physical', models, relationships: [physical] }),
+    makeSubjectArea({ models, relationships: [logical] }),
+    makeSubjectArea({ stage: 'physical', models, relationships: [physical] }),
   ).relationships;
 
   it('matches the many-side logical entry with dbt\'s test from the other end', () => {

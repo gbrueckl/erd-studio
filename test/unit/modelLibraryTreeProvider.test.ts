@@ -21,18 +21,18 @@ vi.mock('fs', async () => {
 // Mock helpers
 // ---------------------------------------------------------------------------
 
-function createMockLogicalModelService(
+function createMockTableLibraryService(
   modelNames: string[] = [],
   modelsDir = '/project/.erd-studio/logical-models',
 ): TableLibraryService {
-  return createMockLogicalModelServiceFromEntries(
+  return createMockTableLibraryServiceFromEntries(
     modelNames.map(name => ({ name, folder: '', filePath: `${modelsDir}/${name}.yml` })),
     modelsDir,
   );
 }
 
 /** A mock backed by explicit file entries (top level and folders). */
-function createMockLogicalModelServiceFromEntries(
+function createMockTableLibraryServiceFromEntries(
   entries: TableFileEntry[],
   modelsDir = '/project/.erd-studio/logical-models',
 ): TableLibraryService {
@@ -62,14 +62,14 @@ const LAYERS: LayerConfig[] = [
   { id: 'marts', label: 'Data Marts', abbreviation: 'M' },
 ] as LayerConfig[];
 
-function createMockDomainService(summaries: SubjectAreaSummary[] = []): SubjectAreaService {
+function createMockSubjectAreaService(summaries: SubjectAreaSummary[] = []): SubjectAreaService {
   return {
     listDomains: vi.fn().mockReturnValue(summaries),
   } as unknown as SubjectAreaService;
 }
 
 /** Helper to build a raw v5 domain JSON string. */
-function v5DomainJson(modelNames: string[]): string {
+function v5SubjectAreaJson(modelNames: string[]): string {
   return JSON.stringify({
     schemaVersion: 5,
     domain: 'test',
@@ -80,7 +80,7 @@ function v5DomainJson(modelNames: string[]): string {
 }
 
 /** Helper to build a raw v4 domain JSON string with inline model objects. */
-function v4DomainJson(modelNames: string[]): string {
+function v4SubjectAreaJson(modelNames: string[]): string {
   return JSON.stringify({
     schemaVersion: 4,
     domain: 'legacy',
@@ -113,19 +113,19 @@ describe('ModelLibraryTreeProvider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLogicalModelService = createMockLogicalModelService(
+    mockLogicalModelService = createMockTableLibraryService(
       ['dim_customer', 'dim_date', 'fct_orders'],
     );
-    mockDomainService = createMockDomainService(SUMMARIES);
+    mockDomainService = createMockSubjectAreaService(SUMMARIES);
 
     // Default: customer-360 references dim_customer and fct_orders,
     // reporting references dim_customer only
     mockReadFileSync.mockImplementation((filePath: string) => {
       if (filePath.includes('customer-360')) {
-        return v5DomainJson(['dim_customer', 'fct_orders']);
+        return v5SubjectAreaJson(['dim_customer', 'fct_orders']);
       }
       if (filePath.includes('reporting')) {
-        return v5DomainJson(['dim_customer']);
+        return v5SubjectAreaJson(['dim_customer']);
       }
       throw new Error(`Unexpected file: ${filePath}`);
     });
@@ -155,7 +155,7 @@ describe('ModelLibraryTreeProvider', () => {
     });
 
     it('returns empty array when logical-models dir does not exist', () => {
-      mockLogicalModelService = createMockLogicalModelService([]);
+      mockLogicalModelService = createMockTableLibraryService([]);
       provider = new TableLibraryTreeProvider(
         mockLogicalModelService,
         mockDomainService,
@@ -179,10 +179,10 @@ describe('ModelLibraryTreeProvider', () => {
     it('handles v4 domain files with inline model objects', () => {
       mockReadFileSync.mockImplementation((filePath: string) => {
         if (filePath.includes('customer-360')) {
-          return v4DomainJson(['dim_customer', 'fct_orders']);
+          return v4SubjectAreaJson(['dim_customer', 'fct_orders']);
         }
         if (filePath.includes('reporting')) {
-          return v4DomainJson(['dim_customer']);
+          return v4SubjectAreaJson(['dim_customer']);
         }
         throw new Error(`Unexpected file: ${filePath}`);
       });
@@ -281,7 +281,7 @@ describe('ModelLibraryTreeProvider', () => {
 
   describe('layer folders', () => {
     const build = (entries: TableFileEntry[], layers: LayerConfig[] = LAYERS) => new TableLibraryTreeProvider(
-      createMockLogicalModelServiceFromEntries(entries),
+      createMockTableLibraryServiceFromEntries(entries),
       mockDomainService,
       '/project',
       '.erd-studio',
@@ -336,7 +336,7 @@ describe('ModelLibraryTreeProvider', () => {
 
     it('sorts folders alphabetically when no layers are supplied (default getLayers)', () => {
       const p = new TableLibraryTreeProvider(
-        createMockLogicalModelServiceFromEntries([entry('a', 'silver'), entry('b', 'gold')]),
+        createMockTableLibraryServiceFromEntries([entry('a', 'silver'), entry('b', 'gold')]),
         mockDomainService,
         '/project',
         '.erd-studio',
@@ -447,14 +447,14 @@ describe('ModelLibraryTreeProvider', () => {
 describe('ModelLibraryTreeProvider: a model file that needs fixing (#164)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockReadFileSync.mockImplementation(() => v5DomainJson(['dim_customer', 'fct_orders']));
+    mockReadFileSync.mockImplementation(() => v5SubjectAreaJson(['dim_customer', 'fct_orders']));
   });
 
   function providerWith(errors: Record<string, Partial<import('../../src/services/logicalModelService').TableFileError>>) {
-    const service = createMockLogicalModelService(['dim_customer', 'fct_orders']);
+    const service = createMockTableLibraryService(['dim_customer', 'fct_orders']);
     (service.getTableFileError as ReturnType<typeof vi.fn>).mockImplementation((name: string) =>
       errors[name] ? { name, filePath: `${DIR}/${name}.yml`, message: '', ...errors[name] } : null);
-    return new TableLibraryTreeProvider(service, createMockDomainService(SUMMARIES), '/project', '.erd-studio');
+    return new TableLibraryTreeProvider(service, createMockSubjectAreaService(SUMMARIES), '/project', '.erd-studio');
   }
 
   function itemFor(provider: TableLibraryTreeProvider, name: string) {

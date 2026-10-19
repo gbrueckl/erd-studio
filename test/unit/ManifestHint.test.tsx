@@ -20,7 +20,7 @@ const LEAD =
   "dbt hasn't parsed this project yet. Your diagram is fine, but the Physical view can't show columns and tests without it.";
 const CLOSE_LABEL = "Don't show again for this project";
 
-function domain(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
+function subjectArea(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'orders',
@@ -37,7 +37,7 @@ function domain(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea
 
 beforeEach(() => {
   useEditorStore.setState({ manifestMissing: false, manifestHintDismissed: false });
-  useEditorStore.getState().setDomain(domain());
+  useEditorStore.getState().setDomain(subjectArea());
   useEditorStore.getState().setManifestMissing(true);
 });
 
@@ -71,20 +71,20 @@ describe('ManifestHint', () => {
   });
 
   it('renders nothing on an empty diagram (the EmptyCanvas card speaks there)', () => {
-    useEditorStore.getState().setDomain(domain({ models: [] }));
+    useEditorStore.getState().setDomain(subjectArea({ models: [] }));
     const { container } = render(<ManifestHint />);
     expect(container.innerHTML).toBe('');
   });
 
   it('renders nothing on the physical stage', () => {
-    useEditorStore.getState().setDomain(domain({ stage: 'physical' }));
+    useEditorStore.getState().setDomain(subjectArea({ stage: 'physical' }));
     const { container } = render(<ManifestHint />);
     expect(container.innerHTML).toBe('');
   });
 
   it('renders nothing once dismissed, even across later payloads', () => {
     useEditorStore.setState({ manifestHintDismissed: true });
-    useEditorStore.getState().setDomain(domain());
+    useEditorStore.getState().setDomain(subjectArea());
     useEditorStore.getState().setManifestMissing(true);
     const { container } = render(<ManifestHint />);
     expect(container.innerHTML).toBe('');
@@ -99,7 +99,7 @@ describe('ManifestHint', () => {
 
   it('survives a local setDomain (a drag merging positions)', () => {
     const { container } = render(<ManifestHint />);
-    act(() => useEditorStore.getState().setDomain(domain({ viewConfig: { positions: { fct_order: { x: 1, y: 2 } } } })));
+    act(() => useEditorStore.getState().setDomain(subjectArea({ viewConfig: { positions: { fct_order: { x: 1, y: 2 } } } })));
     expect(container.textContent).toContain(LEAD);
   });
 });
