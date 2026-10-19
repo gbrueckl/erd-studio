@@ -1,5 +1,5 @@
 /**
- * Raw files -> DisplayDomain in one call, for hosts that read a domain folder
+ * Raw files -> DisplaySubjectArea in one call, for hosts that read a domain folder
  * through an async `readFile` (a git provider, an HTTP API, a zip) and render
  * it without the extension's editing extras.
  *
@@ -81,7 +81,7 @@ export async function mapWithLimit<T, R>(
 export class TooManyTablesError extends Error {
   constructor(readonly count: number, readonly max: number) {
     super(`The subject area lists ${count} tables; at most ${max} are allowed`);
-    this.name = 'TooManyModelsError';
+    this.name = 'TooManyTablesError';
   }
 }
 
@@ -97,7 +97,7 @@ export class FileTooLargeError extends Error {
  * Options for {@link loadDisplaySubjectArea}. Each numeric limit must be a number
  * of at least 0, or `Infinity` for none (`maxParallelReads`: a whole number of
  * at least 1, or `Infinity`); any other value, NaN included, makes
- * `loadDisplayDomain` reject with a TypeError before it reads anything.
+ * `loadDisplaySubjectArea` reject with a TypeError before it reads anything.
  */
 export interface LoadDisplaySubjectAreaOptions {
   /** Path of the domain file, `{semanticDir}/{layer}/{domain}.json`; `/` or `\` separated. */
@@ -107,13 +107,13 @@ export interface LoadDisplaySubjectAreaOptions {
    * a rejection is passed through to the caller unchanged.
    */
   readFile(path: string): Promise<string | null | undefined>;
-  /** The DisplayDomain's `readOnly` flag. */
+  /** The DisplaySubjectArea's `readOnly` flag. */
   readOnly: boolean;
   /** Most files read at once. Default 8. */
   maxParallelReads?: number;
   /**
    * Which v5 model names may be read. A rejected name is never read and
-   * renders as a placeholder. Default: `isSafeModelName`.
+   * renders as a placeholder. Default: `isSafeTableName`.
    */
   modelNameFilter?: (name: string) => boolean;
   /** Most entries `logical.models` may have (v4 and v5, counted before any filtering). Default unlimited. */
@@ -180,12 +180,12 @@ function stripJsonExtension(fileName: string): string {
 
 /**
  * Read a domain, its layers and its logical models through `readFile`, and
- * build the DisplayDomain of its logical stage.
+ * build the DisplaySubjectArea of its logical stage.
  *
- * Bad input rejects with one of four classes: `DomainFileError` (missing,
- * empty or non-JSON domain file), `DomainValidationError` (not a loadable
+ * Bad input rejects with one of four classes: `SubjectAreaFileError` (missing,
+ * empty or non-JSON domain file), `SubjectAreaValidationError` (not a loadable
  * domain, an unconfigured layer, or a malformed v4 inline model),
- * `TooManyModelsError` and `FileTooLargeError`. A model that is missing,
+ * `TooManyTablesError` and `FileTooLargeError`. A model that is missing,
  * unreadable, unsafe, too large or over the node budget renders as a
  * placeholder instead. A `readFile` rejection, and anything the caller's
  * `warn` throws, is passed through unchanged.
@@ -217,11 +217,11 @@ export async function loadDisplaySubjectArea(options: LoadDisplaySubjectAreaOpti
   const warn = options.warn ?? ((message: string) => console.warn(message));
 
   // 0. Limits that are not numbers would silently switch themselves off.
-  checkLimit('loadDisplayDomain', 'maxParallelReads', maxParallelReads, { min: 1, integer: true });
-  checkLimit('loadDisplayDomain', 'maxModels', maxModels);
-  checkLimit('loadDisplayDomain', 'maxYamlNodes', maxYamlNodes);
-  checkLimit('loadDisplayDomain', 'maxDomainChars', maxDomainChars);
-  checkLimit('loadDisplayDomain', 'maxYamlChars', maxYamlChars);
+  checkLimit('loadDisplaySubjectArea', 'maxParallelReads', maxParallelReads, { min: 1, integer: true });
+  checkLimit('loadDisplaySubjectArea', 'maxModels', maxModels);
+  checkLimit('loadDisplaySubjectArea', 'maxYamlNodes', maxYamlNodes);
+  checkLimit('loadDisplaySubjectArea', 'maxDomainChars', maxDomainChars);
+  checkLimit('loadDisplaySubjectArea', 'maxYamlChars', maxYamlChars);
   const ignoreStrayPositions =
     options.ignoreStrayPositions ??
     [maxModels, maxYamlNodes, maxDomainChars, maxYamlChars].some((limit) => limit !== Infinity);
@@ -268,7 +268,7 @@ export async function loadDisplaySubjectArea(options: LoadDisplaySubjectAreaOpti
     const names = [...new Set(rawModels.filter((m): m is string => typeof m === 'string'))]
       .filter((name) => modelNameFilter(name));
     const modelsDir = `${prefix}${LOGICAL_MODELS_DIR}/`;
-    // Alphabetical, like the extension's LogicalModelService, so a name that
+    // Alphabetical, like the extension's TableLibraryService, so a name that
     // (wrongly) exists in two folders resolves to the same file in both hosts.
     const folders = [...new Set([domainLayer, ...layers.map((l) => l.id)])].sort((a, b) => a.localeCompare(b));
     await mapWithLimit(names, maxParallelReads, async (name) => {
@@ -320,7 +320,7 @@ export async function loadDisplaySubjectArea(options: LoadDisplaySubjectAreaOpti
   }
 }
 
-/** Steps 8-10 of {@link loadDisplaySubjectArea}: the parsed files -> the DisplayDomain. */
+/** Steps 8-10 of {@link loadDisplaySubjectArea}: the parsed files -> the DisplaySubjectArea. */
 function buildDisplaySubjectArea(
   obj: Record<string, unknown>,
   format: SubjectAreaFormat,
@@ -338,7 +338,7 @@ function buildDisplaySubjectArea(
 ): DisplaySubjectArea {
   const { domainPath, fileName, parentDirName, layers, layerLookup, parsed, readOnly, ignoreStrayPositions, warn } = ctx;
 
-  // 8. The UnifiedDomain, each occurrence of a model its own copy (sharing
+  // 8. The UnifiedSubjectArea, each occurrence of a model its own copy (sharing
   // the parsed strings, which are immutable, so repeats cost no text). Each
   // copy is charged to the file's budgets, so listing one model many times
   // cannot expand the result past what the budgets allow one file.

@@ -1,5 +1,5 @@
 /**
- * Logical model YAML text -> SemanticModel.
+ * Logical model YAML text -> SemanticTable.
  *
  * Model files live at `.erd-studio/logical-models/{model_name}.yml`. Reading
  * them (and caching, and deciding what a read failure means) is the host's
@@ -27,7 +27,7 @@ export const RATIONALE_KEYS = ['purpose', 'design', 'grainChoice', 'roleChoice',
  *
  * Anchors and aliases let a few hundred bytes describe an exponentially large
  * document (the "billion laughs" shape). Hosts that read files they do not
- * trust pass `maxNodes` to `parseLogicalModelText` and get this error instead
+ * trust pass `maxNodes` to `parseTableText` and get this error instead
  * of an unbounded expansion.
  */
 export class YamlNodeLimitError extends Error {
@@ -54,7 +54,7 @@ export class YamlCharLimitError extends Error {
 /**
  * A model file that does not parse because it holds unresolved git merge
  * conflicts (#145). `line` is the first `<<<<<<<`, not where the YAML parser
- * happened to stop; `classifyModelLoadError` turns it into a `ModelLoadError`
+ * happened to stop; `classifyTableLoadError` turns it into a `TableLoadError`
  * with `mergeConflict` set. Not exported from the package: hosts see the flag.
  */
 export class TableMergeConflictError extends Error {
@@ -62,7 +62,7 @@ export class TableMergeConflictError extends Error {
 
   constructor(readonly line: number, yamlError: unknown) {
     super(`Unresolved git merge conflict (first at line ${line})`);
-    this.name = 'ModelMergeConflictError';
+    this.name = 'TableMergeConflictError';
     // As `new Error(message, { cause })` sets it (that form needs ES2022 lib typings).
     Object.defineProperty(this, 'cause', { value: yamlError, writable: true, configurable: true });
   }
@@ -92,7 +92,7 @@ export interface ParseTableOptions {
 
 /**
  * Shape of a model as stored in YAML.
- * Matches SemanticModel but with explicit field types for YAML serialization.
+ * Matches SemanticTable but with explicit field types for YAML serialization.
  */
 interface YamlTable {
   name: string;
@@ -131,7 +131,7 @@ interface ToPlainState {
   readonly aliases: ReadonlyMap<Alias, unknown>;
   remaining: number;
   readonly maxNodes: number;
-  /** Characters of scalar text still allowed; see `ParseLogicalModelOptions.maxChars`. */
+  /** Characters of scalar text still allowed; see `ParseTableOptions.maxChars`. */
   remainingChars: number;
   readonly maxChars: number;
 }
@@ -167,9 +167,9 @@ function aliasTargets(doc: Document): Map<Alias, unknown> {
  * Returns null for an empty file, a file whose root is not a mapping, or a
  * model with no `name`. Throws on YAML syntax errors: the first error yaml
  * reports, except that text holding unresolved git merge conflicts throws an
- * Error named `ModelMergeConflictError` instead, with `mergeConflict: true`,
+ * Error named `TableMergeConflictError` instead, with `mergeConflict: true`,
  * `line` (the 1-based line of the first `<<<<<<<`) and yaml's error as its
- * `cause` — `classifyModelLoadError` turns it into a `loadError` with
+ * `cause` — `classifyTableLoadError` turns it into a `loadError` with
  * `mergeConflict` set. Also throws `YamlNodeLimitError` when `maxNodes` is
  * set and exceeded, and `YamlCharLimitError` when `maxChars` is. A limit that
  * is not a number of at least 0 (or Infinity) throws a TypeError.
@@ -193,7 +193,7 @@ export interface TableParse {
 }
 
 /**
- * `parseLogicalModelText`, also reporting how much of each finite budget the
+ * `parseTableText`, also reporting how much of each finite budget the
  * document used, so a caller that repeats the model can charge every repeat.
  * Not part of the package's public API.
  */
@@ -203,8 +203,8 @@ export function parseTableTextWithUsage(
   opts: ParseTableOptions = {},
 ): TableParse {
   const { maxNodes = Infinity, maxChars = Infinity, duplicateKeys = 'error' } = opts;
-  checkLimit('parseLogicalModelText', 'maxNodes', maxNodes);
-  checkLimit('parseLogicalModelText', 'maxChars', maxChars);
+  checkLimit('parseTableText', 'maxNodes', maxNodes);
+  checkLimit('parseTableText', 'maxChars', maxChars);
   const { raw, state, loadWarning } = parseTableFile(text, maxNodes, maxChars, duplicateKeys === 'last');
   const nodes = maxNodes === Infinity ? 0 : maxNodes - state.remaining;
   const chars = maxChars === Infinity ? 0 : maxChars - state.remainingChars;
@@ -265,7 +265,7 @@ export function isSafeTableName(name: unknown): name is string {
  * instead of its resolved value. Booleans and nulls are kept as-is.
  * `raw` is null for an empty file or a file whose root is not a mapping;
  * `state` holds what is left of the budgets. Throws on YAML syntax errors —
- * a `ModelMergeConflictError` when the text holds git conflict markers.
+ * a `TableMergeConflictError` when the text holds git conflict markers.
  */
 function parseTableFile(
   content: string,

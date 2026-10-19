@@ -44,7 +44,7 @@ function build(doc: unknown, overrides: Partial<BuildUnifiedSubjectAreaContext> 
   return buildUnifiedSubjectArea(obj, format, ctx(overrides));
 }
 
-describe('NON_DOMAIN_DIRS', () => {
+describe('NON_SUBJECT_AREA_DIRS', () => {
   it('lists the directories that never hold domain files', () => {
     expect([...NON_SUBJECT_AREA_DIRS].sort()).toEqual(['logical', 'logical-models', 'physical', 'templates']);
   });
@@ -56,7 +56,7 @@ describe('VALID_CARDINALITIES', () => {
   });
 });
 
-describe('DomainFileError', () => {
+describe('SubjectAreaFileError', () => {
   it('is transient only for empty and invalid-json files', () => {
     expect(new SubjectAreaFileError('empty', FILE, 'm').transient).toBe(true);
     expect(new SubjectAreaFileError('invalid-json', FILE, 'm').transient).toBe(true);
@@ -70,11 +70,11 @@ describe('DomainFileError', () => {
     expect(err.reason).toBe('missing');
     expect(err.filePath).toBe(FILE);
     expect(err.message).toBe('gone');
-    expect(err.name).toBe('DomainFileError');
+    expect(err.name).toBe('SubjectAreaFileError');
   });
 });
 
-describe('parseDomainJson', () => {
+describe('parseSubjectAreaJson', () => {
   it('returns the parsed document', () => {
     expect(parseSubjectAreaJson('{"schemaVersion":5}', FILE)).toEqual({ schemaVersion: 5 });
   });
@@ -107,7 +107,7 @@ describe('parseDomainJson', () => {
   });
 });
 
-describe('validateDomainDocument', () => {
+describe('validateSubjectAreaDocument', () => {
   const rejects = (data: unknown, message: string) => {
     expect(() => validateSubjectAreaDocument(data, FILE)).toThrow(SubjectAreaValidationError);
     expect(() => validateSubjectAreaDocument(data, FILE)).toThrow(message);
@@ -154,7 +154,7 @@ describe('validateDomainDocument', () => {
   });
 });
 
-describe('resolveDomainLayer', () => {
+describe('resolveSubjectAreaLayer', () => {
   it('uses the layer field when it is configured', () => {
     expect(resolveSubjectAreaLayer('gold', FILE, 'silver', layers('silver', 'gold'))).toBe('gold');
   });
@@ -165,14 +165,14 @@ describe('resolveDomainLayer', () => {
     expect(resolveSubjectAreaLayer(7, FILE, 'gold', layers('silver', 'gold'))).toBe('gold');
   });
 
-  it('throws a DomainValidationError listing the configured layers', () => {
+  it('throws a SubjectAreaValidationError listing the configured layers', () => {
     const call = () => resolveSubjectAreaLayer('diamond', FILE, 'platinum', layers('silver', 'gold'));
     expect(call).toThrow(SubjectAreaValidationError);
     expect(call).toThrow(`Subject area file ${FILE} has invalid layer "diamond". Expected one of: silver, gold`);
   });
 });
 
-describe('buildUnifiedDomain', () => {
+describe('buildUnifiedSubjectArea', () => {
   it('fills defaults for a minimal v5 document', () => {
     expect(build({ schemaVersion: 5 })).toEqual({
       schemaVersion: 5,
@@ -280,7 +280,7 @@ describe('buildUnifiedDomain', () => {
     ]);
     expect(warn.mock.calls.map((c) => c[0]).join('\n')).not.toContain('"broken" not found');
 
-    // toDisplayDomain passes it through to the node.
+    // toDisplaySubjectArea passes it through to the node.
     const display = toDisplaySubjectArea(toLogicalStage(u), { viewConfig: {}, layerConfig: undefined, readOnly: false });
     expect(display.models.map((m) => m.loadError)).toEqual([{ kind: 'yamlScalar', line: 4 }, undefined]);
   });

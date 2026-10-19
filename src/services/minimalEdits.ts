@@ -201,7 +201,7 @@ function scanString(text: string, i: number): number {
     else if (ch === '"') return i + 1;
     else i++;
   }
-  throw new Error('setDomainRelationships: unterminated string');
+  throw new Error('setSubjectAreaRelationships: unterminated string');
 }
 
 /** End (exclusive) of the JSON value starting at `i` (already validated text). */
@@ -220,7 +220,7 @@ function scanValue(text: string, i: number): number {
       }
       i++;
     }
-    throw new Error('setDomainRelationships: unterminated container');
+    throw new Error('setSubjectAreaRelationships: unterminated container');
   }
   while (i < text.length && !isWs(text[i]) && text[i] !== ',' && text[i] !== '}' && text[i] !== ']') i++;
   return i;
@@ -282,11 +282,11 @@ export function setSubjectAreaRelationships(text: string, relationships: readonl
   const { bom, body } = splitBom(text);
   const parsed: unknown = JSON.parse(body);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('setDomainRelationships: the subject area file is not a JSON object');
+    throw new Error('setSubjectAreaRelationships: the subject area file is not a JSON object');
   }
   const logicalValue = (parsed as Record<string, unknown>).logical;
   if (!logicalValue || typeof logicalValue !== 'object' || Array.isArray(logicalValue)) {
-    throw new Error('setDomainRelationships: the subject area file has no "logical" object');
+    throw new Error('setSubjectAreaRelationships: the subject area file has no "logical" object');
   }
 
   const eol = detectEol(body);

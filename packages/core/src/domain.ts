@@ -1,7 +1,7 @@
 /**
- * Domain JSON -> UnifiedDomain, without touching a file system.
+ * Domain JSON -> UnifiedSubjectArea, without touching a file system.
  *
- * The extension host's DomainService reads the file and hands the text here;
+ * The extension host's SubjectAreaService reads the file and hands the text here;
  * other hosts (a browser, a server reading from a git provider) do the same
  * with whatever `readFile` they have. The parsing, validation and repair
  * rules — and every message they produce — live in this one place, so every
@@ -46,7 +46,7 @@ export const NON_SUBJECT_AREA_DIRS: ReadonlySet<string> = new Set([
   'templates', LOGICAL_MODELS_DIR, 'logical', 'physical',
 ]);
 
-/** Why a domain file could not be turned into a `UnifiedDomain`. */
+/** Why a domain file could not be turned into a `UnifiedSubjectArea`. */
 export type SubjectAreaFileErrorReason = 'missing' | 'unreadable' | 'empty' | 'invalid-json';
 
 /**
@@ -80,7 +80,7 @@ export class SubjectAreaFileError extends Error {
     options: { mergeConflict?: boolean; line?: number } = {},
   ) {
     super(message);
-    this.name = 'DomainFileError';
+    this.name = 'SubjectAreaFileError';
     this.mergeConflict = options.mergeConflict === true;
     if (options.line !== undefined) this.line = options.line;
     this.transient = reason === 'empty' || (reason === 'invalid-json' && !this.mergeConflict);
@@ -104,7 +104,7 @@ export const VALID_CARDINALITIES: ReadonlySet<Cardinality> = new Set<Cardinality
 /**
  * Parse the text of a domain file.
  *
- * Throws a transient `DomainFileError` for an empty file ('empty') and for
+ * Throws a transient `SubjectAreaFileError` for an empty file ('empty') and for
  * text that is not JSON ('invalid-json') — except text holding git conflict
  * markers, an 'invalid-json' with `mergeConflict` set that is not transient.
  * Reading the file — and the 'missing' / 'unreadable' failures — is the
@@ -145,7 +145,7 @@ export function parseSubjectAreaJson(raw: string, filePath: string): unknown {
 
 /**
  * Check that parsed JSON is a domain document this version can load, and
- * work out its format. Throws `DomainValidationError` otherwise.
+ * work out its format. Throws `SubjectAreaValidationError` otherwise.
  */
 export function validateSubjectAreaDocument(
   data: unknown,
@@ -193,7 +193,7 @@ export interface LayerLookup {
 /**
  * The layer a domain belongs to: its `layer` field when that is configured,
  * otherwise the name of the directory it sits in. Throws
- * `DomainValidationError` when neither is a configured layer.
+ * `SubjectAreaValidationError` when neither is a configured layer.
  */
 export function resolveSubjectAreaLayer(
   value: unknown,
@@ -217,7 +217,7 @@ export function resolveSubjectAreaLayer(
   );
 }
 
-/** What `buildUnifiedDomain` needs from its host. */
+/** What `buildUnifiedSubjectArea` needs from its host. */
 export interface BuildUnifiedSubjectAreaContext {
   /** How the file is named in messages (a path, or a repo-relative label). */
   filePath: string;
@@ -249,7 +249,7 @@ export interface BuildUnifiedSubjectAreaContext {
 }
 
 /**
- * Turn a validated domain document into a `UnifiedDomain`: resolve the layer,
+ * Turn a validated domain document into a `UnifiedSubjectArea`: resolve the layer,
  * the global view config, `stubColumns` and the logical stage, repairing or
  * dropping malformed entries with a warning rather than failing the domain.
  */
@@ -291,7 +291,7 @@ export function buildUnifiedSubjectArea(
 }
 
 /**
- * Project a `UnifiedDomain` onto its logical stage.
+ * Project a `UnifiedSubjectArea` onto its logical stage.
  *
  * Physical stages are derived from the dbt project by the extension host and
  * are not produced here.
@@ -313,7 +313,7 @@ export function toLogicalStage(unified: UnifiedSubjectArea): SemanticSubjectArea
 
 /**
  * Parse a stage data section from a domain file.
- * Handles both v4 (inline SemanticModel[]) and v5 (string[] name references)
+ * Handles both v4 (inline SemanticTable[]) and v5 (string[] name references)
  * as decided by {@link detectSubjectAreaFormat} — hybrid/legacy documents are
  * rejected before this point, so every entry is guaranteed to match `format`.
  * For v5, resolves model names through `getModel`.
