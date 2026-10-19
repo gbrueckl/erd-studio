@@ -8,6 +8,9 @@
  * the legacy V4 inline path.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
 import type { ColumnDef, SemanticModel } from '../../src/types/semantic';
@@ -39,9 +42,14 @@ function makeWebview() {
   };
 }
 
+// The domain file must exist: an edit to one deleted outside ERD Studio is refused (#161).
+const DOMAIN_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'erd-updatecolumn-')), '.erd-studio', 'silver', 'test.json');
+fs.mkdirSync(path.dirname(DOMAIN_PATH), { recursive: true });
+fs.writeFileSync(DOMAIN_PATH, '{}');
+
 function makeDocument(text: string) {
   return {
-    uri: vscode.Uri.file('/ws/.erd-studio/silver/test.json'),
+    uri: vscode.Uri.file(DOMAIN_PATH),
     getText: () => text,
     positionAt: (offset: number) => new vscode.Position(0, offset),
     save: async () => true,

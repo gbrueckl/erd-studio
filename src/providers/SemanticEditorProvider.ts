@@ -19,7 +19,7 @@
  *                         openFeedbackLink),
  *                         viewFile, requestReload, dismissWelcome,
  *                         dismissManifestHint, openGettingStarted,
- *                         exportDiagram
+ *                         exportDiagram, closeEditor, openAnotherDomain
  *   Extension → Webview:  domainLoaded, stageData (echoes switchStage
  *                         requestId), discrepancyReport, manifestStaleness,
  *                         syncPlanGenerated, openFeedback, feedbackContext,
@@ -174,7 +174,7 @@ import {
 import type { RelationshipWriteInput, RelationshipWriteOp } from '../services/libraryRelationships';
 import { auditRelationshipWrite, surveyLibrary } from '../services/relationshipHealth';
 import type { RelationshipAudit } from '../services/relationshipHealth';
-import { RelationshipsRewriteRefused } from '../services/logicalModelService';
+import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused } from '../services/logicalModelService';
 import { readDbtProjectConfig } from '../services/dbtProjectConfig';
 import { normaliseName } from '../services/nameUtils';
 
@@ -355,7 +355,7 @@ class EditRefused extends Error {
 
 /** A refusal the user was told about in plain words, which usage telemetry does not count as a failure. */
 function isExplainedRefusal(err: unknown): boolean {
-  return err instanceof EditRefused || err instanceof RelationshipsRewriteRefused;
+  return err instanceof EditRefused || err instanceof RelationshipsRewriteRefused || err instanceof DuplicateKeyWriteRefused;
 }
 import {
   isValidCardinality,
@@ -370,6 +370,7 @@ import {
   validateMetaPayload,
   validateAnnotationPositions,
   validateAddModelsFromDbtPayload,
+  validateAddExistingModelsPayload,
   validateOpenModelFilePayload,
   validateLayoutFinishedPayload,
   validateExtraPairs,
@@ -452,6 +453,7 @@ export const PHYSICAL_READ_ONLY_MESSAGE = 'Physical stage is read-only. Switch t
 const EDIT_FEATURES: Partial<Record<string, TelemetryFeature>> = {
   addModel: 'editModel',
   addExistingModel: 'editModel',
+  addExistingModels: 'editModel',
   addModelsFromDbt: 'editModel',
   renameModel: 'editModel',
   removeModel: 'editModel',
@@ -978,7 +980,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           'refreshManifest', 'dismissWelcome',
           'viewFile', 'generateSyncPlan', 'runDbtCompile', 'runDbtParse', 'launchClaudeSync',
           'addAnnotation', 'updateAnnotation', 'removeAnnotation', 'removeAnnotations',
-          'requestReload', 'openGettingStarted',
+          'requestReload', 'openGettingStarted', 'closeEditor', 'openAnotherDomain',
           'requestFeedbackContext', 'analyzeFeedback', 'setFeedbackProvider',
           'submitFeedback', 'copyFeedbackReport', 'openFeedbackLink',
           'openModelFile', 'layoutFinished', 'exportDiagram',
@@ -1014,6 +1016,15 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             saveAllAndReload('ERD Studio canvas connection lost').catch(err => {
               console.error('[ERD Studio] requestReload handling failed:', err);
             });
+            break;
+          case 'closeEditor':
+            // The "deleted or renamed" screen (#161): the file is gone, so the
+            // tab has nothing left to show. No payload to validate; writes
+            // nothing, so both are on the physical allowlist.
+            webviewPanel.dispose();
+            break;
+          case 'openAnotherDomain':
+            await vscode.commands.executeCommand('erdStudio.openDomain');
             break;
           case 'dismissWelcome':
             await this.context.globalState.update('welcomeDismissed', true);
@@ -1223,6 +1234,19 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
               await this.queueEdit(panelKey, () =>
                 this.handleAddExistingModel(document, webviewPanel.webview, payload, activeStage));
             }
+            break;
+          }
+          case 'addExistingModels': {
+            // Logical only, like addExistingModel: not in NON_MUTATION_TYPES.
+            const payload = (message as { payload?: unknown }).payload;
+            const payloadError = validateAddExistingModelsPayload(payload);
+            if (payloadError) {
+              this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to add models: ${payloadError}` } });
+              break;
+            }
+            telemetry.feature('addModel');
+            await this.queueEdit(panelKey, () =>
+              this.handleAddExistingModels(document, webviewPanel.webview, (payload as { modelNames: string[] }).modelNames));
             break;
           }
           case 'addModelsFromDbt': {
@@ -1650,7 +1674,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         this.scheduleNativeUndoFlush(document, webviewPanel.webview, panelKey);
         return;
       }
-      if (document.isDirty) {
+      // A file deleted outside ERD Studio is not saved back into existence (#161).
+      if (document.isDirty && fs.existsSync(document.uri.fsPath)) {
         await document.save();
       }
       await this.sendDomainData(document, webviewPanel.webview, panelKey);
@@ -2021,6 +2046,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     webview: vscode.Webview,
     panelKey: string,
   ): Promise<void> {
+    this.refuseIfDomainFileGone(document);
     this.pendingUpdates.set(panelKey, true);
     try {
       await vscode.commands.executeCommand(command);
@@ -2035,6 +2061,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * the model files this canvas wrote, then redraw — one refresh for the step.
    */
   private async flushUndoRedo(document: vscode.TextDocument, webview: vscode.Webview, panelKey: string): Promise<void> {
+    // Cmd+Z on a canvas whose file was deleted outside ERD Studio rewinds the
+    // document in memory only; saving it would recreate the file (#161).
+    if (!fs.existsSync(document.uri.fsPath)) return;
     await document.save();
     this.ownWriteTracker.recordWrite(document.uri.fsPath);
     await this.saveDirtyModelDocuments(panelKey);
@@ -2108,6 +2137,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     const { refreshWebview = true, webview, stage, modelFiles, errorLabel, onSuccess } = options;
     const panelKey = document.uri.toString();
 
+    // The open document outlives its file: saving this edit would bring back a
+    // diagram an AI assistant, git or the file explorer just removed (#161).
+    this.refuseIfDomainFileGone(document);
     const text = document.getText();
     const parsed = this.parseDomainDocument(document, text);
     const section = this.getStageSection(parsed, stage);
@@ -2353,6 +2385,44 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     return readOnly ? display : withDbtKeyHints(display, dbtKeyIndexOf(ymlData, manifest));
   }
 
+  /** The "deleted or renamed" screen's payload (#161), naming the file project-relative. */
+  private domainMissingPayload(document: vscode.TextDocument): ErrorMessage['payload'] {
+    const shown = path.relative(this.workspaceRoot, document.uri.fsPath).split(path.sep).join('/');
+    return { message: `${shown} was deleted or renamed outside ERD Studio.`, kind: 'domain-missing' };
+  }
+
+  /** Throws `EditRefused` when the domain file is no longer on disk, before anything is written (#161). */
+  private refuseIfDomainFileGone(document: vscode.TextDocument): void {
+    if (!fs.existsSync(document.uri.fsPath)) {
+      throw new EditRefused(`${this.domainMissingPayload(document).message} Nothing was saved.`);
+    }
+  }
+
+  /**
+   * A domain file was deleted, created or changed outside ERD Studio (the
+   * watcher's `onSemanticFileDeleted` / `onSemanticFileChanged`). Every open
+   * canvas whose file is really gone switches to the "deleted or renamed"
+   * screen now, rather than drawing a stale, editable diagram until an
+   * unrelated refresh fails (#161); one showing that screen whose file is back
+   * (a `git checkout` back, an assistant rewriting it) is re-read, since a
+   * file restored with the same text fires no document change. Each panel is
+   * checked on disk rather than matched against the event's paths: git's
+   * delete-then-rename fires deletes for files that are still there, and
+   * those canvases are left alone. Writes nothing.
+   */
+  syncDomainFilePresence(): void {
+    for (const [panelKey, panel] of this.openPanels) {
+      const { document, webview } = panel;
+      if (document.uri.scheme !== 'file') continue;
+      const missing = this.domainMissingPayload(document);
+      if (!fs.existsSync(document.uri.fsPath)) {
+        this.postLoadError(webview, panelKey, missing, undefined, 'missing');
+      } else if (this.lastLoadError.get(panelKey) === missing.message) {
+        void this.sendDomainData(document, webview, panelKey);
+      }
+    }
+  }
+
   /**
    * Parse the document, build display domain for the active stage, and send to webview.
    * On parse failure, sends an error message instead.
@@ -2449,6 +2519,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // A payload went out, so the next failure is news again.
       this.lastLoadError.delete(errorKey);
     } catch (err) {
+      // A restored tab, or a refresh, whose file is gone (#161): the same
+      // screen as a delete seen live, so Retry and Open as Text never show.
+      if (err instanceof DomainFileError && err.reason === 'missing') {
+        this.postLoadError(webview, errorKey, this.domainMissingPayload(document), err, 'missing');
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
       this.postLoadError(webview, errorKey, {
         message,
@@ -4195,14 +4271,55 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  /** The queued half of {@link handleAddModelsFromDbt}: build the draft against the current document and write it. */
+  /**
+   * The Add Existing Model dialog with several rows ticked (#160): the same
+   * batch write as "Add models from dbt" — library models referenced, dbt-only
+   * ones seeded into the library, relationships between them and the domain
+   * added — in one `applyDomainEdit`, so one undo removes them all. The names
+   * are the user's explicit pick, so the draft's first-diagram cap does not
+   * apply; the payload validator already holds them to
+   * {@link ADD_EXISTING_MODELS_LIMIT}. v5 only, like the dbt batch.
+   */
+  private async handleAddExistingModels(
+    document: vscode.TextDocument,
+    webview: vscode.Webview,
+    modelNames: readonly string[],
+  ): Promise<void> {
+    try {
+      if (!this.isDomainV5(this.parseDomainDocument(document))) {
+        this.post(webview, {
+          type: 'error',
+          payload: { message: 'Adding several models at once needs the central model store. Run "ERD Studio: Migrate Domains to Central Model Store" first, or add them one at a time.' },
+        });
+        return;
+      }
+      const ymlData = await this.ymlParserService.loadYmlData(this.workspaceRoot, undefined);
+      const manifest = await this.manifestService.loadManifest(this.workspaceRoot);
+      await this.applyDbtModels(document, webview, modelNames, ymlData, manifest, 'picked');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[SemanticEditorProvider] Add existing models failed: ${message}`);
+      this.post(webview, { type: 'error', payload: { message: `Failed to add models: ${message}` } });
+    }
+  }
+
+  /**
+   * The queued half of {@link handleAddModelsFromDbt} and of
+   * {@link handleAddExistingModels}: build the draft against the current
+   * document and write it. `'dbt'` is the empty canvas's capped first draft;
+   * `'picked'` is the dialog's explicit pick, uncapped and worded without
+   * "from dbt" (it may be all library models).
+   */
   private async applyDbtModels(
     document: vscode.TextDocument,
     webview: vscode.Webview,
     modelNames: readonly string[],
     ymlData: YmlData,
     manifest: ManifestData,
+    origin: 'dbt' | 'picked' = 'dbt',
   ): Promise<void> {
+    const fromDbt = origin === 'dbt';
+    const from = fromDbt ? ' from dbt' : '';
     try {
       // Re-read inside the queue: an edit may have landed while the picker was open.
       const parsed = this.parseDomainDocument(document);
@@ -4217,13 +4334,22 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         libraryHas: (name) => this.logicalModelService.modelExists(name),
         existingModelNames: existingNames,
         existingRelationships: (section.relationships ?? []) as Relationship[],
+        ...(fromDbt ? {} : { limit: modelNames.length, skipDisabled: false }),
       });
-      const skippedNote = describeSkippedDbtModels(draft.skipped);
+      // A pick is matched to the domain ignoring case, as model names are
+      // unique that way, so a ticked row can already be there under another
+      // case (or added since by another panel): name it rather than drop it
+      // without a word. The dbt picker leaves those out up front.
+      const alreadyIn = fromDbt ? [] : draft.skipped.filter((s) => s.reason === 'already-in-domain').map((s) => s.name);
+      const skippedNote = [
+        describeSkippedDbtModels(draft.skipped),
+        alreadyIn.length > 0 ? `Already in this diagram: ${alreadyIn.slice(0, 5).join(', ')}${alreadyIn.length > 5 ? ` and ${alreadyIn.length - 5} more` : ''}.` : '',
+      ].filter(Boolean).join(' ');
       if (draft.modelNames.length === 0) {
-        telemetry.feature('addFromDbtNothingDrawable');
+        if (fromDbt) telemetry.feature('addFromDbtNothingDrawable');
         this.post(webview, {
           type: 'error',
-          payload: { message: `No models were added from dbt.${skippedNote ? ` ${skippedNote}` : ''}` },
+          payload: { message: `No models were added${from}.${skippedNote ? ` ${skippedNote}` : ''}` },
         });
         return;
       }
@@ -4260,15 +4386,15 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         {
           webview,
           stage: 'logical',
-          errorLabel: 'Failed to add models from dbt.',
+          errorLabel: `Failed to add models${from}.`,
           ...(routed.saves.length > 0 ? { modelFiles: { save: routed.saves.map((model) => ({ model })) } } : {}),
           onSuccess: () => {
-            telemetry.feature('addFromDbt');
+            if (fromDbt) telemetry.feature('addFromDbt');
             this.selectorsService.scheduleRegenerate();
             if (skippedNote) {
               const added = draft.modelNames.length;
               void vscode.window.showInformationMessage(
-                `Added ${added} model${added === 1 ? '' : 's'} from dbt. ${skippedNote}`,
+                `Added ${added} model${added === 1 ? '' : 's'}${from}. ${skippedNote}`,
               );
             }
           },
@@ -4276,11 +4402,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`[SemanticEditorProvider] Add models from dbt failed: ${message}`);
+      console.error(`[SemanticEditorProvider] Add models${from} failed: ${message}`);
       // A refusal the toast explains (a conflicted diagram, a model file
       // with unsaved edits) is not a breakage.
-      if (!isExplainedRefusal(err)) telemetry.error('addFromDbtFailed');
-      this.post(webview, { type: 'error', payload: { message: `Failed to add models from dbt: ${message}` } });
+      if (fromDbt && !isExplainedRefusal(err)) telemetry.error('addFromDbtFailed');
+      this.post(webview, { type: 'error', payload: { message: `Failed to add models${from}: ${message}` } });
     }
   }
 

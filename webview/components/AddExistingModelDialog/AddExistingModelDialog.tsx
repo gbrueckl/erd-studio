@@ -8,14 +8,21 @@
  *
  * Each model shows its source badge, file path, and metadata.
  * Filter chips let the user show/hide each source type.
+ *
+ * Several models can be picked at once: a click ticks or unticks a row, and
+ * "Select all" ticks every row the search and filters show. One pick posts
+ * `addExistingModel { modelName }` as before; more post one `addExistingModels`, which
+ * the host adds in one edit (one undo step). Double-click adds that row, with
+ * any others ticked. A v4 domain (no central model store) picks one at a time.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Panel } from '@xyflow/react';
 
 import { useEditorStore } from '../../store/editorStore';
 import { useSend } from '../../hooks/useMessageBus';
 import type { ExistingModelPreview, ManifestModelPreview } from '../../../src/types/display';
+import { ADD_EXISTING_MODELS_LIMIT } from '../../../src/types/messages';
 import './AddExistingModelDialog.css';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +47,8 @@ export function AddExistingModelDialog() {
   const existingModels = useEditorStore((s) => s.existingModels);
   const manifestModels = useEditorStore((s) => s.manifestModels);
   const modelFolder = useEditorStore((s) => s.domain?.modelFolder);
+  // The host adds several at once only into a v5 domain (`addExistingModels`).
+  const canPickMany = useEditorStore((s) => (s.domain?.schemaVersion ?? 5) >= 5);
   const send = useSend();
 
   // Use existingModels if available (v5), fall back to manifestModels (v4 compat)
@@ -48,7 +57,8 @@ export function AddExistingModelDialog() {
 
   // Local state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  // Picked names, in the order they were ticked.
+  const [selected, setSelected] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<Set<SourceKey>>(
     new Set(['logical', 'yml', 'manifest']),
   );
@@ -88,30 +98,81 @@ export function AddExistingModelDialog() {
     return result;
   }, [models, searchQuery, activeFilters]);
 
+  // Escape closes the dialog through the store, not handleClose: start the
+  // next opening clean either way, so no tick survives into it unseen.
+  useEffect(() => {
+    if (isOpen) return;
+    setSearchQuery('');
+    setSelected([]);
+    setActiveFilters(new Set(['logical', 'yml', 'manifest']));
+  }, [isOpen]);
+
   // Handlers
   const handleClose = useCallback(() => {
     setAddExistingModelDialogOpen(false);
     setSearchQuery('');
-    setSelectedModel(null);
+    setSelected([]);
     setActiveFilters(new Set(['logical', 'yml', 'manifest']));
   }, [setAddExistingModelDialogOpen]);
 
-  const handleSelect = useCallback((modelName: string) => {
-    setSelectedModel(modelName);
+  // Only the rows on screen count: a pick hidden by the search or a filter is
+  // dropped, so Add never adds a model the user cannot see ticked.
+  const shownNames = useMemo(() => new Set(filteredModels.map((m) => m.name)), [filteredModels]);
+  const visibleSelected = useMemo(
+    () => selected.filter((name) => shownNames.has(name)),
+    [selected, shownNames],
+  );
+
+  const handleToggle = useCallback((modelName: string) => {
+    setSelected((prev) => {
+      if (!canPickMany) return [modelName];
+      const shown = prev.filter((name) => shownNames.has(name));
+      if (shown.includes(modelName)) return shown.filter((name) => name !== modelName);
+      return shown.length >= ADD_EXISTING_MODELS_LIMIT ? shown : [...shown, modelName];
+    });
+  }, [canPickMany, shownNames]);
+
+  const allShownSelected = filteredModels.length > 0 && visibleSelected.length === filteredModels.length;
+  const atLimit = visibleSelected.length >= ADD_EXISTING_MODELS_LIMIT;
+  const overLimit = filteredModels.length > ADD_EXISTING_MODELS_LIMIT;
+
+  // Ticks every shown row, up to the limit; picks hidden by the search go.
+  const handleSelectAllShown = useCallback(() => {
+    setSelected((prev) => {
+      const next = prev.filter((name) => filteredModels.some((m) => m.name === name));
+      for (const m of filteredModels) {
+        if (next.length >= ADD_EXISTING_MODELS_LIMIT) break;
+        if (!next.includes(m.name)) next.push(m.name);
+      }
+      return next;
+    });
+  }, [filteredModels]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelected([]);
   }, []);
 
-  const handleAdd = useCallback(() => {
-    if (!selectedModel) return;
-    send({ type: 'addExistingModel', payload: { modelName: selectedModel } });
+  const addModels = useCallback((names: readonly string[]) => {
+    if (names.length === 0) return;
+    if (names.length === 1) {
+      send({ type: 'addExistingModel', payload: { modelName: names[0] } });
+    } else {
+      send({ type: 'addExistingModels', payload: { modelNames: [...names] } });
+    }
     handleClose();
-  }, [selectedModel, send, handleClose]);
+  }, [send, handleClose]);
 
+  const handleAdd = useCallback(() => addModels(visibleSelected), [addModels, visibleSelected]);
+
+  // Adds the double-clicked row together with any other ticked rows — with
+  // nothing else ticked, that row alone, as before. (Its two clicks have
+  // already ticked and unticked it.)
   const handleDoubleClick = useCallback(
     (modelName: string) => {
-      send({ type: 'addExistingModel', payload: { modelName } });
-      handleClose();
+      const others = canPickMany ? visibleSelected.filter((name) => name !== modelName) : [];
+      addModels([...others.slice(0, ADD_EXISTING_MODELS_LIMIT - 1), modelName]);
     },
-    [send, handleClose],
+    [addModels, canPickMany, visibleSelected],
   );
 
   const toggleFilter = useCallback((source: SourceKey) => {
@@ -200,6 +261,30 @@ export function AddExistingModelDialog() {
           </span>
         </div>
 
+        {/* Selection */}
+        {canPickMany && <div className="add-existing-model-dialog__selection">
+          <span className="add-existing-model-dialog__selection-count">
+            {visibleSelected.length} selected
+          </span>
+          <button
+            className="add-existing-model-dialog__link"
+            onClick={handleSelectAllShown}
+            disabled={allShownSelected || atLimit}
+            title={overLimit
+              ? `At most ${ADD_EXISTING_MODELS_LIMIT} models can be added at once`
+              : 'Tick every model the search and filters show'}
+          >
+            {overLimit ? `Select first ${ADD_EXISTING_MODELS_LIMIT} shown` : `Select all ${filteredModels.length} shown`}
+          </button>
+          <button
+            className="add-existing-model-dialog__link"
+            onClick={handleClearSelection}
+            disabled={selected.length === 0}
+          >
+            Clear
+          </button>
+        </div>}
+
         {/* Source filter chips */}
         <div className="add-existing-model-dialog__filters">
           {(Object.keys(SOURCE_CONFIG) as SourceKey[]).map((source) => {
@@ -221,7 +306,7 @@ export function AddExistingModelDialog() {
         </div>
 
         {/* Model List */}
-        <div className="add-existing-model-dialog__list">
+        <div className="add-existing-model-dialog__list" role="listbox" aria-multiselectable={canPickMany} aria-label="Models">
           {filteredModels.length === 0 ? (
             <div className="add-existing-model-dialog__no-results">
               No models match your search or filters
@@ -236,8 +321,9 @@ export function AddExistingModelDialog() {
                   model={model}
                   source={source}
                   sourcePath={sourcePath}
-                  isSelected={selectedModel === model.name}
-                  onSelect={handleSelect}
+                  isSelected={visibleSelected.includes(model.name)}
+                  showCheck={canPickMany}
+                  onToggle={handleToggle}
                   onDoubleClick={handleDoubleClick}
                 />
               );
@@ -257,9 +343,9 @@ export function AddExistingModelDialog() {
         <button
           className="add-existing-model-dialog__button add-existing-model-dialog__button--primary"
           onClick={handleAdd}
-          disabled={!selectedModel}
+          disabled={visibleSelected.length === 0}
         >
-          Add Model
+          {visibleSelected.length > 1 ? `Add ${visibleSelected.length} Models` : 'Add Model'}
         </button>
       </div>
     </Panel>
@@ -275,14 +361,15 @@ interface ModelItemProps {
   source: SourceKey;
   sourcePath?: string;
   isSelected: boolean;
-  onSelect: (name: string) => void;
+  showCheck: boolean;
+  onToggle: (name: string) => void;
   onDoubleClick: (name: string) => void;
 }
 
-function ModelItem({ model, source, sourcePath, isSelected, onSelect, onDoubleClick }: ModelItemProps) {
+function ModelItem({ model, source, sourcePath, isSelected, showCheck, onToggle, onDoubleClick }: ModelItemProps) {
   const handleClick = useCallback(() => {
-    onSelect(model.name);
-  }, [onSelect, model.name]);
+    onToggle(model.name);
+  }, [onToggle, model.name]);
 
   const handleDblClick = useCallback(() => {
     onDoubleClick(model.name);
@@ -297,6 +384,14 @@ function ModelItem({ model, source, sourcePath, isSelected, onSelect, onDoubleCl
       aria-selected={isSelected}
     >
       <div className="add-existing-model-dialog__item-main">
+        {showCheck && <input
+          type="checkbox"
+          className="add-existing-model-dialog__item-check"
+          checked={isSelected}
+          readOnly
+          tabIndex={-1}
+          aria-hidden="true"
+        />}
         <span className="add-existing-model-dialog__item-name">{model.name}</span>
         <span className={`add-existing-model-dialog__item-source add-existing-model-dialog__item-source--${source}`}>
           {SOURCE_CONFIG[source].label}

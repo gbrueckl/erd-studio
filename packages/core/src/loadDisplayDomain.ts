@@ -450,7 +450,7 @@ function parseModel(
     return NO_MODEL;
   }
   try {
-    const { model, nodes, chars } = parseLogicalModelTextWithUsage(text, name, { maxNodes, maxChars });
+    const { model, nodes, chars } = parseLogicalModelTextWithUsage(text, name, { maxNodes, maxChars, duplicateKeys: 'last' });
     // A budget that was not counted (unlimited) or not used allows any number of copies.
     const fits = (max: number, used: number): number => (used > 0 ? Math.floor(max / used) : Infinity);
     return { model, copies: Math.min(fits(maxNodes, nodes), fits(maxChars, chars)) };

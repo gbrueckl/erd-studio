@@ -214,6 +214,7 @@ export function transformDomain(
         // untouched. Never derive it inside an overlay pass.
         ...(model.provenance ? { provenance: model.provenance } : {}),
         ...(model.loadError ? { loadError: model.loadError } : {}),
+        ...(model.loadWarning ? { loadWarning: model.loadWarning } : {}),
         ...(disc ? { discrepancy: disc } : {}),
         ...(disc && options?.discrepancyReport ? {
           discrepancySourceStage: options.discrepancyReport.sourceStage,

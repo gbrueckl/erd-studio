@@ -167,6 +167,31 @@ export function modelLoadErrorOf(model: SemanticModel): ModelLoadError | undefin
 }
 
 /**
+ * Something wrong in a model file that was still read (#164). Runtime-only,
+ * like `loadError`: never written to a model file. Today the one case is a key
+ * written twice in one block — the last value is used, as dbt's PyYAML does,
+ * and the file stays refused for writing until one copy is removed.
+ */
+export interface ModelLoadWarning {
+  kind: 'yamlDuplicateKey';
+  /** The key written twice, as the file spells it (the first one found). */
+  key: string;
+  /** 1-based line of its later copy, the one whose value is used. */
+  line: number;
+}
+
+/** A model read from a file with a {@link ModelLoadWarning}. */
+export interface ModelWithLoadWarning extends SemanticModel {
+  loadWarning: ModelLoadWarning;
+}
+
+/** The load warning carried by a model read from a flawed file, if any. */
+export function modelLoadWarningOf(model: SemanticModel): ModelLoadWarning | undefined {
+  const candidate = (model as Partial<ModelWithLoadWarning>).loadWarning;
+  return candidate && typeof candidate === 'object' ? candidate : undefined;
+}
+
+/**
  * Why a model file that exists could not be read. A fixed set derived from
  * the YAML parser's error code (never its message), so it is safe to branch on
  * in the UI and to count in usage telemetry.

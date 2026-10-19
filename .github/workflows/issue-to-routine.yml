@@ -1,0 +1,50 @@
+name: Issue → Claude routine
+
+# Starts the /issue-to-pr Claude Code routine for one issue. Routines cannot be
+# triggered by issue events directly, so this workflow POSTs to the routine's API
+# trigger (.claude/skills/issue-to-pr/references/routine.md).
+#
+# Gated on the `issue-to-pr` label: this repository is public and an issue body is
+# untrusted input, so only someone who can label issues (a maintainer) can start an
+# agent that pushes branches. Opening an issue alone never fires it.
+#
+# Secrets (repository → Settings → Secrets → Actions):
+#   CLAUDE_ROUTINE_FIRE_URL    the API trigger URL shown when the trigger was added
+#   CLAUDE_ROUTINE_FIRE_TOKEN  its bearer token (shown once)
+# With either secret missing the job skips the call and says so.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: issue-to-routine-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  fire:
+    if: github.event.label.name == 'issue-to-pr' && github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire the routine
+        env:
+          FIRE_URL: ${{ secrets.CLAUDE_ROUTINE_FIRE_URL }}
+          FIRE_TOKEN: ${{ secrets.CLAUDE_ROUTINE_FIRE_TOKEN }}
+          ISSUE: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          if [ -z "$FIRE_URL" ] || [ -z "$FIRE_TOKEN" ]; then
+            echo "::warning::CLAUDE_ROUTINE_FIRE_URL / CLAUDE_ROUTINE_FIRE_TOKEN not set; routine not fired."
+            exit 0
+          fi
+          # Only the number and URL travel: the routine reads the issue itself, so no
+          # issue text is interpolated into this request.
+          body=$(jq -n --arg n "$ISSUE" --arg u "$ISSUE_URL" '{text: ("Issue #" + $n + " " + $u)}')
+          curl -sS --fail-with-body -X POST "$FIRE_URL" \
+            -H "Authorization: Bearer $FIRE_TOKEN" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d "$body" | jq -r '"Routine session: " + .claude_code_session_url'

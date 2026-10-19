@@ -7,10 +7,10 @@
  * same file the same way.
  */
 
-import { parseDocument, isAlias, isMap, isPair, isScalar, isSeq, visit } from 'yaml';
+import { parseDocument, isAlias, isMap, isNode, isPair, isScalar, isSeq, visit } from 'yaml';
 import type { Alias, Document, Node, Pair } from 'yaml';
 
-import type { Cardinality, ColumnDef, ModelRelationship, SemanticModel } from './types/semantic.js';
+import type { Cardinality, ColumnDef, ModelLoadWarning, ModelRelationship, ModelWithLoadWarning, SemanticModel } from './types/semantic.js';
 import { readMeta } from './meta.js';
 import { checkLimit } from './limits.js';
 import { normaliseCompositeKey, normaliseRelationshipRole } from './relationships.js';
@@ -80,6 +80,14 @@ export interface ParseLogicalModelOptions {
    * is never more than the length of the file. Unlimited by default.
    */
   maxChars?: number;
+  /**
+   * What a key written twice in one block does (#164). `'error'` (the
+   * default) throws yaml's `DUPLICATE_KEY` error like any other. `'last'`
+   * reads the file the way dbt's PyYAML does — the last copy wins — and puts
+   * a {@link ModelLoadWarning} on the model as `loadWarning`. Only a file whose
+   * every error is a duplicate key is read; anything else still throws.
+   */
+  duplicateKeys?: 'error' | 'last';
 }
 
 /**
@@ -194,16 +202,20 @@ export function parseLogicalModelTextWithUsage(
   fallbackName: string,
   opts: ParseLogicalModelOptions = {},
 ): LogicalModelParse {
-  const { maxNodes = Infinity, maxChars = Infinity } = opts;
+  const { maxNodes = Infinity, maxChars = Infinity, duplicateKeys = 'error' } = opts;
   checkLimit('parseLogicalModelText', 'maxNodes', maxNodes);
   checkLimit('parseLogicalModelText', 'maxChars', maxChars);
-  const { raw, state } = parseModelFile(text, maxNodes, maxChars);
+  const { raw, state, loadWarning } = parseModelFile(text, maxNodes, maxChars, duplicateKeys === 'last');
   const nodes = maxNodes === Infinity ? 0 : maxNodes - state.remaining;
   const chars = maxChars === Infinity ? 0 : maxChars - state.remainingChars;
   if (!raw || raw.name === undefined || raw.name === null || raw.name === '') {
     return { model: null, nodes, chars };
   }
-  return { model: yamlToModel(raw, fallbackName), nodes, chars };
+  const model = yamlToModel(raw, fallbackName);
+  if (loadWarning) {
+    (model as ModelWithLoadWarning).loadWarning = loadWarning;
+  }
+  return { model, nodes, chars };
 }
 
 /**
@@ -259,13 +271,31 @@ function parseModelFile(
   content: string,
   maxNodes: number,
   maxChars: number,
-): { raw: YamlModel | null; state: ToPlainState } {
-  const doc = parseDocument(content);
+  lastDuplicateWins: boolean,
+): { raw: YamlModel | null; state: ToPlainState; loadWarning?: ModelLoadWarning } {
+  let doc = parseDocument(content);
+  let loadWarning: ModelLoadWarning | undefined;
   if (doc.errors.length > 0) {
     // Checked only once the parse has failed: a marker-like line inside a
     // block scalar that parses is the user's text, not a conflict.
     const conflictLine = findConflictMarkers(content);
-    throw conflictLine !== null ? new ModelMergeConflictError(conflictLine, doc.errors[0]) : doc.errors[0];
+    if (conflictLine !== null) {
+      throw new ModelMergeConflictError(conflictLine, doc.errors[0]);
+    }
+    const firstError = doc.errors[0];
+    if (!lastDuplicateWins || !doc.errors.every((e) => e.code === 'DUPLICATE_KEY')) {
+      throw firstError;
+    }
+    // Read it as PyYAML does: a later pair overwrites an earlier one in toPlain.
+    doc = parseDocument(content, { uniqueKeys: false });
+    if (doc.errors.length > 0) {
+      throw firstError;
+    }
+    loadWarning = firstDuplicateKey(doc, content) ?? {
+      kind: 'yamlDuplicateKey',
+      key: '',
+      line: firstError.linePos?.[0]?.line ?? 1,
+    };
   }
   const state: ToPlainState = {
     aliases: aliasTargets(doc),
@@ -278,7 +308,38 @@ function parseModelFile(
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { raw: null, state };
   }
-  return { raw: raw as YamlModel, state };
+  return { raw: raw as YamlModel, state, ...(loadWarning ? { loadWarning } : {}) };
+}
+
+/**
+ * The key written twice that comes first in the file, with the line of its
+ * later copy (the one whose value is read), or null when there is none. Keys
+ * are compared as yaml compares scalars: by their resolved text.
+ */
+function firstDuplicateKey(doc: Document, content: string): ModelLoadWarning | null {
+  let found: { key: string; offset: number } | null = null;
+  visit(doc, {
+    Map: (_key, map) => {
+      const seen = new Set<string>();
+      for (const pair of map.items) {
+        const keyNode = pair.key;
+        const key = isScalar(keyNode) ? String(keyNode.value) : String(keyNode);
+        if (seen.has(key)) {
+          const offset = isNode(keyNode) && keyNode.range ? keyNode.range[0] : Infinity;
+          if (found === null || offset < found.offset) {
+            found = { key, offset };
+          }
+        }
+        seen.add(key);
+      }
+    },
+  });
+  if (found === null) {
+    return null;
+  }
+  const { key, offset } = found as { key: string; offset: number };
+  const line = offset === Infinity ? 1 : content.slice(0, offset).split('\n').length;
+  return { kind: 'yamlDuplicateKey', key, line };
 }
 
 /** Convert a node tree to plain JS, preserving scalar source text for non-string values. */

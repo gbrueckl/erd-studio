@@ -106,4 +106,18 @@ describe('editorStore error lifecycle', () => {
     s.setSelectedEdges(['e1']);
     expect(useEditorStore.getState().error).toBe('boom');
   });
+
+  it('keeps the deleted-or-renamed state until a fresh domain arrives (#161)', () => {
+    const s = useEditorStore.getState();
+    s.setDomain(domain);
+    s.setError('x.json was deleted or renamed outside ERD Studio.', 'domain-missing');
+    // A refused edit or a failed refresh must not turn it back into a toast over the stale canvas.
+    s.setError('Physical stage is read-only');
+    expect(useEditorStore.getState().errorKind).toBe('domain-missing');
+    expect(useEditorStore.getState().error).toBe('x.json was deleted or renamed outside ERD Studio.');
+
+    s.setDomain(domain);
+    expect(useEditorStore.getState().error).toBeNull();
+    expect(useEditorStore.getState().errorKind).toBeNull();
+  });
 });

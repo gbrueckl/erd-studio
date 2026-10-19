@@ -1490,6 +1490,153 @@ describe('addModelsFromDbt', () => {
   });
 });
 
+describe('addExistingModels (#160)', () => {
+  const lib = () => path.join(root, '.erd-studio', 'logical-models');
+  // Library models not yet in showcase.
+  const TO_ADD = ['fct_sale', 'dim_location', 'fct_large_table'];
+
+  it('adds every picked model in ONE edit, each at its own position', async () => {
+    const { panel, doc } = await openShowcase(root);
+    const before = JSON.parse(doc.getText());
+    const edits = applyEditSpy.mock.calls.length;
+    const loads = types(panel).filter((t) => t === 'domainLoaded').length;
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: TO_ADD } });
+    await waitForType(panel, 'domainLoaded', loads + 1);
+
+    expect(lastError(panel)).toBeUndefined();
+    expect(applyEditSpy.mock.calls.length - edits).toBe(1); // one undo step
+    const after = JSON.parse(doc.getText());
+    expect(after.logical.models).toEqual([...before.logical.models, ...TO_ADD]);
+    const spots = TO_ADD.map((n) => after.viewConfig.positions[n]);
+    for (const p of spots) expect(p).toEqual({ x: expect.any(Number), y: expect.any(Number) });
+    expect(new Set(spots.map((p) => `${p.x},${p.y}`)).size).toBe(TO_ADD.length);
+  });
+
+  it('is not held to the 15-model cap of Add models from dbt', async () => {
+    const names = Array.from({ length: 20 }, (_, i) => `picked_${String(i).padStart(2, '0')}`);
+    for (const name of names) {
+      fs.writeFileSync(path.join(lib(), `${name}.yml`), `name: ${name}\ncolumns:\n  - name: id\n    dataType: INT\n`);
+    }
+    const { panel, doc } = await openShowcase(root);
+    const loads = types(panel).filter((t) => t === 'domainLoaded').length;
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: names } });
+    await waitForType(panel, 'domainLoaded', loads + 1);
+
+    expect(JSON.parse(doc.getText()).logical.models).toEqual(expect.arrayContaining(names));
+    expect(lastError(panel)).toBeUndefined();
+  });
+
+  it('seeds a dbt-only pick into the library, as a single add does', async () => {
+    fs.unlinkSync(path.join(lib(), 'fct_sale.yml'));
+    const { panel, doc } = await openShowcase(root);
+    const loads = types(panel).filter((t) => t === 'domainLoaded').length;
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: ['fct_sale', 'dim_location'] } });
+    await waitForType(panel, 'domainLoaded', loads + 1);
+
+    expect(JSON.parse(doc.getText()).logical.models).toEqual(expect.arrayContaining(['fct_sale', 'dim_location']));
+    expect(fs.existsSync(path.join(lib(), 'fct_sale.yml'))).toBe(true);
+  });
+
+  it('adds a library model dbt has disabled, as a single add does', async () => {
+    const manifestPath = path.join(root, 'target', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    manifest.disabled = { 'model.showcase.dim_location': [{ name: 'dim_location' }] };
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const { panel, doc } = await openShowcase(root);
+    const loads = types(panel).filter((t) => t === 'domainLoaded').length;
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: ['dim_location', 'fct_sale'] } });
+    await waitForType(panel, 'domainLoaded', loads + 1);
+
+    expect(JSON.parse(doc.getText()).logical.models).toEqual(expect.arrayContaining(['dim_location', 'fct_sale']));
+  });
+
+  it('names a pick already in the diagram under another case instead of dropping it silently', async () => {
+    const info = vi.spyOn(vscode.window, 'showInformationMessage');
+    const { panel, doc } = await openShowcase(root);
+    const already = JSON.parse(doc.getText()).logical.models[0] as string;
+    const loads = types(panel).filter((t) => t === 'domainLoaded').length;
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: [already.toUpperCase(), 'fct_sale'] } });
+    await waitForType(panel, 'domainLoaded', loads + 1);
+
+    const models = JSON.parse(doc.getText()).logical.models as string[];
+    expect(models).toContain('fct_sale');
+    expect(models).not.toContain(already.toUpperCase());
+    await vi.waitFor(() => expect(info).toHaveBeenCalledWith(
+      `Added 1 model. Already in this diagram: ${already.toUpperCase()}.`,
+    ));
+  });
+
+  it('records the add as addModel, never as Add models from dbt', async () => {
+    const feature = vi.spyOn(telemetry, 'feature');
+    const { panel } = await openShowcase(root);
+    const loads = types(panel).filter((t) => t === 'domainLoaded').length;
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: TO_ADD } });
+    await waitForType(panel, 'domainLoaded', loads + 1);
+
+    expect(feature).toHaveBeenCalledWith('addModel');
+    expect(feature).not.toHaveBeenCalledWith('addFromDbt');
+  });
+
+  it('refuses a v4 domain and leaves the file untouched', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'legacy.json');
+    fs.writeFileSync(file, JSON.stringify({
+      schemaVersion: 4,
+      domain: 'legacy',
+      layer: 'silver',
+      logical: { models: [{ name: 'dim_customer', columns: [] }], relationships: [] },
+    }, null, 2) + '\n');
+    const built = buildProvider(root);
+    const doc = makeDoc(file);
+    const panel = vscode.createMockWebviewPanel();
+    await built.provider.resolveCustomTextEditor(
+      doc as unknown as import('vscode').TextDocument,
+      panel as unknown as import('vscode').WebviewPanel,
+      {} as import('vscode').CancellationToken,
+    );
+    panel._simulateMessage({ type: 'ready' });
+    await waitForType(panel, 'domainLoaded');
+    const before = doc.getText();
+    const edits = applyEditSpy.mock.calls.length;
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: ['fct_sale', 'dim_location'] } });
+    await waitForError(panel, /needs the central model store/);
+    expect(applyEditSpy.mock.calls.length).toBe(edits);
+    expect(doc.getText()).toBe(before);
+  });
+
+  it('rejects an unsafe name or an empty list before touching disk', async () => {
+    const { panel, file } = await openShowcase(root);
+    const before = fs.readFileSync(file, 'utf-8');
+    const edits = applyEditSpy.mock.calls.length;
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: ['fct_sale', '../evil'] } });
+    await waitForError(panel, /^Failed to add models: /);
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: [] } });
+    await waitForError(panel, /needs a list of model names/);
+
+    expect(applyEditSpy.mock.calls.length).toBe(edits);
+    expect(fs.readFileSync(file, 'utf-8')).toBe(before);
+    expect(fs.existsSync(path.join(root, '.erd-studio', 'evil.yml'))).toBe(false);
+  });
+
+  it('is refused on the physical stage', async () => {
+    const { panel, file } = await openShowcase(root);
+    panel._simulateMessage({ type: 'switchStage', payload: { stage: 'physical', requestId: 1 } });
+    await waitForType(panel, 'stageData');
+    const before = fs.readFileSync(file, 'utf-8');
+
+    panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: TO_ADD } });
+    await waitForError(panel, new RegExp(PHYSICAL_READ_ONLY_MESSAGE.slice(0, 30)));
+    expect(fs.readFileSync(file, 'utf-8')).toBe(before);
+  });
+});
+
 describe('layoutFinished telemetry', () => {
   it('counts a failed layout as an error, and a failed first-open layout as both errors', async () => {
     const { panel } = await openShowcase(root);

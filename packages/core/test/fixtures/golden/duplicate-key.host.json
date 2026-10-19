@@ -1,0 +1,98 @@
+{
+  "type": "domainLoaded",
+  "payload": {
+    "schemaVersion": 5,
+    "domain": "orders",
+    "layer": "silver",
+    "stage": "logical",
+    "description": "A model file with a key written twice, read as PyYAML reads it (#164)",
+    "models": [
+      {
+        "name": "fct_order",
+        "schema": "",
+        "description": "One row per order",
+        "columns": [
+          {
+            "name": "order_id",
+            "dataType": "integer",
+            "description": "",
+            "isPrimaryKey": true,
+            "isForeignKey": false,
+            "isNaturalKey": false
+          },
+          {
+            "name": "customer_id",
+            "dataType": "integer",
+            "description": "",
+            "isPrimaryKey": false,
+            "isForeignKey": true,
+            "isNaturalKey": false
+          }
+        ]
+      },
+      {
+        "name": "dim_customer",
+        "schema": "",
+        "description": "One row per customer",
+        "columns": [
+          {
+            "name": "customer_id",
+            "dataType": "integer",
+            "description": "",
+            "isPrimaryKey": true,
+            "isForeignKey": false,
+            "isNaturalKey": false
+          },
+          {
+            "name": "email",
+            "dataType": "varchar",
+            "description": "Primary contact email",
+            "isPrimaryKey": false,
+            "isForeignKey": false,
+            "isNaturalKey": false
+          }
+        ],
+        "loadWarning": {
+          "kind": "yamlDuplicateKey",
+          "key": "description",
+          "line": 4
+        }
+      }
+    ],
+    "relationships": [
+      {
+        "fromModel": "fct_order",
+        "fromColumn": "customer_id",
+        "toModel": "dim_customer",
+        "toColumn": "customer_id",
+        "cardinality": "many-to-one"
+      }
+    ],
+    "viewConfig": {
+      "positions": {
+        "fct_order": {
+          "x": 0,
+          "y": 0
+        },
+        "dim_customer": {
+          "x": 400,
+          "y": 0
+        }
+      }
+    },
+    "templates": [],
+    "manifestModels": [],
+    "existingModels": [],
+    "layerConfig": {
+      "id": "silver",
+      "label": "Silver",
+      "abbreviation": "SLV",
+      "color": "#a0a0a0",
+      "creatable": true,
+      "order": 0
+    },
+    "readOnly": false,
+    "positionDraggable": true
+  },
+  "welcomeDismissed": false
+}

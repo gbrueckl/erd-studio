@@ -115,6 +115,40 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Selection
+   --------------------------------------------------------------------------- */
+
+.add-existing-model-dialog__selection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.add-existing-model-dialog__selection-count {
+  color: var(--vscode-descriptionForeground, #888);
+}
+
+.add-existing-model-dialog__link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--focus-border);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.add-existing-model-dialog__link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.add-existing-model-dialog__link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------------
    Filter Chips
    --------------------------------------------------------------------------- */
 
@@ -212,6 +246,14 @@
   align-items: baseline;
   gap: 8px;
   margin-bottom: 2px;
+}
+
+.add-existing-model-dialog__item-check {
+  flex-shrink: 0;
+  margin: 0;
+  align-self: center;
+  pointer-events: none;
+  accent-color: var(--button-bg);
 }
 
 .add-existing-model-dialog__item-name {

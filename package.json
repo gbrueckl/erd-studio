@@ -599,6 +599,15 @@
           ],
           "markdownDescription": "Send one anonymous usage heartbeat a day: which ERD Studio features were used and how often, bucketed project sizes and error counts — never names, paths, file contents or error messages. This setting can only turn telemetry **off**: VS Code's `#telemetry.telemetryLevel#` must also allow it, and nothing is sent when that is `off`. See [Telemetry](https://github.com/liam-machine/erd-studio#telemetry) for every field sent and how long it is kept."
         },
+        "erdStudio.checkKnownFixes": {
+          "scope": "machine",
+          "type": "boolean",
+          "default": true,
+          "tags": [
+            "usesOnlineServices"
+          ],
+          "markdownDescription": "When ERD Studio hits an error that a newer release already fixes, say so and offer **Update**. The first error in a session downloads the list of known fixes (once a day at most) from ERD Studio's server; the request carries nothing about you, your project or the error — the list is matched on your machine. Works whether or not `#erdStudio.telemetry.enabled#` is on."
+        },
         "dbtSemantic.projectPath": {
           "type": "string",
           "markdownDeprecationMessage": "Deprecated: use `#erdStudio.projectPath#` instead. Legacy values are still honoured.",

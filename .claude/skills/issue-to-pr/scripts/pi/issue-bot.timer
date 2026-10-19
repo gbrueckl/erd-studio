@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for issue-to-pr issues every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

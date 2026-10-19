@@ -75,6 +75,13 @@ export interface UnreadableModelFile {
   code?: string;
   /** The file holds unresolved git merge conflicts (#145); `line` is the first `<<<<<<<`. */
   mergeConflict?: true;
+  /**
+   * The model still loads (#164): a key written twice, read with its last copy
+   * as dbt reads it. ERD Studio will not write the file until one copy goes.
+   */
+  readable?: true;
+  /** For `readable`: the key written twice. */
+  key?: string;
   /** The parser's own message (may quote the file; never an absolute path). */
   message: string;
 }
@@ -95,7 +102,11 @@ export const MODEL_YAML_HINTS: Record<ModelFileErrorKind, string> = {
  * of a conflict to keep is the user's call — it is usually a teammate's work —
  * so the conflict advice asks the assistant to show it, not to resolve it.
  */
-export function unreadableHint(u: Pick<UnreadableModelFile, 'kind' | 'mergeConflict'>): string {
+export function unreadableHint(u: Pick<UnreadableModelFile, 'kind' | 'mergeConflict' | 'readable' | 'key'>): string {
+  if (u.readable) {
+    return `${u.key ? `\`${u.key}\`` : 'a key'} is written twice in one block — the last copy is what loads; `
+      + 'delete the other copy (ERD Studio will not change this file until you do)';
+  }
   return u.mergeConflict
     ? 'unresolved git merge conflict — git left two versions there: show the user the file and line and ask which side '
       + "to keep (don't pick a side or run git commands yourself)"
@@ -118,6 +129,8 @@ export function toUnreadableModelFile(root: string, err: ModelFileError): Unread
     ...(err.column !== undefined ? { column: err.column } : {}),
     ...(err.code !== undefined ? { code: err.code } : {}),
     ...(err.mergeConflict ? { mergeConflict: true as const } : {}),
+    ...(err.readable ? { readable: true as const } : {}),
+    ...(err.key !== undefined ? { key: err.key } : {}),
     message: redactPaths(err.message.split(err.filePath).join(file)),
   };
 }
@@ -129,6 +142,7 @@ export function toUnreadableModelFile(root: string, err: ModelFileError): Unread
 export function describeUnreadable(u: UnreadableModelFile, rerun: 'doctor' | 'diff'): string {
   const where = `${path.posix.basename(u.file)}${u.line !== undefined ? ` line ${u.line}` : ''}`;
   if (u.mergeConflict) { return `${where}: ${mergeConflictHumanHint(rerun)}`; }
+  if (u.readable) { return `${where}: ${unreadableHint(u)}`; }
   const what = u.kind === 'read' ? 'could not be read' : `YAML error${u.code ? ` (${u.code})` : ''}`;
   return u.kind === 'read' ? `${where}: ${MODEL_YAML_HINTS.read}` : `${where}: ${what} — ${MODEL_YAML_HINTS[u.kind]}`;
 }

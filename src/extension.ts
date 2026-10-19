@@ -42,9 +42,10 @@ import { submitFeedback } from './services/feedbackService';
 import { clearFeedbackApiKey, setFeedbackApiKey } from './services/feedbackAnalysisService';
 import { ReportTrackingService } from './services/reportTrackingService';
 import { TelemetryService, telemetry } from './services/telemetryService';
+import { startKnownFixes } from './services/knownFixesService';
 import type { TelemetryErrorCode, TelemetryFeature } from './services/telemetryPayload';
 import { modelFileErrorCode } from './services/telemetryPayload';
-import { notifyModelFileError } from './commands/openModelFile';
+import { notifyModelFileError, shouldWarnAboutModelFile } from './commands/openModelFile';
 import { MyReportsTreeProvider, type MyReportNode } from './providers/MyReportsTreeProvider';
 import type { FeedbackKind } from './types/feedback';
 import { CliLauncherService, type CliLauncherOptions } from './services/cliLauncherService';
@@ -692,6 +693,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(telemetryService);
   telemetryService.start();
 
+  // "ERD Studio X fixes this — Update": checks recorded error codes against
+  // the known-fixes registry. Independent of telemetry (it sends nothing about
+  // the user); its own switch is erdStudio.checkKnownFixes.
+  startKnownFixes(context);
+
   // "Send Feedback" is registered before any early return so it is always
   // reachable from the command palette, even when no dbt project is open.
   // When a canvas is active the report is routed through its webview so it can
@@ -819,8 +825,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Fixed keys only — `error.message` may quote the file and never leaves the machine.
     telemetry.error('modelFileParse');
     telemetry.error(modelFileErrorCode(error.kind));
-    // Once per broken file per session (the service never re-reports a path, #113).
-    notifyModelFileError(error);
+    // Once per broken file per session (the service never re-reports a path, #113),
+    // and not again in a later session while the file is unchanged (#164).
+    if (shouldWarnAboutModelFile(context.workspaceState, error.filePath)) {
+      notifyModelFileError(error);
+    }
   };
   // A model file's relationships: list could not be rewritten in place, so an edit was refused.
   logicalModelService.onSyncRefused = () => telemetry.error('relSyncRefused');
@@ -1131,6 +1140,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // edit or a git pull. createDomain / renameDomain write outside the own-write
     // tracker, so they mark their paths in domainsCreatedHere instead.
     if (created && !domainsCreatedHere.delete(uri.fsPath)) { telemetry.feature('domainCreatedExternal'); }
+    // A canvas showing "deleted or renamed" whose file is back redraws (#161).
+    editorProvider.syncDomainFilePresence();
     treeProvider.invalidateDomain(uri.fsPath);
     treeProvider.refresh();
     modelLibraryProvider.refresh();
@@ -1158,7 +1169,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
 
-  // Domain file(s) deleted → refresh tree + model library, prompt for tag cleanup.
+  // Domain file(s) deleted → flag open canvases, refresh tree + model library, prompt for tag cleanup.
   // The watcher coalesces a delete storm (branch switch) into one event and
   // filters out layers.json / templates / logical-models / .sync-plan.json, so
   // one toast covers the whole burst and only real domain files trigger it.
@@ -1167,6 +1178,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // then-rename) and macOS (atomic rename via FSEvents), causing mass YAML
   // modifications. Instead, offer to run the manual sync command.
   const semanticDeletedSubscription = fileWatcherService.onSemanticFileDeleted(({ uris }) => {
+    // An open canvas whose file is gone says so at once, instead of staying
+    // editable until a refresh fails (#161).
+    editorProvider.syncDomainFilePresence();
     for (const uri of uris) {
       treeProvider.invalidateDomain(uri.fsPath);
     }
@@ -1570,10 +1584,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       const fileUri = vscode.Uri.file(filePath);
+      // A preview tab, like a single click in the Explorer (#167): browsing
+      // diagrams reuses one tab until an edit pins it. Without the option
+      // `openWith` pins every tab. VS Code still pins it when the user has
+      // `workbench.editor.enablePreview` off.
       await vscode.commands.executeCommand(
         'vscode.openWith',
         fileUri,
         DOMAIN_EDITOR_VIEW_TYPE,
+        { preview: true },
       );
       if (stage === 'physical') {
         editorProvider.switchStageForUri(fileUri, 'physical');

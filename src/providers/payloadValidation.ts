@@ -13,6 +13,7 @@
 import type { Cardinality, ColumnDef, ModelRole, Stage } from '../types/semantic';
 import { COLUMN_NAME_PATTERN, MODEL_NAME_PATTERN, MODEL_NAME_RULE, findDuplicateNames } from '../types/naming';
 import type { DuplicateMode, FeedbackKind } from '../types/feedback';
+import { ADD_EXISTING_MODELS_LIMIT } from '../types/messages';
 import { MAX_COMPOSITE_PAIRS, MODEL_ALIAS_MAX_LENGTH, MODEL_ALIAS_RULE, RELATIONSHIP_ROLE_MAX_LENGTH, isValidModelAlias } from '@erd-studio/core';
 import { DUPLICATE_MODES, FEEDBACK_KINDS, isFeedbackAiProviderChoice } from '../types/feedback';
 
@@ -616,6 +617,30 @@ export function validateAddModelsFromDbtPayload(value: unknown): string | null {
   }
   if (Object.keys(value).length > 0) {
     return 'Add models from dbt takes no payload.';
+  }
+  return null;
+}
+
+/**
+ * Validate an `addExistingModels` payload (#160): `{ modelNames }`, a
+ * non-empty list of at most {@link ADD_EXISTING_MODELS_LIMIT} names. Each is
+ * held to the path-safety rule only — dbt allows uppercase and digit-leading
+ * names, as `addExistingModel` does — because each may become a library file.
+ */
+export function validateAddExistingModelsPayload(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return 'Add models needs a list of model names.';
+  }
+  const { modelNames } = value as { modelNames?: unknown };
+  if (!Array.isArray(modelNames) || modelNames.length === 0) {
+    return 'Add models needs a list of model names.';
+  }
+  if (modelNames.length > ADD_EXISTING_MODELS_LIMIT) {
+    return `At most ${ADD_EXISTING_MODELS_LIMIT} models can be added at once.`;
+  }
+  for (const name of modelNames) {
+    const nameError = validateModelNameSafety(name);
+    if (nameError) return nameError;
   }
   return null;
 }
