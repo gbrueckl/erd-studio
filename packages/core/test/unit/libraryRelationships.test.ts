@@ -71,7 +71,7 @@ describe('a relationship stored in a model file (#126)', () => {
   });
 });
 
-describe('parseLogicalModelText relationships', () => {
+describe('parseTableText relationships', () => {
   it('reads the list, skipping entries without three endpoints and defaulting an unknown cardinality', () => {
     const model = parseTableText([
       'name: fct_order',

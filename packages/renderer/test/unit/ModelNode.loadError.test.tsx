@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * ModelNode load error (#110) — a model whose logical-models file exists but
+ * TableNode load error (#110) — a model whose logical-models file exists but
  * has a YAML error shows the error and an "Open file" button instead of the
  * misleading "No columns". The button is an editing affordance, so the
  * read-only viewer drops it.
@@ -52,7 +52,7 @@ function renderNode(extra: Partial<TableFlowNode['data']> = {}, viewer = false) 
   return { ...utils, posted };
 }
 
-describe('ModelNode load error', () => {
+describe('TableNode load error', () => {
   it('shows the YAML error line and an Open file button instead of "No columns"', () => {
     const { container, posted } = renderNode({ loadError: { kind: 'yamlScalar', line: 4 } });
     expect(screen.getByText("YAML error on line 4 — ERD Studio can't read this file.")).toBeTruthy();

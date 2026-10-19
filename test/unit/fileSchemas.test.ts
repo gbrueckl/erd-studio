@@ -70,12 +70,12 @@ const LAYER = 'packages/core/src/types/layer.ts';
 
 describe('schemas match the TypeScript types', () => {
   it.each([
-    ['logical model', 'SemanticModel', SEMANTIC, () => tableSchema],
+    ['logical model', 'SemanticTable', SEMANTIC, () => tableSchema],
     ['model column', 'ColumnDef', SEMANTIC, () => tableSchema.definitions.column],
     ['rationale', 'Rationale', SEMANTIC, () => tableSchema.definitions.rationale],
-    ['template', 'ModelTemplate', SEMANTIC, () => templateSchema],
+    ['template', 'TableTemplate', SEMANTIC, () => templateSchema],
     ['template column', 'ColumnDef', SEMANTIC, () => templateSchema.definitions.column],
-    ['domain', 'UnifiedDomainV5', SEMANTIC, () => subjectAreaSchema],
+    ['domain', 'UnifiedSubjectAreaV5', SEMANTIC, () => subjectAreaSchema],
     ['relationship', 'Relationship', SEMANTIC, () => subjectAreaSchema.definitions.relationship],
     ['viewConfig', 'ViewConfig', SEMANTIC, () => subjectAreaSchema.definitions.viewConfig],
     ['position', 'NodePosition', SEMANTIC, () => subjectAreaSchema.definitions.position],
@@ -86,7 +86,7 @@ describe('schemas match the TypeScript types', () => {
     expect(schemaKeys(node())).toEqual(interfaceKeys(file, iface));
   });
 
-  it('a model file relationship declares the fields of Relationship without fromModel (ModelRelationship)', () => {
+  it('a model file relationship declares the fields of Relationship without fromModel (TableRelationship)', () => {
     expect(schemaKeys(tableSchema.definitions.relationship)).toEqual(
       interfaceKeys(SEMANTIC, 'Relationship').filter((key) => key !== 'fromModel'),
     );
@@ -287,7 +287,7 @@ describe('what a hand-editor is told', () => {
     })).toEqual([]);
   });
 
-  it('flags the hybrid domains detectDomainFormat refuses to open', () => {
+  it('flags the hybrid domains detectSubjectAreaFormat refuses to open', () => {
     const domain = (schemaVersion: number, models: unknown[]) => ({
       schemaVersion, domain: 'd', layer: 'silver', logical: { models, relationships: [] }, viewConfig: {},
     });

@@ -6,7 +6,7 @@
  *  - a "new" or renamed model never overwrites an existing library file (H05)
  *  - yml writes travel in the same WorkspaceEdit as the domain change, so a
  *    rejected edit leaves the library untouched and undo/redo stay in sync (H04)
- *  - every applyModelEdit call site reports failure to the webview (H04)
+ *  - every applyTableEdit call site reports failure to the webview (H04)
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -314,7 +314,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       expect(h.tableLibraryService.getTable('DimDate')!.columns!.map((c) => c.name)).toEqual(['DateKey', 'Date']);
     });
 
-    // listModelFiles, not existsSync: on Linux CI existsSync is case-sensitive,
+    // listTableFiles, not existsSync: on Linux CI existsSync is case-sensitive,
     // so this pins that the guard does not depend on the file system.
     it('refuses a new model whose name differs from a library model only in case', async () => {
       const before = fs.readFileSync(ymlPath(h, 'dim_customer'), 'utf-8');
@@ -463,7 +463,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
   // ---- H04: yml edits ride in the domain WorkspaceEdit ---------------------
 
-  describe('applyModelEdit call sites', () => {
+  describe('applyTableEdit call sites', () => {
     it('addColumn replaces the yml document in the same WorkspaceEdit and saves it', async () => {
       await h.send({
         type: 'addColumn',

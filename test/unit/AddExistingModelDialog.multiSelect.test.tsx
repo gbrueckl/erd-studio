@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * AddExistingModelDialog — picking several models at once (#160). A click
+ * AddExistingTableDialog — picking several models at once (#160). A click
  * ticks or unticks a row; "Select all N shown" ticks what the search and
  * filters show. One pick posts `addExistingModel` as before, more post one
  * `addExistingModels`; double-click adds that row (with any other ticks).
@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('AddExistingModelDialog multi-select (#160)', () => {
+describe('AddExistingTableDialog multi-select (#160)', () => {
   it('keeps two rows ticked and adds both in one message', () => {
     render(<AddExistingTableDialog />);
     fireEvent.click(screen.getByText('sap_a'));

@@ -38,12 +38,12 @@ function createMockTableLibraryServiceFromEntries(
 ): TableLibraryService {
   return {
     dirExists: vi.fn(() => entries.length > 0),
-    getModelsDir: vi.fn(() => modelsDir),
-    listModelFiles: vi.fn(() => entries),
-    listModelNames: vi.fn(() => entries.filter(e => !e.shadowedBy).map(e => e.name)),
-    modelPath: vi.fn((name: string) => entries.find(e => e.name === name && !e.shadowedBy)?.filePath ?? `${modelsDir}/${name}.yml`),
-    deleteModel: vi.fn(),
-    getModelFileError: vi.fn(() => null),
+    getTablesDir: vi.fn(() => modelsDir),
+    listTableFiles: vi.fn(() => entries),
+    listTableNames: vi.fn(() => entries.filter(e => !e.shadowedBy).map(e => e.name)),
+    tablePath: vi.fn((name: string) => entries.find(e => e.name === name && !e.shadowedBy)?.filePath ?? `${modelsDir}/${name}.yml`),
+    deleteTable: vi.fn(),
+    getTableFileError: vi.fn(() => null),
   } as unknown as TableLibraryService;
 }
 
@@ -64,7 +64,7 @@ const LAYERS: LayerConfig[] = [
 
 function createMockSubjectAreaService(summaries: SubjectAreaSummary[] = []): SubjectAreaService {
   return {
-    listDomains: vi.fn().mockReturnValue(summaries),
+    listSubjectAreas: vi.fn().mockReturnValue(summaries),
   } as unknown as SubjectAreaService;
 }
 
@@ -106,7 +106,7 @@ const SUMMARIES: SubjectAreaSummary[] = [
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ModelLibraryTreeProvider', () => {
+describe('TableLibraryTreeProvider', () => {
   let provider: TableLibraryTreeProvider;
   let mockTableLibraryService: TableLibraryService;
   let mockSubjectAreaService: SubjectAreaService;
@@ -444,7 +444,7 @@ describe('ModelLibraryTreeProvider', () => {
   });
 });
 
-describe('ModelLibraryTreeProvider: a model file that needs fixing (#164)', () => {
+describe('TableLibraryTreeProvider: a model file that needs fixing (#164)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockReadFileSync.mockImplementation(() => v5SubjectAreaJson(['dim_customer', 'fct_orders']));

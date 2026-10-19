@@ -1,7 +1,7 @@
 /**
  * One rule decides which end of a relationship holds the foreign key (#163):
  * the `to` end of a `one-to-many`, else the `from` end. The canvas badge
- * (`toDisplayDomain`) and the exports read it, so they cannot disagree.
+ * (`toDisplaySubjectArea`) and the exports read it, so they cannot disagree.
  */
 
 import { describe, it, expect } from 'vitest';

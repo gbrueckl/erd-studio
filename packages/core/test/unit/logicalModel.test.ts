@@ -52,7 +52,7 @@ describe('constants', () => {
   });
 });
 
-describe('parseLogicalModelText', () => {
+describe('parseTableText', () => {
   it('reads a model with its columns and rationale', () => {
     const text = [
       'name: dim_customer',
@@ -343,7 +343,7 @@ describe('parseLogicalModelText', () => {
   });
 });
 
-describe('isSafeModelName', () => {
+describe('isSafeTableName', () => {
   it('accepts plain names, including dots, dashes and spaces', () => {
     for (const name of ['dim_customer', 'fct.order-v2', 'with space', '.hidden', '-lead']) {
       expect(isSafeTableName(name)).toBe(true);
@@ -364,7 +364,7 @@ describe('isSafeModelName', () => {
   });
 });
 
-describe('parseLogicalModelTextWithUsage', () => {
+describe('parseTableTextWithUsage', () => {
   const yml = 'name: a\ndescription: &d hello\nnote: *d\ncolumns:\n  - {name: id, dataType: INT}\n';
 
   it('reports the nodes and scalar characters counted against finite budgets', () => {
@@ -385,8 +385,8 @@ describe('parseLogicalModelTextWithUsage', () => {
   });
 
   it('is not part of the package API', () => {
-    expect(core).not.toHaveProperty('parseLogicalModelTextWithUsage');
-    expect(core).toHaveProperty('parseLogicalModelText');
+    expect(core).not.toHaveProperty('parseTableTextWithUsage');
+    expect(core).toHaveProperty('parseTableText');
     expect(core).toHaveProperty('YamlCharLimitError');
   });
 });

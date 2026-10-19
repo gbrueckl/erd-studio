@@ -13,7 +13,7 @@ import type { CatalogColumn, CatalogData, CatalogNodeInfo } from '../../src/type
 import { normaliseName } from '../../src/services/nameUtils';
 import type { UnifiedSubjectArea, StageData } from '../../src/types/semantic';
 
-/** Empty YmlData — forces buildPhysicalDomain to use the manifest-only fallback. */
+/** Empty YmlData — forces buildPhysicalSubjectArea to use the manifest-only fallback. */
 const EMPTY_YML_DATA: YmlData = {
   models: new Map(),
   relationshipTests: [],
@@ -47,7 +47,7 @@ function createMockLayerService(): LayerService {
   } as LayerService;
 }
 
-describe('DomainService', () => {
+describe('SubjectAreaService', () => {
   let service: SubjectAreaService;
   let mockLayerService: LayerService;
 
@@ -56,7 +56,7 @@ describe('DomainService', () => {
     service = new SubjectAreaService(mockLayerService);
   });
 
-  describe('listDomains', () => {
+  describe('listSubjectAreas', () => {
     it('discovers all .json files under .erd-studio/{layer}/', () => {
       const domains = service.listSubjectAreas(FIXTURE_PROJECT_PATH);
 
@@ -113,8 +113,8 @@ describe('DomainService', () => {
     });
   });
 
-  describe('getDomain', () => {
-    it('reads and parses a valid domain file into a UnifiedDomain', () => {
+  describe('getSubjectArea', () => {
+    it('reads and parses a valid domain file into a UnifiedSubjectArea', () => {
       const filePath = path.join(
         FIXTURE_PROJECT_PATH, '.erd-studio', 'gold', 'finance.json'
       );
@@ -163,7 +163,7 @@ describe('DomainService', () => {
     // A domain file is replaced wholesale, so "empty" and "truncated" are the
     // two states a reader catches it in mid-write. Both have to be reported as
     // retryable, or the canvas turns a timing accident into a dead end (#64).
-    it('reports an unparseable file as a transient DomainFileError', () => {
+    it('reports an unparseable file as a transient SubjectAreaFileError', () => {
       const filePath = path.join(
         MALFORMED_PROJECT_PATH, '.erd-studio', 'silver', 'broken.json'
       );
@@ -193,7 +193,7 @@ describe('DomainService', () => {
       }
     });
 
-    it('reports a missing file as a non-transient DomainFileError', () => {
+    it('reports a missing file as a non-transient SubjectAreaFileError', () => {
       let thrown: unknown;
       try { service.getSubjectArea('/nonexistent/domain.json'); } catch (err) { thrown = err; }
 
@@ -203,7 +203,7 @@ describe('DomainService', () => {
     });
   });
 
-  describe('isDomainFilePath', () => {
+  describe('isSubjectAreaFilePath', () => {
     it('accepts {layer}/{domain}.json', () => {
       expect(isSubjectAreaFilePath('/p/.erd-studio/silver/sales.json')).toBe(true);
       expect(isSubjectAreaFilePath('/p/.erd-studio/gold/reporting.json')).toBe(true);
@@ -251,7 +251,7 @@ describe('DomainService', () => {
     });
   });
 
-  describe('getDomainStage', () => {
+  describe('getSubjectAreaStage', () => {
     it('extracts logical stage from unified domain', () => {
       const filePath = path.join(
         FIXTURE_PROJECT_PATH, '.erd-studio', 'gold', 'finance.json'
@@ -274,7 +274,7 @@ describe('DomainService', () => {
     });
   });
 
-  describe('buildPhysicalDomain', () => {
+  describe('buildPhysicalSubjectArea', () => {
     function createUnifiedSubjectArea(): UnifiedSubjectArea {
       return {
         schemaVersion: 4,
@@ -389,7 +389,7 @@ describe('DomainService', () => {
       };
     }
 
-    it('creates a physical DisplayDomain with stage=physical and readOnly=true', () => {
+    it('creates a physical DisplaySubjectArea with stage=physical and readOnly=true', () => {
       const result = service.buildPhysicalSubjectArea(createUnifiedSubjectArea(), EMPTY_YML_DATA, createManifest());
 
       expect(result.stage).toBe('physical');
@@ -1192,7 +1192,7 @@ describe('DomainService', () => {
 // Domain format handling (H01 / H26 / H40)
 // ---------------------------------------------------------------------------
 
-describe('DomainService format handling', () => {
+describe('SubjectAreaService format handling', () => {
   let tmpRoot: string;
   let service: SubjectAreaService;
 
@@ -1216,7 +1216,7 @@ describe('DomainService format handling', () => {
     vi.restoreAllMocks();
   });
 
-  describe('countDomainFileRelationships', () => {
+  describe('countSubjectAreaFileRelationships', () => {
     it('counts a domain file that does not parse but still lists relationships', () => {
       const filePath = writeSubjectArea('orders', {
         schemaVersion: 5, domain: 'orders', layer: 'silver',
@@ -1346,7 +1346,7 @@ describe('DomainService format handling', () => {
     });
   });
 
-  describe('renameDomainInRaw (H01)', () => {
+  describe('renameSubjectAreaInRaw (H01)', () => {
     it('rewrites only the domain slug, preserving v5 name references and unknown keys', () => {
       const original = {
         schemaVersion: 5,
@@ -1411,7 +1411,7 @@ describe('DomainService format handling', () => {
       expect(updated.columns!.some((c) => c.name === 'zzz_new_col')).toBe(true);
     });
 
-    it('regression: re-serialising the resolved UnifiedDomain produces a hybrid file that is now rejected', () => {
+    it('regression: re-serialising the resolved UnifiedSubjectArea produces a hybrid file that is now rejected', () => {
       fs.cpSync(path.join(FIXTURE_PROJECT_PATH, '.erd-studio'), path.join(tmpRoot, '.erd-studio'), { recursive: true });
       service.setTableLibraryService(new TableLibraryService(tmpRoot));
 

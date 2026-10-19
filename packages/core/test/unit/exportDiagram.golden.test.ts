@@ -9,7 +9,7 @@
  * a deliberate golden update — regenerate with UPDATE_GOLDEN=1 — plus a
  * CHANGELOG line.
  *
- * Fixtures load exactly as loadDisplayDomain.golden.test.ts loads them, so the
+ * Fixtures load exactly as loadDisplaySubjectArea.golden.test.ts loads them, so the
  * old on-disk shapes (v4 inline models, nameless columns, library
  * relationships, …) are exported too.
  */

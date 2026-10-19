@@ -169,7 +169,7 @@ describe('a domain file caught mid-write', () => {
     // provider: the file exists, but this read of it failed.
     const real = SubjectAreaService.prototype.getSubjectArea;
     let locked = 2;
-    vi.spyOn(SubjectAreaService.prototype, 'getDomain').mockImplementation(function (this: SubjectAreaService, p: string) {
+    vi.spyOn(SubjectAreaService.prototype, 'getSubjectArea').mockImplementation(function (this: SubjectAreaService, p: string) {
       if (p === file && locked-- > 0) {
         throw new SubjectAreaFileError('unreadable', p, `Failed to read domain file: EBUSY: resource busy or locked, open '${p}'`);
       }
@@ -189,7 +189,7 @@ describe('a domain file caught mid-write', () => {
 
   it('reports a file that stays unreadable once the retries run out', async () => {
     const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
-    vi.spyOn(SubjectAreaService.prototype, 'getDomain').mockImplementation((p: string) => {
+    vi.spyOn(SubjectAreaService.prototype, 'getSubjectArea').mockImplementation((p: string) => {
       throw new SubjectAreaFileError('unreadable', p, 'Failed to read domain file: EACCES: permission denied');
     });
 
@@ -239,7 +239,7 @@ describe('a domain file with unresolved git merge conflicts (#145)', () => {
     const text = conflicted(fs.readFileSync(file, 'utf-8'));
     const line = text.split('\n').indexOf('<<<<<<< HEAD') + 1;
     fs.writeFileSync(file, text);
-    const getDomain = vi.spyOn(SubjectAreaService.prototype, 'getDomain');
+    const getSubjectArea = vi.spyOn(SubjectAreaService.prototype, 'getSubjectArea');
 
     const { panel } = await open(root, file);
     const startedAt = Date.now();
@@ -248,7 +248,7 @@ describe('a domain file with unresolved git merge conflicts (#145)', () => {
     await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 10 });
     // The ~1.2s backoff is for a file caught mid-write; a conflict reads the same every time.
     expect(Date.now() - startedAt).toBeLessThan(1000);
-    expect(getDomain).toHaveBeenCalledTimes(1);
+    expect(getSubjectArea).toHaveBeenCalledTimes(1);
     const payload = errors(panel)[0].payload;
     expect(payload).toEqual({
       message: expect.stringContaining(`has unresolved git merge conflicts (first at line ${line})`),

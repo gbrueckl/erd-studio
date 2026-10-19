@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * ModelNode inline column editing — scdType / additiveType forwarding.
+ * TableNode inline column editing — scdType / additiveType forwarding.
  *
  * Regression for H13: double-clicking a column name or data type on the canvas
  * and committing an edit must post an `updateColumn` payload that still carries
@@ -106,7 +106,7 @@ beforeEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ModelNode inline edit forwards scdType / additiveType', () => {
+describe('TableNode inline edit forwards scdType / additiveType', () => {
   it('inline rename keeps scdType and additiveType in the updateColumn payload', () => {
     renderNode([scdColumn]);
 

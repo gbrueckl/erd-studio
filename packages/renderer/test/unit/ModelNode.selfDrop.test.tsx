@@ -60,7 +60,7 @@ function dragWithin(from: string, onto: string): Array<{ type: string; detail: u
   return seen;
 }
 
-describe('ModelNode — dragging within one model (#133 L3)', () => {
+describe('TableNode — dragging within one model (#133 L3)', () => {
   it('a drop on another column of the same node dispatches column-relationship-drop', () => {
     expect(dragWithin('manager_id', 'employee_id')).toEqual([{
       type: 'drop', detail: { fromModel: 'employee', fromColumn: 'manager_id', toModel: 'employee', toColumn: 'employee_id' },

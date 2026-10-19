@@ -106,7 +106,7 @@ function buildProvider(root: string) {
     selectorsService,
     tableLibraryService,
   );
-  return { provider, logicalModelService: tableLibraryService, context };
+  return { provider, tableLibraryService, context };
 }
 
 const posted = (panel: MockPanel) => panel._postedMessages as Posted[];
@@ -1118,14 +1118,14 @@ describe('requestFeedbackDialog', () => {
 // Layer folders — logical-models/{layer}/{name}.yml (issue #76)
 // ---------------------------------------------------------------------------
 
-describe('modelFolderForDomain', () => {
+describe('tableFolderForSubjectArea', () => {
   it('is the layer directory of the domain file', () => {
     expect(tableFolderForSubjectArea('/p/.erd-studio/silver/showcase.json')).toBe('silver');
     expect(tableFolderForSubjectArea('/p/.erd-studio/gold/finance.json')).toBe('gold');
     expect(tableFolderForSubjectArea(path.join('C:', 'p', '.erd-studio', 'bronze', 'x.json'))).toBe('bronze');
   });
 
-  it('returns whatever the parent directory is called (LogicalModelService rejects non-layer names)', () => {
+  it('returns whatever the parent directory is called (TableLibraryService rejects non-layer names)', () => {
     expect(tableFolderForSubjectArea('/tmp/Some Folder/domain.json')).toBe('Some Folder');
   });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * ModelNode badge tooltips — what hovering a canvas badge actually says.
+ * TableNode badge tooltips — what hovering a canvas badge actually says.
  *
  * Every abbreviation on a node is a word the user has not been told. The chips
  * are too small to hold the explanation, so the explanation lives in `title`,
@@ -50,7 +50,7 @@ function renderNode(extra: Partial<TableFlowNode['data']> = {}, columns?: Column
   return render(<Node data={data} selected={false} />);
 }
 
-describe('ModelNode schema badge tooltip', () => {
+describe('TableNode schema badge tooltip', () => {
   it('names the database schema the abbreviation stands for', () => {
     const { container } = renderNode({ stage: 'physical', readOnly: true, schema: 'silver' });
     const badge = container.querySelector('.model-node__badge')!;
@@ -68,7 +68,7 @@ describe('ModelNode schema badge tooltip', () => {
   });
 });
 
-describe('ModelNode column symbol tooltips', () => {
+describe('TableNode column symbol tooltips', () => {
   const col = (extra: Partial<ColumnDisplay>): ColumnDisplay => ({
     name: 'status',
     dataType: 'string',
@@ -102,7 +102,7 @@ describe('ModelNode column symbol tooltips', () => {
   });
 });
 
-describe('ModelNode comparison markers', () => {
+describe('TableNode comparison markers', () => {
   const missing = {
     name: 'churn_flag',
     status: 'missing' as const,
@@ -157,7 +157,7 @@ describe('ModelNode comparison markers', () => {
   });
 });
 
-describe('ModelNode header hover card', () => {
+describe('TableNode header hover card', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 

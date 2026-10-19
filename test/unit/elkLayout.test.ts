@@ -78,7 +78,7 @@ describe('roleToPartition', () => {
     expect(roleToPartition(undefined)).toBe(2);
   });
 
-  it('covers all ModelRole values', () => {
+  it('covers all TableRole values', () => {
     const allRoles: TableRole[] = [
       'conformed-dim',
       'domain-dim',

@@ -185,7 +185,7 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-// Each reaches the document through a different route: applyDomainEdit
+// Each reaches the document through a different route: applySubjectAreaEdit
 // alone, a handler's own read first, the relationship planner and the model
 // library (v5). Add from dbt and the sync plan have tests of their own below.
 const EDITS: Array<[string, { type: string; payload?: unknown }]> = [

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * exportDomainFile — the host-side export every surface shares (palette
+ * exportSubjectAreaFile — the host-side export every surface shares (palette
  * command, canvas, `erd-studio export`). It must read a domain exactly as the
  * canvas's logical stage does, so its text matches core's export goldens for
  * every core fixture project, and the real parsers accept it.
@@ -47,7 +47,7 @@ const CORE_CASES: Record<string, string> = {
 
 const EXTENSIONS: Record<DiagramExportFormat, string> = { mermaid: 'mmd', dbml: 'dbml' };
 
-describe('exportDomainFile', () => {
+describe('exportSubjectAreaFile', () => {
   // The fixtures include a broken model file on purpose; its read warnings are expected.
   beforeEach(() => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -97,20 +97,20 @@ describe('exportDomainFile', () => {
 
   it('passes dbt\'s key evidence to the read when given', async () => {
     const subjectAreaService = subjectAreaServiceFor(DBT_PROJECT);
-    const spy = vi.spyOn(subjectAreaService, 'getDomain');
+    const spy = vi.spyOn(subjectAreaService, 'getSubjectArea');
     const dbtKeyIndex = buildDbtKeyIndex([]);
     await exportSubjectAreaFile(subjectAreaService, SHOWCASE, 'dbml', { dbtKeyIndex });
     expect(spy).toHaveBeenCalledWith(SHOWCASE, { dbtKeyIndex });
   });
 
-  it('throws what getDomain throws', async () => {
+  it('throws what getSubjectArea throws', async () => {
     const missing = path.join(DBT_PROJECT, '.erd-studio', 'silver', 'no-such-domain.json');
     await expect(exportSubjectAreaFile(subjectAreaServiceFor(DBT_PROJECT), missing, 'dbml')).rejects.toBeInstanceOf(SubjectAreaFileError);
   });
 
   it('refuses an unknown format before reading anything', async () => {
     const subjectAreaService = subjectAreaServiceFor(DBT_PROJECT);
-    const spy = vi.spyOn(subjectAreaService, 'getDomain');
+    const spy = vi.spyOn(subjectAreaService, 'getSubjectArea');
     await expect(exportSubjectAreaFile(subjectAreaService, SHOWCASE, 'svg' as DiagramExportFormat)).rejects.toThrow('Unknown diagram export format: svg');
     expect(spy).not.toHaveBeenCalled();
   });

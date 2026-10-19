@@ -380,7 +380,7 @@ describe('activate() with a dbt project', () => {
     await activate(context);
 
     const provider = registerEditor.mock.calls[0][1] as unknown as SemanticEditorProvider & {
-      _onDidWriteDomain: { fire: (e: { uri: unknown; modelLibraryChanged: boolean }) => void };
+      _onDidWriteSubjectArea: { fire: (e: { uri: unknown; modelLibraryChanged: boolean }) => void };
     };
     const libraryCall = createTreeView.mock.calls.find((c) => c[0] === 'erdStudio.modelLibrary');
     const libraryProvider = (libraryCall![1] as { treeDataProvider: { onDidChangeTreeData: (cb: () => void) => void } }).treeDataProvider;
@@ -389,7 +389,7 @@ describe('activate() with a dbt project', () => {
     libraryProvider.onDidChangeTreeData(() => { refreshes++; });
 
     const uri = vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'showcase.json'));
-    provider._onDidWriteDomain.fire({ uri, modelLibraryChanged: false });
+    provider._onDidWriteSubjectArea.fire({ uri, modelLibraryChanged: false });
 
     expect(refreshes).toBeGreaterThan(0);
   });

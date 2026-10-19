@@ -5,10 +5,10 @@ import { describe, it, expect } from 'vitest';
 
 import { describeUnsupportedSubjectAreaFormat } from '../../src/types/semantic';
 
-// The rest of describeUnsupportedDomainFormat's tests live with the function in
+// The rest of describeUnsupportedSubjectAreaFormat's tests live with the function in
 // packages/core/test/unit/domainFormat.test.ts. This one reads the extension's
 // package.json (the command palette entry), so it stays with the extension.
-describe('describeUnsupportedDomainFormat', () => {
+describe('describeUnsupportedSubjectAreaFormat', () => {
   it('names the file and the migration command for legacy and hybrid', () => {
     // The remediation must quote the command exactly as the palette shows it,
     // otherwise searching the palette for the quoted string finds nothing.

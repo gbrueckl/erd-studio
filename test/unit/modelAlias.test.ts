@@ -216,7 +216,7 @@ describe('manifest extraction: alias', () => {
   });
 });
 
-describe('LogicalModelService: alias in the model file', () => {
+describe('TableLibraryService: alias in the model file', () => {
   let dir: string;
   let lms: TableLibraryService;
   beforeEach(() => {
@@ -242,7 +242,7 @@ describe('LogicalModelService: alias in the model file', () => {
     expect(fs.readFileSync(file, 'utf-8')).toBe('# the gold calendar\nname: gold_date\n');
   });
 
-  it('serializeModelAt edits the file at the given path, not the one the name resolves to', () => {
+  it('serializeTableAt edits the file at the given path, not the one the name resolves to', () => {
     const models = lms.getTablesDir();
     fs.mkdirSync(path.join(models, 'silver'), { recursive: true });
     fs.mkdirSync(path.join(models, 'gold'), { recursive: true });

@@ -237,7 +237,7 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
       expect(written).toEqual(JSON.parse(JSON.stringify(expected)));
       expect(posted().find((m) => m.type === 'syncPlanGenerated')!.payload.totalActions).toBe(countSyncPlanActions(expected));
 
-      // And the CLI route — computeDomainDiff + allSelections — sees the same report.
+      // And the CLI route — computeSubjectAreaDiff + allSelections — sees the same report.
       const cli = computeSubjectAreaDiff({ subjectAreaService, ymlData, manifest }, file, 'logical');
       expect(cli.report).toEqual(shown);
     } finally {

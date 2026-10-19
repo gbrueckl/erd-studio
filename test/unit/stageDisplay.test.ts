@@ -32,7 +32,7 @@ function subjectArea(overrides: Partial<SemanticSubjectArea> = {}): SemanticSubj
   } as SemanticSubjectArea;
 }
 
-describe('buildLogicalDisplayDomain', () => {
+describe('buildLogicalDisplaySubjectArea', () => {
   it('derives isForeignKey from relationships and keeps declared FKs', () => {
     const out = buildLogicalDisplaySubjectArea(subjectArea(), {});
     const cols = out.models[0].columns;

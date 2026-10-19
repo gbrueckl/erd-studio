@@ -63,8 +63,8 @@ function createMockSubjectAreaService(
   domains: Map<string, UnifiedSubjectArea> = new Map(),
 ): SubjectAreaService {
   return {
-    listDomains: vi.fn().mockReturnValue(summaries),
-    getDomain: vi.fn((filePath: string) => {
+    listSubjectAreas: vi.fn().mockReturnValue(summaries),
+    getSubjectArea: vi.fn((filePath: string) => {
       const d = domains.get(filePath);
       if (!d) throw new Error(`Not found: ${filePath}`);
       return d;
@@ -117,7 +117,7 @@ function buildSubjectAreaMap(): Map<string, UnifiedSubjectArea> {
 }
 
 // Use a real project path that exists on disk for the semantic dir check.
-// We mock DomainService so no real files are read, but getChildren checks
+// We mock SubjectAreaService so no real files are read, but getChildren checks
 // fs.existsSync for the semantic directory.
 const PROJECT_PATH = '/tmp/test-project';
 
@@ -125,7 +125,7 @@ const PROJECT_PATH = '/tmp/test-project';
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('DomainTreeProvider', () => {
+describe('SubjectAreaTreeProvider', () => {
   let layerService: LayerService;
   let subjectAreaService: SubjectAreaService;
   let provider: SubjectAreaTreeProvider;
@@ -239,10 +239,10 @@ describe('DomainTreeProvider', () => {
       expect(hasNewDomain).toBe(false);
     });
 
-    it('handles getDomain errors gracefully with 0 model count', () => {
+    it('handles getSubjectArea errors gracefully with 0 model count', () => {
       const failService = createMockSubjectAreaService(
         [{ domain: 'broken', layer: 'silver', filePath: '/broken.json' }],
-        new Map(), // empty — getDomain will throw
+        new Map(), // empty — getSubjectArea will throw
       );
       const failProvider = new SubjectAreaTreeProvider(failService, layerService, PROJECT_PATH);
       const children = failProvider.getChildren({ type: 'layer', layer: 'silver' })!;
@@ -409,7 +409,7 @@ describe('DomainTreeProvider', () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    function realFileProvider(models: unknown[]): { provider: SubjectAreaTreeProvider; getDomain: ReturnType<typeof vi.fn> } {
+    function realFileProvider(models: unknown[]): { provider: SubjectAreaTreeProvider; getSubjectArea: ReturnType<typeof vi.fn> } {
       const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
       const domains = new Map<string, UnifiedSubjectArea>();
       domains.set(domainPath, makeUnifiedSubjectArea({
@@ -419,55 +419,55 @@ describe('DomainTreeProvider', () => {
       const svc = createMockSubjectAreaService(summaries, domains);
       return {
         provider: new SubjectAreaTreeProvider(svc, layerService, tempDir),
-        getDomain: svc.getSubjectArea as unknown as ReturnType<typeof vi.fn>,
+        getSubjectArea: svc.getSubjectArea as unknown as ReturnType<typeof vi.fn>,
       };
     }
 
     it('parses each domain file once while it is unchanged on disk', () => {
-      const { provider: p, getDomain } = realFileProvider([{ name: 'a' }, { name: 'b' }]);
+      const { provider: p, getSubjectArea } = realFileProvider([{ name: 'a' }, { name: 'b' }]);
 
       const first = p.getChildren({ type: 'layer', layer: 'silver' })!;
       p.refresh();
       const second = p.getChildren({ type: 'layer', layer: 'silver' })!;
       p.getChildren({ type: 'layer', layer: 'silver' });
 
-      expect(getDomain).toHaveBeenCalledTimes(1);
+      expect(getSubjectArea).toHaveBeenCalledTimes(1);
       expect((first[0] as any).modelCount).toBe(2);
       expect((second[0] as any).modelCount).toBe(2);
     });
 
     it('re-parses when the file changes on disk (mtime/size)', () => {
-      const { provider: p, getDomain } = realFileProvider([{ name: 'a' }]);
+      const { provider: p, getSubjectArea } = realFileProvider([{ name: 'a' }]);
       p.getChildren({ type: 'layer', layer: 'silver' });
-      expect(getDomain).toHaveBeenCalledTimes(1);
+      expect(getSubjectArea).toHaveBeenCalledTimes(1);
 
       fs.writeFileSync(domainPath, '{"changed": true}');
       const t = new Date(Date.now() + 5000);
       fs.utimesSync(domainPath, t, t);
 
       p.getChildren({ type: 'layer', layer: 'silver' });
-      expect(getDomain).toHaveBeenCalledTimes(2);
+      expect(getSubjectArea).toHaveBeenCalledTimes(2);
     });
 
-    it('re-parses after invalidateDomain(filePath)', () => {
-      const { provider: p, getDomain } = realFileProvider([{ name: 'a' }]);
+    it('re-parses after invalidateSubjectArea(filePath)', () => {
+      const { provider: p, getSubjectArea } = realFileProvider([{ name: 'a' }]);
       p.getChildren({ type: 'layer', layer: 'silver' });
       p.invalidateSubjectArea(domainPath);
       p.getChildren({ type: 'layer', layer: 'silver' });
-      expect(getDomain).toHaveBeenCalledTimes(2);
+      expect(getSubjectArea).toHaveBeenCalledTimes(2);
     });
 
-    it('re-parses everything after invalidateDomain() with no argument', () => {
-      const { provider: p, getDomain } = realFileProvider([{ name: 'a' }]);
+    it('re-parses everything after invalidateSubjectArea() with no argument', () => {
+      const { provider: p, getSubjectArea } = realFileProvider([{ name: 'a' }]);
       p.getChildren({ type: 'layer', layer: 'silver' });
       p.invalidateSubjectArea();
       p.getChildren({ type: 'layer', layer: 'silver' });
-      expect(getDomain).toHaveBeenCalledTimes(2);
+      expect(getSubjectArea).toHaveBeenCalledTimes(2);
     });
 
     it('does not cache a failed parse', () => {
       const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
-      const svc = createMockSubjectAreaService(summaries, new Map()); // getDomain throws
+      const svc = createMockSubjectAreaService(summaries, new Map()); // getSubjectArea throws
       const p = new SubjectAreaTreeProvider(svc, layerService, tempDir);
 
       p.getChildren({ type: 'layer', layer: 'silver' });

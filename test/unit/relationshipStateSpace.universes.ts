@@ -13,7 +13,7 @@
  *
  * Every write goes through `planRelationshipWrite`, every read through core's
  * `mergeLibraryRelationships`, every Move through `planMoveToLibrary` /
- * `applyMoveToModel`, every drawing through the renderer's `transformDomain`
+ * `applyMoveToTable`, every drawing through the renderer's `transformSubjectArea`
  * — the code the extension runs.
  */
 

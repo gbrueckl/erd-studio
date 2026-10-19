@@ -4,7 +4,7 @@
  *
  * The legend's whole job is to stay true to what the canvas draws, and it is
  * the file nobody remembers to edit when a badge changes. These tests pin it to
- * `lib/badgeLabels`, the maps ModelNode renders from, so a new provenance
+ * `lib/badgeLabels`, the maps TableNode renders from, so a new provenance
  * source or a renamed chip fails here rather than shipping a legend that
  * quietly explains the wrong thing.
  */

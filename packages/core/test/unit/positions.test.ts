@@ -29,7 +29,7 @@ function assertNoOverlap(positions: Record<string, NodePosition>): void {
 }
 
 describe('positionService', () => {
-  describe('computeNewModelPositions', () => {
+  describe('computeNewTablePositions', () => {
     it('places first model at (100, 100) in empty domain', () => {
       const result = computeNewTablePositions({
         newModels: ['dim_customer'],

@@ -2,7 +2,7 @@
  * A teammate on ERD Studio 1.6.7 and a composite foreign key (#133 L2): the
  * design's §5 proofs, run. 1.6.7's writer is simulated from its source
  * (`git show v1.6.7:…`): `readRelationships` keeps an entry only with string
- * fromColumn / toModel / toColumn and reads those four fields; `modelToPlain`
+ * fromColumn / toModel / toColumn and reads those four fields; `tableToPlain`
  * writes back exactly those four; `syncMap` replaces the whole
  * `relationships:` node whenever it differs from that (an extra key on any
  * entry is a difference). Domain-file handlers rewrite the entry they touch

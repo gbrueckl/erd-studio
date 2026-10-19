@@ -162,7 +162,7 @@ describe('planMoveToLibrary', () => {
   });
 });
 
-describe('LogicalModelService writes relationships', () => {
+describe('TableLibraryService writes relationships', () => {
   it('round-trips the list and leaves an unchanged one (and its comment) alone', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-rels-yml-'));
     try {

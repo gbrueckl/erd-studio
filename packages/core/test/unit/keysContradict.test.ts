@@ -144,7 +144,7 @@ describe('a 1.6.7 file (#163)', () => {
     try { return fs.readFileSync(path.join(root, p), 'utf-8'); } catch { return null; }
   };
 
-  it("flags only the backwards library entry, through core's loadDisplayDomain", async () => {
+  it("flags only the backwards library entry, through core's loadDisplaySubjectArea", async () => {
     const d = await loadDisplaySubjectArea({ domainPath: '.erd-studio/gold/sales.json', readFile, readOnly: true, warn: () => {} });
     const flagged = d.relationships.filter((r) => r.keysContradict).map((r) => `${r.fromModel}.${r.fromColumn}`);
     expect(flagged).toEqual(['dim_product.product_key']);

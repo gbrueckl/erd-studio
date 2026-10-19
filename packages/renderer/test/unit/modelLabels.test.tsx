@@ -33,7 +33,7 @@ import { TableNode } from '../../src/components/Graph/ModelNode';
 import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 import type { TableFlowNode } from '../../src/types/graph';
 
-describe('computeModelLabels', () => {
+describe('computeTableLabels', () => {
   it('labels an aliased model with its table name, and leaves the rest alone', () => {
     const labels = computeTableLabels([
       { name: 'gold_date', schema: 'gold', alias: 'date' },
@@ -75,7 +75,7 @@ describe('computeModelLabels', () => {
   });
 });
 
-describe('transformDomain: node labels', () => {
+describe('transformSubjectArea: node labels', () => {
   const model = (name: string, extra: Partial<DisplayTable> = {}): DisplayTable =>
     ({ name, schema: 'gold', description: '', columns: [], ...extra });
   const domain = (models: DisplayTable[]): DisplaySubjectArea => ({
@@ -100,7 +100,7 @@ describe('transformDomain: node labels', () => {
   });
 });
 
-describe('ModelNode header', () => {
+describe('TableNode header', () => {
   function renderNode(extra: Partial<TableFlowNode['data']>) {
     const data: TableFlowNode['data'] = {
       modelName: 'gold_date', stage: 'logical', layer: 'gold', columns: [], isStub: false, ...extra,

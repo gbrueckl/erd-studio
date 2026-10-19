@@ -44,7 +44,7 @@ describe('diagram export API', () => {
     expect(() => exportDiagram(d, 'svg' as DiagramExportFormat)).toThrow('Unknown diagram export format: svg');
   });
 
-  it('exports a DisplayDomain carrying only its required fields in every format', () => {
+  it('exports a DisplaySubjectArea carrying only its required fields in every format', () => {
     const minimal: DisplaySubjectArea = {
       schemaVersion: 5,
       domain: 'minimal',

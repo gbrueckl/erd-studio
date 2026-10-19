@@ -55,7 +55,7 @@ describe('feedbackService', () => {
     });
 
     it('never names the domain, whose name is the user\u2019s own vocabulary', () => {
-      // The one guarantee behind dropping name/layer from FeedbackDomainSummary:
+      // The one guarantee behind dropping name/layer from FeedbackSubjectAreaSummary:
       // there is no path from a canvas to a domain name in the filed issue.
       const text = formatDiagnostics({
         ...baseDiagnostics,

@@ -6,7 +6,7 @@
  *  - A drag that moves models and notes together persists in ONE WorkspaceEdit.
  *  - undo / redo save + re-send exactly once even though the change listener
  *    fires while VS Code rewinds the document.
- *  - `applyDomainEdit` releases `pendingUpdates` when `applyEdit` throws, so
+ *  - `applySubjectAreaEdit` releases `pendingUpdates` when `applyEdit` throws, so
  *    the change listener is never permanently muted for the panel.
  *  - Dead protocol types (`updateViewConfig`, `toggleStubColumns`,
  *    `updateAnnotationPosition`) are no longer handled.
@@ -372,7 +372,7 @@ describe('undo / redo (H27)', () => {
 // H35 — the single edit pipeline
 // ---------------------------------------------------------------------------
 
-describe('applyDomainEdit pipeline (H35)', () => {
+describe('applySubjectAreaEdit pipeline (H35)', () => {
   it('releases pendingUpdates when applyEdit throws so the change listener is not muted', async () => {
     const { doc, panel } = await openShowcase();
     applyEditSpy.mockRejectedValueOnce(new Error('disk on fire'));

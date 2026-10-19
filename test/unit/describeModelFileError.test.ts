@@ -10,7 +10,7 @@ function yamlError(text: string): unknown {
   return doc.errors[0];
 }
 
-describe('describeModelFileError', () => {
+describe('describeTableFileError', () => {
   it.each([
     ['TAB_AS_INDENT', 'name: m\ncolumns:\n\t- name: a\n', 'yamlIndent'],
     ['DUPLICATE_KEY', 'name: m\nname: n\n', 'yamlDuplicateKey'],

@@ -277,7 +277,7 @@ describe('MigrationService (domain format → v5)', () => {
 
   it('ignores an unrelated JSON file in a layer directory (no schemaVersion)', () => {
     // A scratch file that happens to have a top-level `models` array would be
-    // classified 'legacy' by detectDomainFormat alone — but it is not a domain
+    // classified 'legacy' by detectSubjectAreaFormat alone — but it is not a domain
     // file and must never be offered for migration or rewritten.
     const notesPath = writeSubjectArea('notes', {
       note: 'my scratch file',

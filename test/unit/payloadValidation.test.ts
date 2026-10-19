@@ -59,14 +59,14 @@ describe('validateModelName', () => {
     expect(validateTableName(42)).toMatch(/required/);
   });
 
-  it('agrees with the shared MODEL_NAME_PATTERN used by the New Model dialog', () => {
+  it('agrees with the shared TABLE_NAME_PATTERN used by the New Model dialog', () => {
     for (const name of ['dim_ok', '1bad', 'Bad', 'DimDate', 'has-dash', 'Has Space']) {
       expect(validateTableName(name) === null).toBe(TABLE_NAME_PATTERN.test(name));
     }
   });
 });
 
-describe('validateModelNameSafety', () => {
+describe('validateTableNameSafety', () => {
   // dbt itself permits uppercase and digit-leading model names, so a name
   // discovered in the user's project (Add Existing Model) must not be held to
   // the authoring convention — only to what is safe as a file name.
@@ -259,7 +259,7 @@ describe('positions', () => {
 });
 
 describe('validateAddExistingModelsPayload', () => {
-  it('accepts 1 to ADD_EXISTING_MODELS_LIMIT path-safe names, dbt casing included', () => {
+  it('accepts 1 to ADD_EXISTING_TABLES_LIMIT path-safe names, dbt casing included', () => {
     expect(validateAddExistingModelsPayload({ modelNames: ['fct_sale'] })).toBeNull();
     expect(validateAddExistingModelsPayload({ modelNames: ['SAP_Orders', '2024_events'] })).toBeNull();
     expect(validateAddExistingModelsPayload({ modelNames: Array.from({ length: ADD_EXISTING_TABLES_LIMIT }, (_, i) => `m${i}`) })).toBeNull();

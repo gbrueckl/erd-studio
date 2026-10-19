@@ -24,7 +24,7 @@ describe('recoveryService', () => {
     vi.restoreAllMocks();
   });
 
-  describe('hasOpenDomainCanvas', () => {
+  describe('hasOpenSubjectAreaCanvas', () => {
     it('returns false when no tabs are open', () => {
       expect(hasOpenSubjectAreaCanvas()).toBe(false);
     });

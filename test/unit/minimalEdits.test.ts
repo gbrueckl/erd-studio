@@ -255,7 +255,7 @@ describe('relationshipsRewriteLoses — files the move leaves alone (#133)', () 
   });
 });
 
-describe('setDomainRelationships', () => {
+describe('setSubjectAreaRelationships', () => {
   it.each([
     ['2-space', '  '],
     ['4-space', '    '],

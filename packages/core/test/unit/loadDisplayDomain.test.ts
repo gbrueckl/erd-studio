@@ -115,7 +115,7 @@ describe('mapWithLimit limits', () => {
   });
 });
 
-describe('loadDisplayDomain', () => {
+describe('loadDisplaySubjectArea', () => {
   it('reads the domain, then layers.json, then each model once, all inside the semantic dir', async () => {
     const { reads, result } = load({
       [SUBJECT_AREA]: v5(['dim_a', 'fct_b']),
@@ -168,7 +168,7 @@ describe('loadDisplayDomain', () => {
       });
       const domain = await result;
       // A name in two folders resolves to the alphabetically first one, as
-      // LogicalModelService does — never differently in the two hosts.
+      // TableLibraryService does — never differently in the two hosts.
       expect(reads.slice(2)).toEqual([
         '.erd-studio/logical-models/dim_a.yml',
         '.erd-studio/logical-models/bronze/dim_a.yml',
@@ -348,7 +348,7 @@ describe('loadDisplayDomain', () => {
     }
   });
 
-  it('throws DomainFileError for a missing domain file', async () => {
+  it('throws SubjectAreaFileError for a missing domain file', async () => {
     const err = await rejection(load({}).result);
     expect(err).toBeInstanceOf(SubjectAreaFileError);
     expect((err as SubjectAreaFileError).reason).toBe('missing');

@@ -24,7 +24,7 @@ describe('syncPlan — selection keys', () => {
   });
 });
 
-describe('syncPlan — deriveModelAction', () => {
+describe('syncPlan — deriveTableAction', () => {
   describe('sourceStage = logical', () => {
     it('extra + logical truth = no-op (null)', () => {
       expect(deriveTableAction('extra', 'logical', 'logical')).toBeNull();

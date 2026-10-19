@@ -1,7 +1,7 @@
 /**
- * Golden output of the extension host's domain -> DisplayDomain pipeline.
+ * Golden output of the extension host's domain -> DisplaySubjectArea pipeline.
  *
- * Drives the real DomainService, LayerService and LogicalModelService (and a
+ * Drives the real SubjectAreaService, LayerService and TableLibraryService (and a
  * real SemanticEditorProvider) over the fixture projects in
  * packages/core/test/fixtures, and pins exactly what the host posts to the
  * webview. The same files are the parity target for @erd-studio/core: once the
@@ -9,13 +9,13 @@
  * and core's own golden test compares its output against these files.
  *
  * Outputs (packages/core/test/fixtures/golden):
- *   <case>.host.json                 posted[0] of sendDomainData (logical stage)
- *   <case>.unified.json              domainService.getDomain(), JSON round-tripped
- *   missing-positions.persist.json   sendDomainData with persistPositions: the
+ *   <case>.host.json                 posted[0] of sendSubjectAreaData (logical stage)
+ *   <case>.unified.json              subjectAreaService.getSubjectArea(), JSON round-tripped
+ *   missing-positions.persist.json   sendSubjectAreaData with persistPositions: the
  *                                    posted message plus the WorkspaceEdit applied
  *   showcase.stage-logical.json      the stageData reply of a switch to logical
  *   dbt-project.stage-physical.json  the stageData reply of a switch to physical
- *   dbt-project.physical.host.json   sendDomainData on a panel showing physical
+ *   dbt-project.physical.host.json   sendSubjectAreaData on a panel showing physical
  *   errors.<name>.host.json          the posted `error` message (payload { message, kind? })
  *   logs.json                        console.warn / console.error text per output
  *
@@ -264,7 +264,7 @@ function openDocument(filePath: string, options: { persist?: boolean } = {}) {
 
 type Posted = { type: string; payload?: unknown };
 
-/** Run sendDomainData once and return what was posted, round-tripped through JSON. */
+/** Run sendSubjectAreaData once and return what was posted, round-tripped through JSON. */
 async function sendSubjectAreaData(
   host: Host,
   filePath: string,
@@ -278,7 +278,7 @@ async function sendSubjectAreaData(
     panelKey = 'golden-panel';
     internals.openPanels.set(panelKey, { document: doc, webview: panel.webview, activeStage: options.stage });
   }
-  await internals.sendDomainData(doc, panel.webview, panelKey, { persistPositions: options.persistPositions });
+  await internals.sendSubjectAreaData(doc, panel.webview, panelKey, { persistPositions: options.persistPositions });
   return JSON.parse(JSON.stringify(panel._postedMessages)) as Posted[];
 }
 
@@ -325,11 +325,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('DisplayDomain golden output (extension host)', () => {
+describe('DisplaySubjectArea golden output (extension host)', () => {
   describe.each(Object.entries(SUBJECT_AREA_CASES))('%s', (name, relative) => {
     const root = path.join(FIXTURES, name);
 
-    it('posts the logical DisplayDomain from sendDomainData', async () => {
+    it('posts the logical DisplaySubjectArea from sendSubjectAreaData', async () => {
       const posted = await sendSubjectAreaData(buildHost(root), subjectAreaFile(root, relative));
       expect(posted).toHaveLength(1);
       expect(posted[0].type).toBe('domainLoaded');
@@ -337,7 +337,7 @@ describe('DisplayDomain golden output (extension host)', () => {
       matchLogs(`${name}.host`, root);
     });
 
-    it('reads the UnifiedDomain with getDomain', () => {
+    it('reads the UnifiedSubjectArea with getSubjectArea', () => {
       const { subjectAreaService } = buildHost(root);
       const unified = JSON.parse(JSON.stringify(subjectAreaService.getSubjectArea(subjectAreaFile(root, relative))));
       matchGolden(`${name}.unified.json`, normalise(unified, root));
@@ -403,7 +403,7 @@ describe('DisplayDomain golden output (extension host)', () => {
       matchLogs('dbt-project.stage-physical', DBT_PROJECT);
     });
 
-    it('posts the physical domain from sendDomainData on a panel showing physical', async () => {
+    it('posts the physical domain from sendSubjectAreaData on a panel showing physical', async () => {
       const posted = await sendSubjectAreaData(
         buildHost(DBT_PROJECT, { dbt: true }),
         subjectAreaFile(DBT_PROJECT, 'silver/showcase.json'),

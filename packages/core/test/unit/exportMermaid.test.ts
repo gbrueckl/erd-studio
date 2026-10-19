@@ -200,7 +200,7 @@ describe('toMermaid', () => {
   });
 
   // Inside quotes Mermaid reads no `%` or `\` in an entity name (10.0.0 and 12.0.0 alike), and
-  // these names reach a DisplayDomain from old v4 inline files and hand edits.
+  // these names reach a DisplaySubjectArea from old v4 inline files and hand edits.
   it('writes %, \\ and " in an entity name as _, / and \', which every release reads, and gives the original', async () => {
     const { text, parsed } = await exportAndParse(
       subjectArea(
@@ -333,7 +333,7 @@ describe('toMermaid', () => {
     expect(text).not.toContain('pink');
   });
 
-  it('accepts a DisplayDomain from an older core: only required fields, odd values, duplicates', async () => {
+  it('accepts a DisplaySubjectArea from an older core: only required fields, odd values, duplicates', async () => {
     const old = {
       schemaVersion: 5,
       domain: 'old',

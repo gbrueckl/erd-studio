@@ -354,7 +354,7 @@ describe('moveRelationshipsToLibrary — writes disk directly (#126)', () => {
   });
 
   it('shows and counts an error when the command throws — never swallowed', async () => {
-    vi.spyOn(p.subjectAreaService, 'listDomains').mockImplementation(() => { throw new Error('disk on fire'); });
+    vi.spyOn(p.subjectAreaService, 'listSubjectAreas').mockImplementation(() => { throw new Error('disk on fire'); });
     const error = vi.spyOn(vscode.window, 'showErrorMessage');
     const telemetryError = vi.spyOn(telemetry, 'error');
 
@@ -466,7 +466,7 @@ describe('canvas edits save the documents they edited (#126 hardening)', () => {
   });
 });
 
-describe('readDomainRelationships', () => {
+describe('readSubjectAreaRelationships', () => {
   it('reads an unrecognised cardinality the way the diagram draws it (many-to-one), so the move never stores the typo', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-read-rels-'));
     try {
@@ -606,7 +606,7 @@ describe('moveRelationshipsToLibrary — turns reversed library entries round (#
       '    cardinality: one-to-many',
       '',
     ].join('\n'));
-    const reads = vi.spyOn(tableLibraryService, 'getModel');
+    const reads = vi.spyOn(tableLibraryService, 'getTable');
     const writes: string[] = [];
     acceptModal();
     await moveRelationshipsToLibrary({
@@ -669,7 +669,7 @@ describe('moveRelationshipsToLibrary — turns reversed library entries round (#
     const info = acceptModal();
     const deps = {
       workspaceRoot: root, semanticDir: SEMANTIC_DIR, subjectAreaService: new SubjectAreaService(new LayerService(root, SEMANTIC_DIR)),
-      logicalModelService: tableLibraryService, onWritten: vi.fn(async () => undefined),
+      tableLibraryService, onWritten: vi.fn(async () => undefined),
       writeFile: (filePath: string, text: string) => { writes.push(path.basename(filePath)); writeFileAtomic(filePath, text); },
     };
     await moveRelationshipsToLibrary(deps);

@@ -1,5 +1,5 @@
 /**
- * Tests for LogicalModelService — YAML model file I/O for .erd-studio/logical-models/.
+ * Tests for TableLibraryService — YAML model file I/O for .erd-studio/logical-models/.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -36,7 +36,7 @@ function createManifestData(models: ManifestModelInfo[]): ManifestData {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('LogicalModelService', () => {
+describe('TableLibraryService', () => {
   let tempDir: string;
   let service: TableLibraryService;
 
@@ -263,7 +263,7 @@ describe('LogicalModelService', () => {
       expect(service.getTable('dim_a')!.columns!.map((c) => c.name)).toEqual(['a_key', 'b']);
     });
 
-    it('serializeModel returns exactly what saveModel writes', () => {
+    it('serializeTable returns exactly what saveModel writes', () => {
       const model = {
         name: 'fct_sales',
         description: 'Sales facts',
@@ -517,7 +517,7 @@ describe('LogicalModelService', () => {
 // modelPath — path traversal guard (H21)
 // ---------------------------------------------------------------------------
 
-describe('LogicalModelService.modelPath', () => {
+describe('TableLibraryService.modelPath', () => {
   let tempDir: string;
   let service: TableLibraryService;
 
@@ -571,7 +571,7 @@ describe('LogicalModelService.modelPath', () => {
     expect(() => service.invalidateCache('../escaped')).not.toThrow();
   });
 
-  it('resolveModelPath returns null for unsafe names and a path for safe ones', () => {
+  it('resolveTablePath returns null for unsafe names and a path for safe ones', () => {
     expect(service.resolveTablePath('../escaped')).toBeNull();
     expect(service.resolveTablePath('dim_customer')).toBe(service.tablePath('dim_customer'));
   });
@@ -581,7 +581,7 @@ describe('LogicalModelService.modelPath', () => {
 // Layer folders — logical-models/{folder}/{name}.yml (issue #76)
 // ---------------------------------------------------------------------------
 
-describe('LogicalModelService layer folders', () => {
+describe('TableLibraryService layer folders', () => {
   let tempDir: string;
   let service: TableLibraryService;
   let modelsDir: string;
@@ -627,7 +627,7 @@ describe('LogicalModelService layer folders', () => {
       expect(silver).not.toBe(top);
     });
 
-    it('returns null from findModelFile when no file holds the name, and throws on an unsafe name', () => {
+    it('returns null from findTableFile when no file holds the name, and throws on an unsafe name', () => {
       expect(service.findTableFile('nope')).toBeNull();
       writeRaw('gold', 'other');
       expect(service.findTableFile('nope')).toBeNull();
@@ -677,7 +677,7 @@ describe('LogicalModelService layer folders', () => {
     });
   });
 
-  describe('listModelFiles / listModelNames / listModels', () => {
+  describe('listTableFiles / listTableNames / listTables', () => {
     it('lists the top level first, then each folder alphabetically, files sorted inside each', () => {
       writeRaw('silver', 'fct_b');
       writeRaw('silver', 'dim_a');
@@ -712,12 +712,12 @@ describe('LogicalModelService layer folders', () => {
         ['gold', undefined],
         ['silver', goldOnly],
       ]);
-      // The winner of each name is what findModelFile resolves to.
+      // The winner of each name is what findTableFile resolves to.
       expect(service.findTableFile('dim_dupe')).toBe(top);
       expect(service.findTableFile('dim_gold')).toBe(goldOnly);
     });
 
-    it('listModelNames and listModels return each name once (the winning copy)', () => {
+    it('listTableNames and listTables return each name once (the winning copy)', () => {
       writeRaw('', 'dim_dupe', 'name: dim_dupe\ndescription: top\n');
       writeRaw('gold', 'dim_dupe', 'name: dim_dupe\ndescription: gold\n');
       writeRaw('gold', 'rpt_x');
@@ -804,7 +804,7 @@ describe('LogicalModelService layer folders', () => {
       },
     );
 
-    it('isModelFolderName accepts only layer-id shaped names', () => {
+    it('isTableFolderName accepts only layer-id shaped names', () => {
       expect(TableLibraryService.isTableFolderName('silver')).toBe(true);
       expect(TableLibraryService.isTableFolderName('my-layer_2')).toBe(true);
       for (const bad of ['Gold', '../x', '.hidden', '', 'a/b', '9lives']) {
@@ -881,7 +881,7 @@ describe('LogicalModelService layer folders', () => {
       expect(fs.readdirSync(path.join(modelsDir, 'gold'))).toEqual(['rpt_sales.yml']);
     });
 
-    it('serializeModel edits the document of a file in a folder', () => {
+    it('serializeTable edits the document of a file in a folder', () => {
       writeRaw('gold', 'rpt_sales', '# keep\nname: rpt_sales\ndescription: Old\n');
       const text = service.serializeTable({ name: 'rpt_sales', description: 'New', columns: [] });
       expect(text).toContain('# keep');
@@ -1002,7 +1002,7 @@ describe('LogicalModelService layer folders', () => {
   });
 });
 
-describe('LogicalModelService — a save keeps the relationships: list it did not change', () => {
+describe('TableLibraryService — a save keeps the relationships: list it did not change', () => {
   let tempDir: string;
   let service: TableLibraryService;
   let file: string;
@@ -1202,7 +1202,7 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
   });
 });
 
-describe('LogicalModelService — a save adds nothing the user did not change', () => {
+describe('TableLibraryService — a save adds nothing the user did not change', () => {
   let tempDir: string;
   let service: TableLibraryService;
   let file: string;
@@ -1245,7 +1245,7 @@ describe('LogicalModelService — a save adds nothing the user did not change', 
   });
 });
 
-describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
+describe('TableLibraryService — dbt\'s data_type spelling (#144)', () => {
   let tempDir: string;
   let service: TableLibraryService;
   let file: string;
@@ -1607,7 +1607,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
   });
 });
 
-describe('LogicalModelService — YAML anchors, aliases and text a save did not change (#157)', () => {
+describe('TableLibraryService — YAML anchors, aliases and text a save did not change (#157)', () => {
   let tempDir: string;
   let service: TableLibraryService;
   let file: string;
@@ -1767,7 +1767,7 @@ describe('LogicalModelService — YAML anchors, aliases and text a save did not 
   });
 });
 
-describe('LogicalModelService — a direct write keeps the file\'s line endings', () => {
+describe('TableLibraryService — a direct write keeps the file\'s line endings', () => {
   let tempDir: string;
   let service: TableLibraryService;
   const CRLF = ['# kept', 'name: dim_customer', 'columns:', '  - name: customer_key', '    dataType: string', ''].join('\r\n');
@@ -1811,7 +1811,7 @@ describe('LogicalModelService — a direct write keeps the file\'s line endings'
     expect(isCrlfOnly(text)).toBe(true);
   });
 
-  it('serializeModel renders a CRLF file with CRLF, and a new file with LF', () => {
+  it('serializeTable renders a CRLF file with CRLF, and a new file with LF', () => {
     expect(isCrlfOnly(service.serializeTable(service.getTable('dim_customer')!))).toBe(true);
     expect(service.serializeTable({ name: 'dim_new', columns: [] })).toBe('name: dim_new\n');
   });

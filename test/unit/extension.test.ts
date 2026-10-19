@@ -14,7 +14,7 @@ describe('extension', () => {
   it('registers the domain editor with retainContextWhenHidden (H20)', () => {
     // activate() needs a full workspace; assert on the registration call shape instead.
     const source = fs.readFileSync(path.resolve(__dirname, '../../src/extension.ts'), 'utf8');
-    const match = source.match(/registerCustomEditorProvider\(DOMAIN_EDITOR_VIEW_TYPE,\s*editorProvider,\s*\{[\s\S]*?\}\)/);
+    const match = source.match(/registerCustomEditorProvider\(SUBJECT_AREA_EDITOR_VIEW_TYPE,\s*editorProvider,\s*\{[\s\S]*?\}\)/);
     expect(match, 'registerCustomEditorProvider call with options').not.toBeNull();
     expect(match![0]).toMatch(/retainContextWhenHidden:\s*true/);
   });

@@ -17,9 +17,9 @@ interface FakeSubjectArea {
 
 function fakeSubjectAreaService(domains: FakeSubjectArea[]): SubjectAreaService {
   return {
-    listDomains: () =>
+    listSubjectAreas: () =>
       domains.map((d) => ({ domain: d.domain, layer: d.layer, filePath: d.filePath })),
-    getDomain: (filePath: string) => {
+    getSubjectArea: (filePath: string) => {
       const found = domains.find((d) => d.filePath === filePath);
       if (!found) { throw new Error(`Not found: ${filePath}`); }
       return {

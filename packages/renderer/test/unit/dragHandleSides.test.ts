@@ -1,5 +1,5 @@
 /**
- * Edge sides re-picked for moved nodes: the same choice transformDomain makes
+ * Edge sides re-picked for moved nodes: the same choice transformSubjectArea makes
  * when the moved positions come back in the domain.
  */
 import { describe, it, expect } from 'vitest';
@@ -148,7 +148,7 @@ describe('repickHandleSides', () => {
     expect([edge.sourceHandle, edge.targetHandle]).toEqual(['node-right-src', 'node-left-tgt']);
   });
 
-  it('gives the sides transformDomain gives once the moves are saved in the domain', () => {
+  it('gives the sides transformSubjectArea gives once the moves are saved in the domain', () => {
     const moves = {
       orders: { x: 900, y: 700 },
       products: { x: -500, y: -300 },
@@ -164,7 +164,7 @@ describe('repickHandleSides', () => {
     expect(handles(live)).toEqual(handles(transformSubjectArea(saved).edges));
   });
 
-  it('matches transformDomain with measured sizes too', () => {
+  it('matches transformSubjectArea with measured sizes too', () => {
     const measured = { width: 280, height: 400 };
     const moves = { customers: { x: 100, y: 600 } };
     const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));

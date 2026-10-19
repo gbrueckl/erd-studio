@@ -1,5 +1,5 @@
 /**
- * graphTransformer.transformDomain — DisplayDomain → React Flow nodes/edges:
+ * graphTransformer.transformDomain — DisplaySubjectArea → React Flow nodes/edges:
  * node data mapping, edge endpoint filtering, self-loops, annotations and the
  * discrepancy overlay (ghost nodes / edges). Complements graphTransformer.test.ts,
  * which covers handle-side selection geometry.
@@ -45,7 +45,7 @@ const fkEdges = (r: TransformResult) => r.edges.filter((e) => e.type === 'fk') a
 const linkEdges = (r: TransformResult) => r.edges.filter((e) => e.type === 'annotationLink') as AnnotationFlowEdge[];
 const nodeById = (r: TransformResult, id: string) => tableNodes(r).find((n) => n.id === id)!;
 
-describe('transformDomain nodes', () => {
+describe('transformSubjectArea nodes', () => {
   it('maps each model to a model node at its saved position, or the origin when unsaved', () => {
     const result = transformSubjectArea(subjectArea({
       models: [table('fact_order'), table('dim_customer')],
@@ -163,7 +163,7 @@ describe('transformDomain nodes', () => {
   });
 });
 
-describe('transformDomain edges', () => {
+describe('transformSubjectArea edges', () => {
   it('creates one fk edge per relationship whose endpoints are both on the canvas', () => {
     const result = transformSubjectArea(subjectArea({
       models: [table('fact_order'), table('dim_customer')],
@@ -230,7 +230,7 @@ describe('transformDomain edges', () => {
   });
 });
 
-describe('transformDomain annotations', () => {
+describe('transformSubjectArea annotations', () => {
   it('renders annotations as nodes and links them only to models that exist', () => {
     const result = transformSubjectArea(subjectArea({
       models: [table('dim_customer')],
@@ -264,7 +264,7 @@ describe('transformDomain annotations', () => {
   });
 });
 
-describe('transformDomain discrepancy overlay', () => {
+describe('transformSubjectArea discrepancy overlay', () => {
   const report: DiscrepancyReport = {
     domain: 'orders',
     layer: 'silver',
@@ -365,7 +365,7 @@ describe('transformDomain discrepancy overlay', () => {
   });
 });
 
-describe('transformDomain — ends spelled in another case (#133 L4)', () => {
+describe('transformSubjectArea — ends spelled in another case (#133 L4)', () => {
   it('a relationship core has respelled produces an edge; the transformer itself matches exactly', async () => {
     const { mergeLibraryRelationships } = await import('@erd-studio/core');
     const written = { fromModel: 'Fact_Order', fromColumn: 'DIM_CUSTOMER_ID', toModel: 'dim_CUSTOMER', toColumn: 'Dim_Customer_Id', cardinality: 'many-to-one' as const };
@@ -377,7 +377,7 @@ describe('transformDomain — ends spelled in another case (#133 L4)', () => {
   });
 });
 
-describe('transformDomain — self-references (#133 L3)', () => {
+describe('transformSubjectArea — self-references (#133 L3)', () => {
   it('two self-loops on one node get loopIndex 0 and 1, by edge id, and nest', () => {
     const employee = table('employee', { columns: [column('employee_id', { isPrimaryKey: true }), column('manager_id'), column('mentor_id')] });
     const loops = [
@@ -393,7 +393,7 @@ describe('transformDomain — self-references (#133 L3)', () => {
   });
 });
 
-describe('transformDomain — composite foreign keys (#133 L2)', () => {
+describe('transformSubjectArea — composite foreign keys (#133 L2)', () => {
   const pit = table('pit_customer', { columns: [column('customer_hk'), column('as_of_date'), column('other')] });
   const sat = table('sat_customer', { columns: [column('customer_hk'), column('load_date')] });
   const member = (fromColumn: string, toColumn: string): DisplayRelationship =>

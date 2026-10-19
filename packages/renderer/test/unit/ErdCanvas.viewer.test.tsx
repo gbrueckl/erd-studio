@@ -234,7 +234,7 @@ describe('ErdCanvas with a domain that has no layer', () => {
   });
 });
 
-describe('toRenderableDomain', () => {
+describe('toRenderableSubjectArea', () => {
   it('forces readOnly and fills in what a partial domain leaves out', () => {
     const partial = {
       schemaVersion: 5,

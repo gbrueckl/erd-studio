@@ -18,7 +18,7 @@
  * (no silent default from drag order).
  *
  * The provider's handlers decide every write with `planRelationshipWrite`
- * and the Move applies its plan with `applyMoveToModel`; the `host*` and
+ * and the Move applies its plan with `applyMoveToTable`; the `host*` and
  * `move*` functions here call those same functions on in-memory files, and
  * `relationshipStateSpace.real.test.ts` drives the real provider and Move
  * command over a sample to check the plumbing around them.
@@ -170,7 +170,7 @@ export function columnsOf(profile: Profile, model: TableName): ColumnDef[] {
   }));
 }
 
-/** Fresh library models (what `listModels()` / `getModel()` hand out), in `order`. */
+/** Fresh library models (what `listTables()` / `getModel()` hand out), in `order`. */
 export function libTables(w: World, order: TableName[] = ['dim', 'fct']): SemanticTable[] {
   return order.map((name) => ({
     name,
@@ -189,7 +189,7 @@ export function withLib(w: World, models: readonly SemanticTable[]): World {
 export const subjectAreaRelCount = (w: World): number => w.dom.D1.length + w.dom.D2.length + w.dom.D3.length;
 export const libraryMode = (w: World): boolean => usesLibraryRelationships(libTables(w), subjectAreaRelCount(w));
 
-/** What diagram `d` draws: core's read path, as `DomainService.getDomain` calls it. */
+/** What diagram `d` draws: core's read path, as `SubjectAreaService.getDomain` calls it. */
 export function draw(w: World, d: SubjectAreaName, modelOrder?: TableName[], reverseEntries = false, dbt?: DbtKeyIndex): Relationship[] {
   const order = modelOrder ?? w.domModels[d];
   const models = libTables(w, order);
@@ -266,7 +266,7 @@ export const hostRemove = (w: World, keys: Ends[], d: SubjectAreaName = 'D1'): O
 export function hostRoute(w: World, dbt: Relationship): Outcome {
   const out = clone(w);
   out.domModels.D3 = ['dim', 'fct'];
-  // relationshipsForAddedModels filters D3's own relationships by linkKey.
+  // relationshipsForAddedTables filters D3's own relationships by linkKey.
   const added = w.dom.D3.some((r) => sameLink(r, dbt)) ? [] : [dbt];
   if (added.length === 0 || !libraryMode(w)) {
     out.dom.D3.push(...added);

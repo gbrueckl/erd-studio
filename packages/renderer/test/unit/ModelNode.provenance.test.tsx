@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 /**
- * ModelNode provenance chip — the header badge naming where a physical model's
+ * TableNode provenance chip — the header badge naming where a physical model's
  * shape came from.
  *
- * `ModelNodeData` carries an index signature (React Flow's Node generic needs
+ * `TableNodeData` carries an index signature (React Flow's Node generic needs
  * one), so a field written by graphTransformer but never destructured in
- * ModelNode type-checks perfectly and ships doing nothing — which is exactly
+ * TableNode type-checks perfectly and ships doing nothing — which is exactly
  * how `hasRationale` and `modelRole` gained matching dead CSS. Only a render
  * assertion catches that, so this file is not optional.
  */
@@ -73,7 +73,7 @@ const chip = (container: HTMLElement) => container.querySelector('.model-node__s
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ModelNode provenance chip', () => {
+describe('TableNode provenance chip', () => {
   it('renders the chip for a catalog-typed model, with the verified modifier', () => {
     const { container } = renderNode({ provenance: { columns: ['catalog', 'yml'], types: 'catalog' } });
 

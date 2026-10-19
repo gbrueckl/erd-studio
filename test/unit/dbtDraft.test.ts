@@ -219,7 +219,7 @@ describe('listDraftModels / folderRank / suggestDraftLayer', () => {
 // Seeding and relationships
 // ---------------------------------------------------------------------------
 
-describe('seedModelFromDbt', () => {
+describe('seedTableFromDbt', () => {
   it('copies the yml and fills gaps from the manifest', () => {
     const m = emptyManifest();
     m.models.set('fct_orders', manifestModel('fct_orders', 'models/marts/fct_orders.sql', [['customer_id', 'bigint']]));
@@ -238,7 +238,7 @@ describe('seedModelFromDbt', () => {
   });
 });
 
-describe('seedModelFromDbt — column types from catalog.json', () => {
+describe('seedTableFromDbt — column types from catalog.json', () => {
   function catalogOf(nodes: Array<Pick<CatalogNodeInfo, 'uniqueId' | 'name' | 'columns'>>): CatalogData {
     const full: CatalogNodeInfo[] = nodes.map((n) => ({
       ...n, resourceType: 'model', relationName: n.name.toUpperCase(), schema: 'ANALYTICS', database: 'PROD', comment: null,
@@ -341,7 +341,7 @@ describe('seedModelFromDbt — column types from catalog.json', () => {
   });
 });
 
-describe('relationshipsForAddedModels', () => {
+describe('relationshipsForAddedTables', () => {
   const tests = dbtTestsOf(shopYml());
 
   it('keeps only edges touching an added model whose other end is in the domain', () => {
@@ -489,7 +489,7 @@ describe('buildDbtDraft', () => {
 // Domain document and names
 // ---------------------------------------------------------------------------
 
-describe('buildDraftDomainDocument', () => {
+describe('buildDraftSubjectAreaDocument', () => {
   it('writes a v5 domain with an empty viewConfig, so the canvas auto-lays it out', () => {
     const doc = buildDraftSubjectAreaDocument({
       domain: 'marts',
@@ -508,7 +508,7 @@ describe('buildDraftDomainDocument', () => {
   });
 });
 
-describe('suggestDomainName / toDomainSlug', () => {
+describe('suggestSubjectAreaName / toSubjectAreaSlug', () => {
   const folder = (f: string): DraftScope => ({
     id: `folder:${f}`, kind: 'folder', label: f, description: '', detail: '', modelNames: ['a'], count: 1, folder: f,
   });

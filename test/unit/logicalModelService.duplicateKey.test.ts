@@ -22,7 +22,7 @@ const DUP = [
   '',
 ].join('\n');
 
-describe('LogicalModelService with a key written twice (#164)', () => {
+describe('TableLibraryService with a key written twice (#164)', () => {
   let ws: string;
   let file: string;
   let service: TableLibraryService;
@@ -46,7 +46,7 @@ describe('LogicalModelService with a key written twice (#164)', () => {
     expect(reported[0]).toMatchObject({ kind: 'yamlDuplicateKey', line: 8, readable: true, key: 'description' });
   });
 
-  it('listModels includes it, and getModelFileError still names the problem (doctor, diff, Model Library)', () => {
+  it('listTables includes it, and getTableFileError still names the problem (doctor, diff, Model Library)', () => {
     expect(service.listTables().map((m) => m.name)).toEqual(['dim_x']);
     expect(service.getTableFileError('dim_x')).toMatchObject({ kind: 'yamlDuplicateKey', line: 8, readable: true });
     expect(service.hasUnreadableRelationships()).toBe(false);

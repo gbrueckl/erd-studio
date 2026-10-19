@@ -437,7 +437,7 @@ describe('allowlists agree with the Worker', () => {
 });
 
 describe('model file failure sub-codes (#110)', () => {
-  it('maps every ModelFileErrorKind to its own listed error code', () => {
+  it('maps every TableFileErrorKind to its own listed error code', () => {
     const kinds = ['read', 'yamlIndent', 'yamlScalar', 'yamlStructure', 'yamlDuplicateKey', 'yamlOther'] as const;
     const codes = kinds.map(tableFileErrorCode);
     expect(codes).toEqual([

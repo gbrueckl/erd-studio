@@ -66,7 +66,7 @@ describe('a key written twice in a model file (#164)', () => {
     expect(classifyTableLoadError(thrown)).toMatchObject({ mergeConflict: true });
   });
 
-  it('loadDisplayDomain draws the model, with the last value and a loadWarning', async () => {
+  it('loadDisplaySubjectArea draws the model, with the last value and a loadWarning', async () => {
     const files: Record<string, string> = {
       '.erd-studio/silver/sales.json': JSON.stringify({
         schemaVersion: 5, domain: 'sales', layer: 'silver', logical: { models: ['dim_x'], relationships: [] },

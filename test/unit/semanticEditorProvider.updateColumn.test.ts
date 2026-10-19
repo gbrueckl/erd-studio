@@ -59,29 +59,29 @@ function makeDocument(text: string) {
 /**
  * Build a provider whose logical model service is an in-memory fake.
  *
- * V5 model edits are routed through a WorkspaceEdit (`serializeModel` +
- * `createFile` / `replace`) rather than `saveModel`, so the fake captures the
- * model handed to `serializeModel` and reports every model as not-yet-on-disk
+ * V5 model edits are routed through a WorkspaceEdit (`serializeTable` +
+ * `createFile` / `replace`) rather than `saveTable`, so the fake captures the
+ * model handed to `serializeTable` and reports every model as not-yet-on-disk
  * (the createFile branch needs no TextDocument). `workspace.applyEdit` is
  * stubbed so the edit never reaches the real filesystem.
  */
 function makeProvider(models: SemanticTable[]) {
   const saved: SemanticTable[] = [];
   const tableLibraryService = {
-    getModel: (name: string) => models.find((m) => m.name === name) ?? null,
-    saveModel: (model: SemanticTable) => { saved.push(model); },
-    serializeModel: (model: SemanticTable) => { saved.push(model); return `name: ${model.name}\n`; },
-    modelExists: () => false,
-    modelPath: (name: string) => `/ws/.erd-studio/logical-models/${name}.yml`,
+    getTable: (name: string) => models.find((m) => m.name === name) ?? null,
+    saveTable: (model: SemanticTable) => { saved.push(model); },
+    serializeTable: (model: SemanticTable) => { saved.push(model); return `name: ${model.name}\n`; },
+    tableExists: () => false,
+    tablePath: (name: string) => `/ws/.erd-studio/logical-models/${name}.yml`,
     ensureDir: () => {},
-    getModelsDir: () => '/ws/.erd-studio/logical-models',
+    getTablesDir: () => '/ws/.erd-studio/logical-models',
     groupsByFolder: () => false,
     invalidateCache: () => {},
   };
   vi.spyOn(vscode.workspace, 'applyEdit').mockResolvedValue(true);
   const provider = new SemanticEditorProvider(
     {} as vscode.ExtensionContext,
-    {} as never, // domainService
+    {} as never, // subjectAreaService
     {} as never, // manifestService
     {} as never, // ymlParserService
     {} as never, // templateService
@@ -91,7 +91,7 @@ function makeProvider(models: SemanticTable[]) {
     tableLibraryService as never,
   );
   // Refreshing the webview needs a live panel + services — not under test here.
-  vi.spyOn(provider as unknown as { sendDomainData: () => Promise<void> }, 'sendDomainData')
+  vi.spyOn(provider as unknown as { sendSubjectAreaData: () => Promise<void> }, 'sendSubjectAreaData')
     .mockResolvedValue(undefined);
   return { provider, saved };
 }
@@ -128,7 +128,7 @@ function canvasPayload(overrides: Partial<ColumnDef>): UpdateColumnPayloadColumn
 }
 
 // ---------------------------------------------------------------------------
-// V5 — column lives in logical-models/, written via LogicalModelService
+// V5 — column lives in logical-models/, written via TableLibraryService
 // ---------------------------------------------------------------------------
 
 describe('handleUpdateColumn (V5) scdType / additiveType', () => {

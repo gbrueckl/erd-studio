@@ -44,7 +44,7 @@ const POSITIONS_CONFLICT = lines(
   '}',
 );
 
-describe('parseDomainJson on a file with conflict markers', () => {
+describe('parseSubjectAreaJson on a file with conflict markers', () => {
   const cases: Array<[string, string, number]> = [
     ['at the start of the file', lines('<<<<<<< HEAD', '{"schemaVersion": 5}', '=======', '{"schemaVersion": 5, "domain": "x"}', '>>>>>>> other'), 1],
     ['inside viewConfig.positions only', POSITIONS_CONFLICT, 6],
@@ -116,7 +116,7 @@ describe('parseDomainJson on a file with conflict markers', () => {
   });
 });
 
-describe('DomainFileError.mergeConflict', () => {
+describe('SubjectAreaFileError.mergeConflict', () => {
   it('defaults to false, so every existing constructor call is unchanged', () => {
     for (const reason of ['missing', 'unreadable', 'empty', 'invalid-json'] as const) {
       const err = new SubjectAreaFileError(reason, FILE, 'm');
@@ -180,7 +180,7 @@ describe('a model file with conflict markers', () => {
     expect(parseTableText(text, 'dim_x')?.description).toBe('<<<<<<< a\n=======\n>>>>>>> b\n');
   });
 
-  it('reaches the DisplayDomain through loadDisplayDomain', async () => {
+  it('reaches the DisplaySubjectArea through loadDisplaySubjectArea', async () => {
     const files: Record<string, string> = {
       '.erd-studio/silver/sales.json': JSON.stringify({ schemaVersion: 5, domain: 'sales', layer: 'silver', logical: { models: ['fct_order'], relationships: [] } }),
       '.erd-studio/logical-models/fct_order.yml': CONFLICTED,
@@ -197,7 +197,7 @@ describe('a model file with conflict markers', () => {
   });
 });
 
-describe('loadDisplayDomain on the conflicted fixtures', () => {
+describe('loadDisplaySubjectArea on the conflicted fixtures', () => {
   const readFile = async (p: string) => {
     try {
       return fs.readFileSync(path.join(ERRORS_ROOT, p), 'utf-8');

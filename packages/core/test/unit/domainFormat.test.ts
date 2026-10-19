@@ -18,7 +18,7 @@ function doc(schemaVersion: number | undefined, models: unknown[] | undefined, e
   };
 }
 
-describe('detectDomainFormat', () => {
+describe('detectSubjectAreaFormat', () => {
   it('returns v5 for schemaVersion 5 with name references', () => {
     expect(detectSubjectAreaFormat(doc(5, ['dim_a', 'fct_b']))).toBe('v5');
   });
@@ -73,14 +73,14 @@ describe('detectDomainFormat', () => {
   });
 });
 
-describe('describeUnsupportedDomainFormat', () => {
+describe('describeUnsupportedSubjectAreaFormat', () => {
   it('returns null for supported formats', () => {
     expect(describeUnsupportedSubjectAreaFormat('v4', '/p.json')).toBeNull();
     expect(describeUnsupportedSubjectAreaFormat('v5', '/p.json')).toBeNull();
   });
 });
 
-describe('getRawDomainModelNames', () => {
+describe('getRawSubjectAreaTableNames', () => {
   it('reads v5 name strings', () => {
     expect(getRawSubjectAreaTableNames(doc(5, ['a', 'b']))).toEqual(['a', 'b']);
   });
@@ -103,8 +103,8 @@ describe('getRawDomainModelNames', () => {
   });
 });
 
-describe('isDomainV5 (deprecated wrapper)', () => {
-  it('agrees with detectDomainFormat', () => {
+describe('isSubjectAreaV5 (deprecated wrapper)', () => {
+  it('agrees with detectSubjectAreaFormat', () => {
     expect(isSubjectAreaV5(doc(5, ['a']) as never)).toBe(true);
     expect(isSubjectAreaV5(doc(4, [{ name: 'a' }]) as never)).toBe(false);
     // Previously returned true for any empty array; now follows schemaVersion

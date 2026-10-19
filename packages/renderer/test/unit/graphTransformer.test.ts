@@ -57,7 +57,7 @@ describe('pickHandleSides', () => {
   });
 });
 
-describe('transformDomain handle sides', () => {
+describe('transformSubjectArea handle sides', () => {
   it('uses measured dimensions from options.nodeDimensions when available', () => {
     const d = subjectArea(
       [table('fct_wide', 2), table('dim_small', 2)],

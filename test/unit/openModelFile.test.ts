@@ -15,7 +15,7 @@ import {
 
 afterEach(() => vi.restoreAllMocks());
 
-describe('modelFileErrorNotice', () => {
+describe('tableFileErrorNotice', () => {
   const at = (kind: Parameters<typeof tableFileErrorNotice>[0]['kind'], line?: number) =>
     tableFileErrorNotice({ filePath: '/p/.erd-studio/logical-models/dim_x.yml', kind, line });
 
@@ -47,7 +47,7 @@ describe('modelFileErrorNotice', () => {
   });
 });
 
-describe('openModelFileAt / notifyModelFileError', () => {
+describe('openTableFileAt / notifyTableFileError', () => {
   it('puts the cursor on the 1-based line and column', async () => {
     vi.spyOn(vscode.workspace, 'openTextDocument').mockResolvedValue({ lineCount: 20 } as never);
     const show = vi.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(undefined as never);
@@ -80,7 +80,7 @@ describe('a key written twice in a file that is still read (#164)', () => {
   });
 });
 
-describe('shouldWarnAboutModelFile (#164)', () => {
+describe('shouldWarnAboutTableFile (#164)', () => {
   let dir: string;
   let file: string;
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));

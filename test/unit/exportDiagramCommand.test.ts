@@ -3,7 +3,7 @@
  * src/commands/exportDiagram.ts, driven through its injected UI with fakes:
  * which domain it exports (argument, focused canvas, picker), the format and
  * action QuickPicks, each action, every cancel, errors and telemetry. One
- * case runs the real `exportDomainFile` over the fixture project, so the
+ * case runs the real `exportSubjectAreaFile` over the fixture project, so the
  * wiring reaches `@erd-studio/core`'s exporter.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -120,7 +120,7 @@ const SUBJECT_AREA = '/project/.erd-studio/silver/showcase.json';
 
 // ---------------------------------------------------------------------------
 
-describe('domainPathFromArg', () => {
+describe('subjectAreaPathFromArg', () => {
   it('reads a file Uri, a path string and the domain tree node', () => {
     expect(subjectAreaPathFromArg(vscode.Uri.file(SUBJECT_AREA))).toBe(SUBJECT_AREA);
     expect(subjectAreaPathFromArg(SUBJECT_AREA)).toBe(SUBJECT_AREA);

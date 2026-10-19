@@ -409,7 +409,7 @@ describe('toDbml', () => {
     expect(text).not.toMatch(/\b(x|y|width): ?\d/);
   });
 
-  it('accepts a DisplayDomain from an older core: only required fields, odd values, duplicates', () => {
+  it('accepts a DisplaySubjectArea from an older core: only required fields, odd values, duplicates', () => {
     const old = {
       schemaVersion: 5,
       domain: 'old',

@@ -41,7 +41,7 @@ function copyProject(name = 'dbt-project'): string {
 }
 
 describe('diff', () => {
-  it('the showcase report is exactly computeDomainDiff from logical, and the plan is buildSyncPlan(all physical)', async () => {
+  it('the showcase report is exactly computeSubjectAreaDiff from logical, and the plan is buildSyncPlan(all physical)', async () => {
     const ctx = await buildCliContext({ project: PROJECT, semanticDir: '.erd-studio' });
     const { result, exitCode } = runDiff(ctx, { domains: ['.erd-studio/silver/showcase.json'] });
     expect(exitCode).toBe(1);
@@ -175,7 +175,7 @@ describe('diff', () => {
     const root = copyProject();
     fs.mkdirSync(path.join(root, '.erd-studio', 'platinum'));
     fs.copyFileSync(path.join(root, '.erd-studio/silver/showcase.json'), path.join(root, '.erd-studio/platinum/odd.json'));
-    // listDomains walks only the configured layers, so --all never sees it…
+    // listSubjectAreas walks only the configured layers, so --all never sees it…
     const ctx = await buildCliContext({ project: root, semanticDir: '.erd-studio' });
     expect(runDiff(ctx, { all: true }).result.domains.map((d) => d.domain)).not.toContain('odd');
     // …and naming it directly fails on the layer, not with a crash.
