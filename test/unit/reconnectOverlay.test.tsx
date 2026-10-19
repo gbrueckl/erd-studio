@@ -87,7 +87,7 @@ describe('App load-error page and the reconnect overlay', () => {
 
   it('a silent host gets the overlay after the grace period', () => {
     render(<App />);
-    expect(screen.getByText(/Loading domain/)).toBeTruthy();
+    expect(screen.getByText(/Loading subject area/)).toBeTruthy();
     act(() => { vi.advanceTimersByTime(RECONNECT_GRACE_MS); });
     expect(overlay()).not.toBeNull();
   });
@@ -102,7 +102,7 @@ describe('App load-error page and the reconnect overlay', () => {
 
     fireEvent.click(screen.getByText('Retry'));
     expect(mockVsCode.postMessage).toHaveBeenLastCalledWith({ type: 'ready' });
-    expect(screen.getByText(/Loading domain/)).toBeTruthy();
+    expect(screen.getByText(/Loading subject area/)).toBeTruthy();
     expect(overlay()).toBeNull();
 
     // The host re-reads and answers with the error again: still no overlay.

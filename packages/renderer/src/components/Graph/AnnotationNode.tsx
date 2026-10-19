@@ -246,7 +246,7 @@ function AnnotationNodeInner({ data }: NodeProps<AnnotationFlowNode>) {
           <div
             className="annotation-node__link-handle nodrag"
             onMouseDown={handleLinkDragStart}
-            title="Drag to a model to link"
+            title="Drag to a table to link"
           >
             &#x1F517;
           </div>

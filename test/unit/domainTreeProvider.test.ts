@@ -291,7 +291,7 @@ describe('DomainTreeProvider', () => {
       const item = provider.getTreeItem(element);
 
       expect(item.label).toBe('orders');
-      expect(item.description).toBe('12 models, 3 designs');
+      expect(item.description).toBe('12 tables, 3 designs');
       expect(item.collapsibleState).toBe(TreeItemCollapsibleState.None);
       expect(item.contextValue).toBe('domain');
     });
@@ -305,10 +305,10 @@ describe('DomainTreeProvider', () => {
       };
       const item = provider.getTreeItem(element);
 
-      expect(item.description).toBe('5 models');
+      expect(item.description).toBe('5 tables');
     });
 
-    it('uses singular "model" when count is 1', () => {
+    it('uses singular "table" when count is 1', () => {
       const element: TreeElement = {
         type: 'domain',
         summary: { domain: 'test', layer: 'gold', filePath: '/test.json' },
@@ -317,7 +317,7 @@ describe('DomainTreeProvider', () => {
       };
       const item = provider.getTreeItem(element);
 
-      expect(item.description).toBe('1 model');
+      expect(item.description).toBe('1 table');
     });
 
     it('sets openDomain command on domain items with only filePath', () => {
@@ -331,7 +331,7 @@ describe('DomainTreeProvider', () => {
 
       expect(item.command).toEqual({
         command: 'erdStudio.openDomain',
-        title: 'Open Domain',
+        title: 'Open Subject Area',
         arguments: ['/path/to/test.json'],
       });
     });
@@ -339,12 +339,12 @@ describe('DomainTreeProvider', () => {
     it('creates New Domain item with add icon and createDomain command', () => {
       const item = provider.getTreeItem({ type: 'newDomain', layer: 'gold' });
 
-      expect(item.label).toBe('New Domain...');
+      expect(item.label).toBe('New Subject Area...');
       expect(item.collapsibleState).toBe(TreeItemCollapsibleState.None);
       expect(item.contextValue).toBe('newDomain');
       expect(item.command).toEqual({
         command: 'erdStudio.createDomain',
-        title: 'Create Domain',
+        title: 'New Subject Area',
         arguments: ['gold'],
       });
     });

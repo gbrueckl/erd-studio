@@ -145,7 +145,7 @@ export function formatDiagnostics(d: Diagnostics): string {
     lines.push(
       `Canvas:     stage=${d.domain.stage}` +
         `${d.domain.schemaVersion != null ? `, schemaVersion=${d.domain.schemaVersion}` : ''}`,
-      `Models:     ${d.domain.modelCount}   Relationships: ${d.domain.relationshipCount}`,
+      `Tables:     ${d.domain.modelCount}   Relationships: ${d.domain.relationshipCount}`,
     );
   }
   if (d.hostErrors.length > 0) {
@@ -352,7 +352,7 @@ export function buildDiagnosticsChips(d: Diagnostics): FeedbackDiagnosticsChip[]
   if (d.domain) {
     chips.push({
       label:
-        `${d.domain.stage} · ${d.domain.modelCount} model${d.domain.modelCount === 1 ? '' : 's'}` +
+        `${d.domain.stage} · ${d.domain.modelCount} table${d.domain.modelCount === 1 ? '' : 's'}` +
         ` · ${d.domain.relationshipCount} relationship${d.domain.relationshipCount === 1 ? '' : 's'}`,
       tone: 'normal',
     });

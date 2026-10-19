@@ -47,7 +47,7 @@ describe('feedbackService', () => {
       });
       expect(text).toContain('ERD Studio: 0.6.46');
       expect(text).toContain('Canvas:     stage=logical, schemaVersion=5');
-      expect(text).toContain('Models:     4   Relationships: 3');
+      expect(text).toContain('Tables:     4   Relationships: 3');
       expect(text).toContain('Recent extension errors:');
       expect(text).toContain('boom');
       expect(text).toContain('Recent canvas errors:');
@@ -62,7 +62,7 @@ describe('feedbackService', () => {
         domain: { stage: 'logical', modelCount: 4, relationshipCount: 3 },
       });
       expect(text).not.toMatch(/Domain:/);
-      expect(text).toContain('Models:     4   Relationships: 3');
+      expect(text).toContain('Tables:     4   Relationships: 3');
     });
 
     it('omits empty sections', () => {

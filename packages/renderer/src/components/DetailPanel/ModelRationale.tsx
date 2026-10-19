@@ -111,7 +111,7 @@ export function ModelRationale({ modelName, rationale, modelRole, grain }: Model
             rationale={rationale}
             fieldKey="purpose"
             label="Purpose"
-            placeholder="What requirements does this model meet?"
+            placeholder="What requirements does this table meet?"
             autoEdit={!viewer && forceShow && !rationale?.purpose}
           />
 
@@ -120,7 +120,7 @@ export function ModelRationale({ modelName, rationale, modelRole, grain }: Model
             rationale={rationale}
             fieldKey="design"
             label="Design"
-            placeholder="Why was this model designed this way?"
+            placeholder="Why was this table designed this way?"
           />
 
           {modelRole && (
@@ -129,7 +129,7 @@ export function ModelRationale({ modelName, rationale, modelRole, grain }: Model
               rationale={rationale}
               fieldKey="roleChoice"
               label="Role Choice"
-              placeholder="Why was this model role selected?"
+              placeholder="Why was this table role selected?"
             />
           )}
 

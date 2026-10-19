@@ -380,7 +380,7 @@ export function describeWrittenFiles(paths: readonly string[]): SetupFileGroup[]
     },
     {
       title: 'A small checking tool',
-      why: 'Your assistant runs it to compare your logical model with your dbt project. It sits in your home folder, outside the project.',
+      why: 'Your assistant runs it to compare your logical data model with your dbt project. It sits in your home folder, outside the project.',
       paths: [],
       match: (p) => p.startsWith('~/.erd-studio-cli/'),
     },

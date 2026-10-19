@@ -131,7 +131,7 @@ export function DetailPanel() {
         return 'Only the upper/lower case differs — rename to another name first';
       }
       if (domain && trimmed !== selectedNode && domain.models.some((m) => same(m.name))) {
-        return 'A model with this name already exists';
+        return 'A table with this name already exists';
       }
       // logical-models/ is shared across domains — renaming onto an existing
       // library model would overwrite a file another domain depends on.
@@ -139,7 +139,7 @@ export function DetailPanel() {
         trimmed !== selectedNode &&
         existingModels.some((m) => m.source === 'logical' && same(m.name))
       ) {
-        return 'A model with this name already exists in the model library';
+        return 'A table with this name already exists in the Table Library';
       }
       return '';
     },
@@ -333,8 +333,8 @@ export function DetailPanel() {
           <button
             className="detail-panel__title-edit-btn"
             onClick={handleStartRename}
-            title="Rename model"
-            aria-label="Rename model"
+            title="Rename table"
+            aria-label="Rename table"
           >
             ✎
           </button>
@@ -419,13 +419,13 @@ export function DetailPanel() {
           {confirmingDelete ? (
             <>
               <span className="detail-panel__confirm-label">
-                Remove model from domain?{totalRelationships > 0 ? ` (${totalRelationships} relationship(s) will also be removed)` : ''}
+                Remove table from subject area?{totalRelationships > 0 ? ` (${totalRelationships} relationship(s) will also be removed)` : ''}
               </span>
               <div className="detail-panel__confirm-actions">
                 <button
                   className="detail-panel__button detail-panel__button--danger"
                   onClick={handleDeleteModel}
-                  aria-label="Confirm remove model"
+                  aria-label="Confirm remove table"
                 >
                   Yes, Remove
                 </button>
@@ -442,10 +442,10 @@ export function DetailPanel() {
             <button
               className="detail-panel__button detail-panel__button--danger"
               onClick={() => setConfirmingDelete(true)}
-              title="Remove this model from the domain"
-              aria-label="Remove this model from the domain"
+              title="Remove this table from the subject area"
+              aria-label="Remove this table from the subject area"
             >
-              Remove from Domain
+              Remove from Subject Area
             </button>
           )}
         </div>

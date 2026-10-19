@@ -226,7 +226,7 @@ describe('ModelLibraryTreeProvider', () => {
       const item = provider.getTreeItem(node);
       expect(item.label).toBe('dim_date');
       expect(item.description).toBe('(unused)');
-      expect(item.tooltip).toBe('Not referenced by any domain');
+      expect(item.tooltip).toBe('Not referenced by any subject area');
       expect((item.iconPath as ThemeIcon).id).toBe('warning');
       expect(item.collapsibleState).toBe(TreeItemCollapsibleState.None);
       expect(item.contextValue).toBe('logicalModel');
@@ -242,7 +242,7 @@ describe('ModelLibraryTreeProvider', () => {
 
       const item = provider.getTreeItem(node);
       expect(item.label).toBe('dim_customer');
-      expect(item.description).toBe('2 domains');
+      expect(item.description).toBe('2 subject areas');
       expect((item.iconPath as ThemeIcon).id).toBe('symbol-class');
       expect(item.tooltip).toBeInstanceOf(MarkdownString);
       expect((item.tooltip as MarkdownString).value).toContain('customer-360');
@@ -258,7 +258,7 @@ describe('ModelLibraryTreeProvider', () => {
       };
 
       const item = provider.getTreeItem(node);
-      expect(item.description).toBe('1 domain');
+      expect(item.description).toBe('1 subject area');
     });
 
     it('sets click command to open the .yml file', () => {
@@ -369,7 +369,7 @@ describe('ModelLibraryTreeProvider', () => {
       const item = p.getTreeItem(silver);
       expect(item.label).toBe('Silver');
       expect(item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
-      expect(item.description).toBe('2 models');
+      expect(item.description).toBe('2 tables');
       expect(item.contextValue).toBe('logicalModelFolder');
       const icon = item.iconPath as ThemeIcon;
       expect(icon.id).toBe('folder');
@@ -380,7 +380,7 @@ describe('ModelLibraryTreeProvider', () => {
       // and "1 model" is singular.
       const martsItem = p.getTreeItem(marts);
       expect(martsItem.label).toBe('Data Marts');
-      expect(martsItem.description).toBe('1 model');
+      expect(martsItem.description).toBe('1 table');
       expect(((martsItem.iconPath as ThemeIcon).color as ThemeColor).id).toBe('erdStudio.layer.custom');
     });
 
@@ -484,7 +484,7 @@ describe('ModelLibraryTreeProvider: a model file that needs fixing (#164)', () =
     const provider = providerWith({ dim_customer: { kind: 'yamlScalar', line: 4 } });
     const item = itemFor(provider, 'fct_orders');
     expect((item.iconPath as ThemeIcon).id).toBe('symbol-class');
-    expect(item.description).toBe('2 domains');
+    expect(item.description).toBe('2 subject areas');
   });
 });
 

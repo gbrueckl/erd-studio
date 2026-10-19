@@ -314,7 +314,7 @@ export class DomainTreeProvider
       vscode.TreeItemCollapsibleState.None,
     );
 
-    const modelWord = element.modelCount === 1 ? 'model' : 'models';
+    const modelWord = element.modelCount === 1 ? 'table' : 'tables';
     const designWord = element.designCount === 1 ? 'design' : 'designs';
     item.description = element.designCount > 0
       ? `${element.modelCount} ${modelWord}, ${element.designCount} ${designWord}`
@@ -325,7 +325,7 @@ export class DomainTreeProvider
     item.tooltip = `${this.layerService.getLabel(element.summary.layer)} / ${element.summary.domain}`;
     item.command = {
       command: 'erdStudio.openDomain',
-      title: 'Open Domain',
+      title: 'Open Subject Area',
       arguments: [element.summary.filePath],
     };
 
@@ -334,14 +334,14 @@ export class DomainTreeProvider
 
   private createNewDomainItem(element: NewDomainNode): vscode.TreeItem {
     const item = new vscode.TreeItem(
-      'New Domain...',
+      'New Subject Area...',
       vscode.TreeItemCollapsibleState.None,
     );
     item.contextValue = 'newDomain';
     item.iconPath = new vscode.ThemeIcon('add');
     item.command = {
       command: 'erdStudio.createDomain',
-      title: 'Create Domain',
+      title: 'New Subject Area',
       arguments: [element.layer],
     };
     return item;

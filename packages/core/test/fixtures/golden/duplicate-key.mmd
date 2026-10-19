@@ -5,14 +5,14 @@ erDiagram
 %% Diagram: orders (layer silver, logical stage)
 %% Description: A model file with a key written twice, read as PyYAML reads it (#164)
 
-  %% Model fct_order
+  %% Table fct_order
   %%   description: One row per order
   "fct_order" {
     integer order_id PK
     integer customer_id FK
   }
 
-  %% Model dim_customer
+  %% Table dim_customer
   %%   description: One row per customer
   "dim_customer" {
     integer customer_id PK

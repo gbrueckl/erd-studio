@@ -106,7 +106,7 @@ const FALLBACK_TEMPLATES: ModelTemplate[] = [
     id: 'blank',
     label: 'Blank',
     prefix: '',
-    description: 'Empty model with no predefined columns',
+    description: 'Empty table with no predefined columns',
     columns: [],
   },
 ];

@@ -93,5 +93,5 @@ export function keysContradictionWarning(
     : `${from} is ${rel.fromModel}'s key`;
   return `${why}, so each value appears only once — it can't be the ` +
     `"many" side. ${to} is probably the source ${members.length > 1 ? 'columns' : 'column'} instead; if you save it this way, ` +
-    'the line shows a ⚠ with Turn round, and Move Relationships to Model Library will turn it round.';
+    'the line shows a ⚠ with Turn round, and Move Relationships to Table Library will turn it round.';
 }

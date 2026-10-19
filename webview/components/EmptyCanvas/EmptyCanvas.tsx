@@ -37,21 +37,21 @@ export const EmptyCanvas: React.FC = () => {
     <div className="empty-canvas">
       <section className="empty-canvas__card" aria-labelledby="empty-canvas-title">
         <h2 id="empty-canvas-title" className="empty-canvas__title">This diagram is empty</h2>
-        <p className="empty-canvas__body">Start from your dbt project, or add a model by hand.</p>
+        <p className="empty-canvas__body">Start from your dbt project, or add a table by hand.</p>
         <div className="empty-canvas__actions">
           <button
             type="button"
             className="empty-canvas__button empty-canvas__button--primary"
             onClick={() => send({ type: 'addModelsFromDbt' })}
           >
-            Add models from dbt
+            Add tables from dbt
           </button>
           <button
             type="button"
             className="empty-canvas__button"
             onClick={() => setNewModelDialogOpen(true)}
           >
-            New model
+            New table
           </button>
         </div>
         <p className="empty-canvas__hint">

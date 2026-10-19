@@ -34,10 +34,10 @@ import './SyncMergeModal.css';
 // ---------------------------------------------------------------------------
 
 const ACTION_HINTS: Record<string, string> = {
-  'add-to-logical':                        'Will add this model to your logical design',
-  'remove-from-logical':                   'Will remove this model from your logical design',
-  'add-to-physical':                       'Will add this model to dbt (requires compile)',
-  'remove-from-physical':                  'Will remove this model from dbt',
+  'add-to-logical':                        'Will add this table to your logical design',
+  'remove-from-logical':                   'Will remove this table from your logical design',
+  'add-to-physical':                       'Will add this table to dbt (requires compile)',
+  'remove-from-physical':                  'Will remove this table from dbt',
   'add-column-to-logical':                 'Will add this column to your logical design',
   'remove-column-from-logical':            'Will remove this column from your logical design',
   'add-column-to-physical':                'Will add this column in dbt schema',

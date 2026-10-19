@@ -88,9 +88,9 @@ describe('toMermaid', () => {
         }),
       ]),
     );
-    const block = text.slice(text.indexOf('  %% Model fct_order'), text.indexOf('  "fct_order" {'));
+    const block = text.slice(text.indexOf('  %% Table fct_order'), text.indexOf('  "fct_order" {'));
     expect(block.split('\n').filter(Boolean)).toEqual([
-      '  %% Model fct_order',
+      '  %% Table fct_order',
       '  %%   schema: gold',
       '  %%   alias: orders',
       '  %%   role: transaction-fact',
@@ -183,7 +183,7 @@ describe('toMermaid', () => {
       domain([model('raw_refunds', []), model('broken', [], { loadError: { kind: 'yamlIndent', line: 5 } })]),
     );
     expect(text).toContain('  %%   no columns yet');
-    expect(text).toContain('  %%   its model file could not be read (yamlIndent, line 5)');
+    expect(text).toContain('  %%   its table file could not be read (yamlIndent, line 5)');
     expect(parsed.entities).toEqual([
       { name: 'raw_refunds', attributes: [] },
       { name: 'broken', attributes: [] },
@@ -210,9 +210,9 @@ describe('toMermaid', () => {
     );
     expect(parsed.entities.map((e) => e.name)).toEqual(['x/y', 'a_b', 'p__q', 'end/', 'ok']);
     expect(parsed.relationships).toEqual([{ from: 'a_b', to: 'x/y', label: 'id', cardA: 'ONLY_ONE', cardB: 'ZERO_OR_MORE' }]);
-    expect(text).toContain('  %% Model x\\y\n  %%   written as "x/y": Mermaid entity names cannot hold ", % or \\\n');
-    expect(text).toContain('  %% Model p% %q\n  %%   written as "p__q"');
-    expect(text).not.toMatch(/%% Model ok\n {2}%% {3}written as/);
+    expect(text).toContain('  %% Table x\\y\n  %%   written as "x/y": Mermaid entity names cannot hold ", % or \\\n');
+    expect(text).toContain('  %% Table p% %q\n  %%   written as "p__q"');
+    expect(text).not.toMatch(/%% Table ok\n {2}%% {3}written as/);
   });
 
   it('leaves out a model whose entity name an earlier model took, and the relationships that join it', async () => {
@@ -220,7 +220,7 @@ describe('toMermaid', () => {
       domain([model('a_b', [col('id')]), model('a%b', [col('k')]), model('c', [col('id')])], [rel('a%b.k', 'c.id'), rel('a_b.id', 'c.id')]),
     );
     expect(text).toContain('  %% Not exported: a%b is written as "a_b", the name of an earlier entity.');
-    expect(text).toContain('  %% Not exported: a%b.k -> c.id (a model it joins is not exported).');
+    expect(text).toContain('  %% Not exported: a%b.k -> c.id (a table it joins is not exported).');
     expect(parsed.entities).toEqual([
       { name: 'a_b', attributes: [{ type: 'int', name: 'id', keys: [], comment: '' }] },
       { name: 'c', attributes: [{ type: 'int', name: 'id', keys: [], comment: '' }] },
@@ -353,7 +353,7 @@ describe('toMermaid', () => {
     } as unknown as DisplayDomain;
     const { text, parsed } = await exportAndParse(old);
     expect(text).toContain('  %% Not exported: a is listed more than once; exported once.');
-    expect(text).toContain('  %% Not exported: model 3 has no name.');
+    expect(text).toContain('  %% Not exported: table 3 has no name.');
     expect(text).toContain('  %%   column 1 has no name; not exported');
     expect(parsed.relationships).toEqual([{ from: 'b', to: 'a', label: '123', cardA: 'ONLY_ONE', cardB: 'ZERO_OR_MORE' }]);
   });

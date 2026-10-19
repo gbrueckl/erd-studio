@@ -5,7 +5,7 @@ erDiagram
 %% Diagram: showcase (layer silver, logical stage)
 %% Description: Project task management — tracks projects, tasks, events, and customers
 
-  %% Model fct_task_event
+  %% Table fct_task_event
   %%   schema: silver
   %%   role: transaction-fact
   %%   grain: One row per task event
@@ -24,7 +24,7 @@ erDiagram
     DECIMAL duration_hours "Hours spent on this event; additive"
   }
 
-  %% Model dim_task
+  %% Table dim_task
   %%   schema: silver
   %%   role: domain-dim
   %%   grain: One row per task version
@@ -40,7 +40,7 @@ erDiagram
     STRING status "Current lifecycle status; SCD type 2"
   }
 
-  %% Model dim_project
+  %% Table dim_project
   %%   schema: silver
   %%   role: conformed-dim
   %%   grain: One row per project
@@ -55,7 +55,7 @@ erDiagram
     INT parent_project_key FK "Parent project for hierarchical rollups (self-reference to project_key)"
   }
 
-  %% Model dim_customer
+  %% Table dim_customer
   %%   schema: silver
   %%   role: conformed-dim
   %%   grain: One row per customer
@@ -70,7 +70,7 @@ erDiagram
     VARCHAR email "Customer email address; SCD type 1"
   }
 
-  %% Model dim_date
+  %% Table dim_date
   %%   schema: silver
   %%   role: conformed-dim
   %%   grain: One row per calendar date
@@ -84,7 +84,7 @@ erDiagram
     VARCHAR fiscal_quarter "Fiscal quarter (Q1-Q4)"
   }
 
-  %% Model fct_order
+  %% Table fct_order
   %%   description: Order transaction fact table
   "fct_order" {
     INT order_id PK, UK "Order id from the source system — a degenerate dimension, and this fact's own key"

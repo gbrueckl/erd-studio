@@ -119,7 +119,7 @@ export function setYamlRelationships(text: string, relationships: readonly Model
   const doc = parseDocument(body);
   if (doc.errors.length > 0) throw new Error(`setYamlRelationships: ${doc.errors[0].message}`);
   const root = doc.contents;
-  if (!isMap(root)) throw new Error('setYamlRelationships: the model file is not a YAML mapping');
+  if (!isMap(root)) throw new Error('setYamlRelationships: the table file is not a YAML mapping');
 
   if (root.flow) {
     // `{ name: x, columns: [...] }` on one line: there is no block to splice
@@ -282,11 +282,11 @@ export function setDomainRelationships(text: string, relationships: readonly Rel
   const { bom, body } = splitBom(text);
   const parsed: unknown = JSON.parse(body);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('setDomainRelationships: the domain file is not a JSON object');
+    throw new Error('setDomainRelationships: the subject area file is not a JSON object');
   }
   const logicalValue = (parsed as Record<string, unknown>).logical;
   if (!logicalValue || typeof logicalValue !== 'object' || Array.isArray(logicalValue)) {
-    throw new Error('setDomainRelationships: the domain file has no "logical" object');
+    throw new Error('setDomainRelationships: the subject area file has no "logical" object');
   }
 
   const eol = detectEol(body);

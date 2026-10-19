@@ -221,8 +221,8 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       });
 
       expect(h.errors()).toHaveLength(1);
-      expect(h.errors()[0]).toMatch(/already exists in the model library/);
-      expect(h.errors()[0]).toMatch(/Add Existing Model/);
+      expect(h.errors()[0]).toMatch(/already exists in the Table Library/);
+      expect(h.errors()[0]).toMatch(/Add Existing Table/);
       // Nothing was written anywhere
       expect(_appliedEdits).toHaveLength(0);
       expect(fs.readFileSync(ymlPath(h, 'dim_customer'), 'utf-8')).toBe(before);
@@ -231,7 +231,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
     it('still rejects a duplicate within the domain', async () => {
       await h.send({ type: 'addModel', payload: { name: 'fct_order', schema: '', description: '', columns: [] } });
-      expect(h.errors()[0]).toMatch(/already exists in this domain/);
+      expect(h.errors()[0]).toMatch(/already exists in this subject area/);
       expect(_appliedEdits).toHaveLength(0);
     });
 
@@ -287,7 +287,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
       await h.send({ type: 'addModel', payload: { name: 'dim_product', schema: '', description: '', columns: [] } });
 
-      expect(h.errors()).toEqual(['Failed to add model to domain.']);
+      expect(h.errors()).toEqual(['Failed to add table to subject area.']);
       expect(fs.existsSync(ymlPath(h, 'dim_product'))).toBe(false);
       expect(h.readDomain().logical.models).toEqual(['fct_order', 'dim_task']);
     });
@@ -322,7 +322,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       await h.send({ type: 'addModel', payload: { name: 'Dim_Customer', schema: '', description: '', columns: [] } });
 
       expect(h.errors()).toHaveLength(1);
-      expect(h.errors()[0]).toMatch(/Model "dim_customer" already exists in the model library/);
+      expect(h.errors()[0]).toMatch(/Table "dim_customer" already exists in the Table Library/);
       expect(_appliedEdits).toHaveLength(0);
       expect(fs.readFileSync(ymlPath(h, 'dim_customer'), 'utf-8')).toBe(before);
     });
@@ -330,7 +330,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     it('refuses a new model whose name differs from one in the domain only in case', async () => {
       await h.send({ type: 'addModel', payload: { name: 'FCT_ORDER', schema: '', description: '', columns: [] } });
 
-      expect(h.errors()[0]).toMatch(/Model "fct_order" already exists in this domain/);
+      expect(h.errors()[0]).toMatch(/Table "fct_order" already exists in this subject area/);
       expect(_appliedEdits).toHaveLength(0);
     });
 
@@ -358,7 +358,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     it('refuses to rename onto a library model that differs only in case', async () => {
       await h.send({ type: 'renameModel', payload: { oldName: 'fct_order', newName: 'DIM_CUSTOMER' } });
 
-      expect(h.errors()[0]).toMatch(/Model "dim_customer" already exists in the model library/);
+      expect(h.errors()[0]).toMatch(/Table "dim_customer" already exists in the Table Library/);
       expect(_appliedEdits).toHaveLength(0);
     });
 
@@ -381,7 +381,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
       await h.send({ type: 'renameModel', payload: { oldName: 'fct_order', newName: 'dim_customer' } });
 
-      expect(h.errors()[0]).toMatch(/already exists in the model library/);
+      expect(h.errors()[0]).toMatch(/already exists in the Table Library/);
       expect(_appliedEdits).toHaveLength(0);
       expect(fs.readFileSync(ymlPath(h, 'dim_customer'), 'utf-8')).toBe(before);
       expect(fs.existsSync(ymlPath(h, 'fct_order'))).toBe(true);
@@ -391,7 +391,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     it('refuses to rename onto a name already used in this domain', async () => {
       await h.send({ type: 'renameModel', payload: { oldName: 'fct_order', newName: 'dim_task' } });
 
-      expect(h.errors()[0]).toMatch(/already exists in this domain/);
+      expect(h.errors()[0]).toMatch(/already exists in this subject area/);
       expect(_appliedEdits).toHaveLength(0);
       expect(h.readDomain().logical.models).toEqual(['fct_order', 'dim_task']);
     });
@@ -454,7 +454,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
       await h.send({ type: 'renameModel', payload: { oldName: 'fct_order', newName: 'fct_orders' } });
 
-      expect(h.errors()).toEqual(['Failed to rename model.']);
+      expect(h.errors()).toEqual(['Failed to rename table.']);
       expect(fs.existsSync(ymlPath(h, 'fct_order'))).toBe(true);
       expect(fs.existsSync(ymlPath(h, 'fct_orders'))).toBe(false);
       expect(h.readDomain().logical.models).toEqual(['fct_order', 'dim_task']);
@@ -515,8 +515,8 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     it.each([
       ['updateModelDescription', { modelName: 'fct_order', description: 'x' }, 'Failed to update description.'],
       ['updateModelGrain', { modelName: 'fct_order', grain: 'one row per order' }, 'Failed to update grain statement.'],
-      ['updateModelAlias', { modelName: 'fct_order', alias: 'orders' }, 'Failed to update table name.'],
-      ['updateModelRole', { modelName: 'fct_order', modelRole: 'transaction-fact' }, 'Failed to update model role.'],
+      ['updateModelAlias', { modelName: 'fct_order', alias: 'orders' }, 'Failed to update warehouse name.'],
+      ['updateModelRole', { modelName: 'fct_order', modelRole: 'transaction-fact' }, 'Failed to update table role.'],
       ['updateModelRationale', { modelName: 'fct_order', rationale: { purpose: 'p' } }, 'Failed to update design rationale.'],
       ['toggleColumnKey', { modelName: 'fct_order', columnName: 'amount', keyType: 'NK', value: true }, 'Failed to toggle key type.'],
       ['reorderColumns', { modelName: 'fct_order', orderedNames: ['amount', 'order_key', 'customer_key'] }, 'Failed to reorder columns.'],
@@ -559,7 +559,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       const before = fs.readFileSync(ymlPath(h, 'fct_order'), 'utf-8');
       await h.send({ type: 'updateModelAlias', payload: { modelName: 'fct_order', alias: 'gold.orders' } });
       expect(h.errors()).toHaveLength(1);
-      expect(h.errors()[0]).toMatch(/^Failed to update table name: A table name must start/);
+      expect(h.errors()[0]).toMatch(/^Failed to update warehouse name: A warehouse name must start/);
       expect(fs.readFileSync(ymlPath(h, 'fct_order'), 'utf-8')).toBe(before);
     });
   });
@@ -736,7 +736,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     it('openModelFile rejects an unsafe name and writes nothing', async () => {
       const { open } = spyOpen();
       await h.send({ type: 'openModelFile', payload: { modelName: '../escape' } });
-      expect(h.errors()).toEqual(['Failed to open model file: Model name cannot contain path separators.']);
+      expect(h.errors()).toEqual(['Failed to open table file: Table name cannot contain path separators.']);
       expect(open).not.toHaveBeenCalled();
     });
 
@@ -1024,7 +1024,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
       await h.send({ type: 'addExistingModel', payload: { modelName: 'dim_new' } });
 
-      expect(h.errors()).toEqual(['Failed to add model to domain.']);
+      expect(h.errors()).toEqual(['Failed to add table to subject area.']);
       expect(fs.existsSync(ymlPath(h, 'dim_new'))).toBe(false);
       expect(h.readDomain().logical.models).toEqual(['fct_order', 'dim_task']);
     });

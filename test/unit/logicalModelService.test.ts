@@ -539,12 +539,12 @@ describe('LogicalModelService.modelPath', () => {
   it.each(['../escaped', '../../outside', 'sub/dir', 'a\\b', '..', '', '  '])(
     'rejects %j',
     (name) => {
-      expect(() => service.modelPath(name)).toThrow(/Invalid model name/);
+      expect(() => service.modelPath(name)).toThrow(/Invalid table name/);
     },
   );
 
   it('refuses to write a model whose name escapes the directory', () => {
-    expect(() => service.saveModel({ name: '../escaped', columns: [] })).toThrow(/Invalid model name/);
+    expect(() => service.saveModel({ name: '../escaped', columns: [] })).toThrow(/Invalid table name/);
     expect(fs.existsSync(path.join(tempDir, '.erd-studio', 'escaped.yml'))).toBe(false);
   });
 
@@ -631,7 +631,7 @@ describe('LogicalModelService layer folders', () => {
       expect(service.findModelFile('nope')).toBeNull();
       writeRaw('gold', 'other');
       expect(service.findModelFile('nope')).toBeNull();
-      expect(() => service.findModelFile('../x')).toThrow(/Invalid model name/);
+      expect(() => service.findModelFile('../x')).toThrow(/Invalid table name/);
     });
 
     it('modelFolder reports "" for the top level, the folder name one level down, null when missing', () => {

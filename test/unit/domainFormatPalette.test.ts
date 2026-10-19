@@ -17,7 +17,7 @@ describe('describeUnsupportedDomainFormat', () => {
     ) as { contributes: { commands: Array<{ command: string; title: string; category?: string }> } };
     const command = packageJson.contributes.commands.find((c) => c.command === 'erdStudio.migrateToV5')!;
     const paletteEntry = `${command.category}: ${command.title}`;
-    expect(paletteEntry).toBe('ERD Studio: Migrate Domains to Central Model Store');
+    expect(paletteEntry).toBe('ERD Studio: Migrate Subject Areas to the Central Table Library');
 
     const legacy = describeUnsupportedDomainFormat('legacy', '/p.json')!;
     expect(legacy).toContain('/p.json');

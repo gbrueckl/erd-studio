@@ -664,7 +664,7 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
               className={`toolbar__split-main${layoutDirty ? ' toolbar__split-main--dirty' : ''}`}
               onClick={handleAutoLayout}
               disabled={isLayouting || nodes.length === 0}
-              title={layoutDirty ? 'Options changed — click to re-run layout (Shift+L)' : 'Auto-layout all models (Shift+L)'}
+              title={layoutDirty ? 'Options changed — click to re-run layout (Shift+L)' : 'Auto-layout all tables (Shift+L)'}
               aria-label="Auto-layout nodes"
             >
               {isLayouting ? <span className="toolbar__spinner" /> : (layoutDirty ? '↺' : '⊞')} Layout
@@ -703,7 +703,7 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
                       <div className="toolbar__lp-track">
                         {([
                           ['auto',  'Auto'],
-                          ['role',  'Model type'],
+                          ['role',  'Table type'],
                           ['depth', 'Join depth'],
                           ['none',  'None'],
                         ] as [PartitionStrategy, string][]).map(([s, label]) => (
@@ -726,16 +726,16 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
                     {partitionStrategy === 'auto' ? (() => {
                       const r = detectStrategy(nodes.filter((n): n is ModelFlowNode => n.type === 'model'), edges.filter((e): e is FkFlowEdge => e.type === 'fk'));
                       return r === 'role'
-                        ? 'Using Model type — your models have roles assigned.'
+                        ? 'Using Table type — your tables have roles assigned.'
                         : r === 'depth'
                         ? 'Using Join depth — no roles, but relationships exist.'
                         : 'Using None — no roles or relationships to group by.';
                     })()
                     : partitionStrategy === 'role'
-                    ? 'Groups models by their assigned role: dimensions first, then reference tables, facts, bridge tables, and aggregates.'
+                    ? 'Groups tables by their assigned role: dimensions first, then reference tables, facts, bridge tables, and aggregates.'
                     : partitionStrategy === 'depth'
-                    ? 'Arranges models so that relationship lines flow in one direction, reducing crossings.'
-                    : 'No grouping. Models are placed freely to reduce line crossings.'}
+                    ? 'Arranges tables so that relationship lines flow in one direction, reducing crossings.'
+                    : 'No grouping. Tables are placed freely to reduce line crossings.'}
                   </span>
                 </div>
 
@@ -787,7 +787,7 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
                       onChange={(e) => { setLayerBound(Math.max(1, Math.min(20, Number(e.target.value)))); setLayoutDirty(true); }}
                     />
                     {partitionStrategy === 'auto' ? (
-                      <span className="toolbar__lp-desc">auto — {detectLayerBound(nodes.filter((n) => n.type === 'model').length)} for {nodes.filter((n) => n.type === 'model').length} models</span>
+                      <span className="toolbar__lp-desc">auto — {detectLayerBound(nodes.filter((n) => n.type === 'model').length)} for {nodes.filter((n) => n.type === 'model').length} tables</span>
                     ) : (
                       <span className="toolbar__lp-desc">lower = wider layout, higher = taller layout</span>
                     )}
@@ -825,11 +825,11 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
             ref={searchInputRef}
             type="text"
             className="toolbar__search-input"
-            placeholder="Search models…"
+            placeholder="Search tables…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleSearchKeyDown}
-            aria-label="Search models"
+            aria-label="Search tables"
           />
           {searchQuery && (
             <span className="toolbar__search-count">
@@ -925,8 +925,8 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
                 <button
                   className="toolbar__dropdown-trigger"
                   onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                  title="Add model or relationship"
-                  aria-label="Add model or relationship"
+                  title="Add table or relationship"
+                  aria-label="Add table or relationship"
                   aria-haspopup="menu"
                   aria-expanded={modelDropdownOpen}
                 >
@@ -940,14 +940,14 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
                       onClick={handleNewModel}
                       role="menuitem"
                     >
-                      New Design Model
+                      New Design Table
                     </button>
                     <button
                       className="toolbar__dropdown-item"
                       onClick={handleAddExistingModel}
                       role="menuitem"
                     >
-                      Add Existing Model
+                      Add Existing Table
                     </button>
                     <button
                       className="toolbar__dropdown-item"

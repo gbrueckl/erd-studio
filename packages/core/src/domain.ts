@@ -116,7 +116,7 @@ export function parseDomainJson(raw: string, filePath: string): unknown {
     // file and the content follows milliseconds later. Say what is true of
     // the file rather than echoing "Unexpected end of JSON input", which
     // reads as corruption when nothing is corrupt.
-    throw new DomainFileError('empty', filePath, `Domain file is empty: ${filePath}`);
+    throw new DomainFileError('empty', filePath, `Subject area file is empty: ${filePath}`);
   }
 
   try {
@@ -129,7 +129,7 @@ export function parseDomainJson(raw: string, filePath: string): unknown {
       throw new DomainFileError(
         'invalid-json',
         filePath,
-        `Domain file ${filePath} has unresolved git merge conflicts (first at line ${line}). `
+        `Subject area file ${filePath} has unresolved git merge conflicts (first at line ${line}). `
           + 'Resolve them in the file — if only positions conflict, either side is safe to keep.',
         { mergeConflict: true, line },
       );
@@ -138,7 +138,7 @@ export function parseDomainJson(raw: string, filePath: string): unknown {
     throw new DomainFileError(
       'invalid-json',
       filePath,
-      `Invalid JSON in domain file ${filePath}: ${message}`,
+      `Invalid JSON in subject area file ${filePath}: ${message}`,
     );
   }
 }
@@ -152,7 +152,7 @@ export function validateDomainDocument(
   filePath: string,
 ): { obj: Record<string, unknown>; format: DomainFormat } {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    throw new DomainValidationError(`Domain file ${filePath} does not contain a JSON object`);
+    throw new DomainValidationError(`Subject area file ${filePath} does not contain a JSON object`);
   }
 
   const obj = data as Record<string, unknown>;
@@ -160,13 +160,13 @@ export function validateDomainDocument(
   // Schema version check
   if (typeof obj.schemaVersion !== 'number') {
     throw new DomainValidationError(
-      `Domain file ${filePath} is missing a valid "schemaVersion" field`
+      `Subject area file ${filePath} is missing a valid "schemaVersion" field`
     );
   }
 
   if (obj.schemaVersion > CURRENT_SCHEMA_VERSION) {
     throw new DomainValidationError(
-      `Domain file ${filePath} has schemaVersion ${obj.schemaVersion} ` +
+      `Subject area file ${filePath} has schemaVersion ${obj.schemaVersion} ` +
       `but this extension only supports up to version ${CURRENT_SCHEMA_VERSION}. ` +
       'Please update the extension.'
     );
@@ -212,7 +212,7 @@ export function resolveDomainLayer(
 
   const validLayers = layers.getValidLayerIds().join(', ');
   throw new DomainValidationError(
-    `Domain file ${filePath} has invalid layer "${String(value)}". ` +
+    `Subject area file ${filePath} has invalid layer "${String(value)}". ` +
     `Expected one of: ${validLayers}`,
   );
 }

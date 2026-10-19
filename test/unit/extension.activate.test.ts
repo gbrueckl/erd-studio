@@ -462,17 +462,17 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     const showcaseBefore = fs.readFileSync(path.join(root, '.erd-studio', 'silver', 'showcase.json'), 'utf-8');
     await activate(context);
     const info = vi.spyOn(vscode.window, 'showInformationMessage')
-      .mockImplementation((async (message: string) => (message === 'Organise Model Library by Layer?' ? 'Move Files' : undefined)) as never);
+      .mockImplementation((async (message: string) => (message === 'Organise Table Library by Layer?' ? 'Move Files' : undefined)) as never);
 
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
     // The modal lists the plan.
-    const confirm = info.mock.calls.find((c) => c[0] === 'Organise Model Library by Layer?')!;
+    const confirm = info.mock.calls.find((c) => c[0] === 'Organise Table Library by Layer?')!;
     expect(confirm[1]).toMatchObject({ modal: true });
     const detail = (confirm[1] as { detail: string }).detail;
-    expect(detail).toContain('Move 7 models into layer folders (1 → gold/, 6 → silver/).');
-    expect(detail).toContain('1 model used by more than one layer');
-    expect(detail).toContain('1 unused model');
+    expect(detail).toContain('Move 7 tables into layer folders (1 → gold/, 6 → silver/).');
+    expect(detail).toContain('1 table used by more than one layer');
+    expect(detail).toContain('1 unused table');
 
     const silver = fs.readdirSync(path.join(lib(), 'silver')).sort();
     expect(silver).toEqual([
@@ -483,14 +483,14 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     expect(topLevel).toEqual(['dim_date.yml', 'dim_location.yml']);
     // Domain files are untouched — they reference models by name.
     expect(fs.readFileSync(path.join(root, '.erd-studio', 'silver', 'showcase.json'), 'utf-8')).toBe(showcaseBefore);
-    expect(info).toHaveBeenCalledWith('Moved 7 model files into layer folders.');
+    expect(info).toHaveBeenCalledWith('Moved 7 table files into layer folders.');
   });
 
   /** Answer "Move Files" to the confirmation modal; resolve everything else to undefined. */
   const acceptMoves = () => vi.spyOn(vscode.window, 'showInformationMessage')
-    .mockImplementation((async (message: string) => (message === 'Organise Model Library by Layer?' ? 'Move Files' : undefined)) as never);
+    .mockImplementation((async (message: string) => (message === 'Organise Table Library by Layer?' ? 'Move Files' : undefined)) as never);
   const confirmDetail = (info: ReturnType<typeof acceptMoves>) =>
-    (info.mock.calls.find((c) => c[0] === 'Organise Model Library by Layer?')![1] as { detail: string }).detail;
+    (info.mock.calls.find((c) => c[0] === 'Organise Table Library by Layer?')![1] as { detail: string }).detail;
 
   it('moves a file out of the wrong layer folder into the one layer whose domains use it', async () => {
     // dim_customer is used only by silver domains, but its file sits in gold/.
@@ -509,7 +509,7 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     expect(fs.existsSync(path.join(lib(), 'dim_customer.yml'))).toBe(false);
     // gold/ held only dim_customer (the fixture has no gold-only model), so the emptied folder is removed.
     expect(fs.existsSync(path.join(lib(), 'gold'))).toBe(false);
-    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^Moved \d+ model files into layer folders\.$/));
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^Moved \d+ table files into layer folders\.$/));
   });
 
   it('reports nothing to move when re-run after a successful organise that relocated a file', async () => {
@@ -525,8 +525,8 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
     expect(info).toHaveBeenCalledTimes(1);
-    expect(String(info.mock.calls[0][0])).toMatch(/^Organise Model Library: nothing to move\. /);
-    expect(info.mock.calls.some((c) => c[0] === 'Organise Model Library by Layer?')).toBe(false);
+    expect(String(info.mock.calls[0][0])).toMatch(/^Organise Table Library: nothing to move\. /);
+    expect(info.mock.calls.some((c) => c[0] === 'Organise Table Library by Layer?')).toBe(false);
     expect(fs.readdirSync(path.join(lib(), 'silver')).sort()).toEqual(after);
   });
 
@@ -563,14 +563,14 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
   it('says there is nothing to move, without a modal, when every model is shared, unused or already filed', async () => {
     await activate(context);
     const info = vi.spyOn(vscode.window, 'showInformationMessage')
-      .mockImplementation((async (message: string) => (message === 'Organise Model Library by Layer?' ? 'Move Files' : undefined)) as never);
+      .mockImplementation((async (message: string) => (message === 'Organise Table Library by Layer?' ? 'Move Files' : undefined)) as never);
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
     info.mockClear();
 
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
     expect(info).toHaveBeenCalledTimes(1);
-    expect(String(info.mock.calls[0][0])).toMatch(/^Organise Model Library: nothing to move\. /);
+    expect(String(info.mock.calls[0][0])).toMatch(/^Organise Table Library: nothing to move\. /);
     expect(String(info.mock.calls[0][0])).not.toContain('\n');
   });
 
@@ -597,7 +597,7 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
 
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
-    expect(info).toHaveBeenCalledWith('Organise Model Library: there is no logical-models/ folder yet.');
+    expect(info).toHaveBeenCalledWith('Organise Table Library: there is no logical-models/ folder yet.');
   });
 });
 
@@ -667,7 +667,7 @@ describe('erdStudio.resolveDuplicateModel (issue #76: same table name in two lay
     // The gold domain keeps the gold file, byte for byte.
     expect(fs.readFileSync(path.join(erd(), 'gold', 'reporting.json'), 'utf-8')).toBe(goldDomainBefore);
     expect(fs.existsSync(path.join(lib(), 'gold', 'date.yml'))).toBe(true);
-    expect(info).toHaveBeenCalledWith(expect.stringMatching(/"silver_date" \(table: date\)\. Repointed 1 domain\.$/));
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/"silver_date" \(warehouse table: date\)\. Repointed 1 subject area\.$/));
   });
 
   it('changes nothing when the confirmation is dismissed', async () => {
@@ -702,7 +702,7 @@ describe('erdStudio.resolveDuplicateModel (issue #76: same table name in two lay
 
     await vscode.commands.executeCommand('erdStudio.resolveDuplicateModel');
 
-    expect(info).toHaveBeenCalledWith('Every model file in the library has its own name.');
+    expect(info).toHaveBeenCalledWith('Every table file in the library has its own name.');
   });
 });
 

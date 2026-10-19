@@ -74,7 +74,7 @@ function validateForm(
   // Model name validation — same rule as the host's validateModelName / rename,
   // so a name accepted here can always be renamed later.
   if (!modelName.trim()) {
-    errors.modelName = 'Model name is required';
+    errors.modelName = 'Table name is required';
   } else if (!MODEL_NAME_PATTERN.test(modelName)) {
     errors.modelName = 'Start with a letter; use only letters, numbers, and underscores';
   } else if (template.prefix && !modelName.startsWith(template.prefix)) {
@@ -85,12 +85,12 @@ function validateForm(
     // Compared without case, like the host: `DimDate` and `dimdate` are one
     // file on macOS/Windows and one table in dbt.
     const existing = existingModelNames.find((n) => sameName(n, modelName));
-    errors.modelName = `Model "${existing}" already exists in this domain`;
+    errors.modelName = `Table "${existing}" already exists in this subject area`;
   } else if (libraryModelNames.some((n) => sameName(n, modelName))) {
     // The model library (logical-models/) is shared across domains — a new
     // model must not overwrite one another domain already uses.
     const existing = libraryModelNames.find((n) => sameName(n, modelName));
-    errors.modelName = `Model "${existing}" already exists in the model library — use "Add Existing Model" instead`;
+    errors.modelName = `Table "${existing}" already exists in the Table Library — use "Add Existing Table" instead`;
   }
 
   // Bridge entity validation (check for requiresLeftEntity/requiresRightEntity flags)
@@ -293,7 +293,7 @@ export function NewModelDialog() {
     return (
       <Panel position="top-center" className="new-model-dialog">
         <div className="new-model-dialog__header">
-          <h3 className="new-model-dialog__title">New Model</h3>
+          <h3 className="new-model-dialog__title">New Table</h3>
           <button
             className="new-model-dialog__close"
             onClick={handleClose}
@@ -314,7 +314,7 @@ export function NewModelDialog() {
     <Panel position="top-center" className="new-model-dialog">
       {/* Header */}
       <div className="new-model-dialog__header">
-        <h3 className="new-model-dialog__title">New Model</h3>
+        <h3 className="new-model-dialog__title">New Table</h3>
         <button
           className="new-model-dialog__close"
           onClick={handleClose}
@@ -349,7 +349,7 @@ export function NewModelDialog() {
         {/* Model Name */}
         <div className="new-model-dialog__field">
           <label className="new-model-dialog__label" htmlFor="modelName">
-            Model Name
+            Table Name
           </label>
           <input
             id="modelName"
@@ -358,7 +358,7 @@ export function NewModelDialog() {
             value={modelName}
             onChange={(e) => setModelName(e.target.value)}
             onBlur={() => handleBlur('modelName')}
-            placeholder={template.prefix ? `${template.prefix}example` : 'model_name'}
+            placeholder={template.prefix ? `${template.prefix}example` : 'table_name'}
           />
           {touched.modelName && errors.modelName && (
             <span className="new-model-dialog__error">{errors.modelName}</span>
@@ -540,7 +540,7 @@ export function NewModelDialog() {
           {/* Empty state */}
           {resolvedColumns.length === 0 && (
             <div className="new-model-dialog__empty-columns">
-              <span>No columns yet. Click "Add Column" to add columns to this model.</span>
+              <span>No columns yet. Click "Add Column" to add columns to this table.</span>
             </div>
           )}
         </div>
@@ -559,7 +559,7 @@ export function NewModelDialog() {
           onClick={handleSubmit}
           disabled={!isValid}
         >
-          Create Model
+          Create Table
         </button>
       </div>
     </Panel>

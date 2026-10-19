@@ -68,7 +68,7 @@ export function WelcomeModal() {
                 <div className="welcome-modal__guide-text">
                   <strong>Logical</strong>
                   <span>
-                    Design your data models here — add columns, data types,
+                    Design your data model here — add columns, data types,
                     primary/foreign keys, and relationships. This is your
                     blueprint for what the data warehouse should look like.
                   </span>
@@ -109,7 +109,7 @@ export function WelcomeModal() {
               <li className="welcome-modal__step">
                 <span className="welcome-modal__step-number">2</span>
                 <span className="welcome-modal__step-text">
-                  Design models and relationships in the Logical stage
+                  Design tables and relationships in the Logical stage
                 </span>
               </li>
               <li className="welcome-modal__step">

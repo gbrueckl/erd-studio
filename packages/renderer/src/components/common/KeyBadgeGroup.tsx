@@ -139,7 +139,7 @@ export function KeyBadgeGroup({
     showMultiplePKWarning && isPrimaryKey ? (
       <span
         className="key-badge-group__warning"
-        title="Multiple primary keys detected in this model"
+        title="Multiple primary keys detected in this table"
       >
         !
       </span>

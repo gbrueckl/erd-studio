@@ -5,7 +5,7 @@ erDiagram
 %% Diagram: sales (layer gold, logical stage)
 %% Description: Relationships in the model library in the shapes released extensions wrote, plus a domain-file copy that disagrees
 
-  %% Model fct_order
+  %% Table fct_order
   %%   schema: gold
   %%   alias: orders
   %%   role: fact
@@ -18,7 +18,7 @@ erDiagram
     DECIMAL_18_2 amount "type DECIMAL(18,2); additive"
   }
 
-  %% Model dim_customer
+  %% Table dim_customer
   %%   schema: gold
   %%   alias: customer
   %%   role: dimension
@@ -27,7 +27,7 @@ erDiagram
     VARCHAR customer_name
   }
 
-  %% Model dim_date
+  %% Table dim_date
   %%   schema: gold
   %%   role: dimension
   "dim_date" {
@@ -35,7 +35,7 @@ erDiagram
     DATE calendar_date
   }
 
-  %% Model dim_product
+  %% Table dim_product
   %%   schema: gold
   %%   role: dimension
   "dim_product" {

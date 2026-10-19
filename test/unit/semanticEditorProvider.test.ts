@@ -1320,7 +1320,7 @@ describe('layer folders in the edit pipeline (issue #76)', () => {
       type: 'addModel',
       payload: { name: 'fct_sale', columns: [{ name: 'sale_id', dataType: 'int', description: '' }] },
     });
-    await waitForError(panel, /already exists in the model library/);
+    await waitForError(panel, /already exists in the Table Library/);
     expect(lastError(panel)).toContain('(logical-models/gold/fct_sale.yml)');
     expect(fs.existsSync(path.join(lib(), 'silver', 'fct_sale.yml'))).toBe(false);
   });
@@ -1329,7 +1329,7 @@ describe('layer folders in the edit pipeline (issue #76)', () => {
     moveIntoFolder('fct_sale', 'gold');
     const { panel } = await openShowcase(root);
     panel._simulateMessage({ type: 'renameModel', payload: { oldName: 'dim_task', newName: 'fct_sale' } });
-    await waitForError(panel, /already exists in the model library/);
+    await waitForError(panel, /already exists in the Table Library/);
     expect(lastError(panel)).toContain('(logical-models/gold/fct_sale.yml)');
     expect(fs.existsSync(path.join(lib(), 'dim_task.yml'))).toBe(true);
   });
@@ -1567,7 +1567,7 @@ describe('addExistingModels (#160)', () => {
     expect(models).toContain('fct_sale');
     expect(models).not.toContain(already.toUpperCase());
     await vi.waitFor(() => expect(info).toHaveBeenCalledWith(
-      `Added 1 model. Already in this diagram: ${already.toUpperCase()}.`,
+      `Added 1 table. Already in this diagram: ${already.toUpperCase()}.`,
     ));
   });
 
@@ -1605,7 +1605,7 @@ describe('addExistingModels (#160)', () => {
     const edits = applyEditSpy.mock.calls.length;
 
     panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: ['fct_sale', 'dim_location'] } });
-    await waitForError(panel, /needs the central model store/);
+    await waitForError(panel, /needs the central Table Library/);
     expect(applyEditSpy.mock.calls.length).toBe(edits);
     expect(doc.getText()).toBe(before);
   });
@@ -1616,9 +1616,9 @@ describe('addExistingModels (#160)', () => {
     const edits = applyEditSpy.mock.calls.length;
 
     panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: ['fct_sale', '../evil'] } });
-    await waitForError(panel, /^Failed to add models: /);
+    await waitForError(panel, /^Failed to add tables: /);
     panel._simulateMessage({ type: 'addExistingModels', payload: { modelNames: [] } });
-    await waitForError(panel, /needs a list of model names/);
+    await waitForError(panel, /needs a list of table names/);
 
     expect(applyEditSpy.mock.calls.length).toBe(edits);
     expect(fs.readFileSync(file, 'utf-8')).toBe(before);

@@ -75,7 +75,7 @@ describe('a key written twice in a file that is still read (#164)', () => {
       filePath: '/p/.erd-studio/logical-models/dim_x.yml', kind: 'yamlDuplicateKey', line: 6, readable: true, key: 'description',
     })).toBe(
       'dim_x.yml: "description" is written twice in the same block (line 6). ERD Studio uses the last one, '
-        + "but can't change this model until you remove the other copy.",
+        + "but can't change this table until you remove the other copy.",
     );
   });
 });

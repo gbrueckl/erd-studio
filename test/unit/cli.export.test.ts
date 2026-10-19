@@ -182,7 +182,7 @@ describe('export — errors (the same codes as diff --domain)', () => {
   it('a missing domain file is exit 3 domain-missing', async () => {
     const { exportJson, diffJson } = await both(['--project', PROJECT, '--domain', 'nope.json']);
     expect(exportJson.code).toBe(3);
-    expect(exportJson.json.error).toEqual({ code: 'domain-missing', message: 'Domain file not found: nope.json' });
+    expect(exportJson.json.error).toEqual({ code: 'domain-missing', message: 'Subject area file not found: nope.json' });
     expect(exportJson.json.error).toEqual(diffJson.error);
     expect(Object.keys(exportJson.json)).toEqual(['cliVersion', 'error']);
   });

@@ -4,7 +4,7 @@ erDiagram
 %% Types and column names keep only letters, digits and _; a column comment gives the original when it differs.
 %% Diagram: accounts (layer gold, logical stage)
 
-  %% Model fct_txn
+  %% Table fct_txn
   %%   role: fact
   %%   description: Transactions
   "fct_txn" {
@@ -14,7 +14,7 @@ erDiagram
     DECIMAL_18_2 balance_after "Running balance; type DECIMAL(18,2); semi-additive"
   }
 
-  %% Model dim_account
+  %% Table dim_account
   %%   schema: 007
   %%   role: dimension
   %%   grain: One row per account

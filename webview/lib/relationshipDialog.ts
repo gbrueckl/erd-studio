@@ -42,7 +42,7 @@ export function directionSentence(o: Orientation, keyKind: (end: LinkEnd) => 'pr
   const to = describeEnd(o.to.model, o.to.columns);
   const lead = o.cardinality === 'one-to-one' ? `${from} holds ${to}'s key` : `${from} points at ${to}`;
   if (o.cardinality === 'one-to-one' && o.from.declaredFk) {
-    return `${lead} — both are their model's key, and ${from} is marked as a foreign key.`;
+    return `${lead} — both are their table's key, and ${from} is marked as a foreign key.`;
   }
   const reason = (o.to.evidence !== 'unknown' ? why(o.to, keyKind) : null) ?? why(o.from, keyKind);
   return reason ? `${lead} — ${reason}.` : `${lead}.`;

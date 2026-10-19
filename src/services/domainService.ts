@@ -96,7 +96,7 @@ const SOURCE_AUTHORITY: readonly PhysicalColumnSource[] = ['catalog', 'yml', 'ma
 export function renameDomainInRaw(rawText: string, newSlug: string): string {
   const parsed = JSON.parse(rawText) as unknown;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Domain file does not contain a JSON object');
+    throw new Error('Subject area file does not contain a JSON object');
   }
   const doc = parsed as Record<string, unknown>;
   doc.domain = newSlug;
@@ -210,7 +210,7 @@ export class DomainService {
    */
   getDomain(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): UnifiedDomain {
     if (!fs.existsSync(filePath)) {
-      throw new DomainFileError('missing', filePath, `Domain file not found: ${filePath}`);
+      throw new DomainFileError('missing', filePath, `Subject area file not found: ${filePath}`);
     }
 
     let raw: string;
@@ -218,7 +218,7 @@ export class DomainService {
       raw = fs.readFileSync(filePath, 'utf-8');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new DomainFileError('unreadable', filePath, `Failed to read domain file: ${message}`);
+      throw new DomainFileError('unreadable', filePath, `Failed to read subject area file: ${message}`);
     }
 
     // Empty / invalid JSON (DomainFileError), then validation and repair

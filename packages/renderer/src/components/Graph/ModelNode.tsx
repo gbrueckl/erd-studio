@@ -564,7 +564,7 @@ function describeLoadError(error: ModelLoadError): string {
 /** The node's one line for a model read from a file that needs fixing (#164). */
 function describeLoadWarning(warning: ModelLoadWarning): string {
   const key = warning.key ? `"${warning.key}"` : 'A key';
-  return `${key} is written twice (line ${warning.line}) — the last one is shown. Remove the other copy to edit this model.`;
+  return `${key} is written twice (line ${warning.line}) — the last one is shown. Remove the other copy to edit this table.`;
 }
 
 function ModelNodeComponent({ data, selected }: NodeProps<ModelFlowNode>) {
@@ -645,7 +645,7 @@ function ModelNodeComponent({ data, selected }: NodeProps<ModelFlowNode>) {
   // the node is a drag surface and the browser shows the grab cursor instead —
   // so the header uses the same portal hover card the column rows use.
   // An aliased model reads as its table name; the tip says which model it is.
-  const title = label ? `${label} (model ${modelName})` : modelName;
+  const title = label ? `${label} (table ${modelName})` : modelName;
   const modelMeta = useMemo(() => metaRows(meta), [meta]);
   const nameTip = useHoverTip<HTMLSpanElement>(
     ghostReason

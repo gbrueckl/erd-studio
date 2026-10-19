@@ -125,7 +125,7 @@ describe('validateAnnotationUpdate', () => {
     [{}, /non-empty string/],
     [{ id: 'a1', text: 3 }, /text must be a string/],
     [{ id: 'a1', color: {} }, /colour must be a string/],
-    [{ id: 'a1', linkedModel: 7 }, /linked model/],
+    [{ id: 'a1', linkedModel: 7 }, /linked table/],
     [{ id: 'a1', width: Number.NaN }, /width must be a finite number/],
     [{ id: 'a1', height: Number.POSITIVE_INFINITY }, /height must be a finite number/],
     [{ id: 'a1', width: '200' }, /width must be a finite number/],
@@ -266,7 +266,7 @@ describe('validateAddExistingModelsPayload', () => {
   });
 
   it.each([undefined, null, [], 'fct_sale', {}, { modelNames: [] }, { modelNames: 'fct_sale' }])('rejects %j', (value) => {
-    expect(validateAddExistingModelsPayload(value)).toMatch(/needs a list of model names/);
+    expect(validateAddExistingModelsPayload(value)).toMatch(/needs a list of table names/);
   });
 
   it('rejects one name over the limit', () => {
@@ -320,10 +320,10 @@ describe('validateOpenModelFilePayload', () => {
   });
 
   it.each([
-    [undefined, /needs a model name/],
-    [null, /needs a model name/],
-    ['dim_customer', /needs a model name/],
-    [[], /needs a model name/],
+    [undefined, /needs a table name/],
+    [null, /needs a table name/],
+    ['dim_customer', /needs a table name/],
+    [[], /needs a table name/],
     [{}, /required/],
     [{ modelName: '' }, /empty/],
     [{ modelName: '../etc/passwd' }, /path separators/],

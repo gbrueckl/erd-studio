@@ -155,7 +155,7 @@ describe('a domain file caught mid-write', () => {
 
     await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 20 });
     const payload = errors(panel)[0].payload;
-    expect(payload.message).toContain('Domain file is empty');
+    expect(payload.message).toContain('Subject area file is empty');
     // Not the parser's "Unexpected end of JSON input", which reads as
     // corruption when the file is simply blank.
     expect(payload.message).not.toContain('Unexpected end of JSON input');
@@ -295,7 +295,7 @@ describe('a JSON file under the semantic dir that is not a domain', () => {
     const payload = errors(panel)[0].payload;
     expect(payload.kind).toBe('not-a-domain');
     expect(payload.message).toContain('fact.json');
-    expect(payload.message).toContain('not an ERD domain file');
+    expect(payload.message).toContain('not an ERD Studio subject area file');
     expect(types(panel)).not.toContain('domainLoaded');
   });
 

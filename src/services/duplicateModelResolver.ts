@@ -75,13 +75,13 @@ export function planDuplicateFix(
 export function describeDuplicateFix(plan: DuplicateFixPlan, fromLabel: string, toLabel: string): string {
   const lines = [
     `${fromLabel} → ${toLabel}`,
-    `The model becomes "${plan.newName}" with alias: ${plan.alias}, so dbt still builds a table called ${plan.alias}.`,
+    `The table becomes "${plan.newName}" with alias: ${plan.alias}, so dbt still builds a table called ${plan.alias}.`,
   ];
   if (plan.repoint.length > 0) {
-    lines.push('', `Repointed to ${plan.newName} (${plan.folder} domains):`);
+    lines.push('', `Repointed to ${plan.newName} (${plan.folder} subject areas):`);
     lines.push(...plan.repoint.map((r) => `  • ${r.layer}/${r.domain}`));
   } else {
-    lines.push('', `No domain uses this copy yet: add ${plan.newName} to a domain from "Add Existing Model".`);
+    lines.push('', `No subject area uses this copy yet: add ${plan.newName} to a subject area from "Add Existing Table".`);
   }
   if (plan.keep.length > 0) {
     lines.push('', `Still using "${plan.name}":`);

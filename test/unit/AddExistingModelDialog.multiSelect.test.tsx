@@ -44,7 +44,7 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
     expect(ticked()).toEqual(['sap_a', 'sap_b']);
     expect(screen.getByText('2 selected')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add 2 Models' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add 2 Tables' }));
     expect(mockPostMessage).toHaveBeenCalledTimes(1);
     expect(mockPostMessage).toHaveBeenCalledWith({ type: 'addExistingModels', payload: { modelNames: ['sap_a', 'sap_b'] } });
   });
@@ -52,7 +52,7 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
   it('a single pick still posts addExistingModel', () => {
     render(<AddExistingModelDialog />);
     fireEvent.click(screen.getByText('other'));
-    fireEvent.click(screen.getByRole('button', { name: 'Add Model' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Table' }));
     expect(mockPostMessage).toHaveBeenCalledWith({ type: 'addExistingModel', payload: { modelName: 'other' } });
   });
 
@@ -61,7 +61,7 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
     fireEvent.click(screen.getByText('sap_a'));
     fireEvent.click(screen.getByText('sap_a'));
     expect(ticked()).toEqual([]);
-    expect((screen.getByRole('button', { name: 'Add Model' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Add Table' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('double-click adds that row straight away', () => {
@@ -82,9 +82,9 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
     const many = Array.from({ length: ADD_EXISTING_MODELS_LIMIT }, (_, i) => model(`m_${String(i).padStart(3, '0')}`));
     useEditorStore.getState().setExistingModels([...many, model('sap_a')]);
     render(<AddExistingModelDialog />);
-    fireEvent.change(screen.getByPlaceholderText('Search models...'), { target: { value: 'm_' } });
+    fireEvent.change(screen.getByPlaceholderText('Search tables...'), { target: { value: 'm_' } });
     fireEvent.click(screen.getByRole('button', { name: `Select all ${ADD_EXISTING_MODELS_LIMIT} shown` }));
-    fireEvent.change(screen.getByPlaceholderText('Search models...'), { target: { value: 'sap' } });
+    fireEvent.change(screen.getByPlaceholderText('Search tables...'), { target: { value: 'sap' } });
     fireEvent.click(screen.getByText('sap_a'));
     expect(ticked()).toEqual(['sap_a']);
   });
@@ -98,7 +98,7 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
       fireEvent.click(screen.getByText('sap_a'));
       fireEvent.click(screen.getByText('sap_b'));
       expect(ticked()).toEqual(['sap_b']);
-      fireEvent.click(screen.getByRole('button', { name: 'Add Model' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Table' }));
       expect(mockPostMessage).toHaveBeenCalledWith({ type: 'addExistingModel', payload: { modelName: 'sap_b' } });
     } finally {
       useEditorStore.setState({ domain: null as never });
@@ -107,21 +107,21 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
 
   it('"Select all N shown" ticks only what the search shows', () => {
     render(<AddExistingModelDialog />);
-    fireEvent.change(screen.getByPlaceholderText('Search models...'), { target: { value: 'sap' } });
+    fireEvent.change(screen.getByPlaceholderText('Search tables...'), { target: { value: 'sap' } });
     fireEvent.click(screen.getByRole('button', { name: 'Select all 2 shown' }));
     expect(ticked()).toEqual(['sap_a', 'sap_b']);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add 2 Models' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add 2 Tables' }));
     expect(mockPostMessage).toHaveBeenCalledWith({ type: 'addExistingModels', payload: { modelNames: ['sap_a', 'sap_b'] } });
   });
 
   it('a tick the search hides is not added', () => {
     render(<AddExistingModelDialog />);
     fireEvent.click(screen.getByText('other'));
-    fireEvent.change(screen.getByPlaceholderText('Search models...'), { target: { value: 'sap' } });
+    fireEvent.change(screen.getByPlaceholderText('Search tables...'), { target: { value: 'sap' } });
     fireEvent.click(screen.getByText('sap_a'));
     expect(screen.getByText('1 selected')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Add Model' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Table' }));
     expect(mockPostMessage).toHaveBeenCalledWith({ type: 'addExistingModel', payload: { modelName: 'sap_a' } });
   });
 
@@ -149,7 +149,7 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
     // A further tick is refused rather than dropped later by the host.
     fireEvent.click(screen.getByText(many[ADD_EXISTING_MODELS_LIMIT].name));
     expect(screen.getByText(`${ADD_EXISTING_MODELS_LIMIT} selected`)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: `Add ${ADD_EXISTING_MODELS_LIMIT} Models` }));
+    fireEvent.click(screen.getByRole('button', { name: `Add ${ADD_EXISTING_MODELS_LIMIT} Tables` }));
     const sent = mockPostMessage.mock.calls[0][0];
     expect(sent.type).toBe('addExistingModels');
     expect(sent.payload.modelNames).toHaveLength(ADD_EXISTING_MODELS_LIMIT);

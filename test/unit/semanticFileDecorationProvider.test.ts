@@ -17,13 +17,13 @@ describe('SemanticFileDecorationProvider (H30 semanticDir)', () => {
   it('decorates domain files under the default .erd-studio directory', () => {
     const provider = new SemanticFileDecorationProvider(fakeLayerService());
     const deco = provider.provideFileDecoration(uri('/proj/.erd-studio/silver/customer.json'));
-    expect(deco?.tooltip).toBe('Silver domain (opens in visual editor)');
+    expect(deco?.tooltip).toBe('Silver subject area (opens in visual editor)');
   });
 
   it('decorates domain files under a custom semanticDir', () => {
     const provider = new SemanticFileDecorationProvider(fakeLayerService(), '.erd');
     const deco = provider.provideFileDecoration(uri('/proj/.erd/silver/customer.json'));
-    expect(deco?.tooltip).toBe('Silver domain (opens in visual editor)');
+    expect(deco?.tooltip).toBe('Silver subject area (opens in visual editor)');
 
     const folder = provider.provideFileDecoration(uri('/proj/.erd/silver'));
     expect(folder?.tooltip).toBe('Silver layer');
@@ -32,7 +32,7 @@ describe('SemanticFileDecorationProvider (H30 semanticDir)', () => {
   it('supports a nested semanticDir and tolerates ./ and trailing slashes', () => {
     const provider = new SemanticFileDecorationProvider(fakeLayerService(), './docs/erd/');
     const deco = provider.provideFileDecoration(uri('/proj/docs/erd/silver/customer.json'));
-    expect(deco?.tooltip).toBe('Silver domain (opens in visual editor)');
+    expect(deco?.tooltip).toBe('Silver subject area (opens in visual editor)');
   });
 
   it('does not decorate the default directory when a custom semanticDir is configured', () => {

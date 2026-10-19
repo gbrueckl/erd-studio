@@ -38,7 +38,7 @@ describe('EmptyCanvas', () => {
   it('shows the prompt for an empty logical domain', () => {
     const { getByRole, getByText } = render(<EmptyCanvas />);
     expect(getByRole('heading', { name: 'This diagram is empty' })).toBeTruthy();
-    expect(getByText('Start from your dbt project, or add a model by hand.')).toBeTruthy();
+    expect(getByText('Start from your dbt project, or add a table by hand.')).toBeTruthy();
     // No command is named: the setup skill may not be installed yet.
     expect(document.body.textContent).not.toContain('/erd-studio-setup');
   });
@@ -51,13 +51,13 @@ describe('EmptyCanvas', () => {
 
   it('"Add models from dbt" posts addModelsFromDbt', () => {
     const { getByRole } = render(<EmptyCanvas />);
-    fireEvent.click(getByRole('button', { name: 'Add models from dbt' }));
+    fireEvent.click(getByRole('button', { name: 'Add tables from dbt' }));
     expect(send).toHaveBeenCalledWith({ type: 'addModelsFromDbt' });
   });
 
-  it('"New model" opens the New Design Model dialog', () => {
+  it('"New table" opens the New Design Table dialog', () => {
     const { getByRole } = render(<EmptyCanvas />);
-    fireEvent.click(getByRole('button', { name: 'New model' }));
+    fireEvent.click(getByRole('button', { name: 'New table' }));
     expect(setNewModelDialogOpen).toHaveBeenCalledWith(true);
     expect(send).not.toHaveBeenCalled();
   });

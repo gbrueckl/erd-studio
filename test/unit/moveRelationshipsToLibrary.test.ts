@@ -190,7 +190,7 @@ function acceptModal() {
 }
 
 const messages = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c) => String(c[0]));
-const SUCCESS = /^Moved \d+ relationships? into the model library/;
+const SUCCESS = /^Moved \d+ relationships? into the Table Library/;
 
 describe('moveRelationshipsToLibrary — writes disk directly (#126)', () => {
   let p: Project;
@@ -360,7 +360,7 @@ describe('moveRelationshipsToLibrary — writes disk directly (#126)', () => {
 
     await expect(p.run()).resolves.toBeUndefined();
 
-    expect(messages(error)).toEqual(['Move Relationships to Model Library failed: disk on fire']);
+    expect(messages(error)).toEqual(['Move Relationships to Table Library failed: disk on fire']);
     expect(telemetryError).toHaveBeenCalledWith('relMoveFailed');
   });
 
@@ -541,8 +541,8 @@ describe('moveRelationshipsToLibrary — turns reversed library entries round (#
     const info = acceptModal();
     await run();
 
-    expect(messages(info).find((m) => m.startsWith('Store each relationship with the model that holds the foreign key?'))).toBeDefined();
-    expect(messages(info)).toContain('1 relationship is now stored with the model holding the foreign key.');
+    expect(messages(info).find((m) => m.startsWith('Store each relationship with the table that holds the foreign key?'))).toBeDefined();
+    expect(messages(info)).toContain('1 relationship is now stored with the table holding the foreign key.');
     expect(fs.readFileSync(logicalModelService.modelPath('dim_customer'), 'utf-8')).toBe(DIM.slice(0, DIM.indexOf('relationships:')));
     const fct = fs.readFileSync(logicalModelService.modelPath('fct_order'), 'utf-8');
     expect(withoutRelationshipsBlock(fct)).toBe(FCT);
@@ -779,7 +779,7 @@ describe('moveRelationshipsToLibrary — composite keys move as one (#133 L2)', 
     await moveRelationshipsToLibrary(deps);
     expect(domainRels('d1')).toEqual(GROUP);
     expect(info.mock.calls.map((c) => String((c[1] as { detail?: string } | undefined)?.detail ?? '')).join('\n'))
-      .toContain('Composite key pit_customer.(customer_hk, as_of_date) → sat_customer.(customer_hk, load_date) left in the diagrams (silver/d1): the model library holds one of its column pairs in another composite key.');
+      .toContain('Composite key pit_customer.(customer_hk, as_of_date) → sat_customer.(customer_hk, load_date) left in the diagrams (silver/d1): the Table Library holds one of its column pairs in another composite key.');
   });
 
   it('planRehome turns a backwards group round together, in one write per file', async () => {

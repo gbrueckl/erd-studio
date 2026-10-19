@@ -915,7 +915,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 <body style="font-family: var(--vscode-font-family, sans-serif); padding: 24px; color: var(--vscode-foreground); max-width: 44em; line-height: 1.5;">
   <h2 style="margin-top: 0;">This diagram belongs to ${owner ? `the <code>${esc(path.basename(owner))}</code> dbt project` : 'no dbt project'}</h2>
   <p>ERD Studio has <code>${esc(current)}</code> open in this window, and a window shows one dbt project at a time.
-  Drawing this file here would mix its models with the wrong project\u2019s dbt data.</p>
+  Drawing this file here would mix its tables with the wrong project\u2019s dbt data.</p>
   ${owner ? `<p><button id="switch" style="padding: 6px 14px; border: none; border-radius: 2px; cursor: pointer; font: inherit;
     background: var(--vscode-button-background); color: var(--vscode-button-foreground);">Switch ERD Studio to ${esc(path.basename(owner))}</button></p>
   <script nonce="${nonce}">
@@ -1258,7 +1258,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             const payload = (message as { payload?: unknown }).payload;
             const payloadError = validateAddExistingModelsPayload(payload);
             if (payloadError) {
-              this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to add models: ${payloadError}` } });
+              this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to add tables: ${payloadError}` } });
               break;
             }
             telemetry.feature('addModel');
@@ -1273,7 +1273,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             // is queued and re-reads the document.
             const payloadError = validateAddModelsFromDbtPayload((message as { payload?: unknown }).payload);
             if (payloadError) {
-              this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to add models from dbt: ${payloadError}` } });
+              this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to add tables from dbt: ${payloadError}` } });
               break;
             }
             await this.handleAddModelsFromDbt(document, webviewPanel.webview, panelKey);
@@ -1304,7 +1304,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             const payload = (message as OpenModelFileMessage).payload;
             const payloadError = validateOpenModelFilePayload(payload);
             if (payloadError) {
-              this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to open model file: ${payloadError}` } });
+              this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to open table file: ${payloadError}` } });
               break;
             }
             await this.handleOpenModelFile(payload.modelName, webviewPanel.webview);
@@ -1532,7 +1532,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             if (payload) {
               const aliasError = validateModelAliasPayload(payload);
               if (aliasError) {
-                this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to update table name: ${aliasError}` } });
+                this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to update warehouse name: ${aliasError}` } });
                 break;
               }
               await this.queueEdit(panelKey, () =>
@@ -1555,7 +1555,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             const payload = (message as { payload?: { modelName: string; modelRole: string | null } }).payload;
             if (payload) {
               if (payload.modelRole != null && !isValidModelRole(payload.modelRole)) {
-                this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to update model role: unknown role "${String(payload.modelRole)}".` } });
+                this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to update table role: unknown role "${String(payload.modelRole)}".` } });
                 break;
               }
               await this.queueEdit(panelKey, () =>
@@ -1783,7 +1783,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   private async handleOpenModelFile(modelName: string, webview: vscode.Webview): Promise<void> {
     const filePath = this.logicalModelService.findModelFile(modelName.trim());
     if (!filePath) {
-      this.post(webview, { type: 'error', payload: { message: `Model "${modelName}" not found in logical-models/.` } });
+      this.post(webview, { type: 'error', payload: { message: `Table "${modelName}" not found in logical-models/.` } });
       return;
     }
     const error = this.logicalModelService.getModelFileError(modelName.trim());
@@ -1803,7 +1803,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         ? `Can't edit "${modelName}": its file has an unresolved git merge conflict${where}.`
         : `Can't edit "${modelName}": its file has a YAML error${where}.`;
     }
-    return `Model "${modelName}" not found in logical-models/.`;
+    return `Table "${modelName}" not found in logical-models/.`;
   }
 
   /**
@@ -1862,7 +1862,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       telemetry.feature('relMoveOffered');
       const choice = await vscode.window.showInformationMessage(
         `Relationships can now be defined once and shared. ${shared === 1 ? '1 relationship here is' : `${shared} relationships here are`} ` +
-        'kept as a separate copy in each diagram that shows it. Move them to the model library so each is defined once?',
+        'kept as a separate copy in each diagram that shows it. Move them to the Table Library so each is defined once?',
         'Review the Move…',
         'Not Now',
         "Don't Ask Again",
@@ -1876,7 +1876,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           // still the user's to see, never only a console line.
           telemetry.error('relMoveFailed');
           void vscode.window.showErrorMessage(
-            `Move Relationships to Model Library failed: ${err instanceof Error ? err.message : String(err)}`,
+            `Move Relationships to Table Library failed: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
       } else if (choice === "Don't Ask Again") {
@@ -1922,7 +1922,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       const one = groups.length === 1;
       const choice = await vscode.window.showInformationMessage(
         `${one ? '1 relationship in this diagram looks' : `${groups.length} relationships in this diagram look`} drawn backwards ` +
-        `(${one ? 'it starts' : 'they start'} at a model's key). Turn ${one ? 'it' : 'them'} round?`,
+        `(${one ? 'it starts' : 'they start'} at a table's key). Turn ${one ? 'it' : 'them'} round?`,
         'Turn Round',
         'Review…',
         'Not Now',
@@ -2435,7 +2435,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       throw err;
     }
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      throw new EditRefused(`Domain file ${shown} does not contain a JSON object.`);
+      throw new EditRefused(`Subject area file ${shown} does not contain a JSON object.`);
     }
     return data as Record<string, unknown>;
   }
@@ -2560,8 +2560,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     if (!isDomainFilePath(document.uri.fsPath)) {
       this.postLoadError(webview, errorKey, {
         message:
-          `${path.basename(document.uri.fsPath)} is not an ERD domain file — ` +
-          `domains live in ${path.basename(path.dirname(path.dirname(document.uri.fsPath)))}/{layer}/{domain}.json. ` +
+          `${path.basename(document.uri.fsPath)} is not an ERD Studio subject area file — ` +
+          `subject areas live in ${path.basename(path.dirname(path.dirname(document.uri.fsPath)))}/{layer}/{domain}.json. ` +
           `Open it as text to edit it.`,
         kind: 'not-a-domain',
       }, undefined, 'notDomain');
@@ -2900,16 +2900,16 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // as keys by every later edit/remove path.
       const nameError = validateModelName(model.name);
       if (nameError) {
-        webview.postMessage({ type: 'error', payload: { message: `Failed to add model: ${nameError}` } });
+        webview.postMessage({ type: 'error', payload: { message: `Failed to add table: ${nameError}` } });
         return;
       }
       const columnsError = validateColumnDefs(model.columns ?? []);
       if (columnsError) {
-        webview.postMessage({ type: 'error', payload: { message: `Failed to add model: ${columnsError}` } });
+        webview.postMessage({ type: 'error', payload: { message: `Failed to add table: ${columnsError}` } });
         return;
       }
       if (model.modelRole != null && !isValidModelRole(model.modelRole)) {
-        webview.postMessage({ type: 'error', payload: { message: `Failed to add model: unknown role "${String(model.modelRole)}".` } });
+        webview.postMessage({ type: 'error', payload: { message: `Failed to add table: unknown role "${String(model.modelRole)}".` } });
         return;
       }
       model = { ...model, name: model.name.trim() };
@@ -2923,7 +2923,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         const modelNames = (section.models ?? []) as string[];
         const inDomain = modelNames.find((n) => sameName(n, model.name));
         if (inDomain !== undefined) {
-          webview.postMessage({ type: 'error', payload: { message: `Model "${inDomain}" already exists in this domain.` } });
+          webview.postMessage({ type: 'error', payload: { message: `Table "${inDomain}" already exists in this subject area.` } });
           return;
         }
         // The model library is shared across domains — never overwrite a
@@ -2934,9 +2934,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           webview.postMessage({
             type: 'error',
             payload: {
-              message: `Model "${inLibrary}" already exists in the model library (${this.libraryRelativePath(inLibrary)}). ` +
-                'Use "Add Existing Model" to reference it in this domain, or, for a separate table also called ' +
-                `${model.name}, name the model ${sameTableName(model.name, document.uri.fsPath)} and set its Table name to ${model.name}.`,
+              message: `Table "${inLibrary}" already exists in the Table Library (${this.libraryRelativePath(inLibrary)}). ` +
+                'Use "Add Existing Table" to reference it in this subject area, or, for a separate table also called ' +
+                `${model.name}, name it ${sameTableName(model.name, document.uri.fsPath)} and set its warehouse name to ${model.name}.`,
             },
           });
           return;
@@ -2979,7 +2979,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (success) {
           this.selectorsService.scheduleRegenerate();
         } else {
-          webview.postMessage({ type: 'error', payload: { message: 'Failed to add model to domain.' } });
+          webview.postMessage({ type: 'error', payload: { message: 'Failed to add table to subject area.' } });
         }
         return;
       }
@@ -2993,7 +2993,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           if (models.some((m) => typeof m.name === 'string' && sameName(m.name, model.name))) {
             webview.postMessage({
               type: 'error',
-              payload: { message: `Model "${model.name}" already exists in this domain.` },
+              payload: { message: `Table "${model.name}" already exists in this subject area.` },
             });
             throw new EditAborted();
           }
@@ -3025,7 +3025,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         {
           webview,
           stage,
-          errorLabel: 'Failed to add model to domain.',
+          errorLabel: 'Failed to add table to subject area.',
           onSuccess: () => this.selectorsService.scheduleRegenerate(),
         },
       );
@@ -3034,7 +3034,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       console.error(`[SemanticEditorProvider] Add model failed: ${message}`);
       webview.postMessage({
         type: 'error',
-        payload: { message: `Failed to add model: ${message}` },
+        payload: { message: `Failed to add table: ${message}` },
       });
     }
   }
@@ -3088,7 +3088,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           const models = (section.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.modelName);
           if (!model) {
-            webview.postMessage({ type: 'error', payload: { message: `Model "${payload.modelName}" not found.` } });
+            webview.postMessage({ type: 'error', payload: { message: `Table "${payload.modelName}" not found.` } });
             throw new EditAborted();
           }
 
@@ -3190,7 +3190,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           const models = (section.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.modelName);
           if (!model) {
-            webview.postMessage({ type: 'error', payload: { message: `Model "${payload.modelName}" not found.` } });
+            webview.postMessage({ type: 'error', payload: { message: `Table "${payload.modelName}" not found.` } });
             throw new EditAborted();
           }
 
@@ -3352,7 +3352,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           const models = (section.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.modelName);
           if (!model) {
-            webview.postMessage({ type: 'error', payload: { message: `Model "${payload.modelName}" not found.` } });
+            webview.postMessage({ type: 'error', payload: { message: `Table "${payload.modelName}" not found.` } });
             throw new EditAborted();
           }
 
@@ -3404,7 +3404,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           const columnMap = new Map(columns.map((c) => [c.name, c]));
           model.columns = payload.orderedNames.map((name) => {
             const col = columnMap.get(name);
-            if (!col) throw new Error(`Column "${name}" not found in model "${payload.modelName}".`);
+            if (!col) throw new Error(`Column "${name}" not found in table "${payload.modelName}".`);
             return col;
           });
         });
@@ -3421,7 +3421,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           const models = (section.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.modelName);
           if (!model) {
-            throw new Error(`Model "${payload.modelName}" not found.`);
+            throw new Error(`Table "${payload.modelName}" not found.`);
           }
 
           const columns = (model.columns ?? []) as Array<Record<string, unknown>>;
@@ -3439,7 +3439,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           for (const name of payload.orderedNames) {
             const col = columnMap.get(name);
             if (!col) {
-              throw new Error(`Column "${name}" not found in model "${payload.modelName}".`);
+              throw new Error(`Column "${name}" not found in table "${payload.modelName}".`);
             }
             reordered.push(col);
           }
@@ -3541,7 +3541,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (plan.inlineMarkKey) {
           // A v4 domain keeps its models inline: the key is marked there.
           const inline = ((section.models ?? []) as SemanticModel[]).findIndex((m) => sameName(m.name, plan.inlineMarkKey!.model));
-          if (inline === -1) throw new EditRefused(`Model "${plan.inlineMarkKey.model}" not found.`);
+          if (inline === -1) throw new EditRefused(`Table "${plan.inlineMarkKey.model}" not found.`);
           const marked = markPrimaryKey((section.models as SemanticModel[])[inline], plan.inlineMarkKey.columns);
           if (typeof marked === 'string') throw new EditRefused(marked.replace('{was}', ops[0].kind === 'add' ? 'added' : 'changed'));
           (section.models as SemanticModel[])[inline] = marked;
@@ -3602,7 +3602,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         const currentNames = (section.models ?? []) as string[];
         const inDomain = currentNames.find((n) => sameName(n, trimmedNew));
         if (inDomain !== undefined) {
-          webview.postMessage({ type: 'error', payload: { message: `Model "${inDomain}" already exists in this domain.` } });
+          webview.postMessage({ type: 'error', payload: { message: `Table "${inDomain}" already exists in this subject area.` } });
           return;
         }
         // The model library is shared across domains — renaming onto an
@@ -3612,8 +3612,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           webview.postMessage({
             type: 'error',
             payload: {
-              message: `Model "${inLibrary}" already exists in the model library (${this.libraryRelativePath(inLibrary)}). ` +
-                'Choose a different name, or use "Add Existing Model" to reference it in this domain.',
+              message: `Table "${inLibrary}" already exists in the Table Library (${this.libraryRelativePath(inLibrary)}). ` +
+                'Choose a different name, or use "Add Existing Table" to reference it in this subject area.',
             },
           });
           return;
@@ -3673,7 +3673,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (success) {
           this.selectorsService.scheduleRegenerate();
         } else {
-          webview.postMessage({ type: 'error', payload: { message: 'Failed to rename model.' } });
+          webview.postMessage({ type: 'error', payload: { message: 'Failed to rename table.' } });
         }
         return;
       }
@@ -3685,11 +3685,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           const models = (sec.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.oldName);
           if (!model) {
-            webview.postMessage({ type: 'error', payload: { message: `Model "${payload.oldName}" not found.` } });
+            webview.postMessage({ type: 'error', payload: { message: `Table "${payload.oldName}" not found.` } });
             throw new EditAborted();
           }
           if (models.some((m) => m !== model && typeof m.name === 'string' && sameName(m.name, trimmedNew))) {
-            webview.postMessage({ type: 'error', payload: { message: `Model "${trimmedNew}" already exists in this domain.` } });
+            webview.postMessage({ type: 'error', payload: { message: `Table "${trimmedNew}" already exists in this subject area.` } });
             throw new EditAborted();
           }
 
@@ -3708,14 +3708,14 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         {
           webview,
           stage,
-          errorLabel: 'Failed to rename model.',
+          errorLabel: 'Failed to rename table.',
           onSuccess: () => this.selectorsService.scheduleRegenerate(),
         },
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[SemanticEditorProvider] Rename model failed: ${message}`);
-      webview.postMessage({ type: 'error', payload: { message: `Failed to rename model: ${message}` } });
+      webview.postMessage({ type: 'error', payload: { message: `Failed to rename table: ${message}` } });
     }
   }
 
@@ -3794,9 +3794,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (filesToOffer.length > 0) {
           const fileIsSingle = filesToOffer.length === 1;
           const prompt = fileIsSingle
-            ? `Model "${filesToOffer[0]}" removed from this domain. Delete the model file entirely?`
-            : `${filesToOffer.length} models removed from this domain. Delete their model files entirely?`;
-          const deleteLabel = fileIsSingle ? 'Delete Model File' : 'Delete Model Files';
+            ? `Table "${filesToOffer[0]}" removed from this subject area. Delete the table file entirely?`
+            : `${filesToOffer.length} tables removed from this subject area. Delete their table files entirely?`;
+          const deleteLabel = fileIsSingle ? 'Delete Table File' : 'Delete Table Files';
           const keepLabel = fileIsSingle ? 'Keep File' : 'Keep Files';
           void vscode.window
             .showInformationMessage(prompt, deleteLabel, keepLabel)
@@ -3815,12 +3815,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
               }
               const deleted = await vscode.workspace.applyEdit(deleteEdit);
               if (!deleted) {
-                void vscode.window.showErrorMessage('Failed to delete model file(s).');
+                void vscode.window.showErrorMessage('Failed to delete table file(s).');
                 return;
               }
               const summary = fileIsSingle
                 ? `Deleted ${singlePath}`
-                : `Deleted ${filesToOffer.length} model files`;
+                : `Deleted ${filesToOffer.length} table files`;
               vscode.window.showInformationMessage(summary);
             });
         }
@@ -4156,7 +4156,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // to create a logical-models/*.yml file below.
       const nameError = validateModelNameSafety(payload.modelName);
       if (nameError) {
-        webview.postMessage({ type: 'error', payload: { message: `Failed to add model: ${nameError}` } });
+        webview.postMessage({ type: 'error', payload: { message: `Failed to add table: ${nameError}` } });
         return;
       }
 
@@ -4168,7 +4168,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       if (this.isDomainV5(parsed)) {
         const modelNames = (section.models ?? []) as string[];
         if (modelNames.includes(payload.modelName)) {
-          webview.postMessage({ type: 'error', payload: { message: `Model "${payload.modelName}" already exists in this domain.` } });
+          webview.postMessage({ type: 'error', payload: { message: `Table "${payload.modelName}" already exists in this subject area.` } });
           return;
         }
 
@@ -4183,7 +4183,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (!this.logicalModelService.modelExists(payload.modelName)) {
           const seed = seedModelFromDbt(payload.modelName, ymlData, manifest, await this.loadCatalog());
           if (!seed) {
-            webview.postMessage({ type: 'error', payload: { message: `Model "${payload.modelName}" not found in .yml files, manifest, or logical-models/.` } });
+            webview.postMessage({ type: 'error', payload: { message: `Table "${payload.modelName}" not found in .yml files, manifest, or logical-models/.` } });
             return;
           }
           seededModel = { ...seed, name: payload.modelName };
@@ -4232,7 +4232,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (success) {
           this.selectorsService.scheduleRegenerate();
         } else {
-          webview.postMessage({ type: 'error', payload: { message: 'Failed to add model to domain.' } });
+          webview.postMessage({ type: 'error', payload: { message: 'Failed to add table to subject area.' } });
         }
         return;
       }
@@ -4247,7 +4247,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       if (!ymlModel && !manifestModel) {
         webview.postMessage({
           type: 'error',
-          payload: { message: `Model "${payload.modelName}" not found in .yml files or manifest.` },
+          payload: { message: `Table "${payload.modelName}" not found in .yml files or manifest.` },
         });
         return;
       }
@@ -4265,7 +4265,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           if (models.some((m) => m.name === payload.modelName)) {
             webview.postMessage({
               type: 'error',
-              payload: { message: `Model "${payload.modelName}" already exists in this domain.` },
+              payload: { message: `Table "${payload.modelName}" already exists in this subject area.` },
             });
             throw new EditAborted();
           }
@@ -4313,14 +4313,14 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         {
           webview,
           stage,
-          errorLabel: 'Failed to add model to domain.',
+          errorLabel: 'Failed to add table to subject area.',
           onSuccess: () => this.selectorsService.scheduleRegenerate(),
         },
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[SemanticEditorProvider] Add existing model failed: ${message}`);
-      webview.postMessage({ type: 'error', payload: { message: `Failed to add model: ${message}` } });
+      webview.postMessage({ type: 'error', payload: { message: `Failed to add table: ${message}` } });
     }
   }
 
@@ -4350,7 +4350,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         telemetry.feature('addFromDbtNeedsV5');
         this.post(webview, {
           type: 'error',
-          payload: { message: 'Adding models from dbt needs the central model store. Run "ERD Studio: Migrate Domains to Central Model Store" first.' },
+          payload: { message: 'Adding tables from dbt needs the central Table Library. Run "ERD Studio: Migrate Subject Areas to the Central Table Library" first.' },
         });
         return;
       }
@@ -4381,7 +4381,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       const pick = await pickDraftScope(listDraftScopes(source), {
         models,
         excludeNames: inDomain,
-        title: 'Add models from dbt',
+        title: 'Add tables from dbt',
       });
       if (!pick) { telemetry.feature('addFromDbtCancelled'); return; }
 
@@ -4393,7 +4393,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // A refusal the toast explains (a conflicted diagram, a model file
       // with unsaved edits) is not a breakage.
       if (!isExplainedRefusal(err)) telemetry.error('addFromDbtFailed');
-      this.post(webview, { type: 'error', payload: { message: `Failed to add models from dbt: ${message}` } });
+      this.post(webview, { type: 'error', payload: { message: `Failed to add tables from dbt: ${message}` } });
     }
   }
 
@@ -4415,7 +4415,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       if (!this.isDomainV5(this.parseDomainDocument(document))) {
         this.post(webview, {
           type: 'error',
-          payload: { message: 'Adding several models at once needs the central model store. Run "ERD Studio: Migrate Domains to Central Model Store" first, or add them one at a time.' },
+          payload: { message: 'Adding several tables at once needs the central Table Library. Run "ERD Studio: Migrate Subject Areas to the Central Table Library" first, or add them one at a time.' },
         });
         return;
       }
@@ -4425,7 +4425,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[SemanticEditorProvider] Add existing models failed: ${message}`);
-      this.post(webview, { type: 'error', payload: { message: `Failed to add models: ${message}` } });
+      this.post(webview, { type: 'error', payload: { message: `Failed to add tables: ${message}` } });
     }
   }
 
@@ -4475,7 +4475,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (fromDbt) telemetry.feature('addFromDbtNothingDrawable');
         this.post(webview, {
           type: 'error',
-          payload: { message: `No models were added${from}.${skippedNote ? ` ${skippedNote}` : ''}` },
+          payload: { message: `No tables were added${from}.${skippedNote ? ` ${skippedNote}` : ''}` },
         });
         return;
       }
@@ -4512,7 +4512,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         {
           webview,
           stage: 'logical',
-          errorLabel: `Failed to add models${from}.`,
+          errorLabel: `Failed to add tables${from}.`,
           ...(routed.saves.length > 0 ? { modelFiles: { save: routed.saves.map((model) => ({ model })) } } : {}),
           onSuccess: () => {
             if (fromDbt) telemetry.feature('addFromDbt');
@@ -4520,7 +4520,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             if (skippedNote) {
               const added = draft.modelNames.length;
               void vscode.window.showInformationMessage(
-                `Added ${added} model${added === 1 ? '' : 's'}${from}. ${skippedNote}`,
+                `Added ${added} table${added === 1 ? '' : 's'}${from}. ${skippedNote}`,
               );
             }
           },
@@ -4532,7 +4532,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // A refusal the toast explains (a conflicted diagram, a model file
       // with unsaved edits) is not a breakage.
       if (fromDbt && !isExplainedRefusal(err)) telemetry.error('addFromDbtFailed');
-      this.post(webview, { type: 'error', payload: { message: `Failed to add models${from}: ${message}` } });
+      this.post(webview, { type: 'error', payload: { message: `Failed to add tables${from}: ${message}` } });
     }
   }
 
@@ -4572,7 +4572,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         (section) => {
           const models = (section.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.modelName);
-          if (!model) { throw new Error(`Model "${payload.modelName}" not found.`); }
+          if (!model) { throw new Error(`Table "${payload.modelName}" not found.`); }
 
           const existing = (model.rationale ?? {}) as Record<string, string | undefined>;
           const patched = { ...existing };
@@ -4623,7 +4623,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         (section) => {
           const models = (section.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.modelName);
-          if (!model) { throw new Error(`Model "${payload.modelName}" not found.`); }
+          if (!model) { throw new Error(`Table "${payload.modelName}" not found.`); }
 
           const description = payload.description?.trim() || undefined;
           if (description) { model.description = description; } else { delete model.description; }
@@ -4668,7 +4668,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         (section) => {
           const models = (section.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.modelName);
-          if (!model) { throw new Error(`Model "${payload.modelName}" not found.`); }
+          if (!model) { throw new Error(`Table "${payload.modelName}" not found.`); }
 
           const grain = payload.grain?.trim() || undefined;
           if (grain) { model.grain = grain; } else { delete model.grain; }
@@ -4701,7 +4701,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       if (!this.isDomainV5(parsed)) {
         webview.postMessage({
           type: 'error',
-          payload: { message: 'Table names need the model library: run "ERD Studio: Migrate Domain to v5" first.' },
+          payload: { message: 'Table names need the Table Library: run "ERD Studio: Migrate Subject Areas to the Central Table Library" first.' },
         });
         return;
       }
@@ -4711,12 +4711,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (alias && alias !== model.name) { model.alias = alias; } else { delete model.alias; }
       });
       if (!ok) {
-        webview.postMessage({ type: 'error', payload: { message: 'Failed to update table name.' } });
+        webview.postMessage({ type: 'error', payload: { message: 'Failed to update warehouse name.' } });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[SemanticEditorProvider] Update alias failed: ${message}`);
-      webview.postMessage({ type: 'error', payload: { message: `Failed to update table name: ${message}` } });
+      webview.postMessage({ type: 'error', payload: { message: `Failed to update warehouse name: ${message}` } });
     }
   }
 
@@ -4736,7 +4736,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       if (!this.isDomainV5(parsed)) {
         webview.postMessage({
           type: 'error',
-          payload: { message: 'Metadata needs the model library: run "ERD Studio: Migrate Domain to v5" first.' },
+          payload: { message: 'Metadata needs the Table Library: run "ERD Studio: Migrate Subject Areas to the Central Table Library" first.' },
         });
         return;
       }
@@ -4777,7 +4777,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           if (payload.modelRole) { model.modelRole = payload.modelRole as import('../types/semantic').ModelRole; } else { delete model.modelRole; }
         });
         if (!ok) {
-          webview.postMessage({ type: 'error', payload: { message: 'Failed to update model role.' } });
+          webview.postMessage({ type: 'error', payload: { message: 'Failed to update table role.' } });
         }
         return;
       }
@@ -4788,7 +4788,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         (section) => {
           const models = (section.models ?? []) as Array<Record<string, unknown>>;
           const model = models.find((m) => m.name === payload.modelName);
-          if (!model) { throw new Error(`Model "${payload.modelName}" not found.`); }
+          if (!model) { throw new Error(`Table "${payload.modelName}" not found.`); }
 
           if (payload.modelRole) { model.modelRole = payload.modelRole; } else { delete model.modelRole; }
         },
@@ -4796,12 +4796,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       );
 
       if (!success) {
-        webview.postMessage({ type: 'error', payload: { message: 'Failed to update model role.' } });
+        webview.postMessage({ type: 'error', payload: { message: 'Failed to update table role.' } });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[SemanticEditorProvider] Update model role failed: ${message}`);
-      webview.postMessage({ type: 'error', payload: { message: `Failed to update model role: ${message}` } });
+      webview.postMessage({ type: 'error', payload: { message: `Failed to update table role: ${message}` } });
     }
   }
 
@@ -5125,7 +5125,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       font-src ${webview.cspSource};
       connect-src ${webview.cspSource};
       worker-src blob:;">
-  <title>Semantic Domain Editor</title>
+  <title>Subject Area Editor</title>
   <link rel="stylesheet" href="${styleUri}">
 </head>
 <body>
