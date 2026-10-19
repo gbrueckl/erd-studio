@@ -59,8 +59,8 @@ export interface DisplayColumn {
   meta?: Meta;
   /**
    * The model file's own foreign-key flag, set only when true (logical stage
-   * only). `isForeignKey` is the badge, which a relationship leaving the
-   * column also shows; key evidence needs the flag the user set (#133 L1).
+   * only). `isForeignKey` is the badge, which the foreign-key end of a
+   * relationship (`foreignKeyEnd`) also shows; key evidence needs the flag the user set (#133 L1).
    */
   isForeignKeyDeclared?: boolean;
   /**

@@ -7,6 +7,7 @@ import type { DisplayDomain, ExistingModelPreview, ManifestModelPreview } from '
 import type { LayerConfig } from './types/layer.js';
 import { computeNewModelPositions } from './positions.js';
 import { modelLoadErrorOf, modelLoadWarningOf } from './types/semantic.js';
+import { foreignKeyEnd } from './relationships.js';
 
 /**
  * Detect models in logical.models that lack entries in viewConfig.positions
@@ -52,8 +53,9 @@ export interface ToDisplayDomainOptions {
 /**
  * Convert a SemanticDomain to a DisplayDomain for the canvas.
  *
- * A column is a foreign key when it says so or when it is the `from` side of
- * a relationship.
+ * A column is a foreign key when it says so or when it is the foreign-key end
+ * of a relationship (`foreignKeyEnd`: the `to` end of a `one-to-many`, else
+ * the `from` end).
  */
 export function toDisplayDomain(domain: SemanticDomain, options: ToDisplayDomainOptions): DisplayDomain {
   const { viewConfig, stubColumns, layerConfig, readOnly, editorPayload } = options;
@@ -61,10 +63,11 @@ export function toDisplayDomain(domain: SemanticDomain, options: ToDisplayDomain
   // Build FK column set for isForeignKey computation
   const fkColumnsByModel = new Map<string, Set<string>>();
   for (const rel of domain.relationships) {
-    if (!fkColumnsByModel.has(rel.fromModel)) {
-      fkColumnsByModel.set(rel.fromModel, new Set());
+    const fk = foreignKeyEnd(rel);
+    if (!fkColumnsByModel.has(fk.model)) {
+      fkColumnsByModel.set(fk.model, new Set());
     }
-    fkColumnsByModel.get(rel.fromModel)!.add(rel.fromColumn);
+    fkColumnsByModel.get(fk.model)!.add(fk.column);
   }
 
   const models = domain.models.map((model) => {

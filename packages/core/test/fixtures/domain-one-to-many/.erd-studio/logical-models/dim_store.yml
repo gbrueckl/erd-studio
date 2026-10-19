@@ -1,0 +1,9 @@
+name: dim_store
+schema: gold
+description: One row per store
+columns:
+  - name: store_key
+    dataType: INT
+    isPrimaryKey: true
+  - name: store_name
+    dataType: VARCHAR

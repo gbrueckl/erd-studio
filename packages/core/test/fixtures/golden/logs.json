@@ -9,6 +9,8 @@
   "data-type-alias.unified": [],
   "dbt-project.physical.host": [],
   "dbt-project.stage-physical": [],
+  "domain-one-to-many.host": [],
+  "domain-one-to-many.unified": [],
   "duplicate-key.host": [
     "warn: [LogicalModelService] Model \"dim_customer\": \"description\" is written twice in one block (line 4); the last value is used"
   ],

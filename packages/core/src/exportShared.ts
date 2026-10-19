@@ -17,7 +17,7 @@
 
 import type { DisplayDomain } from './types/display.js';
 import type { Rationale } from './types/semantic.js';
-import { compositeGroupProblem, linkKey } from './relationships.js';
+import { compositeGroupProblem, foreignKeyAtTo, linkKey } from './relationships.js';
 
 /** Rationale keys in display order, with the label an export prints. */
 export const RATIONALE_LABELS: ReadonlyArray<readonly [keyof Rationale, string]> = [
@@ -392,7 +392,7 @@ export function prepareDomain(domain: DisplayDomain): PreparedDomain {
 
 /** The columns a link leaves from — the foreign key: the to end for a one-to-many, else the from end. */
 export function foreignKeyColumns(link: ExportLink): { model: ExportModel; columns: string[] } {
-  return link.cardinality === 'one-to-many'
+  return foreignKeyAtTo(link.cardinality)
     ? { model: link.to, columns: link.toColumns }
     : { model: link.from, columns: link.fromColumns };
 }

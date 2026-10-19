@@ -80,6 +80,8 @@ const DOMAIN_CASES: Record<string, string> = {
   'composite-and-self': 'gold/vault.json',
   // #144: column types spelled dbt's way (`data_type:`), alone and beside a `dataType`.
   'data-type-alias': 'silver/orders.json',
+  // #163: a domain file's one-to-many from the "one" side badges the to end as the foreign key.
+  'domain-one-to-many': 'gold/sales.json',
   // #164: a key written twice, read with the last copy winning and a loadWarning.
   'duplicate-key': 'silver/orders.json',
 };

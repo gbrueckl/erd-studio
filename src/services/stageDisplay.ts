@@ -24,8 +24,9 @@ import type { YmlData } from '../types/ymlData';
  * Convert a logical `SemanticDomain` to a `DisplayDomain`.
  *
  * Key flags are coerced to booleans (`isPrimaryKey === true`), and a column is
- * a foreign key when it says so OR when it is the `fromColumn` of one of the
- * domain's relationships. `viewConfig` is passed separately because it lives
+ * a foreign key when it says so OR when it is the foreign-key end of one of the
+ * domain's relationships (core's `foreignKeyEnd`: the `toColumn` of a
+ * `one-to-many`, else the `fromColumn`). `viewConfig` is passed separately because it lives
  * at the root of the unified domain file, not in the stage section.
  */
 export function buildLogicalDisplayDomain(
