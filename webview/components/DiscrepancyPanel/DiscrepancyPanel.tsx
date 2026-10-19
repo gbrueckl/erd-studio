@@ -61,14 +61,14 @@ function statusLabel(status: string, sourceStage: string, targetStage: string): 
 // Sub-components
 // ---------------------------------------------------------------------------
 
-interface ModelEntryProps {
+interface TableEntryProps {
   model: TableDiscrepancy;
   sourceStage: string;
   targetStage: string;
   onNavigate: (modelName: string) => void;
 }
 
-function ModelEntry({ model, sourceStage, targetStage, onNavigate }: ModelEntryProps) {
+function TableEntry({ model, sourceStage, targetStage, onNavigate }: TableEntryProps) {
   const issues = model.columns.filter((c) => c.status !== 'matched');
   const hasIssues = issues.length > 0 || model.status !== 'matched';
 
@@ -332,7 +332,7 @@ export function DiscrepancyPanel() {
         {modelsWithIssues.length > 0 && (
           <div className="disc-panel__models">
             {modelsWithIssues.map((m) => (
-              <ModelEntry
+              <TableEntry
                 key={m.name}
                 model={m}
                 sourceStage={sourceStage}

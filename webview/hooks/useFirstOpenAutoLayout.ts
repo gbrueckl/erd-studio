@@ -43,7 +43,7 @@ export function useFirstOpenAutoLayout(
     !!domain &&
     domain.stage === 'logical' &&
     domain.models.length > 0 &&
-    hasNodeForEveryModel(domain, nodes);
+    hasNodeForEveryTable(domain, nodes);
 
   useEffect(() => {
     if (!pending || !graphReady || isLayouting || inFlight.current) {
@@ -59,7 +59,7 @@ export function useFirstOpenAutoLayout(
   }, [pending, graphReady, isLayouting, runLayout, setPendingAutoLayout]);
 }
 
-function hasNodeForEveryModel(domain: DisplaySubjectArea, nodes: readonly NodeLike[]): boolean {
+function hasNodeForEveryTable(domain: DisplaySubjectArea, nodes: readonly NodeLike[]): boolean {
   const modelNodeIds = new Set(nodes.filter((n) => n.type === 'model').map((n) => n.id));
   return domain.models.every((m) => modelNodeIds.has(m.name));
 }

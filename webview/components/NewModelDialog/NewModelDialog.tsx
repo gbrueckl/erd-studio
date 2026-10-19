@@ -122,7 +122,7 @@ const TEMPLATE_ROLE_MAP: Record<string, TableRole> = {
 // Component
 // ---------------------------------------------------------------------------
 
-export function NewModelDialog() {
+export function NewTableDialog() {
   const isOpen = useEditorStore((s) => s.newModelDialogOpen);
   const setNewModelDialogOpen = useEditorStore((s) => s.setNewModelDialogOpen);
   const domain = useEditorStore((s) => s.domain);

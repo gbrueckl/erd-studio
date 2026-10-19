@@ -41,7 +41,7 @@ const SOURCE_CONFIG: Record<SourceKey, { label: string; description: string }> =
 // Component
 // ---------------------------------------------------------------------------
 
-export function AddExistingModelDialog() {
+export function AddExistingTableDialog() {
   const isOpen = useEditorStore((s) => s.addExistingModelDialogOpen);
   const setAddExistingModelDialogOpen = useEditorStore((s) => s.setAddExistingModelDialogOpen);
   const existingModels = useEditorStore((s) => s.existingModels);
@@ -316,7 +316,7 @@ export function AddExistingModelDialog() {
               const source: SourceKey = 'source' in model ? (model.source as SourceKey) : 'manifest';
               const sourcePath = 'sourcePath' in model ? (model as ExistingTablePreview).sourcePath : undefined;
               return (
-                <ModelItem
+                <TableItem
                   key={model.name}
                   model={model}
                   source={source}
@@ -356,7 +356,7 @@ export function AddExistingModelDialog() {
 // ModelItem subcomponent
 // ---------------------------------------------------------------------------
 
-interface ModelItemProps {
+interface TableItemProps {
   model: ManifestModelPreview;
   source: SourceKey;
   sourcePath?: string;
@@ -366,7 +366,7 @@ interface ModelItemProps {
   onDoubleClick: (name: string) => void;
 }
 
-function ModelItem({ model, source, sourcePath, isSelected, showCheck, onToggle, onDoubleClick }: ModelItemProps) {
+function TableItem({ model, source, sourcePath, isSelected, showCheck, onToggle, onDoubleClick }: TableItemProps) {
   const handleClick = useCallback(() => {
     onToggle(model.name);
   }, [onToggle, model.name]);

@@ -44,9 +44,9 @@ import { vscodeCanvasHost } from './host/vscodeCanvasHost';
 import { DragLine } from './components/Graph/DragLine';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { StatusBar } from './components/Toolbar/StatusBar';
-import { NewModelDialog } from './components/NewModelDialog/NewModelDialog';
+import { NewTableDialog } from './components/NewModelDialog/NewModelDialog';
 import { NewFkDialog } from './components/NewFkDialog/NewFkDialog';
-import { AddExistingModelDialog } from './components/AddExistingModelDialog/AddExistingModelDialog';
+import { AddExistingTableDialog } from './components/AddExistingModelDialog/AddExistingModelDialog';
 import { Toast } from './components/Toast/Toast';
 import { ContextMenu } from './components/ContextMenu/ContextMenu';
 import { PhysicalSourceNotice } from './components/Canvas/PhysicalSourceNotice';
@@ -71,7 +71,7 @@ import { orientDraggedRelationship } from './lib/relationshipDirection';
  * Load a display-domain payload into the store. Shared by `domainLoaded`
  * (initial load / host refresh) and `stageData` (stage switch reply).
  */
-function applyDomainPayload(payload: DisplaySubjectArea): void {
+function applySubjectAreaPayload(payload: DisplaySubjectArea): void {
   const s = useEditorStore.getState();
   s.setDomain(payload);
   if (payload.templates) {
@@ -202,7 +202,7 @@ function EditorCanvas() {
     (msg: ExtensionMessage) => {
       switch (msg.type) {
         case 'domainLoaded':
-          applyDomainPayload(msg.payload);
+          applySubjectAreaPayload(msg.payload);
           // Set on a fresh domain (no stored positions), cleared by every other
           // payload — a later load without the flag cancels a pending layout.
           useEditorStore.getState().setPendingAutoLayout(msg.autoLayout === true);
@@ -217,7 +217,7 @@ function EditorCanvas() {
           // A reply for a stage the user has since switched away from — drop it
           // so the canvas never flips back to the wrong stage.
           if (isStaleStageReply(msg.requestId)) break;
-          applyDomainPayload(msg.payload);
+          applySubjectAreaPayload(msg.payload);
           // Stage replies never ask for the first-open layout.
           useEditorStore.getState().setPendingAutoLayout(false);
           useEditorStore.getState().setManifestMissing(msg.manifestMissing === true);
@@ -601,9 +601,9 @@ function EditorCanvas() {
         />
         <StatusBar />
         <DetailPanel />
-        <NewModelDialog />
+        <NewTableDialog />
         <NewFkDialog />
-        <AddExistingModelDialog />
+        <AddExistingTableDialog />
       </ReactFlow>
 
       {activeToastMessage && (

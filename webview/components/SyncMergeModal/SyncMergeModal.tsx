@@ -68,7 +68,7 @@ const ITEM_STATUS_TEXT: Record<string, string> = {
   'cardinality-mismatch': 'Cardinality diff',
 };
 
-function modelStatusText(status: string, sourceStage: string, targetStage: string): string {
+function tableStatusText(status: string, sourceStage: string, targetStage: string): string {
   if (status === 'extra') return `Only in ${stageName(sourceStage)}`;
   if (status === 'missing') return `Only in ${stageName(targetStage)}`;
   return status;
@@ -157,7 +157,7 @@ interface SelectionSummary {
   total: number;
 }
 
-interface ModelRowProps {
+interface TableRowProps {
   model: TableDiscrepancy;
   sourceStage: string;
   targetStage: string;
@@ -169,7 +169,7 @@ interface ModelRowProps {
   selectionSummary: SelectionSummary | null;
 }
 
-function ModelRow({ model, sourceStage, targetStage, isCollapsed, hasFoldableContent, onToggle, modelSyncKeys, allResolved, selectionSummary }: ModelRowProps) {
+function TableRow({ model, sourceStage, targetStage, isCollapsed, hasFoldableContent, onToggle, modelSyncKeys, allResolved, selectionSummary }: TableRowProps) {
   const setSyncSelectionBulk = useEditorStore((s) => s.setSyncSelectionBulk);
 
   const handleBulk = useCallback(
@@ -211,7 +211,7 @@ function ModelRow({ model, sourceStage, targetStage, isCollapsed, hasFoldableCon
       <div className="sync-modal__model-item-row">
         {model.status !== 'matched' && (
           <span className={`sync-modal__status-badge sync-modal__status-badge--${model.status}`}>
-            {modelStatusText(model.status, sourceStage, targetStage)}
+            {tableStatusText(model.status, sourceStage, targetStage)}
           </span>
         )}
         <span className="sync-modal__model-name">{model.name}</span>
@@ -396,7 +396,7 @@ function RelationshipRow({ rel, sourceStage, targetStage }: { rel: RelationshipD
 // ModelRowGroup — section header + collapsible column rows
 // ---------------------------------------------------------------------------
 
-interface ModelRowGroupProps {
+interface TableRowGroupProps {
   model: TableDiscrepancy;
   conflictCols: TableDiscrepancy['columns'];
   sourceStage: string;
@@ -405,7 +405,7 @@ interface ModelRowGroupProps {
   onToggle: () => void;
 }
 
-function ModelRowGroup({ model, conflictCols, sourceStage, targetStage, isCollapsed, onToggle }: ModelRowGroupProps) {
+function TableRowGroup({ model, conflictCols, sourceStage, targetStage, isCollapsed, onToggle }: TableRowGroupProps) {
   const syncSelections = useEditorStore((s) => s.syncSelections);
   const setSyncSelection = useEditorStore((s) => s.setSyncSelection);
   const hasFoldableContent = conflictCols.length > 0;
@@ -483,7 +483,7 @@ function ModelRowGroup({ model, conflictCols, sourceStage, targetStage, isCollap
 
   return (
     <>
-      <ModelRow
+      <TableRow
         model={model}
         sourceStage={sourceStage}
         targetStage={targetStage}
@@ -757,7 +757,7 @@ export function SyncMergeModal() {
               {unresolvedModels.map((model) => {
                 const conflictCols = model.columns.filter((c) => c.status !== 'matched');
                 return (
-                  <ModelRowGroup
+                  <TableRowGroup
                     key={model.name}
                     model={model}
                     conflictCols={conflictCols}
@@ -815,7 +815,7 @@ export function SyncMergeModal() {
                   {resolvedSectionOpen && resolvedModels.map((model) => {
                     const conflictCols = model.columns.filter((c) => c.status !== 'matched');
                     return (
-                      <ModelRowGroup
+                      <TableRowGroup
                         key={model.name}
                         model={model}
                         conflictCols={conflictCols}
