@@ -508,7 +508,7 @@ async function handleUnsavedChanges(
   }
 
   const saveChoice = await vscode.window.showWarningMessage(
-    `Domain "${domainName}" has unsaved changes. Save before ${operation}?`,
+    `Subject area "${domainName}" has unsaved changes. Save before ${operation}?`,
     { modal: true },
     'Save',
     'Discard',
@@ -545,28 +545,28 @@ function validateDomainSlug(
   currentDomainName?: string,
 ): string | undefined {
   if (!value || !value.trim()) {
-    return 'Domain name is required';
+    return 'Subject area name is required';
   }
 
   const slug = value.trim();
 
   if (currentDomainName && slug === currentDomainName) {
-    return 'Domain name unchanged';
+    return 'Subject area name unchanged';
   }
 
   if (!/^[a-z][a-z0-9_-]*$/.test(slug)) {
-    return 'Domain name must start with a lowercase letter and contain only lowercase letters, numbers, hyphens, and underscores';
+    return 'Subject area name must start with a lowercase letter and contain only lowercase letters, numbers, hyphens, and underscores';
   }
 
   if (slug.length > 64) {
-    return 'Domain name must be 64 characters or less';
+    return 'Subject area name must be 64 characters or less';
   }
 
   const collision = existingDomains.find(
     d => d.domain === slug && d.layer === layer,
   );
   if (collision) {
-    return `A domain named "${slug}" already exists in the ${layer} layer`;
+    return `A subject area named "${slug}" already exists in the ${layer} layer`;
   }
 
   return undefined;
@@ -902,9 +902,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
       onNameCollision: (info) => {
         void vscode.window.showWarningMessage(
-          `ERD Studio: selector name "${info.requestedName}" for domain ${info.domain} collides with ` +
+          `ERD Studio: selector name "${info.requestedName}" for subject area ${info.domain} collides with ` +
             `${info.conflictsWith}. Wrote "${info.assignedName}" to selectors.yml instead — ` +
-            'rename one of the domains to avoid the suffix.',
+            'rename one of the subject areas to avoid the suffix.',
         );
       },
     },
@@ -921,15 +921,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const migrationService = new MigrationService(workspaceRoot, layerService, logicalModelService, semanticDir);
   if (migrationService.needsMigration()) {
     void vscode.window.showInformationMessage(
-      'ERD Studio has a new model storage format that enables cross-domain model sharing. Migrate domain files now?',
+      'ERD Studio has a new table storage format that lets subject areas share tables. Migrate subject area files now?',
       'Migrate Now',
       'Later',
     ).then((choice) => {
       if (choice === 'Migrate Now') {
         const result = migrationService.migrate();
         const details: string[] = [];
-        if (result.domainsConverted > 0) details.push(`${result.domainsConverted} domain(s) converted`);
-        if (result.modelsCreated > 0) details.push(`${result.modelsCreated} model file(s) created in logical-models/`);
+        if (result.domainsConverted > 0) details.push(`${result.domainsConverted} subject area(s) converted`);
+        if (result.modelsCreated > 0) details.push(`${result.modelsCreated} table file(s) created in logical-models/`);
         if (result.mergeConflicts.length > 0) details.push(`${result.mergeConflicts.length} merge conflict(s) resolved (richest version kept)`);
         vscode.window.showInformationMessage(`Migration complete: ${details.join(', ')}.`);
         selectorsService.scheduleRegenerate();
@@ -1024,7 +1024,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       return;
     }
-    const target = await pickDomainFile(domains, 'Open which domain?');
+    const target = await pickDomainFile(domains, 'Open which subject area?');
     if (!target) { return; }
     await vscode.commands.executeCommand('erdStudio.openDomain', target);
   };
@@ -1087,7 +1087,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Definitive (dbt clean / target removed) — no retry, no stale data.
         void vscode.window.showWarningMessage(
           `dbt manifest removed (${manifestDisplayPath(workspaceRoot, dbtConfig)}). ` +
-            'Models and relationships still come from your schema .yml files. ' +
+            'Your dbt models and relationships still come from your schema .yml files. ' +
             'Run dbt parse to write it again (needs a working dbt profile), or dbt docs generate for warehouse types.',
           RUN_DBT_PARSE_ACTION,
         ).then(pick => { if (pick === RUN_DBT_PARSE_ACTION) { void runDbtParse(workspaceRoot); } });
@@ -1106,7 +1106,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             if (retryGen !== manifestChangeGen) { return; }
             if (!manifestService.isStale) {
               void vscode.window.showInformationMessage(
-                'dbt manifest updated. Graphs refreshed with latest model data.',
+                'dbt manifest updated. Graphs refreshed with latest dbt model data.',
               );
             } else {
               void vscode.window.showWarningMessage(
@@ -1119,7 +1119,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }, 2000);
       } else {
         void vscode.window.showInformationMessage(
-          'dbt manifest updated. Graphs refreshed with latest model data.',
+          'dbt manifest updated. Graphs refreshed with latest dbt model data.',
         );
       }
     },
@@ -1188,10 +1188,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     modelLibraryProvider.refresh();
     refreshContextKeys();
     const subject = uris.length === 1
-      ? 'Domain file deleted.'
-      : `${uris.length} domain files deleted.`;
+      ? 'Subject area file deleted.'
+      : `${uris.length} subject area files deleted.`;
     void vscode.window.showInformationMessage(
-      `${subject} Regenerate dbt selectors.yml to drop the removed domain${uris.length === 1 ? '' : 's'} from the selector set.`,
+      `${subject} Regenerate dbt selectors.yml to drop the removed subject area${uris.length === 1 ? '' : 's'} from the selector set.`,
       'Regenerate Now',
     ).then(choice => {
       if (choice === 'Regenerate Now') {
@@ -1346,11 +1346,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('erdStudio.deleteLogicalModel', async (node: ModelLibraryNode | undefined) => {
       if (!node || node.type !== 'model') {
-        void vscode.window.showErrorMessage('Delete Model: No model selected. Right-click a model in the Model Library.');
+        void vscode.window.showErrorMessage('Delete Table: No table selected. Right-click a table in the Table Library.');
         return;
       }
       const confirm = await vscode.window.showWarningMessage(
-        `Delete model "${node.name}"? This removes the YAML file — domain references are not cleaned up.`,
+        `Delete table "${node.name}"? This removes the YAML file — subject area references are not cleaned up.`,
         { modal: true },
         'Delete',
       );
@@ -1365,7 +1365,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // layer whose domains use them (issue #76). Prompted, one WorkspaceEdit.
     vscode.commands.registerCommand('erdStudio.organizeModelLibrary', async () => {
       if (!logicalModelService.dirExists()) {
-        void vscode.window.showInformationMessage('Organise Model Library: there is no logical-models/ folder yet.');
+        void vscode.window.showInformationMessage('Organise Table Library: there is no logical-models/ folder yet.');
         return;
       }
       const usage: DomainModelUsage[] = [];
@@ -1386,12 +1386,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       if (plan.moves.length === 0) {
         void vscode.window.showInformationMessage(
-          `Organise Model Library: nothing to move. ${describeOrganizePlan(plan).replace(/\n+/g, ' ')}`,
+          `Organise Table Library: nothing to move. ${describeOrganizePlan(plan).replace(/\n+/g, ' ')}`,
         );
         return;
       }
       const choice = await vscode.window.showInformationMessage(
-        'Organise Model Library by Layer?',
+        'Organise Table Library by Layer?',
         { modal: true, detail: describeOrganizePlan(plan) },
         'Move Files',
       );
@@ -1410,7 +1410,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         for (const folder of newFolders) {
           try { fs.rmdirSync(folder); } catch { /* not empty, or already gone */ }
         }
-        void vscode.window.showErrorMessage('Organise Model Library: VS Code rejected the file moves; nothing was changed.');
+        void vscode.window.showErrorMessage('Organise Table Library: VS Code rejected the file moves; nothing was changed.');
         return;
       }
       // Our own moves: the watcher must not bounce them back as external
@@ -1431,7 +1431,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       logicalModelService.invalidateCache();
       modelLibraryProvider.refresh();
       void vscode.window.showInformationMessage(
-        `Moved ${plan.moves.length} model file${plan.moves.length === 1 ? '' : 's'} into layer folders.`,
+        `Moved ${plan.moves.length} table file${plan.moves.length === 1 ? '' : 's'} into layer folders.`,
       );
     }),
     // A second file with a name the library already has is ignored (names are
@@ -1450,12 +1450,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const libPath = (p: string): string => `logical-models/${path.relative(modelsDir, p).split(path.sep).join('/')}`;
       if (!entry) {
         if (duplicates.length === 0) {
-          void vscode.window.showInformationMessage('Every model file in the library has its own name.');
+          void vscode.window.showInformationMessage('Every table file in the library has its own name.');
           return;
         }
         const pick = await vscode.window.showQuickPick(
           duplicates.map((e) => ({ label: libPath(e.filePath), description: `ignored — ${libPath(e.shadowedBy!)} is used`, entry: e })),
-          { placeHolder: 'Which duplicate model file should get its own name?' },
+          { placeHolder: 'Which duplicate table file should get its own name?' },
         );
         if (!pick) return;
         entry = pick.entry;
@@ -1466,18 +1466,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         try { return parseLogicalModelText(fs.readFileSync(dup.filePath, 'utf-8'), dup.name); } catch { return null; }
       })();
       if (!model) {
-        void vscode.window.showErrorMessage(`${libPath(dup.filePath)} could not be read as a model file. Fix or rename it by hand.`);
+        void vscode.window.showErrorMessage(`${libPath(dup.filePath)} could not be read as a table file. Fix or rename it by hand.`);
         return;
       }
 
       const taken = new Set(entries.map((e) => e.name));
       const newName = (await vscode.window.showInputBox({
         title: `Give ${libPath(dup.filePath)} its own name`,
-        prompt: `Model names are unique, as in dbt. The table name stays "${model.alias || dup.name}" (set as the model's alias).`,
+        prompt: `Table names are unique, as dbt model names are. The warehouse table name stays "${model.alias || dup.name}" (set as the table's alias).`,
         value: suggestDuplicateName(dup.name, dup.folder, taken),
         ignoreFocusOut: true,
         validateInput: (value) => validateModelName(value)
-          ?? (taken.has(value.trim()) ? `"${value.trim()}" already exists in the model library.` : null),
+          ?? (taken.has(value.trim()) ? `"${value.trim()}" already exists in the Table Library.` : null),
       }))?.trim();
       if (!newName) return;
 
@@ -1546,8 +1546,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       selectorsService.scheduleRegenerate();
       await editorProvider.refreshAllOpenDomains();
       void vscode.window.showInformationMessage(
-        `${libPath(newPath)} is now its own model, "${newName}" (table: ${plan.alias}).` +
-        (domainDocs.length ? ` Repointed ${domainDocs.length} domain${domainDocs.length === 1 ? '' : 's'}.` : ''),
+        `${libPath(newPath)} is now its own table, "${newName}" (warehouse table: ${plan.alias}).` +
+        (domainDocs.length ? ` Repointed ${domainDocs.length} subject area${domainDocs.length === 1 ? '' : 's'}.` : ''),
       );
     }),
     // Store every domain file's relationships once, in their from-models'
@@ -1572,7 +1572,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       })),
     vscode.commands.registerCommand('erdStudio.revealLogicalModel', (node: ModelLibraryNode | undefined) => {
       if (!node || node.type !== 'model') {
-        void vscode.window.showErrorMessage('Reveal in Explorer: No model selected. Right-click a model in the Model Library.');
+        void vscode.window.showErrorMessage('Reveal in Explorer: No table selected. Right-click a table in the Table Library.');
         return;
       }
       void vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(node.filePath));
@@ -1661,12 +1661,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (!layer) {
           const creatableLayers = layerService.getCreatableLayers();
           if (creatableLayers.length === 0) {
-            void vscode.window.showErrorMessage('No layers configured for domain creation. Add layers first.');
+            void vscode.window.showErrorMessage('No layers configured for subject area creation. Add layers first.');
             return;
           }
           const layerItems = creatableLayers.map(l => ({ label: l.label, value: l.id }));
           const layerChoice = await vscode.window.showQuickPick(layerItems, {
-            placeHolder: 'Select layer for the new semantic domain',
+            placeHolder: 'Select layer for the new subject area',
             ignoreFocusOut: true,
           });
           if (!layerChoice) { return; }
@@ -1676,7 +1676,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Step 2: Get domain name
         const existingDomains = domainService.listDomains(workspaceRoot, semanticDir);
         const domainSlug = await vscode.window.showInputBox({
-          prompt: 'Enter domain name (slug format)',
+          prompt: 'Enter subject area name (slug format)',
           placeHolder: 'e.g. customer-360, sales-analytics, orders',
           ignoreFocusOut: true,
           validateInput: (value: string) =>
@@ -1687,7 +1687,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         // Step 3: Get description
         const description = await vscode.window.showInputBox({
-          prompt: 'Enter domain description (optional)',
+          prompt: 'Enter subject area description (optional)',
           placeHolder: 'e.g. Customer 360 view with orders and interactions',
           ignoreFocusOut: true,
         });
@@ -1708,7 +1708,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               ...availableFolders.map((folder) => ({ label: `$(folder) ${folder}`, value: folder })),
             ];
             const folderChoice = await vscode.window.showQuickPick(folderItems, {
-              placeHolder: 'Filter models by folder (optional)',
+              placeHolder: 'Filter dbt models by folder (optional)',
               ignoreFocusOut: true,
             });
             if (folderChoice === undefined) { return; }
@@ -1750,11 +1750,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         } catch (err) {
           domainsCreatedHere.delete(filePath);
           if (err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST') {
-            void vscode.window.showErrorMessage(`Domain "${slug}" already exists in the ${layer} layer`);
+            void vscode.window.showErrorMessage(`Subject area "${slug}" already exists in the ${layer} layer`);
             return;
           }
           const msg = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to create domain file: ${msg}`);
+          void vscode.window.showErrorMessage(`Failed to create subject area file: ${msg}`);
           return;
         }
 
@@ -1774,7 +1774,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       'erdStudio.deleteDomain',
       async (element?: TreeElement) => {
         if (!element || element.type !== 'domain') {
-          void vscode.window.showErrorMessage('Delete Domain: No domain selected. Right-click a domain in the tree view.');
+          void vscode.window.showErrorMessage('Delete Subject Area: No subject area selected. Right-click a subject area in the tree view.');
           return;
         }
 
@@ -1786,7 +1786,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (!shouldProceed) { return; }
 
         const confirm = await vscode.window.showWarningMessage(
-          `Are you sure you want to delete domain "${domainName}"?`,
+          `Are you sure you want to delete subject area "${domainName}"?`,
           { modal: true },
           'Delete',
         );
@@ -1807,7 +1807,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           treeProvider.invalidateDomain(filePath);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to delete domain: ${msg}`);
+          void vscode.window.showErrorMessage(`Failed to delete subject area: ${msg}`);
         }
 
         treeProvider.refresh();
@@ -1819,7 +1819,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       'erdStudio.renameDomain',
       async (element?: TreeElement) => {
         if (!element || element.type !== 'domain') {
-          void vscode.window.showErrorMessage('Rename Domain: No domain selected. Right-click a domain in the tree view.');
+          void vscode.window.showErrorMessage('Rename Subject Area: No subject area selected. Right-click a subject area in the tree view.');
           return;
         }
 
@@ -1833,7 +1833,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         const existingDomains = domainService.listDomains(workspaceRoot, semanticDir);
         const newDomainSlug = await vscode.window.showInputBox({
-          prompt: 'Enter new domain name',
+          prompt: 'Enter new subject area name',
           value: oldDomainName,
           ignoreFocusOut: true,
           validateInput: (value: string) =>
@@ -1853,7 +1853,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           renamedContent = renameDomainInRaw(fs.readFileSync(oldFilePath, 'utf-8'), newSlug);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to read domain file: ${msg}`);
+          void vscode.window.showErrorMessage(`Failed to read subject area file: ${msg}`);
           return;
         }
 
@@ -1872,7 +1872,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         const success = await vscode.workspace.applyEdit(edit);
         if (!success) {
-          void vscode.window.showErrorMessage(`Failed to rename domain "${oldDomainName}" to "${newSlug}"`);
+          void vscode.window.showErrorMessage(`Failed to rename subject area "${oldDomainName}" to "${newSlug}"`);
           return;
         }
 
@@ -1901,7 +1901,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             telemetry.featureOnce('manifestMissingRefresh');
             void vscode.window.showWarningMessage(
               `No dbt manifest yet (${manifestDisplayPath(workspaceRoot, dbtConfig)}) — dbt hasn't been run in this project. ` +
-                'Models and relationships still come from your schema .yml files. ' +
+                'Your dbt models and relationships still come from your schema .yml files. ' +
                 'Run dbt parse to read columns and tests (needs a working dbt profile), or dbt docs generate for warehouse types.',
               RUN_DBT_PARSE_ACTION,
             ).then(pick => { if (pick === RUN_DBT_PARSE_ACTION) { void runDbtParse(workspaceRoot); } });
@@ -1910,7 +1910,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               'dbt manifest could not be parsed (it may be mid-write) — graphs show the last good data. Try again shortly.',
             );
           } else {
-            void vscode.window.showInformationMessage('Manifest refreshed. Graphs updated with latest model data.');
+            void vscode.window.showInformationMessage('Manifest refreshed. Graphs updated with latest dbt model data.');
           }
         },
       );
@@ -1930,11 +1930,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             if (result.status === 'written') {
               const relPath = path.relative(workspaceRoot, result.filePath);
               void vscode.window.showInformationMessage(
-                `Wrote ${result.selectorsWritten} selector(s) covering ${result.modelsReferenced} model reference(s) to ${relPath}.`,
+                `Wrote ${result.selectorsWritten} selector(s) covering ${result.modelsReferenced} dbt model reference(s) to ${relPath}.`,
               );
             } else if (result.status === 'noop') {
               void vscode.window.showInformationMessage(
-                'No domains with models found — selectors.yml was not created.',
+                'No subject areas with tables found — selectors.yml was not created.',
               );
             }
             // For 'skipped': the onSkipped hook has already shown the
@@ -2003,14 +2003,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Migrate v4 domains to v5 central model store
     vscode.commands.registerCommand('erdStudio.migrateToV5', async () => {
       if (!migrationService.needsMigration()) {
-        void vscode.window.showInformationMessage('All domain files are already using the v5 central model store format.');
+        void vscode.window.showInformationMessage('All subject area files already use the v5 central Table Library format.');
         return;
       }
 
       const v4Count = migrationService.findV4Domains().length;
       const confirm = await vscode.window.showWarningMessage(
-        `Found ${v4Count} domain file(s) using the legacy inline model format. ` +
-        'Migration will extract models to .erd-studio/logical-models/ and convert domain files to use name references. ' +
+        `Found ${v4Count} subject area file(s) using the legacy inline table format. ` +
+        'Migration will extract tables to .erd-studio/logical-models/ and convert subject area files to use name references. ' +
         'This cannot be undone automatically.',
         'Migrate Now',
         'Cancel',
@@ -2027,8 +2027,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       telemetry.feature('migrateV5');
       const details: string[] = [];
-      if (result.domainsConverted > 0) details.push(`${result.domainsConverted} domain(s) converted`);
-      if (result.modelsCreated > 0) details.push(`${result.modelsCreated} model file(s) created in logical-models/`);
+      if (result.domainsConverted > 0) details.push(`${result.domainsConverted} subject area(s) converted`);
+      if (result.modelsCreated > 0) details.push(`${result.modelsCreated} table file(s) created in logical-models/`);
       if (result.mergeConflicts.length > 0) details.push(`${result.mergeConflicts.length} merge conflict(s) resolved`);
       void vscode.window.showInformationMessage(`Migration complete: ${details.join(', ')}.`);
 
@@ -2065,7 +2065,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           await layerService.saveConfig(defaultLayers);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to create semantic directory structure: ${msg}`);
+          void vscode.window.showErrorMessage(`Failed to create the ERD Studio directory structure: ${msg}`);
           return;
         }
 
@@ -2073,7 +2073,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         refreshContextKeys();
         treeProvider.refresh();
         await new Promise(resolve => setTimeout(resolve, 100));
-        void vscode.window.showInformationMessage('ERD Studio directory created! Now create your first domain.');
+        void vscode.window.showInformationMessage('ERD Studio directory created! Now create your first subject area.');
         await vscode.commands.executeCommand('erdStudio.createDomain');
       },
     ),
@@ -2256,7 +2256,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const layerDomains = domains.filter(d => d.layer === layerId);
         if (layerDomains.length > 0) {
           void vscode.window.showErrorMessage(
-            `Cannot remove layer "${layer.label}" — it contains ${layerDomains.length} domain(s). Delete or move domains first.`,
+            `Cannot remove layer "${layer.label}" — it contains ${layerDomains.length} subject area(s). Delete or move subject areas first.`,
           );
           return;
         }

@@ -1,5 +1,5 @@
 /**
- * AliasEditor — the "Table name" row of the detail panel's metadata.
+ * AliasEditor — the "Warehouse name" row of the detail panel's metadata.
  *
  * A model's name is its identity; its alias is the table dbt builds it as.
  * Setting one is how two layers can each have a `date` table: the models are
@@ -77,7 +77,7 @@ export function AliasEditor({ modelName, alias, readOnly }: AliasEditorProps) {
   if (editing) {
     return (
       <div className="detail-panel__metadata-row detail-panel__metadata-row--alias">
-        <span className="detail-panel__label detail-panel__label--wide">Table name</span>
+        <span className="detail-panel__label detail-panel__label--wide">Warehouse name</span>
         <span className="detail-panel__alias-edit">
           <input
             className={`detail-panel__alias-input${error ? ' detail-panel__alias-input--error' : ''}`}
@@ -87,12 +87,12 @@ export function AliasEditor({ modelName, alias, readOnly }: AliasEditorProps) {
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={() => (error ? handleCancel() : handleSave())}
-            aria-label="Table name (alias)"
+            aria-label="Warehouse name (alias)"
             aria-invalid={error ? true : undefined}
             autoFocus
           />
           <span className={`detail-panel__alias-hint${error ? ' detail-panel__alias-hint--error' : ''}`}>
-            {error ?? 'The table dbt builds (its alias). Leave blank to use the model name.'}
+            {error ?? "The table dbt builds (its alias). Leave blank to use the table's name."}
           </span>
         </span>
       </div>
@@ -101,10 +101,10 @@ export function AliasEditor({ modelName, alias, readOnly }: AliasEditorProps) {
 
   return (
     <div className="detail-panel__metadata-row detail-panel__metadata-row--alias">
-      <span className="detail-panel__label detail-panel__label--wide">Table name</span>
+      <span className="detail-panel__label detail-panel__label--wide">Warehouse name</span>
       <span
         className={`detail-panel__value${alias ? '' : ' detail-panel__value--muted'}`}
-        title={alias ? `Built as ${alias} (dbt alias); the model is ${modelName}` : 'Same as the model name'}
+        title={alias ? `Built as ${alias} (dbt alias); the table's name is ${modelName}` : "Same as the table's name"}
         onDoubleClick={readOnly ? undefined : startEditing}
       >
         {alias || modelName}
@@ -113,8 +113,8 @@ export function AliasEditor({ modelName, alias, readOnly }: AliasEditorProps) {
         <button
           className="detail-panel__rationale-edit-btn detail-panel__alias-edit-btn"
           onClick={startEditing}
-          title="Set the table name (alias)"
-          aria-label="Edit table name"
+          title="Set the warehouse name (alias)"
+          aria-label="Edit warehouse name"
         >
           ✎
         </button>

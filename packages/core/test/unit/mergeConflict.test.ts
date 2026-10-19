@@ -89,7 +89,7 @@ describe('parseDomainJson on a file with conflict markers', () => {
     // Re-reading in a second cannot resolve a conflict.
     expect(e.transient).toBe(false);
     expect(e.message).toBe(
-      `Domain file ${FILE} has unresolved git merge conflicts (first at line ${line}). `
+      `Subject area file ${FILE} has unresolved git merge conflicts (first at line ${line}). `
         + 'Resolve them in the file — if only positions conflict, either side is safe to keep.',
     );
   });
@@ -105,7 +105,7 @@ describe('parseDomainJson on a file with conflict markers', () => {
     expect(err.mergeConflict).toBe(false);
     expect(err.line).toBeUndefined();
     expect(err.transient).toBe(true);
-    expect(err.message.startsWith(`Invalid JSON in domain file ${FILE}: `)).toBe(true);
+    expect(err.message.startsWith(`Invalid JSON in subject area file ${FILE}: `)).toBe(true);
   });
 
   it('still reports an empty file as empty', () => {

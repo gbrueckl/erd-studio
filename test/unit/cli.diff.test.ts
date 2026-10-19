@@ -323,7 +323,7 @@ describe('fixesFromPlan — composite foreign keys (#133 L2)', () => {
       severity: 'advisory', kind: 'declare-composite-foreign-key', model: 'pit_customer', file: '.erd-studio/logical-models/pit_customer.yml',
       relationship: { fromModel: 'pit_customer', toModel: 'sat_customer', cardinality: 'many-to-one', pairs: PAIRS, compositeKey: 'fk_sat_customer' },
     });
-    expect(fix.explain).toMatch(/^The logical model draws the composite foreign key pit_customer \(customer_hk, as_of_date\) → sat_customer \(customer_hk, load_date\), and dbt declares none\. Nothing to change in the logical model\./);
+    expect(fix.explain).toMatch(/^The logical stage draws the composite foreign key pit_customer \(customer_hk, as_of_date\) → sat_customer \(customer_hk, load_date\), and dbt declares none\. Nothing to change in the logical stage\./);
     expect(fix.explain).toContain('`foreign_key` constraint to pit_customer');
   });
 
@@ -337,7 +337,7 @@ describe('fixesFromPlan — composite foreign keys (#133 L2)', () => {
       severity: 'blocking', kind: 'add-relationship', model: 'pit_customer', file: '.erd-studio/logical-models/pit_customer.yml',
       relationship: { fromModel: 'pit_customer', fromColumn: 'customer_hk', toModel: 'sat_customer', toColumn: 'customer_hk', cardinality: 'many-to-one', pairs: PAIRS, compositeKey: 'fk_dbt' },
     });
-    expect(fix.explain).toContain('add it to the logical model as 2 entries sharing `compositeKey: fk_dbt`');
+    expect(fix.explain).toContain('add it to the logical stage as 2 entries sharing `compositeKey: fk_dbt`');
   });
 
   it('a cardinality difference names every entry of the composite', () => {

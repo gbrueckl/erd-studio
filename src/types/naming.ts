@@ -19,7 +19,7 @@ export const MODEL_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 /** Human-readable statement of the model-name rule (used in error messages). */
 export const MODEL_NAME_RULE =
-  'Model name must start with a letter and use only letters, numbers, and underscores.';
+  'Table name must start with a letter and use only letters, numbers, and underscores.';
 
 /** A column name: letters (either case), digits, and underscores. */
 export const COLUMN_NAME_PATTERN = /^[A-Za-z0-9_]+$/;

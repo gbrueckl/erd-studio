@@ -411,7 +411,7 @@ describe('applyDomainEdit pipeline (H35)', () => {
       type: 'addColumn',
       payload: { modelName: 'does_not_exist', column: { name: 'c', dataType: 'string', description: '' } },
     });
-    expect(lastError(panel)).toBe('Model "does_not_exist" not found.');
+    expect(lastError(panel)).toBe('Table "does_not_exist" not found.');
     expect(counters(panel, doc).edits).toBe(before.edits);
 
     // …and a valid one goes through the shared pipeline: one edit, one save, one refresh.

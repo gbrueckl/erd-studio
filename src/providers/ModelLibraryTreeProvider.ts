@@ -86,11 +86,11 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
       item.contextValue = 'logicalModelDuplicate';
       item.iconPath = new vscode.ThemeIcon('error');
       item.description = '(duplicate — ignored)';
-      item.tooltip = `Another file already defines "${element.name}" and is the one domains use:\n${element.shadowedBy}\n\n` +
-        'Model names are unique across all folders, as in dbt. Use "Give Duplicate Model Its Own Name" ' +
-        `to make this copy "${element.folder ? `${element.folder}_` : ''}${element.name}" with the table name (alias) "${element.name}".`;
+      item.tooltip = `Another file already defines "${element.name}" and is the one subject areas use:\n${element.shadowedBy}\n\n` +
+        'Table names are unique across all folders, as dbt model names are. Use "Give Duplicate Table Its Own Name" ' +
+        `to make this copy "${element.folder ? `${element.folder}_` : ''}${element.name}" with the warehouse name (alias) "${element.name}".`;
       item.resourceUri = vscode.Uri.file(element.filePath);
-      item.command = { command: 'vscode.open', title: 'Open Model', arguments: [item.resourceUri] };
+      item.command = { command: 'vscode.open', title: 'Open Table', arguments: [item.resourceUri] };
       return item;
     }
 
@@ -106,10 +106,10 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
 
     if (isOrphan) {
       item.description = '(unused)';
-      item.tooltip = 'Not referenced by any domain';
+      item.tooltip = 'Not referenced by any subject area';
     } else {
       const count = element.referencingDomains.length;
-      item.description = `${count} ${count === 1 ? 'domain' : 'domains'}`;
+      item.description = `${count} ${count === 1 ? 'subject area' : 'subject areas'}`;
       item.tooltip = new vscode.MarkdownString(
         `**Referenced by:**\n${element.referencingDomains.map(d => `- ${d}`).join('\n')}`,
       );
@@ -118,7 +118,7 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
     item.resourceUri = vscode.Uri.file(element.filePath);
     item.command = {
       command: 'vscode.open',
-      title: 'Open Model',
+      title: 'Open Table',
       arguments: [item.resourceUri],
     };
 
@@ -200,17 +200,17 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
       item.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.warningForeground'));
       item.description = `(${error.key ? `"${error.key}"` : 'a key'} written twice${at})`;
       item.tooltip = `${error.key ? `"${error.key}"` : 'A key'} is written twice in the same block. ` +
-        'The diagram uses the last one, but ERD Studio can\'t change this model until the other copy is removed.';
+        'The diagram uses the last one, but ERD Studio can\'t change this table until the other copy is removed.';
     } else {
       item.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('list.errorForeground'));
       item.description = error.mergeConflict ? `(merge conflict${at})` : error.kind === 'read' ? '(can\'t be read)' : `(YAML error${at})`;
-      item.tooltip = 'This file can\'t be read, so the model is missing from every diagram. Open it to fix it.';
+      item.tooltip = 'This file can\'t be read, so the table is missing from every diagram. Open it to fix it.';
     }
     item.resourceUri = vscode.Uri.file(element.filePath);
     const at0 = new vscode.Position(error.line !== undefined && error.line >= 1 ? error.line - 1 : 0, 0);
     item.command = {
       command: 'vscode.open',
-      title: 'Open Model',
+      title: 'Open Table',
       arguments: [item.resourceUri, { selection: new vscode.Range(at0, at0), preview: false }],
     };
     return item;
@@ -226,9 +226,9 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
       ? new vscode.ThemeIcon('folder', new vscode.ThemeColor(`erdStudio.layer.${colorId}`))
       : new vscode.ThemeIcon('folder');
     const count = element.children.length;
-    item.description = `${count} ${count === 1 ? 'model' : 'models'}`;
+    item.description = `${count} ${count === 1 ? 'table' : 'tables'}`;
     item.tooltip = layer
-      ? `logical-models/${element.folder}/ — models created in ${layer.label} domains`
+      ? `logical-models/${element.folder}/ — tables created in ${layer.label} subject areas`
       : `logical-models/${element.folder}/`;
     return item;
   }

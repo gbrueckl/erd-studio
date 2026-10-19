@@ -53,7 +53,7 @@ export function modelFileErrorNotice(
     const what = error.key ? `"${error.key}" is written twice` : 'A key is written twice';
     const where = error.line !== undefined ? ` (line ${error.line})` : '';
     return `${base}: ${what} in the same block${where}. ERD Studio uses the last one, ` +
-      "but can't change this model until you remove the other copy.";
+      "but can't change this table until you remove the other copy.";
   }
   const tip = modelFileErrorTip(error.kind, error.mergeConflict);
   if (error.kind === 'read') {

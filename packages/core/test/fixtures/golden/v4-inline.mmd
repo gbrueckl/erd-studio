@@ -5,7 +5,7 @@ erDiagram
 %% Diagram: orders (layer bronze, logical stage)
 %% Description: Raw order capture, still in the inline v4 format
 
-  %% Model raw_orders
+  %% Table raw_orders
   %%   schema: bronze
   %%   role: fact
   %%   grain: One row per order line
@@ -20,13 +20,13 @@ erDiagram
     VARCHAR order_number UK "Business order number"
   }
 
-  %% Model raw_customers
+  %% Table raw_customers
   "raw_customers" {
     VARCHAR customer_ref PK "Customer reference; SCD type 2"
     VARCHAR email "Contact address"
   }
 
-  %% Model raw_refunds
+  %% Table raw_refunds
   %%   no columns yet
   "raw_refunds" {
   }

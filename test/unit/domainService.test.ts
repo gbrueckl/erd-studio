@@ -149,7 +149,7 @@ describe('DomainService', () => {
 
     it('handles missing files with descriptive error', () => {
       expect(() => service.getDomain('/nonexistent/domain.json')).toThrow(
-        'Domain file not found'
+        'Subject area file not found'
       );
     });
 
@@ -187,7 +187,7 @@ describe('DomainService', () => {
         expect(thrown).toBeInstanceOf(DomainFileError);
         expect((thrown as DomainFileError).reason).toBe('empty');
         expect((thrown as DomainFileError).transient).toBe(true);
-        expect((thrown as Error).message).toContain('Domain file is empty');
+        expect((thrown as Error).message).toContain('Subject area file is empty');
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -1244,7 +1244,7 @@ describe('DomainService format handling', () => {
         viewConfig: {},
       });
       expect(() => service.getDomain(filePath)).toThrow(/no longer supported/);
-      expect(() => service.getDomain(filePath)).toThrow(/Migrate Domains to Central Model Store/);
+      expect(() => service.getDomain(filePath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
     });
 
     it('rejects a top-level models array even at schemaVersion 5', () => {
@@ -1269,7 +1269,7 @@ describe('DomainService format handling', () => {
         logical: { models: [{ name: 'dim_x', columns: [] }], relationships: [] },
         viewConfig: {},
       });
-      expect(() => service.getDomain(filePath)).toThrow(/Migrate Domains to Central Model Store/);
+      expect(() => service.getDomain(filePath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
     });
 
     it('rejects mixed string/object model arrays instead of creating placeholder nodes', () => {
@@ -1280,7 +1280,7 @@ describe('DomainService format handling', () => {
         logical: { models: ['dim_project', { name: 'inline_obj', columns: [] }], relationships: [] },
         viewConfig: {},
       });
-      expect(() => service.getDomain(filePath)).toThrow(/mixes inline model objects/);
+      expect(() => service.getDomain(filePath)).toThrow(/mixes inline table objects/);
     });
   });
 
@@ -1421,7 +1421,7 @@ describe('DomainService format handling', () => {
       const brokenPath = path.join(tmpRoot, '.erd-studio', 'silver', 'broken.json');
       fs.writeFileSync(brokenPath, JSON.stringify(resolved, null, 2));
 
-      expect(() => service.getDomain(brokenPath)).toThrow(/Migrate Domains to Central Model Store/);
+      expect(() => service.getDomain(brokenPath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
     });
 
     it('renders a broken-reference placeholder for an unsafe model name instead of failing the canvas', () => {

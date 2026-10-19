@@ -1089,7 +1089,7 @@ function endpointConsentCopy(host: string): {
     message:
       `ERD Studio: send your feedback description to ${host} to draft a title, pick the type ` +
       'and look for duplicates? Only what you typed is sent — diagnostics, file paths and ' +
-      'model names are never included.',
+      'table names are never included.',
     accept: 'Enable AI assist',
     decline: 'Not now',
   };
@@ -1118,7 +1118,7 @@ function hostedConsentCopy(
       `to ${host}, a relay run by the extension author, which forwards it to ${provider} — a ` +
       "third-party AI provider — under the author's account and that provider's terms, to " +
       'draft a title, pick the type and look for duplicates. Only what you typed is sent — ' +
-      'diagnostics, file paths and model names are never included. You can turn this off in ' +
+      'diagnostics, file paths and table names are never included. You can turn this off in ' +
       'settings.',
     accept: 'Use it',
     decline: 'No thanks',

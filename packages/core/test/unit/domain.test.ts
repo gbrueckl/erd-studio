@@ -90,7 +90,7 @@ describe('parseDomainJson', () => {
       expect(caught).toBeInstanceOf(DomainFileError);
       expect((caught as DomainFileError).reason).toBe('empty');
       expect((caught as DomainFileError).transient).toBe(true);
-      expect((caught as DomainFileError).message).toBe(`Domain file is empty: ${FILE}`);
+      expect((caught as DomainFileError).message).toBe(`Subject area file is empty: ${FILE}`);
     }
   });
 
@@ -103,7 +103,7 @@ describe('parseDomainJson', () => {
     }
     expect(caught).toBeInstanceOf(DomainFileError);
     expect((caught as DomainFileError).reason).toBe('invalid-json');
-    expect((caught as DomainFileError).message.startsWith(`Invalid JSON in domain file ${FILE}: `)).toBe(true);
+    expect((caught as DomainFileError).message.startsWith(`Invalid JSON in subject area file ${FILE}: `)).toBe(true);
   });
 });
 
@@ -115,25 +115,25 @@ describe('validateDomainDocument', () => {
 
   it('rejects anything that is not a JSON object', () => {
     for (const data of [null, [], 'text', 42]) {
-      rejects(data, `Domain file ${FILE} does not contain a JSON object`);
+      rejects(data, `Subject area file ${FILE} does not contain a JSON object`);
     }
   });
 
   it('rejects a document without a numeric schemaVersion', () => {
-    rejects({ logical: { models: [] } }, `Domain file ${FILE} is missing a valid "schemaVersion" field`);
+    rejects({ logical: { models: [] } }, `Subject area file ${FILE} is missing a valid "schemaVersion" field`);
     rejects({ schemaVersion: '5' }, 'is missing a valid "schemaVersion" field');
   });
 
   it('rejects a schemaVersion newer than this version supports', () => {
     rejects(
       { schemaVersion: 6 },
-      `Domain file ${FILE} has schemaVersion 6 but this extension only supports up to version 5. Please update the extension.`,
+      `Subject area file ${FILE} has schemaVersion 6 but this extension only supports up to version 5. Please update the extension.`,
     );
   });
 
   it('rejects legacy and hybrid layouts with the migration hint', () => {
     rejects({ schemaVersion: 3, logical: { models: [] } }, 'uses a pre-v4 layout');
-    rejects({ schemaVersion: 5, logical: { models: ['a', { name: 'b' }] } }, 'mixes inline model objects');
+    rejects({ schemaVersion: 5, logical: { models: ['a', { name: 'b' }] } }, 'mixes inline table objects');
   });
 
   it('returns the object and its format', () => {
@@ -168,7 +168,7 @@ describe('resolveDomainLayer', () => {
   it('throws a DomainValidationError listing the configured layers', () => {
     const call = () => resolveDomainLayer('diamond', FILE, 'platinum', layers('silver', 'gold'));
     expect(call).toThrow(DomainValidationError);
-    expect(call).toThrow(`Domain file ${FILE} has invalid layer "diamond". Expected one of: silver, gold`);
+    expect(call).toThrow(`Subject area file ${FILE} has invalid layer "diamond". Expected one of: silver, gold`);
   });
 });
 

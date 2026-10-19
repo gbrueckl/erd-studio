@@ -204,7 +204,7 @@ export function resolveDomainPath(ctx: CliContext, arg: string, cwd: string = pr
   const candidates = path.isAbsolute(arg) ? [arg] : [path.resolve(cwd, arg), path.resolve(ctx.root, arg)];
   const hit = candidates.find((c) => fs.existsSync(c));
   if (!hit) {
-    throw new CliEnvError('domain-missing', `Domain file not found: ${redactPaths(arg)}`);
+    throw new CliEnvError('domain-missing', `Subject area file not found: ${redactPaths(arg)}`);
   }
   return hit;
 }
@@ -236,7 +236,7 @@ export function describeDomainError(ctx: CliContext, file: string, err: unknown)
     return { code: err.reason === 'missing' ? 'domain-missing' : 'domain-invalid', message };
   }
   if (/invalid layer/.test(raw)) { return { code: 'unknown-layer', message }; }
-  if (/pre-v\d|mixes inline model|schemaVersion/.test(raw)) { return { code: 'unsupported-format', message }; }
+  if (/pre-v\d|mixes inline (?:model|table)|schemaVersion/.test(raw)) { return { code: 'unsupported-format', message }; }
   return { code: 'domain-invalid', message };
 }
 
@@ -313,14 +313,14 @@ export function fixesFromPlan(
           severity: 'blocking', kind: 'add-column', model: c.modelName, column: c.columnName, file: ymlFile(c.modelName),
           to: physicalType,
           explain: physicalType
-            ? `dbt has a column ${where} (${physicalType}) that the logical model is missing — add it.`
-            : `dbt has a column ${where} that the logical model is missing — add it (dbt has no type for it yet, so use your best guess).`,
+            ? `dbt has a column ${where} (${physicalType}) that the logical table is missing — add it.`
+            : `dbt has a column ${where} that the logical table is missing — add it (dbt has no type for it yet, so use your best guess).`,
         });
         break;
       case 'remove-column-from-logical':
         fixes.push({
           severity: 'blocking', kind: 'remove-column', model: c.modelName, column: c.columnName, file: ymlFile(c.modelName),
-          explain: `The logical model has a column ${where} that dbt does not have — remove it (and any relationship that uses it).`,
+          explain: `The logical table has a column ${where} that dbt does not have — remove it (and any relationship that uses it).`,
         });
         break;
       case 'update-type-in-logical': {
@@ -331,7 +331,7 @@ export function fixesFromPlan(
           from: logicalType, to: physicalType,
           explain: advisory
             ? `dbt has no type for ${where} yet — keep the logical type (${logicalType}); generating the catalog will fill it in.`
-            : `${where} is ${logicalType || 'untyped'} in the logical model but ${physicalType} in dbt — change the logical type to ${physicalType}.`,
+            : `${where} is ${logicalType || 'untyped'} in the logical table but ${physicalType} in dbt — change the logical type to ${physicalType}.`,
         });
         break;
       }
@@ -360,8 +360,8 @@ export function fixesFromPlan(
           fromModel: c.fromModel, fromColumn: c.pairs[0].fromColumn, toModel: c.toModel, toColumn: c.pairs[0].toColumn,
           ...(cardinality ? { cardinality } : {}), pairs: c.pairs, ...(r.compositeKey ? { compositeKey: r.compositeKey } : {}),
         },
-        explain: `The logical model draws the composite foreign key ${describeComposite(c.fromModel, c.toModel, c.pairs)}, and dbt declares none. `
-          + `Nothing to change in the logical model. To make dbt check it, add a model-level \`foreign_key\` constraint to ${c.fromModel} `
+        explain: `The logical stage draws the composite foreign key ${describeComposite(c.fromModel, c.toModel, c.pairs)}, and dbt declares none. `
+          + `Nothing to change in the logical stage. To make dbt check it, add a model-level \`foreign_key\` constraint to ${c.fromModel} `
           + `(\`columns: [${c.pairs.map((p) => p.fromColumn).join(', ')}]\`, \`to: ref('${c.toModel}')\`, \`to_columns: [${c.pairs.map((p) => p.toColumn).join(', ')}]\`, `
           + 'dbt 1.9+ with an enforced contract) or a `dbt_constraints.foreign_key` test.',
       });
@@ -377,8 +377,8 @@ export function fixesFromPlan(
           fixes.push({
             severity: 'blocking', kind: 'add-relationship', model: c.fromModel, column: c.pairs[0].fromColumn, file: relationshipFile(stored, true),
             relationship: { ...stored, cardinality, pairs: c.pairs, compositeKey: name },
-            explain: `dbt declares the composite foreign key ${describeComposite(c.fromModel, c.toModel, c.pairs)}, but the logical model `
-              + `does not draw it — add it to the logical model as ${c.pairs.length} entries sharing \`compositeKey: ${name}\`.`,
+            explain: `dbt declares the composite foreign key ${describeComposite(c.fromModel, c.toModel, c.pairs)}, but the logical stage `
+              + `does not draw it — add it to the logical stage as ${c.pairs.length} entries sharing \`compositeKey: ${name}\`.`,
           });
           break;
         }
@@ -388,7 +388,7 @@ export function fixesFromPlan(
         fixes.push({
           severity: 'blocking', kind: 'add-relationship', model: stored.fromModel, column: stored.fromColumn, file: relationshipFile(stored, true),
           relationship: stored,
-          explain: `dbt tests the link ${link}, but the logical model does not draw it — add the relationship.`,
+          explain: `dbt tests the link ${link}, but the logical stage does not draw it — add the relationship.`,
         });
         break;
       }
@@ -399,7 +399,7 @@ export function fixesFromPlan(
         fixes.push({
           severity: 'blocking', kind: 'remove-relationship', model: entry.fromModel, column: entry.fromColumn, file: relationshipFile(entry, false),
           relationship: pickRelationship(entry),
-          explain: `The logical model draws ${link}, but dbt has no relationships test for it — remove it, or add the test to dbt.`,
+          explain: `The logical stage draws ${link}, but dbt has no relationships test for it — remove it, or add the test to dbt.`,
         });
         break;
       }
@@ -426,7 +426,7 @@ export function fixesFromPlan(
           relationship: { ...pickRelationship(entry), ...(entryPairs ? { pairs: entryPairs, ...(r.compositeKey ? { compositeKey: r.compositeKey } : {}) } : {}) },
           ...(movesFrom ? { movesFrom } : {}),
           explain: (entryPairs ? `The composite foreign key ${describeComposite(entry.fromModel, entry.toModel, entryPairs)}` : link) +
-            ` is ${r.sourceCardinality} in the logical model but ${r.targetCardinality} according to dbt's tests — ` +
+            ` is ${r.sourceCardinality} in the logical stage but ${r.targetCardinality} according to dbt's tests — ` +
             (movesFrom
               ? `store it as ${entry.fromModel}.${entry.fromColumn} → ${entry.toModel}.${entry.toColumn} ${entry.cardinality} in ${file}, and take it out of ${movesFrom}`
               : `change it to ${entry.cardinality}${stored && entry.cardinality !== r.targetCardinality ? ` (stored from ${entry.fromModel})` : ''}`) +
@@ -443,8 +443,8 @@ export function fixesFromPlan(
     fixes.push({
       severity: 'blocking', kind: 'resolve-phantom', model: p.name, file: domainFile,
       explain: p.reason === 'disabled'
-        ? `${p.name} is disabled in dbt — ask whether to remove it from this domain or re-enable it in dbt.`
-        : `dbt has no model called ${p.name} — ask whether it is a typo for a real model, or should be removed from this domain.`,
+        ? `${p.name} is disabled in dbt — ask whether to remove it from this subject area or re-enable it in dbt.`
+        : `dbt has no model called ${p.name} — ask whether it is a typo for a real model, or should be removed from this subject area.`,
     });
   }
   for (const u of unreadable) {
@@ -453,9 +453,9 @@ export function fixesFromPlan(
       ...(u.line !== undefined ? { line: u.line } : {}),
       explain: u.mergeConflict
         ? `${u.file}${u.line !== undefined ? ` line ${u.line}` : ''}: ${unreadableHint(u)}. Raise this before anything `
-          + 'else — until it is resolved, ERD Studio sees the model as empty and every other difference for it is meaningless.'
+          + 'else — until it is resolved, ERD Studio sees the table as empty and every other difference for it is meaningless.'
         : `${describeUnreadable(u, 'diff')}. Fix this file before anything else — until it parses, `
-          + 'ERD Studio sees the model as empty and every other difference for it is meaningless.',
+          + 'ERD Studio sees the table as empty and every other difference for it is meaningless.',
     });
   }
   // A model-level resolution would only arise for a model compare() did not
@@ -464,7 +464,7 @@ export function fixesFromPlan(
     if (phantomNames.has(m.modelName)) { continue; }
     fixes.push({
       severity: 'blocking', kind: 'resolve-phantom', model: m.modelName, file: domainFile,
-      explain: `${m.modelName} is in only one of the two views — ask the user whether to keep it in this domain.`,
+      explain: `${m.modelName} is in only one of the two views — ask the user whether to keep it in this subject area.`,
     });
   }
 
@@ -606,7 +606,7 @@ export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResul
     if (summaries.length === 0) {
       throw new CliEnvError(
         'no-domains',
-        `No domain files under ${ctx.semanticDir}/ — check --semantic-dir (it must match the erdStudio.semanticDir setting).`,
+        `No subject area files under ${ctx.semanticDir}/ — check --semantic-dir (it must match the erdStudio.semanticDir setting).`,
       );
     }
     for (const summary of summaries) {

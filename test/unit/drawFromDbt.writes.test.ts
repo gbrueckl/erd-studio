@@ -116,7 +116,7 @@ describe('Draw from dbt — model files it rewrites', () => {
     await expect(drawFromDbt(d)).resolves.toBeUndefined();
 
     expect(error.mock.calls.map((c) => String(c[0]))).toEqual([
-      'Draw from dbt could not read the model library to plan the diagram: EACCES: permission denied, scandir. Nothing was changed.',
+      'Draw from dbt could not read the Table Library to plan the diagram: EACCES: permission denied, scandir. Nothing was changed.',
     ]);
     expect(fs.readFileSync(fctPath, 'utf-8')).toBe(FCT_ORDER);
     expect(lms.modelExists('dim_customer')).toBe(false);

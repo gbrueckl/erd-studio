@@ -138,7 +138,7 @@ export function MetaEditor({ modelName, columnName, meta, readOnly, compact }: M
                   ) : (
                     <span
                       className={`meta-editor__text${text ? '' : ' meta-editor__text--structured'}`}
-                      title={editable && !text ? 'Edit nested values in the model file' : formatMetaValue(value)}
+                      title={editable && !text ? "Edit nested values in the table's file" : formatMetaValue(value)}
                       onDoubleClick={editable && text ? () => startEdit(key, value) : undefined}
                     >
                       {formatMetaValue(value)}

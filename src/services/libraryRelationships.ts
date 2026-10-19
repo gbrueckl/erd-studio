@@ -407,7 +407,7 @@ export function planRelationshipWrite(op: RelationshipWriteOp, input: Relationsh
   // "Mark … as primary key" (#133 L1): the key flags travel in the same edit.
   if (input.models.length === 0) return { ...plan, inlineMarkKey: op.markKey };
   const target = input.models.find((m) => same(m.name, op.markKey!.model));
-  if (!target) return refuse(`Model "${op.markKey.model}" not found in logical-models/.`, op.markKey.model);
+  if (!target) return refuse(`Table "${op.markKey.model}" not found in logical-models/.`, op.markKey.model);
   const marked = markPrimaryKey(plan.changed.find((m) => same(m.name, target.name)) ?? copyModel(target), op.markKey.columns);
   if (typeof marked === 'string') return refuse(marked.replace('{was}', op.kind === 'add' ? 'added' : 'changed'));
   return { ...plan, changed: [...plan.changed.filter((m) => !same(m.name, target.name)), marked] };
@@ -477,7 +477,7 @@ export function planRelationshipWrites(
 export function markPrimaryKey<T extends Pick<SemanticModel, 'name' | 'columns'>>(model: T, columns: readonly string[]): T | string {
   const cols = model.columns ?? [];
   if (cols.some((c) => c.isPrimaryKey || c.isNaturalKey)) {
-    return `${model.name} already has a key marked — the relationship was not {was}. Set its keys in the model first.`;
+    return `${model.name} already has a key marked — the relationship was not {was}. Set its keys in the table first.`;
   }
   const missing = columns.find((name) => !cols.some((c) => typeof c.name === 'string' && same(c.name, name)));
   if (missing !== undefined) return `Column "${missing}" not found in ${model.name}.`;
@@ -582,7 +582,7 @@ function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): 
   const replaceKeys = new Set([...oldKeys, ...members.map(linkKey)]);
   const next = members.map((m) => ({ ...(home === 'library' ? canonicalRelationship(m) : m), ...(role ? { role } : {}) }) as Relationship);
   const target = home === 'library' ? modelOf(next[0].fromModel) : undefined;
-  if (home === 'library' && !target) return refuse(`Model "${next[0].fromModel}" not found in logical-models/.`, next[0].fromModel);
+  if (home === 'library' && !target) return refuse(`Table "${next[0].fromModel}" not found in logical-models/.`, next[0].fromModel);
   if (composite) {
     // The group keeps its name unless its destination already uses it for other entries.
     const remaining = home === 'library'
@@ -1189,17 +1189,17 @@ function planGroupMoves(
       continue;
     }
     if (libGroup || held.some((r) => libraryGroupOf(library, r))) {
-      leave('the model library holds one of its column pairs in another composite key');
+      leave('the Table Library holds one of its column pairs in another composite key');
       continue;
     }
     if (held.some((r) => !sameMeaning(keyedRelationship(r, libraryModel, dbt), head.find((m) => sameLink(m, r))!))) {
-      leave('the model library defines one of its column pairs differently');
+      leave('the Table Library defines one of its column pairs differently');
       continue;
     }
     const definitions = groupDefinitions(forms);
     if (definitions.length > 1) {
       if (isLocked(...new Set(definitions.map((d) => d.members[0].fromModel)), head[0].toModel)) {
-        leave('a model file it would go in has comments, YAML anchors or entries ERD Studio cannot read');
+        leave('a table file it would go in has comments, YAML anchors or entries ERD Studio cannot read');
         continue;
       }
       const roles = [...new Set(definitions.map((d) => d.members[0].role).filter((r): r is string => !!r))];
@@ -1217,7 +1217,7 @@ function planGroupMoves(
       continue;
     }
     if (isLocked(owner.name)) {
-      leave('its model file has comments, YAML anchors or entries ERD Studio cannot read');
+      leave('its table file has comments, YAML anchors or entries ERD Studio cannot read');
       continue;
     }
     const [{ members }] = definitions;
@@ -1411,7 +1411,7 @@ export function describeMovePlan(plan: MoveToLibraryPlan, fileOf: (model: string
     ? [
       'Why: today each diagram keeps its own copy of a relationship, so two diagrams can draw the same link ' +
       'differently, and a new diagram has to draw it again. After the move each relationship is defined once, and ' +
-      'every diagram that holds both models draws it. A change made in one diagram shows in all of them.',
+      'every diagram that holds both tables draws it. A change made in one diagram shows in all of them.',
     ]
     : [];
 
@@ -1423,11 +1423,11 @@ export function describeMovePlan(plan: MoveToLibraryPlan, fileOf: (model: string
   }
   const diagrams = new Set([...plan.removeFromDomains.keys(), ...plan.conflicts.flatMap((c) => c.definitions.flatMap((d) => d.domains))]);
   if (byFile.size > 0) {
-    lines.push('', 'Where: in the file of the model that holds the foreign key, under "relationships:".');
+    lines.push('', 'Where: in the file of the table that holds the foreign key, under "relationships:".');
     for (const [file, rels] of [...byFile].slice(0, 6)) {
       lines.push(`• ${file} — ${rels.slice(0, 2).map(describeEnds).join(', ')}${rels.length > 2 ? ` and ${rels.length - 2} more` : ''}`);
     }
-    if (byFile.size > 6) lines.push(`• …and ${byFile.size - 6} more model files`);
+    if (byFile.size > 6) lines.push(`• …and ${byFile.size - 6} more table files`);
     lines.push(`Each is then taken out of the diagram files that held a copy (${plural(diagrams.size, 'diagram')}).`);
   }
 
@@ -1446,7 +1446,7 @@ export function describeMovePlan(plan: MoveToLibraryPlan, fileOf: (model: string
   if (plan.skippedNoModel.length > 0) {
     lines.push(
       '',
-      `${plural(plan.skippedNoModel.length, 'relationship starts', 'relationships start')} at a model with no readable ` +
+      `${plural(plan.skippedNoModel.length, 'relationship starts', 'relationships start')} at a table with no readable ` +
       'file in logical-models/ and will stay in the diagram files.',
     );
   }
@@ -1455,19 +1455,19 @@ export function describeMovePlan(plan: MoveToLibraryPlan, fileOf: (model: string
     lines.push(
       '',
       `Turned round: ${plural(plan.rehome.length, 'relationship is', 'relationships are')} stored in the file of the ` +
-      'model it points at. Each moves to the file of the model holding the foreign key, as many-to-one, so adding a ' +
+      'table it points at. Each moves to the file of the table holding the foreign key, as many-to-one, so adding a ' +
       'new fact never means editing its dimensions:',
     );
     for (const { stored, to } of plan.rehome) {
       lines.push(`• ${describeEnds(stored)} → ${fileOf(to.fromModel)}${relationshipKey(canonicalRelationship(stored)) === relationshipKey(to)
-        ? '' : ` (read the other way round: ${stored.fromModel}.${stored.fromColumn} is its model's key)`}`);
+        ? '' : ` (read the other way round: ${stored.fromModel}.${stored.fromColumn} is its table's key)`}`);
     }
   }
   if ((plan.turned ?? []).length > 0) {
     lines.push(
       '',
-      `Read the other way round: ${plural(plan.turned.length, 'diagram copy runs', 'diagram copies run')} from a model's ` +
-      'key to a column that is not the other model\'s key, so the key side cannot be the "many" side. Each is stored ' +
+      `Read the other way round: ${plural(plan.turned.length, 'diagram copy runs', 'diagram copies run')} from a table's ` +
+      'key to a column that is not the other table\'s key, so the key side cannot be the "many" side. Each is stored ' +
       'the other way round:',
     );
     for (const { domain, relationship, to } of plan.turned) lines.push(`• ${domain}: ${describeEnds(relationship)} → ${describeEnds(to)}`);
@@ -1475,8 +1475,8 @@ export function describeMovePlan(plan: MoveToLibraryPlan, fileOf: (model: string
   if ((plan.keptLibrary ?? []).length > 0) {
     lines.push(
       '',
-      `Kept the model library's version: ${plural(plan.keptLibrary.length, 'diagram copy says', 'diagram copies say')} ` +
-      'something different about a link the model library already defines. Each diagram already draws the library\'s ' +
+      `Kept the Table Library's version: ${plural(plan.keptLibrary.length, 'diagram copy says', 'diagram copies say')} ` +
+      'something different about a link the Table Library already defines. Each diagram already draws the library\'s ' +
       'version, which stays; these copies are taken out:',
     );
     for (const { domain, relationship, library } of plan.keptLibrary) {
@@ -1487,13 +1487,13 @@ export function describeMovePlan(plan: MoveToLibraryPlan, fileOf: (model: string
     lines.push(
       '',
       `Grouped: ${plural(plan.regrouped.length, 'diagram keeps', 'diagrams keep')} a column pair of a composite key as a single ` +
-      'link. The composite key moves to the model library, so these copies are taken out:',
+      'link. The composite key moves to the Table Library, so these copies are taken out:',
     );
     for (const { domain, relationship, compositeKey } of plan.regrouped) lines.push(`• ${domain}: ${describeEnds(relationship)} — part of ${compositeKey}`);
   }
   lines.push(...describeLeftAlone(plan, fileOf));
   if (movesDomains) {
-    lines.push('', 'Teammates on an older ERD Studio version will not see relationships stored in the model library until they update.');
+    lines.push('', 'Teammates on an older ERD Studio version will not see relationships stored in the Table Library until they update.');
   }
   return lines.join('\n').replace(/^\n/, '');
 }
@@ -1510,7 +1510,7 @@ export function describeLeftAlone(
   if (plan.disagreements.length > 0) {
     lines.push(
       '',
-      `Needs your attention: ${plural(plan.disagreements.length, 'link is', 'links are')} saved in both model files, ` +
+      `Needs your attention: ${plural(plan.disagreements.length, 'link is', 'links are')} saved in both table files, ` +
       'and the two copies disagree. Both are left as they are; delete the wrong one:',
     );
     const copy = (rel: Relationship): string =>

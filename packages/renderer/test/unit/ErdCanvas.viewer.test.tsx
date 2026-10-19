@@ -104,7 +104,7 @@ for (const readOnly of [false, true]) {
       expect(panel.querySelector('.detail-panel__title')!.textContent).toBe('orders');
       expect(panel.querySelector('.detail-panel__title--editable')).toBeNull();
       expect(panel.querySelector('.detail-panel__title-edit-btn')).toBeNull();
-      expect(panel.textContent).not.toContain('Remove from Domain');
+      expect(panel.textContent).not.toContain('Remove from Subject Area');
       expect(panel.textContent).not.toContain('+ Add Column');
       expect(panel.querySelector('.column-row-editor--editable')).toBeNull();
     });

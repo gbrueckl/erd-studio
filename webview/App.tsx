@@ -158,7 +158,7 @@ function EditorCanvas() {
   useEffect(() => {
     if (invalidSelectedNode) {
       setToastMessage(
-        `Previously selected model "${invalidSelectedNode}" no longer exists.`,
+        `Previously selected table "${invalidSelectedNode}" no longer exists.`,
       );
     }
   }, [invalidSelectedNode]);
@@ -331,7 +331,7 @@ function EditorCanvas() {
     };
 
     const handleColumnRelationshipSelfDrop = () => {
-      setToastMessage("A column can't point at itself — drop it on another column of the same model to draw a self-reference.");
+      setToastMessage("A column can't point at itself — drop it on another column of the same table to draw a self-reference.");
     };
 
     window.addEventListener('column-relationship-drop', handleColumnRelationshipDrop);
@@ -536,7 +536,7 @@ function EditorCanvas() {
     return (
       <>
         <div className="editor-message">
-          <p>Loading domain&hellip;</p>
+          <p>Loading subject area&hellip;</p>
         </div>
         {showReconnectOverlay && <ReconnectOverlay onReload={handleReconnect} />}
       </>

@@ -18,40 +18,40 @@
     "warn: [LogicalModelService] Model \"dim_customer\": \"description\" is written twice in one block (line 4); the last value is used"
   ],
   "errors.array.host": [
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/silver/array.json does not contain a JSON object"
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/array.json does not contain a JSON object"
   ],
   "errors.badlayer.host": [
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/platinum/badlayer.json has invalid layer \"diamond\". Expected one of: silver, gold"
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/platinum/badlayer.json has invalid layer \"diamond\". Expected one of: silver, gold"
   ],
   "errors.conflict-models.host": [
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/silver/conflict-models.json has unresolved git merge conflicts (first at line 9). Resolve them in the file — if only positions conflict, either side is safe to keep."
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/conflict-models.json has unresolved git merge conflicts (first at line 9). Resolve them in the file — if only positions conflict, either side is safe to keep."
   ],
   "errors.conflict-positions.host": [
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/silver/conflict-positions.json has unresolved git merge conflicts (first at line 12). Resolve them in the file — if only positions conflict, either side is safe to keep."
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/conflict-positions.json has unresolved git merge conflicts (first at line 12). Resolve them in the file — if only positions conflict, either side is safe to keep."
   ],
   "errors.empty.host": [
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/empty.json is empty — re-reading in 150ms (likely mid-write)",
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/empty.json is empty — re-reading in 350ms (likely mid-write)",
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/empty.json is empty — re-reading in 700ms (likely mid-write)",
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file is empty: <root>/.erd-studio/silver/empty.json"
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file is empty: <root>/.erd-studio/silver/empty.json"
   ],
   "errors.future.host": [
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/silver/future.json has schemaVersion 6 but this extension only supports up to version 5. Please update the extension."
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/future.json has schemaVersion 6 but this extension only supports up to version 5. Please update the extension."
   ],
   "errors.hybrid.host": [
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/silver/hybrid.json mixes inline model objects with model name references (or declares schemaVersion 5 with inline models). Run \"ERD Studio: Migrate Domains to Central Model Store\" to repair it, or edit the file so every entry in \"logical.models\" is a model name string."
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/hybrid.json mixes inline table objects with table name references (or declares schemaVersion 5 with inline tables). Run \"ERD Studio: Migrate Subject Areas to the Central Table Library\" to repair it, or edit the file so every entry in \"logical.models\" is a table name string."
   ],
   "errors.invalid.host": [
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/invalid.json is invalid-json — re-reading in 150ms (likely mid-write)",
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/invalid.json is invalid-json — re-reading in 350ms (likely mid-write)",
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/invalid.json is invalid-json — re-reading in 700ms (likely mid-write)",
-    "error: [SemanticEditorProvider] Failed to load domain: Invalid JSON in domain file <root>/.erd-studio/silver/invalid.json: Expected ',' or '}' after property value in JSON at position 69"
+    "error: [SemanticEditorProvider] Failed to load domain: Invalid JSON in subject area file <root>/.erd-studio/silver/invalid.json: Expected ',' or '}' after property value in JSON at position 69"
   ],
   "errors.legacy.host": [
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/silver/legacy.json uses a pre-v4 layout (schemaVersion < 4 or a top-level \"models\" array) that is no longer supported. Run \"ERD Studio: Migrate Domains to Central Model Store\" to convert it, or move \"models\"/\"relationships\" under a \"logical\" section and set \"schemaVersion\" to 5."
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/legacy.json uses a pre-v4 layout (schemaVersion < 4 or a top-level \"models\" array) that is no longer supported. Run \"ERD Studio: Migrate Subject Areas to the Central Table Library\" to convert it, or move \"models\"/\"relationships\" under a \"logical\" section and set \"schemaVersion\" to 5."
   ],
   "errors.noversion.host": [
-    "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/silver/noversion.json is missing a valid \"schemaVersion\" field"
+    "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/noversion.json is missing a valid \"schemaVersion\" field"
   ],
   "library-relationships.host": [],
   "library-relationships.unified": [],

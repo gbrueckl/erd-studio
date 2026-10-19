@@ -1,39 +1,41 @@
-# Semantic Domain JSON Reference
+# Subject Area and Table File Reference
 
-> Context document for AI agents generating ERD Studio domain files. Describes the **schemaVersion 5** format written by the current extension. The authoritative, always-current copy of this guidance is the `SCHEMA_CONTENT` string in `src/services/harnessService.ts` (installed into a project via "ERD Studio: Install AI Coding Harness").
+> On screen ERD Studio says **table**, **Table Library** and **subject area**; the files and keys below keep their older names (`logical-models/`, `logical.models`, `fromModel`, the subject area file's `domain` field). The [glossary](glossary.md) maps one to the other.
+
+> Context document for AI agents generating ERD Studio subject area files. Describes the **schemaVersion 5** format written by the current extension. The authoritative, always-current copy of this guidance is the `SCHEMA_CONTENT` string in `src/services/harnessService.ts` (installed into a project via "ERD Studio: Install AI Coding Harness").
 
 ## File Layout
 
-ERD Studio uses a **central model store**. Model definitions are YAML files in `.erd-studio/logical-models/` (at the top level or one folder down); domain JSON files reference models **by name** and hold the layout. Relationships are defined once, in the YAML of the model holding the foreign key, and drawn by every domain holding both models — or, in a project that keeps them per domain, in each domain JSON (see [Where relationships live](#where-relationships-live)).
+ERD Studio keeps a **central Table Library**. Each table is a YAML file in `.erd-studio/logical-models/` (at the top level or one folder down); subject area JSON files reference tables **by name** and hold the layout. Relationships are defined once, in the YAML of the table holding the foreign key, and drawn by every subject area holding both tables — or, in a project that keeps them per subject area, in each subject area JSON (see [Where relationships live](#where-relationships-live)).
 
 ```
 .erd-studio/
   layers.json                 ← layer definitions
   modelling-approach.md       ← optional: the team's modelling rules, for AI assistants
-  logical-models/             ← one YAML per model, shared across domains
+  logical-models/             ← the Table Library: one YAML per table, shared across subject areas
     dim_customer.yml          ← top level (flat libraries keep working)
     bronze/                   ← optional per-layer folders
       sap__mara.yml
     silver/
       fct_order_line.yml
-  templates/                  ← optional model templates
+  templates/                  ← optional table templates
     dimension.json
   silver/                     ← one directory per layer id
-    sales.json                ← domain file
+    sales.json                ← subject area file
   gold/
     reporting.json
 ```
 
-There are two stages. **Logical** is the editable stage stored in the domain file and model YAMLs. **Physical** has no files — it is derived at runtime from the dbt project (source files, schema YAMLs, `{target-path}/manifest.json`, `{target-path}/catalog.json`); see [Physical Stage](#physical-stage-derived-read-only) below for the full resolution rules. Model and column names match case-insensitively. Do not create files for the physical stage; the only writes allowed while a canvas shows it are to the shared `viewConfig` (positions, annotations).
+There are two stages. **Logical** is the editable stage stored in the subject area file and table YAMLs. **Physical** has no files — it is derived at runtime from the dbt project (source files, schema YAMLs, `{target-path}/manifest.json`, `{target-path}/catalog.json`); see [Physical Stage](#physical-stage-derived-read-only) below for the full resolution rules. Table and column names match case-insensitively. Do not create files for the physical stage; the only writes allowed while a canvas shows it are to the shared `viewConfig` (positions, annotations).
 
-### Model file location
+### Table file location
 
-- A model file lives at `logical-models/{name}.yml` **or** exactly one folder down at `logical-models/{folder}/{name}.yml`. By convention the folder is a layer id (`bronze`, `silver`, `gold`). Deeper nesting and dot-folders are not scanned.
-- The folder is organisational only: domain files reference models by **name**, and names are **unique across the whole library**, as dbt model names are across a project.
-- **Lookup:** the top-level file first, then each folder in alphabetical order. A second file with the same name elsewhere is *shadowed* — ignored, flagged in the Model Library view, and named in a warning when a canvas that uses the name opens. **Give Duplicate Model Its Own Name** fixes it: the ignored copy becomes `{folder}_{name}` with `alias: {name}`, and the domains of that folder's layer are repointed at it in the same edit.
-- **The same table name in two layers** is two models with the same `alias`: `silver/silver_date.yml` and `gold/gold_date.yml`, both `alias: date` — the pattern a dbt project uses for two `date` tables (unique model names, `alias` + `schema` for the relation). The canvas labels each node `date`, or `silver.date` / `gold.date` when both are on one canvas.
-- **Folders are opt-in per project.** A library uses layer folders once any model file sits in a folder named after a layer in `layers.json` (or while it is empty); a hand-made folder such as `Staging/` does not count. Then a new model created from a canvas is written to the folder of the layer of the domain it is added to (`gold/reporting.json` → `logical-models/gold/`). A flat library stays flat: new files go to the top level until someone runs **ERD Studio: Organise Model Library by Layer**. Opting in is a team decision — a teammate on ERD Studio before 1.2.0 only reads the top level and would see models in folders as missing. A rename keeps the file in its folder.
-- **Organise Model Library by Layer** moves each file into the folder of the one layer whose domains reference it: top-level files, and files sitting in *another* layer's folder (the domains that use it moved layer). A model used by several layers, or by none, stays where it is. Folders that are not a layer in `layers.json` (a hand-made `Staging/`, or a layer id since removed) are never touched and are named in the confirmation. Re-running it is always safe.
+- A table file lives at `logical-models/{name}.yml` **or** exactly one folder down at `logical-models/{folder}/{name}.yml`. By convention the folder is a layer id (`bronze`, `silver`, `gold`). Deeper nesting and dot-folders are not scanned.
+- The folder is organisational only: subject area files reference tables by **name**, and names are **unique across the whole library**, as dbt model names are across a project.
+- **Lookup:** the top-level file first, then each folder in alphabetical order. A second file with the same name elsewhere is *shadowed* — ignored, flagged in the Table Library view, and named in a warning when a canvas that uses the name opens. **Give Duplicate Table Its Own Name** fixes it: the ignored copy becomes `{folder}_{name}` with `alias: {name}`, and the subject areas of that folder's layer are repointed at it in the same edit.
+- **The same warehouse table name in two layers** is two tables with the same `alias`: `silver/silver_date.yml` and `gold/gold_date.yml`, both `alias: date` — the pattern a dbt project uses for two `date` tables (unique dbt model names, `alias` + `schema` for the relation). The canvas labels each node `date`, or `silver.date` / `gold.date` when both are on one canvas.
+- **Folders are opt-in per project.** A library uses layer folders once any table file sits in a folder named after a layer in `layers.json` (or while it is empty); a hand-made folder such as `Staging/` does not count. Then a new table created from a canvas is written to the folder of the layer of the subject area it is added to (`gold/reporting.json` → `logical-models/gold/`). A flat library stays flat: new files go to the top level until someone runs **ERD Studio: Organise Table Library by Layer**. Opting in is a team decision — a teammate on ERD Studio before 1.2.0 only reads the top level and would see tables in folders as missing. A rename keeps the file in its folder.
+- **Organise Table Library by Layer** moves each file into the folder of the one layer whose subject areas reference it: top-level files, and files sitting in *another* layer's folder (the subject areas that use it moved layer). A table used by several layers, or by none, stays where it is. Folders that are not a layer in `layers.json` (a hand-made `Staging/`, or a layer id since removed) are never touched and are named in the confirmation. Re-running it is always safe.
 - Hosts that cannot list directories (the `@erd-studio/core` `loadDisplayDomain` viewer) probe the top level, then every layer folder alphabetically (the extension's order), so they see only folders named after a layer.
 
 The base directory name (`.erd-studio`) is configurable via the `erdStudio.semanticDir` setting.
@@ -42,11 +44,15 @@ The base directory name (`.erd-studio`) is configurable via the `erdStudio.seman
 
 An **optional**, free-form markdown file recording how the team models data: the technique (Kimball dimensional modelling, Data Vault 2.0, Inmon/3NF, One Big Table, Activity Schema, dbt's staging/intermediate/marts layering, or house rules), the user's own description in their words, the concrete rules, how each rule maps onto logical fields (`modelRole`, `grain`, `scdType`, `additiveType`, `isNaturalKey`, `rationale`), the sources consulted and the date. The `/erd-studio-setup` guide writes it after asking the user; it can also be written or edited by hand.
 
-It is guidance for AI assistants only. **The extension never parses it**: it is not a domain, a layer or a model, the canvas and the diff ignore it, and a project without one is valid. AI assistants editing ERD Studio files should read it first when it exists and follow it (the harness skill says so); where a rule conflicts with a request, they should say so and ask which wins. An optional **Target-design backlog** section lists improvements the team wants in the dbt project; differences between logical and physical listed there are intentional, and assistants report them as backlog items instead of "fixing" them. The logical fields still describe what dbt does today — a target that no diff can show (history, keys, grain) is kept in `rationale` and the backlog, not in `scdType` / key flags, because the physical stage copies those flags from logical.
+It is guidance for AI assistants only. **The extension never parses it**: it is not a subject area, a layer or a table, the canvas and the diff ignore it, and a project without one is valid. AI assistants editing ERD Studio files should read it first when it exists and follow it (the harness skill says so); where a rule conflicts with a request, they should say so and ask which wins. An optional **Target-design backlog** section lists improvements the team wants in the dbt project; differences between logical and physical listed there are intentional, and assistants report them as backlog items instead of "fixing" them. The logical fields still describe what dbt does today — a target that no diff can show (history, keys, grain) is kept in `rationale` and the backlog, not in `scdType` / key flags, because the physical stage copies those flags from logical.
 
-An optional **Metadata** section is the team's **metadata list**: the `meta` keys the team records, as a table of **Key**, **On** (models, columns or both), **Values** and **Source** — `dbt` (copied from the dbt model's own `meta:`, never typed in, left out when dbt has no value) or `the team` (filled in by people, never by an AI). Assistants use its key names exactly — a user's "data owner" becomes the listed `owner` — and copy the `dbt` keys whenever they create a model or add a column from dbt, including from a sync plan. The setup guide writes the section after detecting the keys dbt already records (`erd-studio inventory`'s `conventions.meta`) and one yes from the user. A file holding only a title and this section is valid: no technique agreed yet, so the guide still detects the style.
+An optional **Metadata** section is the team's **metadata list**: the `meta` keys the team records, as a table of **Key**, **On** (tables, columns or both), **Values** and **Source** — `dbt` (copied from the dbt model's own `meta:`, never typed in, left out when dbt has no value) or `the team` (filled in by people, never by an AI). Assistants use its key names exactly — a user's "data owner" becomes the listed `owner` — and copy the `dbt` keys whenever they create a table or add a column from dbt, including from a sync plan. The setup guide writes the section after detecting the keys dbt already records (`erd-studio inventory`'s `conventions.meta`) and one yes from the user. A file holding only a title and this section is valid: no technique agreed yet, so the guide still detects the style.
 
-## Domain File (`.erd-studio/{layer}/{domain}.json`)
+<a id="domain-file-erd-studiolayerdomainjson"></a>
+
+## Subject Area File (`.erd-studio/{layer}/{domain}.json`)
+
+One JSON file per subject area. The file and its `domain` field keep the old name.
 
 ### Top-Level Schema
 
@@ -55,11 +61,11 @@ An optional **Metadata** section is the team's **metadata list**: the `meta` key
   "schemaVersion": 5,                    // REQUIRED. Must be 5.
   "domain": "sales",                     // REQUIRED. Slug; matches filename without .json.
   "layer": "silver",                     // REQUIRED. Must match a layer id from layers.json and the parent directory.
-  "description": "Sales domain",         // Optional. Defaults to "".
-  "modelFolder": "models/silver",        // Optional. Filters the "Add Existing Model" dialog.
-  "stubColumns": ["dim_date"],           // Optional. Models whose physical-only columns are ignored in sync comparison.
+  "description": "Sales subject area",   // Optional. Defaults to "".
+  "modelFolder": "models/silver",        // Optional. Filters the "Add Existing Table" dialog.
+  "stubColumns": ["dim_date"],           // Optional. Tables whose physical-only columns are ignored in sync comparison.
   "logical": {
-    "models": ["dim_customer", "fct_order_line"],   // REQUIRED. Model NAME STRINGS (refs to logical-models/[folder/]*.yml).
+    "models": ["dim_customer", "fct_order_line"],   // REQUIRED. Table NAME STRINGS (refs to logical-models/[folder/]*.yml).
     "relationships": []                             // REQUIRED. Array of Relationship objects.
   },
   "viewConfig": {}                       // REQUIRED. Root-level UI state (positions, annotations, layout options).
@@ -69,12 +75,12 @@ An optional **Metadata** section is the team's **metadata list**: the `meta` key
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `schemaVersion` | number | Yes | Must be `5`. |
-| `domain` | string | Yes | Domain slug. Should equal the filename without `.json`. |
+| `domain` | string | Yes | The subject area's slug. Should equal the filename without `.json`. |
 | `layer` | string | Yes | Must match an `id` in `layers.json` and the parent directory name. |
-| `description` | string | No | Human-readable domain description. |
-| `modelFolder` | string | No | Path prefix filter for the "Add Existing Model" dialog (e.g. `"models/silver"`). |
-| `stubColumns` | string[] | No | Model names (typically conformed dimensions / reference tables) that define only key columns. Missing-column discrepancies for these models are hidden; extra and type-mismatch discrepancies still surface. |
-| `logical.models` | string[] | Yes | Model **name strings**. Each must correspond to `.erd-studio/logical-models/{name}.yml` or `.erd-studio/logical-models/{folder}/{name}.yml`. |
+| `description` | string | No | Human-readable subject area description. |
+| `modelFolder` | string | No | Path prefix filter for the "Add Existing Table" dialog (e.g. `"models/silver"`). |
+| `stubColumns` | string[] | No | Table names (typically conformed dimensions / reference tables) that define only key columns. Missing-column discrepancies for these tables are hidden; extra and type-mismatch discrepancies still surface. |
+| `logical.models` | string[] | Yes | Table **name strings**. Each must correspond to `.erd-studio/logical-models/{name}.yml` or `.erd-studio/logical-models/{folder}/{name}.yml`. |
 | `logical.relationships` | array | Yes | Array of `Relationship` objects. |
 | `viewConfig` | object | Yes | Persisted UI layout. Must be at the root, not inside `logical`. |
 
@@ -85,13 +91,15 @@ The extension decides how to read a file with a single detector (`detectDomainFo
 | Format | Shape | Behaviour |
 |--------|-------|-----------|
 | `v5` | `schemaVersion: 5`, `logical.models` is all strings (or empty) | Current format. Fully supported. |
-| `v4` | `schemaVersion: 4`, `logical.models` is all inline model objects | Deprecated but still loads. On activation the extension prompts to run **ERD Studio: Migrate Domains to Central Model Store**, which extracts each object to `logical-models/{layer}/{name}.yml` (the domain's layer folder; the top level when the library already holds flat files, or when several layers inline the model) and replaces it with its name. |
+| `v4` | `schemaVersion: 4`, `logical.models` is all inline table objects | Deprecated but still loads. On activation the extension prompts to run **ERD Studio: Migrate Subject Areas to the Central Table Library**, which extracts each object to `logical-models/{layer}/{name}.yml` (the subject area's layer folder; the top level when the library already holds flat files, or when several layers inline the table) and replaces it with its name. |
 | `hybrid` | `schemaVersion: 5` with inline objects, a mix of strings and objects, or entries that are neither | **Rejected** with an error pointing at the migration command. Migration repairs it (inline objects are extracted — existing YAML files are never overwritten). |
 | `legacy` | `schemaVersion` below 4, and/or a top-level `models` array instead of `logical` | **Rejected** with an error. Migration lifts `models`/`relationships` under `logical`, drops `stage`, and converts to v5. |
 
-Never produce hybrid or legacy files. When adding a model to a domain, add its **name string** to `logical.models` and create the YAML file if it does not exist.
+Never produce hybrid or legacy files. When adding a table to a subject area, add its **name string** to `logical.models` and create the YAML file if it does not exist.
 
-## Model Files (`.erd-studio/logical-models/[{folder}/]{name}.yml`)
+<a id="model-files-erd-studiological-modelsfoldernameyml"></a>
+
+## Table Files (`.erd-studio/logical-models/[{folder}/]{name}.yml`)
 
 ```yaml
 name: dim_customer
@@ -129,20 +137,20 @@ columns:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Model name. Must equal the filename without `.yml`. |
-| `schema` | string | No | Target schema the model materialises in. |
-| `alias` | string | No | Warehouse table name when it differs from `name` — dbt's `alias` config. A plain identifier (letters, digits, underscores; case kept). `name` stays the identity everywhere; the canvas shows the alias, qualified by `schema` when two models on one canvas share it. Set from the detail panel's **Table name** row. |
+| `name` | string | Yes | Table name. Must equal the filename without `.yml`. |
+| `schema` | string | No | Target schema the table materialises in. |
+| `alias` | string | No | Warehouse table name when it differs from `name` — dbt's `alias` config. A plain identifier (letters, digits, underscores; case kept). `name` stays the identity everywhere; the canvas shows the alias, qualified by `schema` when two tables on one canvas share it. Set from the detail panel's **Warehouse name** row. |
 | `description` | string | No | Human-readable description. |
 | `grain` | string | No | Grain statement: "One row per ___". |
 | `modelRole` | string | No | Role in the warehouse architecture. See ModelRole enum. |
 | `columns` | array | No | Array of `ColumnDef`. |
 | `rationale` | object | No | Design rationale. Omit entirely if empty. |
 | `meta` | map | No | Free-form, dbt-style metadata (owner, source system, lineage…). See [Metadata](#metadata-meta). Omit entirely if empty. |
-| `relationships` | array | No | Relationships leaving this model — it holds the foreign key: `Relationship` objects without `fromModel` (it is this model). Shared by every domain holding both ends. See [Where relationships live](#where-relationships-live). Omit entirely if empty. |
+| `relationships` | array | No | Relationships leaving this table — it holds the foreign key: `Relationship` objects without `fromModel` (it is this table). Shared by every subject area holding both ends. See [Where relationships live](#where-relationships-live). Omit entirely if empty. |
 
-Models are defined once and can be referenced from several domains. Editing a model from any domain canvas updates the shared YAML.
+Tables are defined once and can be referenced from several subject areas. Editing a table from any subject area's canvas updates the shared YAML.
 
-**YAML quoting.** A model file that does not parse loads as an empty placeholder (the canvas warns; `erd-studio doctor` and `erd-studio diff` report it as a blocking `fix-model-yaml` with the file and line). Write each key once per block. A key written twice is the one exception to "does not parse": the model loads with the **last** copy's value, as dbt's PyYAML reads it, and the canvas shows a warning naming the key and line. The file is still reported as `fix-model-yaml`, and ERD Studio refuses to write it until one copy is removed. (Older releases loaded such a file as the placeholder; it is still read either way.) Wrap every `description`, `grain`, `rationale` and `dataType` value in double quotes (escape an inner `"` as `\"`), or use a `|` block for multi-line text. Always quote a value that contains `: ` or ` #`, or starts with any of `` ` @ * & ! % [ { - | > ' " ``. Indent with spaces, never tabs. One YAML document per file: no `---` separators, no markdown code fences, no `{{ doc() }}` — paste the text itself. (A byte-order mark and CRLF line endings are fine.)
+**YAML quoting.** A table file that does not parse loads as an empty placeholder (the canvas warns; `erd-studio doctor` and `erd-studio diff` report it as a blocking `fix-model-yaml` with the file and line). Write each key once per block. A key written twice is the one exception to "does not parse": the table loads with the **last** copy's value, as dbt's PyYAML reads it, and the canvas shows a warning naming the key and line. The file is still reported as `fix-model-yaml`, and ERD Studio refuses to write it until one copy is removed. (Older releases loaded such a file as the placeholder; it is still read either way.) Wrap every `description`, `grain`, `rationale` and `dataType` value in double quotes (escape an inner `"` as `\"`), or use a `|` block for multi-line text. Always quote a value that contains `: ` or ` #`, or starts with any of `` ` @ * & ! % [ { - | > ' " ``. Indent with spaces, never tabs. One YAML document per file: no `---` separators, no markdown code fences, no `{{ doc() }}` — paste the text itself. (A byte-order mark and CRLF line endings are fine.)
 
 ### Column Definition (ColumnDef)
 
@@ -158,14 +166,14 @@ Models are defined once and can be referenced from several domains. Editing a mo
 | `additiveType` | string | No | Fact measures: `"additive"`, `"semi-additive"`, or `"non-additive"`. |
 | `meta` | map | No | Free-form, dbt-style metadata for this column. See [Metadata](#metadata-meta). Omit entirely if empty. |
 
-**`data_type` (still read).** A column whose type is spelled the way dbt's schema.yml spells it, `data_type:`, is read as `dataType` (#144). When a column has both keys, `dataType` wins whenever it holds a value (even `""`); `data_type` is used only when `dataType` is absent or null. ERD Studio writes `dataType` only: the next time it writes that model's file — any canvas edit to that model or to a relationship stored in it (including one Draw from dbt or Add Existing Model adds there, and a rename elsewhere that reaches it); moving nodes and **Move Relationships to Model Library** leave the file's columns as written — it renames each `data_type` the reader used to `dataType` in place (its value and comment unchanged; an empty `dataType:` beside it is dropped), and leaves a `data_type` that sits beside a `dataType` holding a value alone. When the empty `dataType` (its key or value) or the `data_type` key carries a YAML anchor (`dataType: &x`), neither key is renamed or dropped — an alias such as `*x` would lose its anchor or change meaning — and the column's type is written to `data_type`, where the reader takes it from. `erd-studio doctor` lists the files and columns that use it (`erd.dataTypeAliasFiles[].columns`), and separately the columns where `data_type` sits beside a winning `dataType` and is ignored (`.ignored`) — those stay listed until the `data_type` is deleted — and the anchored ones kept as written (`.anchored`). Write `dataType`; the JSON schema still flags `data_type` as an unknown key.
+**`data_type` (still read).** A column whose type is spelled the way dbt's schema.yml spells it, `data_type:`, is read as `dataType` (#144). When a column has both keys, `dataType` wins whenever it holds a value (even `""`); `data_type` is used only when `dataType` is absent or null. ERD Studio writes `dataType` only: the next time it writes that table's file — any canvas edit to that table or to a relationship stored in it (including one Draw from dbt or Add Existing Table adds there, and a rename elsewhere that reaches it); moving nodes and **Move Relationships to Table Library** leave the file's columns as written — it renames each `data_type` the reader used to `dataType` in place (its value and comment unchanged; an empty `dataType:` beside it is dropped), and leaves a `data_type` that sits beside a `dataType` holding a value alone. When the empty `dataType` (its key or value) or the `data_type` key carries a YAML anchor (`dataType: &x`), neither key is renamed or dropped — an alias such as `*x` would lose its anchor or change meaning — and the column's type is written to `data_type`, where the reader takes it from. `erd-studio doctor` lists the files and columns that use it (`erd.dataTypeAliasFiles[].columns`), and separately the columns where `data_type` sits beside a winning `dataType` and is ignored (`.ignored`) — those stay listed until the `data_type` is deleted — and the anchored ones kept as written (`.anchored`). Write `dataType`; the JSON schema still flags `data_type` as an unknown key.
 
 ### ModelRole Enum
 
 | Value | Use Case |
 |-------|----------|
-| `conformed-dim` | Shared dimension reused across domains |
-| `domain-dim` | Dimension specific to this domain |
+| `conformed-dim` | Shared dimension reused across subject areas |
+| `domain-dim` | Dimension specific to this subject area |
 | `transaction-fact` | Discrete event fact |
 | `periodic-snapshot` | Recurring measurement per period |
 | `accumulating-snapshot` | Lifecycle with milestones |
@@ -176,31 +184,31 @@ Models are defined once and can be referenced from several domains. Editing a mo
 
 ### Rationale
 
-Optional object documenting the reasoning behind a model's design. All fields are optional strings. If all fields would be empty, omit `rationale` entirely. The canvas shows an "R" badge on models that have rationale.
+Optional object documenting the reasoning behind a table's design. All fields are optional strings. If all fields would be empty, omit `rationale` entirely. The canvas shows an "R" badge on tables that have rationale.
 
 | Field | Description |
 |-------|-------------|
-| `purpose` | What requirements or purpose this model fulfils |
-| `design` | Why the model was designed this way — trade-offs, constraints, patterns |
-| `roleChoice` | Why this model role was selected |
+| `purpose` | What requirements or purpose this table fulfils |
+| `design` | Why the table was designed this way — trade-offs, constraints, patterns |
+| `roleChoice` | Why this table role (`modelRole`) was selected |
 | `grainChoice` | Why this grain was chosen over alternatives |
 | `scdStrategy` | Overall SCD strategy across dimension attributes |
 | `measures` | Why measures are structured this way — additive type choices |
 
 ### Metadata (`meta`)
 
-Optional map on a model and on any column, named after and shaped like dbt's `meta:`. Keys are strings; values may be text, numbers, booleans, `null`, lists or nested maps (`MetaValue = string | boolean | null | MetaValue[] | { [key]: MetaValue }`; numbers are read as their source text, like every other field). A `meta` that is not a map, or is an empty map, is ignored.
+Optional map on a table and on any column, named after and shaped like dbt's `meta:`. Keys are strings; values may be text, numbers, booleans, `null`, lists or nested maps (`MetaValue = string | boolean | null | MetaValue[] | { [key]: MetaValue }`; numbers are read as their source text, like every other field). A `meta` that is not a map, or is an empty map, is ignored.
 
 - **Never compared with dbt.** `meta` is logical-only: the physical stage does not read dbt's `meta:`, and discrepancy reports, `erd-studio diff` and sync plans ignore it.
-- **Canvas.** The Detail panel's **Metadata** section (for the model, and inside each expanded column row) lists every entry. Top-level text values can be added, edited and removed there; nested maps, lists, booleans and `null` are shown read-only — edit them in the file.
+- **Canvas.** The Detail panel's **Metadata** section (for the table, and inside each expanded column row) lists every entry. Top-level text values can be added, edited and removed there; nested maps, lists, booleans and `null` are shown read-only — edit them in the file.
 - **Writes are surgical.** A canvas edit rewrites only the top-level key that changed; comments, unquoted numbers, nested values and aliases elsewhere in `meta` stay byte-identical. Removing the last key removes `meta`.
-- **Hover.** On the canvas, hovering a model's name lists its `meta`; hovering a column shows the column's under its description.
+- **Hover.** On the canvas, hovering a table's name lists its `meta`; hovering a column shows the column's under its description.
 - **AI assistants** keep every existing entry. With a team metadata list (a `## Metadata` section in `modelling-approach.md`, above) they follow it; without one they add or change only the keys the user asks for and never copy dbt's `meta:` unasked.
 - **dbt's own `meta:`** is read only by `erd-studio inventory` — `models[].meta` / `columns[].meta` (the schema yml over the manifest per key, and `config: meta:` over `meta:`, as dbt merges them) plus the project-wide `conventions.meta` summary of keys, counts, kinds and examples — so the setup guide can offer to carry it across. The physical stage still never shows or compares it.
 
 ## Relationships
 
-A relationship is stored in exactly one place: the YAML of the model holding its foreign key (`relationships:`) or a domain JSON (`logical.relationships`). See [Where relationships live](#where-relationships-live).
+A relationship is stored in exactly one place: the YAML of the table holding its foreign key (`relationships:`) or a subject area JSON (`logical.relationships`). See [Where relationships live](#where-relationships-live).
 
 ```jsonc
 {
@@ -214,29 +222,29 @@ A relationship is stored in exactly one place: the YAML of the model holding its
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `fromModel` | string | Yes | Model containing the FK (the "many" side for many-to-one). |
-| `fromColumn` | string | Yes | FK column name on the from model. |
-| `toModel` | string | Yes | Referenced model (PK side). A relationship whose `toModel` has no model file is not drawn. |
-| `toColumn` | string | Yes | Referenced PK column on the to model. |
-| `cardinality` | string | Yes | One of `"many-to-one"`, `"one-to-one"`, `"one-to-many"`, `"many-to-many"`. `"one-to-many"` is deprecated in a model YAML: still read, but ERD Studio never writes it there (see the direction convention), and the JSON schema marks it. |
+| `fromModel` | string | Yes | Table containing the FK (the "many" side for many-to-one). |
+| `fromColumn` | string | Yes | FK column name on the from table. |
+| `toModel` | string | Yes | Referenced table (PK side). A relationship whose `toModel` has no table file is not drawn. |
+| `toColumn` | string | Yes | Referenced PK column on the to table. |
+| `cardinality` | string | Yes | One of `"many-to-one"`, `"one-to-one"`, `"one-to-many"`, `"many-to-many"`. `"one-to-many"` is deprecated in a table YAML: still read, but ERD Studio never writes it there (see the direction convention), and the JSON schema marks it. |
 | `role` | string | No | A label for what the link means, e.g. `"order date"` and `"ship date"` for two columns pointing at the same date dimension. Trimmed, at most 60 characters, drawn on the line. A label only: not part of the identity. |
 | `compositeKey` | string | No | Groups entries into one composite foreign key (see [Composite foreign keys](#composite-foreign-keys)). Trimmed, 1–64 characters, compared without case. A blank or non-string value is ignored (the entry reads as a single link and the bytes stay). Grouping only: not part of the identity. |
 
-**Spelling:** model and column names in a relationship match the models' and columns' real names ignoring case, and are drawn with the real spelling; ERD Studio writes the real spelling the next time it changes that entry.
+**Spelling:** table and column names in a relationship match the tables' and columns' real names ignoring case, and are drawn with the real spelling; ERD Studio writes the real spelling the next time it changes that entry.
 
-**Identity key:** the composite `(fromModel, fromColumn, toModel, toColumn)` must be unique within the domain — and the same two columns may not be joined twice in opposite directions either: that is one link, drawn once.
+**Identity key:** the composite `(fromModel, fromColumn, toModel, toColumn)` must be unique within the subject area — and the same two columns may not be joined twice in opposite directions either: that is one link, drawn once.
 
-**Direction convention:** `fromModel` holds the FK (the "many" side), `toModel` holds the PK. A `one-to-many` is the same relationship read from the other end, so it is stored with its ends swapped as `many-to-one` (`canonicalRelationship` in `@erd-studio/core`, issue #133). `one-to-one` and `many-to-many` keep the direction they were drawn in. **Keys win:** a `many-to-one` whose `fromColumn` is its model's whole primary or natural key, pointing at a column of a model whose own whole key is a different column, contradicts the keys (that column holds each value once, so it cannot be the many side). The canvas refuses a ⇄ that would write one and the New Relationship dialog warns before creating one (**Create anyway**); the move command turns one round. One already saved — ERD Studio 1.6.7 could save it — is **never turned round on read** (a user may keep one on purpose): it is drawn as stored and flagged (`keysContradict: true` on the `DisplayRelationship`, a `one-to-many` read as the `many-to-one` it means, a composite judged on its column sets and flagged on every member, logical stage only). The canvas shows an amber ⚠ on the line and in the details panel ("This starts at dim_customer's key (customer_key), so it was probably drawn backwards.") with **Turn round** (⇄, one undo step); opening such a diagram offers to turn them all round once a session (**Turn Round**, **Review…**, **Not Now**, **Don't Ask Again**), writing nothing until a pick; the DBML and Mermaid exports carry the same sentence as a `//` / `%%` comment above the link; `erd-studio doctor` lists them (`erd.backwardsRelationships`) with a `turn-round-relationships` next step. The Confluence viewer shows no ⚠. Without a key flagged on the target (or, on the canvas, the CLI and exports, a dbt `unique` test) there is no certainty, and nothing is turned round or flagged.
+**Direction convention:** `fromModel` holds the FK (the "many" side), `toModel` holds the PK. A `one-to-many` is the same relationship read from the other end, so it is stored with its ends swapped as `many-to-one` (`canonicalRelationship` in `@erd-studio/core`, issue #133). `one-to-one` and `many-to-many` keep the direction they were drawn in. **Keys win:** a `many-to-one` whose `fromColumn` is its table's whole primary or natural key, pointing at a column of a table whose own whole key is a different column, contradicts the keys (that column holds each value once, so it cannot be the many side). The canvas refuses a ⇄ that would write one and the New Relationship dialog warns before creating one (**Create anyway**); the move command turns one round. One already saved — ERD Studio 1.6.7 could save it — is **never turned round on read** (a user may keep one on purpose): it is drawn as stored and flagged (`keysContradict: true` on the `DisplayRelationship`, a `one-to-many` read as the `many-to-one` it means, a composite judged on its column sets and flagged on every member, logical stage only). The canvas shows an amber ⚠ on the line and in the details panel ("This starts at dim_customer's key (customer_key), so it was probably drawn backwards.") with **Turn round** (⇄, one undo step); opening such a diagram offers to turn them all round once a session (**Turn Round**, **Review…**, **Not Now**, **Don't Ask Again**), writing nothing until a pick; the DBML and Mermaid exports carry the same sentence as a `//` / `%%` comment above the link; `erd-studio doctor` lists them (`erd.backwardsRelationships`) with a `turn-round-relationships` next step. The Confluence viewer shows no ⚠. Without a key flagged on the target (or, on the canvas, the CLI and exports, a dbt `unique` test) there is no certainty, and nothing is turned round or flagged.
 
-**Which side holds the key** comes from evidence, never from the order a line was drawn in: first the models' own key flags (a column set equal to a model's full `isPrimaryKey` set, or its full `isNaturalKey` set, is its whole key; in a model that flags any key, any other set is not), then — only for a model that flags no key — dbt's tests (a `unique` test, a `unique_combination_of_columns` equal to the set, a column a `relationships` test leaves). Flags always win over dbt. With neither, the New Relationship dialog asks which side holds the foreign key.[^winner]
+**Which side holds the key** comes from evidence, never from the order a line was drawn in: first the tables' own key flags (a column set equal to a table's full `isPrimaryKey` set, or its full `isNaturalKey` set, is its whole key; in a table that flags any key, any other set is not), then — only for a table that flags no key — dbt's tests (a `unique` test, a `unique_combination_of_columns` equal to the set, a column a `relationships` test leaves). Flags always win over dbt. With neither, the New Relationship dialog asks which side holds the foreign key.[^winner]
 
 Entries missing any of the four string endpoints are dropped on read with a console warning; an unrecognised `cardinality` falls back to `many-to-one`.
 
-[^winner]: When the same link is stored twice, the copy drawn is chosen with the same evidence (the canvas and `erd-studio diff` pass dbt's tests; the read-only viewer cannot). The only state where they can differ is a link stored twice in the model library, with neither end flagged, in disagreeing directions — an ERD Studio 1.6.7 leftover that **Move Relationships to Model Library** settles.
+[^winner]: When the same link is stored twice, the copy drawn is chosen with the same evidence (the canvas and `erd-studio diff` pass dbt's tests; the read-only viewer cannot). The only state where they can differ is a link stored twice in the Table Library, with neither end flagged, in disagreeing directions — an ERD Studio 1.6.7 leftover that **Move Relationships to Table Library** settles.
 
 ### Self-references
 
-A model may point at itself, e.g. an employee's manager. It is stored in the model's own file, and a column never points at itself:
+A table may point at itself, e.g. an employee's manager. It is stored in the table's own file, and a column never points at itself:
 
 ```yaml
 # logical-models/employee.yml
@@ -268,15 +276,15 @@ relationships:
     role: as of          # the group's role is the first entry's, and is written on every entry
 ```
 
-Entries sharing a `compositeKey` (without case) form one composite — in one model file from one model, or in one domain file from one `fromModel` — when there are 2–8 of them, all point at the same `toModel`, all have the same cardinality (`many-to-one` or `one-to-one`, never `many-to-many`), and no column is used twice at either end. A valid composite is drawn as one line listing its pairs; otherwise each entry is drawn as a single link and a warning is logged. ERD Studio names a new one `fk_<toModel>` (then `_2`, `_3`, … in that file). An edit, ⇄ or delete of the line acts on every entry; removing one of its columns removes the whole composite.
+Entries sharing a `compositeKey` (without case) form one composite — in one table file from one table, or in one subject area file from one `fromModel` — when there are 2–8 of them, all point at the same `toModel`, all have the same cardinality (`many-to-one` or `one-to-one`, never `many-to-many`), and no column is used twice at either end. A valid composite is drawn as one line listing its pairs; otherwise each entry is drawn as a single link and a warning is logged. ERD Studio names a new one `fk_<toModel>` (then `_2`, `_3`, … in that file). An edit, ⇄ or delete of the line acts on every entry; removing one of its columns removes the whole composite.
 
-**Older versions.** ERD Studio 1.6.7 and earlier read each entry as a separate relationship, and drop `compositeKey` and `role` when they save that model — every column pair is kept. Editing one of those links and adding the other pairs back groups them again.
+**Older versions.** ERD Studio 1.6.7 and earlier read each entry as a separate relationship, and drop `compositeKey` and `role` when they save that table — every column pair is kept. Editing one of those links and adding the other pairs back groups them again.
 
 **dbt.** The physical stage reads a composite foreign key from a dbt ≥ 1.9 model-level `foreign_key` constraint (`columns`, `to: ref(...)`, `to_columns`) or a `dbt_constraints.foreign_key` test (`fk_column_names`, `pk_table_name`, `pk_column_names`), from schema yml and the manifest. Compare to Physical matches each pair as its own link; a composite dbt does not declare is one informational difference, and `erd-studio diff` reports it as an advisory `declare-composite-foreign-key` fix (blocking only with `--strict`).
 
 ### Where relationships live
 
-**In the model library (the default for a new project, issue #126).** A relationship is written once, into the YAML of its `fromModel` — the model holding the foreign key — with the same fields minus `fromModel`. Adding a new fact therefore only ever changes the fact's own file:
+**In the Table Library (the default for a new project, issue #126).** A relationship is written once, into the YAML of its `fromModel` — the table holding the foreign key — with the same fields minus `fromModel`. Adding a new fact therefore only ever changes the fact's own file:
 
 ```yaml
 # logical-models/gold/fct_order_line.yml
@@ -294,17 +302,17 @@ relationships:
     role: ship date
 ```
 
-Every domain whose `logical.models` holds both `fct_order_line` and `dim_customer` draws it; a domain missing either does not. Editing it on any canvas changes every diagram that shows it, and deleting it deletes it everywhere. The same two columns stored in both models' files (either way round, as ERD Studio 1.6.7 could leave them), or twice in one file, are drawn once, from the copy on the many side; an edit, ⇄ or delete acts on the link, folding every copy into one entry in its home with the line's role (⇄ is refused while two copies carry different roles). Deleting a link another diagram still draws from a copy of its own names that diagram; its copy is left for you. Renaming a model or column, or removing a column, rewrites the entries in other model files that point at it. Removing a model from one domain leaves its relationships in the library.
+Every subject area whose `logical.models` holds both `fct_order_line` and `dim_customer` draws it; a subject area missing either does not. Editing it on any canvas changes every diagram that shows it, and deleting it deletes it everywhere. The same two columns stored in both tables' files (either way round, as ERD Studio 1.6.7 could leave them), or twice in one file, are drawn once, from the copy on the many side; an edit, ⇄ or delete acts on the link, folding every copy into one entry in its home with the line's role (⇄ is refused while two copies carry different roles). Deleting a link another diagram still draws from a copy of its own names that diagram; its copy is left for you. Renaming a table or column, or removing a column, rewrites the entries in other table files that point at it. Removing a table from one subject area leaves its relationships in the library.
 
-**Per domain.** A project whose domain files already hold relationships keeps adding them there, so teammates on a version before this one go on seeing every edge. It opts in with **ERD Studio: Move Relationships to Model Library**: every v5 domain's relationships are stored once in the YAML of the model holding each one's foreign key and taken out of the domain files, writing the files directly (undo with source control). The same command moves a library entry stored on its "one" side (a `one-to-many`, written before issue #133, or a `many-to-one` ERD Studio 1.6.7 saved backwards: from its model's whole primary or natural key to a column of a model whose own whole key is a different column — see "Keys win") to the model on its many side, as `many-to-one`, keeping its role. It moves that one entry, never another copy of the link in the same file. When another copy of the link, in either file, disagrees, both are left in place and listed; a model file whose `relationships:` list has comments, YAML anchors or aliases, or entries ERD Studio cannot read is not rewritten, and is named instead. Opening a diagram in such a project offers the move (once a session, with **Don't Ask Again**) when at least one relationship's two models sit together in more than one diagram. Before writing, the command explains why and where each relationship goes; a relationship the domains define with different cardinalities is a **conflict**, and the user picks the cardinality every diagram will use (naming the diagrams behind each) or leaves it in the domain files for a later run. A definition is the cardinality, the role, and — for a `one-to-one` — which end holds the foreign key, so two diagrams labelling a link differently, or drawing a one-to-one from opposite ends, is a conflict too; a `many-to-many` drawn opposite ways round is one link, stored from its lower `model.column` end. Diagram copies the keys contradict are stored turned round, so a second run has nothing to do. A diagram copy of a link the model library already defines is taken out, and listed when it says something different (the library's version is the one every diagram already draws); a role only a diagram gives it moves onto the library entry. Every entry turned round is listed in the preview.
+**Per subject area.** A project whose subject area files already hold relationships keeps adding them there, so teammates on a version before this one go on seeing every edge. It opts in with **ERD Studio: Move Relationships to Table Library**: every v5 subject area's relationships are stored once in the YAML of the table holding each one's foreign key and taken out of the subject area files, writing the files directly (undo with source control). The same command moves a library entry stored on its "one" side (a `one-to-many`, written before issue #133, or a `many-to-one` ERD Studio 1.6.7 saved backwards: from its table's whole primary or natural key to a column of a table whose own whole key is a different column — see "Keys win") to the table on its many side, as `many-to-one`, keeping its role. It moves that one entry, never another copy of the link in the same file. When another copy of the link, in either file, disagrees, both are left in place and listed; a table file whose `relationships:` list has comments, YAML anchors or aliases, or entries ERD Studio cannot read is not rewritten, and is named instead. Opening a diagram in such a project offers the move (once a session, with **Don't Ask Again**) when at least one relationship's two tables sit together in more than one subject area. Before writing, the command explains why and where each relationship goes; a relationship the subject areas define with different cardinalities is a **conflict**, and the user picks the cardinality every diagram will use (naming the diagrams behind each) or leaves it in the subject area files for a later run. A definition is the cardinality, the role, and — for a `one-to-one` — which end holds the foreign key, so two diagrams labelling a link differently, or drawing a one-to-one from opposite ends, is a conflict too; a `many-to-many` drawn opposite ways round is one link, stored from its lower `table.column` end. Diagram copies the keys contradict are stored turned round, so a second run has nothing to do. A diagram copy of a link the Table Library already defines is taken out, and listed when it says something different (the library's version is the one every diagram already draws); a role only a diagram gives it moves onto the library entry. Every entry turned round is listed in the preview.
 
-**Which one applies** is decided by what is on disk, like layer folders: the library is used once **any** model file holds a `relationships:` list, or when **no** domain file holds a `logical.relationships` entry.
+**Which one applies** is decided by what is on disk, like layer folders: the library is used once **any** table file holds a `relationships:` list, or when **no** subject area file holds a `logical.relationships` entry.
 
-**Reading.** A domain draws its own `logical.relationships` first, in order, then the library relationships between its models. When both define the same endpoints (ignoring case) it is drawn once, with the library's cardinality, and a warning names the disagreement. A domain file holding the same link twice draws it once, from the same copy whatever the entry order. When they join the same two columns in opposite directions, it is drawn once, as the library stores it.
+**Reading.** A subject area draws its own `logical.relationships` first, in order, then the library relationships between its tables. When both define the same endpoints (ignoring case) it is drawn once, with the library's cardinality, and a warning names the disagreement. A subject area file holding the same link twice draws it once, from the same copy whatever the entry order. When they join the same two columns in opposite directions, it is drawn once, as the library stores it.
 
 ## View Config (`viewConfig`)
 
-Persisted UI layout state. Safe to leave as `{}` — the extension auto-positions models that lack a position entry. When **no** model in the domain has a position (a brand-new domain written with `viewConfig: {}`), the canvas instead runs its ELK auto layout the first time the domain opens and saves the result as one undoable edit; the user can re-run it any time with **Layout** / Shift+L.
+Persisted UI layout state. Safe to leave as `{}` — the extension auto-positions tables that lack a position entry. When **no** table in the subject area has a position (a brand-new subject area written with `viewConfig: {}`), the canvas instead runs its ELK auto layout the first time the subject area opens and saves the result as one undoable edit; the user can re-run it any time with **Layout** / Shift+L.
 
 ```jsonc
 {
@@ -324,21 +332,21 @@ Persisted UI layout state. Safe to leave as `{}` — the extension auto-position
 |-------|-------------|
 | `showFkEdges` | Whether FK edges are drawn. |
 | `layoutOptions` | ELK layout options as string key/value pairs. |
-| `positions` | Node positions keyed by model name. Each entry must have finite numeric `x` and `y`; malformed entries are ignored on read and the model is auto-positioned. |
-| `annotations` | Free-form canvas post-it notes. `id`, `text`, `x`, `y` required; `color` is one of `yellow`, `blue`, `green`, `pink`, `orange`; `linkedModel` draws a dashed edge to that model. |
+| `positions` | Node positions keyed by table name. Each entry must have finite numeric `x` and `y`; malformed entries are ignored on read and the table is auto-positioned. |
+| `annotations` | Free-form canvas post-it notes. `id`, `text`, `x`, `y` required; `color` is one of `yellow`, `blue`, `green`, `pink`, `orange`; `linkedModel` draws a dashed edge to that table. |
 
-> **Preserve existing positions.** When adding models to an existing domain, do not clear or rewrite `viewConfig.positions`. The extension computes positions for new models automatically.
+> **Preserve existing positions.** When adding tables to an existing subject area, do not clear or rewrite `viewConfig.positions`. The extension computes positions for new tables automatically.
 
 ## Editing Quick Reference
 
 | To... | Edit |
 |-------|------|
-| Add/remove/rename a column, change type or PK/FK/NK/SCD flags | the model's yml (`logical-models/{name}.yml` or `logical-models/{folder}/{name}.yml`) |
-| Change grain, modelRole, description, rationale, meta | the model's yml |
-| Add a model to a domain diagram | Domain `.json` → append the name to `logical.models` **and**, if no file for the name exists in any folder, create `logical-models/{layer}/{name}.yml` for the domain's layer |
-| Remove a model from a domain | Domain `.json` → remove the name from `logical.models` and its relationships from `logical.relationships` |
-| Add/remove/edit a relationship | The FK model's `.yml` → `relationships:` when the project keeps relationships in the model library, else domain `.json` → `logical.relationships` |
-| Rename a domain | Rewrite `domain` in the raw JSON and rename the file; never re-serialise a resolved domain (that inlines model bodies and produces a hybrid file) |
+| Add/remove/rename a column, change type or PK/FK/NK/SCD flags | the table's yml (`logical-models/{name}.yml` or `logical-models/{folder}/{name}.yml`) |
+| Change grain, modelRole, description, rationale, meta | the table's yml |
+| Add a table to a subject area | Subject area `.json` → append the name to `logical.models` **and**, if no file for the name exists in any folder, create `logical-models/{layer}/{name}.yml` for the subject area's layer |
+| Remove a table from a subject area | Subject area `.json` → remove the name from `logical.models` and its relationships from `logical.relationships` |
+| Add/remove/edit a relationship | The FK table's `.yml` → `relationships:` when the project keeps relationships in the Table Library, else subject area `.json` → `logical.relationships` |
+| Rename a subject area | Rewrite `domain` in the raw JSON and rename the file; never re-serialise a resolved subject area (that inlines table bodies and produces a hybrid file) |
 
 ## Layers File (`.erd-studio/layers.json`)
 
@@ -354,24 +362,26 @@ Persisted UI layout state. Safe to leave as `{}` — the extension auto-position
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | string | Yes | Lowercase identifier. Alphanumeric, hyphens, underscores. Also the directory name for that layer's domains. |
+| `id` | string | Yes | Lowercase identifier. Alphanumeric, hyphens, underscores. Also the directory name for that layer's subject areas. |
 | `label` | string | Yes | Display name. |
 | `abbreviation` | string | Yes | Short badge label. |
 | `color` | string | Yes | Hex colour. |
-| `creatable` | boolean | Yes | Whether new domains can be created in this layer. |
+| `creatable` | boolean | Yes | Whether new subject areas can be created in this layer. |
 | `order` | number | Yes | Display order (lower first). |
 
 Defaults if `layers.json` is missing: `bronze` (`#cd7f32`, not creatable), `silver` (`#a0a0a0`), `gold` (`#d4a800`).
 
-## Model Templates (`.erd-studio/templates/{id}.json`)
+<a id="model-templates-erd-studiotemplatesidjson"></a>
 
-Templates provide preset columns when creating a model from the canvas.
+## Table Templates (`.erd-studio/templates/{id}.json`)
+
+Templates provide preset columns when creating a table from the canvas.
 
 ```jsonc
 {
   "id": "scd2_dimension",              // REQUIRED. Unique across all template files — a duplicate id is skipped with a warning.
   "label": "SCD2 Dimension",           // REQUIRED.
-  "prefix": "dim_",                    // Optional. Model name prefix.
+  "prefix": "dim_",                    // Optional. Table name prefix.
   "description": "History-tracked dimension",
   "requiresLeftEntity": false,         // Optional. Bridge templates only.
   "requiresRightEntity": false,        // Optional. Bridge templates only.
@@ -383,9 +393,9 @@ Templates provide preset columns when creating a model from the canvas.
 }
 ```
 
-Template columns accept the full `ColumnDef` shape: `isPrimaryKey`, `isForeignKey`, `isNaturalKey`, `scdType` (0/1/2) and `additiveType` are all carried through to the created model; invalid values are dropped.
+Template columns accept the full `ColumnDef` shape: `isPrimaryKey`, `isForeignKey`, `isNaturalKey`, `scdType` (0/1/2) and `additiveType` are all carried through to the created table; invalid values are dropped.
 
-**Placeholders:** `{name}` is replaced with the model name minus its prefix (e.g. `customer` from `dim_customer`). Bridge templates also support `{left}` and `{right}`.
+**Placeholders:** `{name}` is replaced with the table name minus its prefix (e.g. `customer` from `dim_customer`). Bridge templates also support `{left}` and `{right}`.
 
 If no template files exist, built-in `dimension`, `fact`, `bridge`, `scd2` and `blank` templates are used.
 
@@ -407,38 +417,38 @@ against the dbt project every time the stage is opened, from up to four sources:
 source files under the configured `model-paths` / `seed-paths` / `snapshot-paths`,
 dbt schema `.yml` files under `model-paths`, `{target-path}/manifest.json`, and
 `{target-path}/catalog.json`. None of the four is required — a project that has
-never been compiled still renders real models.
+never been compiled still renders real tables.
 
-**Existence.** A model is real (not a ghost) when **any** of these holds:
+**Existence.** A table is real (not a ghost) when **any** of these holds:
 
 - a `<name>.sql`, `<name>.py` or `<name>.csv` file sits under a configured
   `model-paths`, `seed-paths` or `snapshot-paths` directory (so seeds and snapshots
-  count), **and** dbt has not disabled the model;
+  count), **and** dbt has not disabled the dbt model;
 - a dbt schema `.yml` under `model-paths` declares it;
 - the compiled manifest carries a node for it;
 - `catalog.json` carries a relation for it.
 
-All of those are looked up by the model **name** first. Only when the name finds
-nothing does the model's warehouse relation — `schema` plus `alias` (or the name)
+All of those are looked up by the table **name** first. Only when the name finds
+nothing does the table's warehouse relation — `schema` plus `alias` (or the name)
 — get a second chance against the manifest's `schema` + `alias`, then the
 catalog's `metadata.schema` + `metadata.name`. The pair is always matched
-together, never the alias alone (a silver `date` is not a gold `date`), a model
+together, never the alias alone (a silver `date` is not a gold `date`), a table
 with no `schema` never takes that route, and a relation two dbt models share is
-ambiguous and matches neither. A model found this way keeps its logical name on
+ambiguous and matches neither. A table found this way keeps its logical name on
 the canvas, and its relationship tests are drawn on it.
-A model found in none of those is still emitted, as a **ghost** with no columns —
-the design references something the dbt project does not have. A model dbt has
+A table found in none of those is still emitted, as a **ghost** with no columns —
+the design references something the dbt project does not have. A dbt model dbt has
 **disabled** lands in the manifest's `disabled` section and `ref()` to it fails,
 so a bare source file does not make it exist; with no other evidence it ghosts
 with a "disabled" reason instead. Ghosting means "not in your dbt project", never
 "you have not run `dbt compile` lately". Vendored directories (`dbt_packages`,
 `dbt_modules`, virtualenvs) are excluded from the file walk.
 
-A model known **only** by the file that defines it is a real node with **zero**
+A table known **only** by the file that defines it is a real node with **zero**
 columns — nothing has stated its shape, and seeding it from the logical design
-would invent one. Sync comparison skips such a model rather than reporting every
+would invent one. Sync comparison skips such a table rather than reporting every
 logical column as missing; that suppression is automatic and separate from
-`stubColumns`, which is the user's own switch for deliberately partial models.
+`stubColumns`, which is the user's own switch for deliberately partial tables.
 
 **Columns** come from two *kinds* of source:
 
@@ -464,19 +474,19 @@ warehouse does not have renders a physical column nothing has verified.
 |-------|-----------|
 | `dataType` | `catalog.json` → declared `data_type:` → the manifest's copy of it → blank |
 | `description` | `.yml` description → manifest description → catalog column `comment` (`persist_docs` writes the dbt description *into* that comment, so it ranks last) |
-| PK/FK/NK, `scdType`, `additiveType` | Carried forward from the logical model — dbt yml does not carry them |
+| PK/FK/NK, `scdType`, `additiveType` | Carried forward from the logical table — dbt yml does not carry them |
 | `meta` | Not shown — logical-only, never read from dbt |
 
 A column typed on only one stage is reported as **`undeclared`**, not as a type
 mismatch; writing `data_type:` into the schema yml, or running
 `dbt docs generate`, is what fills it in.
 
-**Model-level fields.** `alias` is the manifest's `alias` when dbt builds the model
+**Table-level fields.** `alias` is the manifest's `alias` when dbt builds the dbt model
 under another name, then a catalog relation named otherwise, then the logical
 `alias`. `schema` is the manifest's `schema`, then the catalog's
 `metadata.schema`, then blank — it cannot be derived from the filesystem (it needs
 `generate_schema_name` and `profiles.yml`), so with neither artifact the node badge
-falls back to the ERD **layer** abbreviation and says so. Every real physical model
+falls back to the ERD **layer** abbreviation and says so. Every real physical table
 also carries **provenance**: which sources contributed its columns, and which one
 supplied its types. That is runtime state shown on the node and in the detail
 panel; it is never written to disk.
@@ -485,7 +495,7 @@ panel; it is never written to disk.
 declared in `.yml` files and those in the manifest, deduped, never copied from
 logical. Cardinality comes from `unique` / `dbt_utils.unique_combination_of_columns`
 tests merged from the same two sources (no `unique` test = "many" side). Only
-relationships between models **within the same domain** appear. `catalog.json`
+relationships between tables **within the same subject area** appear. `catalog.json`
 holds no constraint or foreign-key information, so it contributes no edges.
 
 **Comparing without the canvas.** Nothing in this file format changes for tooling,
@@ -494,11 +504,11 @@ but there is a headless equivalent of the canvas's **Compare**. The `erd-studio`
 AI Helper**) is read-only. `erd-studio diff --domain .erd-studio/{layer}/{domain}.json --json`,
 or `--all`, builds both stages exactly as described above and runs the same comparison
 as the canvas, because both call the same code. It reports each difference as a fix
-that brings the logical side in line with dbt, naming the file to change: the model's
-`logical-models/{name}.yml` for columns and types, and for relationships the FK model's yml or the domain file, wherever the project keeps them. A relationship matches whichever end dbt tests it from. It exits `0` when there are no blocking differences and `1` when there are.
+that brings the logical side in line with dbt, naming the file to change: the table's
+`logical-models/{name}.yml` for columns and types, and for relationships the FK table's yml or the subject area file, wherever the project keeps them. A relationship matches whichever end dbt tests it from. It exits `0` when there are no blocking differences and `1` when there are.
 A column that dbt has no type for yet is advisory, not blocking, unless you pass
 `--strict`. `erd-studio inventory --models a,b --json` prints the physical shape of the
-named models, as a starting point for new model files. The `/erd-studio-setup` Claude Code
+named dbt models, as a starting point for new table files. The `/erd-studio-setup` Claude Code
 skill uses both commands. It writes the files described in this reference with the
 assistant's normal Edit/Write tools, never through the helper, and runs `diff` until it is
 clean.
@@ -514,12 +524,12 @@ Each hand-editable file has a JSON Schema (draft-07) in [`schemas/`](../schemas)
 | `.erd-studio/layers.json` | [`layers.schema.json`](../schemas/layers.schema.json) |
 | `.erd-studio/templates/{id}.json` | [`template.schema.json`](../schemas/template.schema.json) |
 
-**In VS Code** the extension associates them by path (`contributes.jsonValidation` / `yamlValidation`), so nothing needs to be added to your files. JSON validation is built into VS Code. YAML needs Red Hat's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml). Domain files open in the diagram editor by default; use **Open With… → Text Editor** to edit one as JSON. Schema problems are warnings, never errors: the extension still loads what it can, as described above.
+**In VS Code** the extension associates them by path (`contributes.jsonValidation` / `yamlValidation`), so nothing needs to be added to your files. JSON validation is built into VS Code. YAML needs Red Hat's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml). Subject area files open in the diagram editor by default; use **Open With… → Text Editor** to edit one as JSON. Schema problems are warnings, never errors: the extension still loads what it can, as described above.
 
-The association uses the default `.erd-studio` directory. With a custom `erdStudio.semanticDir`, or in another editor, point at the schemas yourself. Either map them in settings (`json.schemas` / `yaml.schemas` in VS Code), or add a reference to the file. ERD Studio ignores the reference. Domain files keep a `$schema` key, and model files keep the comment, when the canvas saves them. `layers.json` is rewritten whenever layers are edited from the sidebar, which drops the key, so map that one in settings:
+The association uses the default `.erd-studio` directory. With a custom `erdStudio.semanticDir`, or in another editor, point at the schemas yourself. Either map them in settings (`json.schemas` / `yaml.schemas` in VS Code), or add a reference to the file. ERD Studio ignores the reference. Subject area files keep a `$schema` key, and table files keep the comment, when the canvas saves them. `layers.json` is rewritten whenever layers are edited from the sidebar, which drops the key, so map that one in settings:
 
 ```jsonc
-// domain / layers / template JSON: a top-level key
+// subject area / layers / template JSON: a top-level key
 { "$schema": "https://raw.githubusercontent.com/liam-machine/erd-studio/main/schemas/domain.schema.json", "schemaVersion": 5, ... }
 ```
 
@@ -528,20 +538,20 @@ The association uses the default `.erd-studio` directory. With a custom `erdStud
 name: dim_customer
 ```
 
-The schemas describe the current format (`schemaVersion` 5) and still accept a version 4 domain until it is migrated. A domain that mixes model names with inline model objects is flagged, because it does not open. The schemas are slightly stricter than the reader: a quoted `scdType: "1"` or `isPrimaryKey: yes` still loads, but is flagged, so hand edits end up in the form the canvas writes.
+The schemas describe the current format (`schemaVersion` 5) and still accept a version 4 subject area until it is migrated. A subject area that mixes table names with inline table objects is flagged, because it does not open. The schemas are slightly stricter than the reader: a quoted `scdType: "1"` or `isPrimaryKey: yes` still loads, but is flagged, so hand edits end up in the form the canvas writes.
 
-Red Hat YAML matches paths with dot-folders skipped, so a project inside a hidden folder (`~/.work/shop/…`) gets no model validation from the built-in association; map it in `yaml.schemas` instead.
+Red Hat YAML matches paths with dot-folders skipped, so a project inside a hidden folder (`~/.work/shop/…`) gets no table file validation from the built-in association; map it in `yaml.schemas` instead.
 
 ## Validation Rules
 
 1. `schemaVersion` must be `5`. Versions below 4 and top-level `models` arrays are rejected; version 4 is accepted only until migrated.
 2. `layer` must match an `id` in `layers.json`.
 3. Every entry in `logical.models` must be a string. Mixed string/object arrays are rejected.
-4. Each referenced model should have a `logical-models/{name}.yml` or `logical-models/{folder}/{name}.yml`; a missing file renders as a placeholder with a warning.
-5. Relationship identity `(fromModel, fromColumn, toModel, toColumn)` must be unique, in either direction, and both models should be in `logical.models`.
+4. Each referenced table should have a `logical-models/{name}.yml` or `logical-models/{folder}/{name}.yml`; a missing file renders as a placeholder with a warning.
+5. Relationship identity `(fromModel, fromColumn, toModel, toColumn)` must be unique, in either direction, and both tables should be in `logical.models`.
 6. `viewConfig` must be at the root of the document.
 
-**Unresolved git merge conflicts.** A domain or model file that still holds git's conflict markers — a `<<<<<<<` line, then `=======`, then `>>>>>>>` (a diff3 `|||||||` section between the first two is fine) — and so does not parse is reported as a merge conflict, with the line of the first `<<<<<<<`, rather than as invalid JSON or a YAML error: the canvas says so (and loads by itself once the file is resolved and saved), a model file's node reads "Unresolved git merge conflict on line N", `erd-studio diff` / `export` report the error code `merge-conflict`, and `erd-studio doctor` lists the file under `conflictedDomainFiles` (a model file under `unreadableModelFiles`, with `mergeConflict: true`). A file that parses is never reported, whatever its text contains. Keep one side of each conflict, save, then `git add` the file; when only `viewConfig.positions` conflicts, either side is safe to keep.
+**Unresolved git merge conflicts.** A subject area or table file that still holds git's conflict markers — a `<<<<<<<` line, then `=======`, then `>>>>>>>` (a diff3 `|||||||` section between the first two is fine) — and so does not parse is reported as a merge conflict, with the line of the first `<<<<<<<`, rather than as invalid JSON or a YAML error: the canvas says so (and loads by itself once the file is resolved and saved), a table file's node reads "Unresolved git merge conflict on line N", `erd-studio diff` / `export` report the error code `merge-conflict`, and `erd-studio doctor` lists the file under `conflictedDomainFiles` (a table file under `unreadableModelFiles`, with `mergeConflict: true`). A file that parses is never reported, whatever its text contains. Keep one side of each conflict, save, then `git add` the file; when only `viewConfig.positions` conflicts, either side is safe to keep.
 
 ## Complete Example
 
@@ -552,7 +562,7 @@ File: `.erd-studio/silver/sales.json`
   "schemaVersion": 5,
   "domain": "sales",
   "layer": "silver",
-  "description": "Sales domain covering customers, products, and order transactions",
+  "description": "Sales subject area covering customers, products, and order transactions",
   "modelFolder": "models/silver",
   "logical": {
     "models": ["dim_customer", "dim_product", "fct_order_line"],

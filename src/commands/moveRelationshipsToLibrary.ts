@@ -48,7 +48,7 @@ import type { Relationship, SemanticModel } from '../types/semantic';
 import type { DomainService } from '../services/domainService';
 import type { LogicalModelService } from '../services/logicalModelService';
 
-const TITLE = 'Move Relationships to Model Library';
+const TITLE = 'Move Relationships to Table Library';
 
 export interface MoveRelationshipsDeps {
   workspaceRoot: string;
@@ -209,8 +209,8 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
     }
     void vscode.window.showInformationMessage(
       `${TITLE}: nothing to move — ${domains.length === 0
-        ? 'no diagram file holds a relationship of its own, and every relationship in the model library is stored with the model holding the foreign key.'
-        : 'every relationship in the diagram files starts at a model with no readable file in logical-models/.'}`,
+        ? 'no diagram file holds a relationship of its own, and every relationship in the Table Library is stored with the table holding the foreign key.'
+        : 'every relationship in the diagram files starts at a table with no readable file in logical-models/.'}`,
     );
     return;
   }
@@ -231,8 +231,8 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
   const onlyRehome = plan.removeFromDomains.size === 0 && plan.conflicts.length === 0;
   const choice = await vscode.window.showInformationMessage(
     onlyRehome
-      ? 'Store each relationship with the model that holds the foreign key?'
-      : 'Define each relationship once, in the model library?',
+      ? 'Store each relationship with the table that holds the foreign key?'
+      : 'Define each relationship once, in the Table Library?',
     {
       modal: true,
       detail: `${describeMovePlan(plan, fileOf)}\n\nThe move saves the files directly — use git (or your source control) to undo it.`,
@@ -298,7 +298,7 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
       throw new Error(`${relPath(filePath)} changed while the dialog was open (its relationships list now has comments, YAML anchors or entries it cannot read). Nothing was changed.`);
     }
     const model = parseLogicalModelText(original, name);
-    if (!model) throw new Error(`${relPath(filePath)} could not be read as a model file.`);
+    if (!model) throw new Error(`${relPath(filePath)} could not be read as a table file.`);
     const copy: SemanticModel = { ...model, relationships: model.relationships ? [...model.relationships] : undefined };
     readModels.push(model);
     nextModels.push(copy);
@@ -380,8 +380,8 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
   if (left + unsettled > 0) telemetry.feature('relMoveLeftover');
   telemetry.relationshipUsage(moveUsage(plan));
   const parts = [
-    ...(moved > 0 || !turned ? [`Moved ${moved} relationship${moved === 1 ? '' : 's'} into the model library — each is now defined once.`] : []),
-    ...(turned > 0 ? [`${turned} relationship${turned === 1 ? ' is' : 's are'} now stored with the model holding the foreign key.`] : []),
+    ...(moved > 0 || !turned ? [`Moved ${moved} relationship${moved === 1 ? '' : 's'} into the Table Library — each is now defined once.`] : []),
+    ...(turned > 0 ? [`${turned} relationship${turned === 1 ? ' is' : 's are'} now stored with the table holding the foreign key.`] : []),
   ];
   void vscode.window.showInformationMessage(
     parts.join(' ') +

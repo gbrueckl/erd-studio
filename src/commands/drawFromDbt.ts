@@ -203,7 +203,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     }
     telemetry.error('drawFromDbtFailed');
     void vscode.window.showErrorMessage(
-      `${TITLE} could not read the model library to plan the diagram: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`,
+      `${TITLE} could not read the Table Library to plan the diagram: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`,
     );
     return undefined;
   }
@@ -274,7 +274,7 @@ export function describeDraftNotice(draft: Pick<DbtDraft, 'modelNames' | 'skippe
   const parts: string[] = [];
   if (draft.truncated && overLimit > 0) {
     parts.push(
-      `Drew the ${draft.modelNames.length} best-connected models and left ${overLimit} out to keep the diagram readable. ` +
+      `Drew the ${draft.modelNames.length} best-connected tables and left ${overLimit} out to keep the diagram readable. ` +
         'Add more from the canvas.',
     );
   }

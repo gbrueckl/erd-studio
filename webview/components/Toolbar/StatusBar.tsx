@@ -35,7 +35,7 @@ export function StatusBar() {
 
   const { totalModels, totalRelationships } = stats;
 
-  const modelText = `${totalModels} models`;
+  const modelText = `${totalModels} tables`;
 
   // Build relationship count string
   const relationshipText = `${totalRelationships} relationship${totalRelationships !== 1 ? 's' : ''}`;

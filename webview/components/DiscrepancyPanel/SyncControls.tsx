@@ -38,14 +38,14 @@ export const SyncRadio: React.FC<SyncRadioProps> = ({ selectionKey }) => {
       <button
         className={`disc-panel__sync-radio-btn${choice === 'logical' ? ' disc-panel__sync-radio-btn--selected' : ''}`}
         onClick={handleClick('logical')}
-        title="Use logical model as ground truth"
+        title="Use the logical stage as ground truth"
       >
         Log
       </button>
       <button
         className={`disc-panel__sync-radio-btn${choice === 'physical' ? ' disc-panel__sync-radio-btn--selected' : ''}`}
         onClick={handleClick('physical')}
-        title="Use physical model as ground truth"
+        title="Use the physical stage as ground truth"
       >
         Phys
       </button>

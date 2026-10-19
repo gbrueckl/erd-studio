@@ -32,17 +32,17 @@ import { DUPLICATE_MODES, FEEDBACK_KINDS, isFeedbackAiProviderChoice } from '../
  */
 export function validateModelNameSafety(name: unknown): string | null {
   if (typeof name !== 'string') {
-    return 'Model name is required.';
+    return 'Table name is required.';
   }
   const trimmed = name.trim();
   if (!trimmed) {
-    return 'Model name cannot be empty.';
+    return 'Table name cannot be empty.';
   }
   if (trimmed.includes('/') || trimmed.includes('\\') || trimmed.includes('..')) {
-    return 'Model name cannot contain path separators.';
+    return 'Table name cannot contain path separators.';
   }
   if (trimmed.includes('\0') || /^[A-Za-z]:/.test(trimmed) || trimmed === '.') {
-    return 'Model name cannot be a file system path.';
+    return 'Table name cannot be a file system path.';
   }
   return null;
 }
@@ -80,11 +80,11 @@ export function validateModelAliasPayload(payload: unknown): string | null {
     return nameError;
   }
   if (typeof alias !== 'string') {
-    return 'Table name must be a string.';
+    return 'Warehouse name must be a string.';
   }
   const trimmed = alias.trim();
   if (trimmed.length > MODEL_ALIAS_MAX_LENGTH) {
-    return `Table name is longer than ${MODEL_ALIAS_MAX_LENGTH} characters.`;
+    return `Warehouse name is longer than ${MODEL_ALIAS_MAX_LENGTH} characters.`;
   }
   if (trimmed && !isValidModelAlias(trimmed)) {
     return MODEL_ALIAS_RULE;
@@ -613,10 +613,10 @@ export function validateAddModelsFromDbtPayload(value: unknown): string | null {
     return null;
   }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return 'Add models from dbt takes no payload.';
+    return 'Add tables from dbt takes no payload.';
   }
   if (Object.keys(value).length > 0) {
-    return 'Add models from dbt takes no payload.';
+    return 'Add tables from dbt takes no payload.';
   }
   return null;
 }
@@ -629,14 +629,14 @@ export function validateAddModelsFromDbtPayload(value: unknown): string | null {
  */
 export function validateAddExistingModelsPayload(value: unknown): string | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return 'Add models needs a list of model names.';
+    return 'Add tables needs a list of table names.';
   }
   const { modelNames } = value as { modelNames?: unknown };
   if (!Array.isArray(modelNames) || modelNames.length === 0) {
-    return 'Add models needs a list of model names.';
+    return 'Add tables needs a list of table names.';
   }
   if (modelNames.length > ADD_EXISTING_MODELS_LIMIT) {
-    return `At most ${ADD_EXISTING_MODELS_LIMIT} models can be added at once.`;
+    return `At most ${ADD_EXISTING_MODELS_LIMIT} tables can be added at once.`;
   }
   for (const name of modelNames) {
     const nameError = validateModelNameSafety(name);
@@ -682,7 +682,7 @@ export function validateExportDiagramPayload(value: unknown): string | null {
  */
 export function validateOpenModelFilePayload(value: unknown): string | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return 'Open model file needs a model name.';
+    return 'Open table file needs a table name.';
   }
   return validateModelNameSafety((value as { modelName?: unknown }).modelName);
 }
@@ -721,11 +721,11 @@ export function validatePoint(value: unknown): string | null {
  */
 export function validatePositions(value: unknown): string | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return 'Positions must be a map of model name to { x, y }.';
+    return 'Positions must be a map of table name to { x, y }.';
   }
   for (const [name, point] of Object.entries(value as Record<string, unknown>)) {
     if (!name.trim()) {
-      return 'Position keys must be non-empty model names.';
+      return 'Position keys must be non-empty table names.';
     }
     const error = validatePoint(point);
     if (error) {
@@ -801,7 +801,7 @@ export function validateAnnotationUpdate(value: unknown): string | null {
     payload.linkedModel !== null &&
     typeof payload.linkedModel !== 'string'
   ) {
-    return 'Annotation linked model must be a model name or null.';
+    return 'Annotation linked table must be a table name or null.';
   }
   for (const key of ['width', 'height'] as const) {
     const size = payload[key];

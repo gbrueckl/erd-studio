@@ -280,7 +280,7 @@ function resolveLinks(raw: RawLink[], models: ExportModel[]): LinkItem[] {
       items.push({ kind: 'skipped', text: description, reason });
     };
     if (!first.fromModel.trim() || !first.toModel.trim()) {
-      skip('it does not name both of its models');
+      skip('it does not name both of its tables');
       continue;
     }
     const from = findByName(models, first.fromModel);
@@ -367,7 +367,7 @@ export function prepareDomain(domain: DisplayDomain): PreparedDomain {
     const raw = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {};
     const name = text(raw.name);
     if (!name.trim()) {
-      modelItems.push({ kind: 'skipped', text: `model ${index + 1} has no name` });
+      modelItems.push({ kind: 'skipped', text: `table ${index + 1} has no name` });
       return;
     }
     if (seen.has(lower(name))) {

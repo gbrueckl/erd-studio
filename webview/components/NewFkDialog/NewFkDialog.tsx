@@ -60,13 +60,13 @@ function validateForm(
   const errors: Record<string, string> = {};
 
   if (!fromModel) {
-    errors.fromModel = 'Source model is required';
+    errors.fromModel = 'Source table is required';
   }
   if (!fromColumn.trim()) {
     errors.fromColumn = 'Source column is required';
   }
   if (!toModel) {
-    errors.toModel = 'Target model is required';
+    errors.toModel = 'Target table is required';
   }
   if (!toColumn.trim()) {
     errors.toColumn = 'Target column is required';
@@ -506,7 +506,7 @@ export function NewFkDialog() {
         {/* Source Model */}
         <div className="new-fk-dialog__field">
           <label className="new-fk-dialog__label" htmlFor="fromModel">
-            Source Model
+            Source Table
           </label>
           <select
             id="fromModel"
@@ -515,7 +515,7 @@ export function NewFkDialog() {
             onChange={(e) => handleFromModelChange(e.target.value)}
             onBlur={() => handleBlur('fromModel')}
           >
-            <option value="">Select model...</option>
+            <option value="">Select table...</option>
             {modelNames.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -555,7 +555,7 @@ export function NewFkDialog() {
               value={fromColumn}
               onChange={(e) => setFromColumn(e.target.value)}
               onBlur={() => handleBlur('fromColumn')}
-              placeholder={fromModel ? 'Enter column name...' : 'Select source model first'}
+              placeholder={fromModel ? 'Enter column name...' : 'Select source table first'}
               disabled={!fromModel}
             />
           )}
@@ -567,7 +567,7 @@ export function NewFkDialog() {
         {/* Target Model */}
         <div className="new-fk-dialog__field">
           <label className="new-fk-dialog__label" htmlFor="toModel">
-            Target Model
+            Target Table
           </label>
           <select
             id="toModel"
@@ -576,7 +576,7 @@ export function NewFkDialog() {
             onChange={(e) => handleToModelChange(e.target.value)}
             onBlur={() => handleBlur('toModel')}
           >
-            <option value="">Select model...</option>
+            <option value="">Select table...</option>
             {modelNames.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -616,7 +616,7 @@ export function NewFkDialog() {
               value={toColumn}
               onChange={(e) => setToColumn(e.target.value)}
               onBlur={() => handleBlur('toColumn')}
-              placeholder={toModel ? 'Enter column name...' : 'Select target model first'}
+              placeholder={toModel ? 'Enter column name...' : 'Select target table first'}
               disabled={!toModel}
             />
           )}
@@ -762,7 +762,7 @@ export function NewFkDialog() {
             onChange={(e) => setRole(e.target.value)}
           />
           <span className="new-fk-dialog__hint">
-            Names the link when a model points at the same one more than once.
+            Names the link when a table points at the same one more than once.
           </span>
         </div>
 

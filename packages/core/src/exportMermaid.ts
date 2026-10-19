@@ -114,7 +114,7 @@ function attributeLine(column: ExportColumn): string {
 }
 
 function modelLines(model: ExportModel): string[] {
-  const lines: string[] = [`  %% Model ${oneLine(model.name)}`];
+  const lines: string[] = [`  %% Table ${oneLine(model.name)}`];
   if (entityName(model.name) !== model.name) {
     lines.push(`  %%   written as ${entity(model)}: Mermaid entity names cannot hold ", % or \\`);
   }
@@ -140,7 +140,7 @@ function modelLines(model: ExportModel): string[] {
   for (const sentence of model.skippedColumns) lines.push(`  %%   ${sentence}; not exported`);
   if (model.loadError) {
     const error = model.loadError;
-    lines.push(`  %%   its model file could not be read (${oneLine(error.kind)}${error.line !== undefined ? `, line ${error.line}` : ''})`);
+    lines.push(`  %%   its table file could not be read (${oneLine(error.kind)}${error.line !== undefined ? `, line ${error.line}` : ''})`);
   } else if (model.columns.length === 0) {
     lines.push('  %%   no columns yet');
   }
@@ -199,7 +199,7 @@ export function toMermaid(domain: DisplayDomain): string {
     }
     const { link } = item;
     if (!exported.has(link.from) || !exported.has(link.to)) {
-      out.push(`  %% Not exported: ${describeEnds(link.from.name, link.fromColumns, link.to.name, link.toColumns)} (a model it joins is not exported).`);
+      out.push(`  %% Not exported: ${describeEnds(link.from.name, link.fromColumns, link.to.name, link.toColumns)} (a table it joins is not exported).`);
       continue;
     }
     out.push(...relationshipLines(link));

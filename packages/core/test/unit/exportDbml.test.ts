@@ -386,7 +386,7 @@ describe('toDbml', () => {
       domain([model('raw_refunds', []), model('broken', [], { loadError: { kind: 'yamlIndent', line: 5 } }), model('ok', [col('id')])]),
     );
     expect(text).toContain('// Table raw_refunds is not exported: it has no columns, and a DBML table needs at least one.');
-    expect(text).toContain('// Table broken is not exported: its model file could not be read (yamlIndent, line 5).');
+    expect(text).toContain('// Table broken is not exported: its table file could not be read (yamlIndent, line 5).');
     expect(db.tables.map((t) => t.name)).toEqual(['ok']);
   });
 
@@ -429,10 +429,10 @@ describe('toDbml', () => {
     } as unknown as DisplayDomain;
     const { text, db } = exportAndRead(old);
     expect(text).toContain('// Not exported: A is listed more than once; exported once.');
-    expect(text).toContain('// Not exported: model 3 has no name.');
+    expect(text).toContain('// Not exported: table 3 has no name.');
     expect(text).toContain('// b: column 1 has no name; not exported');
     expect(text).toContain('// b: column 123 is listed more than once; not exported');
-    expect(text).toContain('// Not exported: ?.? -> ?.? (it does not name both of its models).');
+    expect(text).toContain('// Not exported: ?.? -> ?.? (it does not name both of its tables).');
     expect(text).toContain('// Sticky note 1: 5');
     expect(db.refs).toEqual([{ name: null, ends: [['public', 'b', ['123'], '*'], ['public', 'a', ['id'], '1']] }]);
     expect(field(db, 'b', '123').type).toBe('unknown');

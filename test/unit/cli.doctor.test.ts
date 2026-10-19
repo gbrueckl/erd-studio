@@ -366,7 +366,7 @@ describe('doctor via main', () => {
     const lines = out.split('\n');
     expect(lines).toContain(
       "! .erd-studio/logical-models/gold/fct_refund.yml: amount uses dbt's data_type — read as dataType; "
-      + 'the next edit of this model on the canvas writes it back as dataType',
+      + 'the next edit of this table on the canvas writes it back as dataType',
     );
     expect(lines).toContain(
       '! .erd-studio/logical-models/gold/fct_refund.yml: reason has both dataType and data_type — data_type is ignored; delete it',
@@ -403,7 +403,7 @@ describe('doctor via main', () => {
     expect(lines).toContain(
       "! .erd-studio/logical-models/fct_payment.yml: 8 columns use dbt's data_type "
       + '(payment_id, customer_key, order_key, amount, fee and 3 more) — read as dataType; '
-      + 'the next edit of this model on the canvas writes them back as dataType',
+      + 'the next edit of this table on the canvas writes them back as dataType',
     );
     expect(lines).toContain(
       '! .erd-studio/logical-models/fct_payment.yml: 2 columns have both dataType and data_type (reason, note) '

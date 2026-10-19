@@ -280,7 +280,7 @@ describe('stored on the many side (#133)', () => {
     const { rehome } = planRehome(library, (name) => library.find((m) => m.name === name) ?? null);
     expect(rehome).toEqual([{ from: 'dim_customer', stored: REVERSED, to: REL }]);
     expect(describeMovePlan({ toLibrary: [], removeFromDomains: new Map(), conflicts: [], skippedNoModel: [], rehome, disagreements: [], lockedFiles: [] }))
-      .toMatch(/^Turned round: 1 relationship is stored in the file of the model it points at/);
+      .toMatch(/^Turned round: 1 relationship is stored in the file of the table it points at/);
   });
 
   it('removing a link drops every copy, in both model files, whichever end the line was drawn from', () => {
@@ -504,7 +504,7 @@ describe('the move preview and its leftovers', () => {
     );
     expect(plan.removeFromDomains.get('silver/orders')?.size).toBe(1);
     expect(describeMovePlan(plan)).toContain(
-      "Kept the model library's version: 1 diagram copy says something different",
+      "Kept the Table Library's version: 1 diagram copy says something different",
     );
     expect(describeMovePlan(plan)).toContain(
       '• silver/orders: fct_order.customer_key → dim_customer.customer_key one-to-one — the library has fct_order.customer_key → dim_customer.customer_key many-to-one in logical-models/fct_order.yml',

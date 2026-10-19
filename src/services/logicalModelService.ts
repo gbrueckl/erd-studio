@@ -644,7 +644,7 @@ export class LogicalModelService {
     const warning = modelLoadWarningOf(model);
     if (warning) {
       throw new DuplicateKeyWriteRefused(
-        `Can't change "${model.name}": ${warning.key ? `"${warning.key}"` : 'a key'} is written twice in one block of its model file ` +
+        `Can't change "${model.name}": ${warning.key ? `"${warning.key}"` : 'a key'} is written twice in one block of its table file ` +
           `(line ${warning.line}). Remove one copy, then try again.`,
       );
     }
@@ -709,10 +709,10 @@ export class LogicalModelService {
   renameModel(oldName: string, newName: string): void {
     const model = this.getModel(oldName);
     if (!model) {
-      throw new Error(`Model "${oldName}" not found in logical-models/`);
+      throw new Error(`Table "${oldName}" not found in logical-models/`);
     }
     if (newName !== oldName && this.modelExists(newName)) {
-      throw new Error(`Model "${newName}" already exists in logical-models/`);
+      throw new Error(`Table "${newName}" already exists in logical-models/`);
     }
     // Carry the existing document (comments, key order, extra keys) across
     // to the new file rather than regenerating it from the parsed model.
@@ -855,12 +855,12 @@ export class LogicalModelService {
    */
   private newModelPath(name: string, folder?: string): string {
     if (typeof name !== 'string' || !name.trim() || name.includes('/') || name.includes('\\') || name.includes('..')) {
-      throw new Error(`Invalid model name "${String(name)}": must not contain path separators.`);
+      throw new Error(`Invalid table name "${String(name)}": must not contain path separators.`);
     }
     const modelsDir = path.resolve(this.modelsDir);
     const resolved = path.resolve(modelsDir, `${name}.yml`);
     if (path.dirname(resolved) !== modelsDir) {
-      throw new Error(`Invalid model name "${name}": resolves outside the logical-models directory.`);
+      throw new Error(`Invalid table name "${name}": resolves outside the logical-models directory.`);
     }
     // A layer-shaped name may be created; any folder already in the library
     // (listed by readdir, so it cannot hold a separator) may be written into —

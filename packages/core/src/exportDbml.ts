@@ -161,7 +161,7 @@ function tableNote(model: ExportModel): string {
 
 function loadErrorText(model: ExportModel): string {
   const error = model.loadError!;
-  return `its model file could not be read (${oneLine(error.kind)}${error.line !== undefined ? `, line ${error.line}` : ''})`;
+  return `its table file could not be read (${oneLine(error.kind)}${error.line !== undefined ? `, line ${error.line}` : ''})`;
 }
 
 const columnKey = (model: ExportModel, column: string): string => `${model.name}\u0000${column}`.toLowerCase();

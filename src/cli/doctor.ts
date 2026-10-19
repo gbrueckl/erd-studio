@@ -343,11 +343,11 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
       `${u.file}${u.line !== undefined ? `:${u.line}` : ''}${u.code ? ` (${u.code})` : ''} — ${unreadableHint(u)}`);
     steps.push({
       id: 'fix-model-yaml',
-      title: `Fix ${r.erd.unreadableModelFiles.length === 1 ? 'a model file that does' : `${r.erd.unreadableModelFiles.length} model files that do`} not parse`,
+      title: `Fix ${r.erd.unreadableModelFiles.length === 1 ? 'a table file that does' : `${r.erd.unreadableModelFiles.length} table files that do`} not parse`,
       why: `${list.join('; ')}. `
         + (r.erd.unreadableModelFiles.every((u) => u.readable)
           ? 'ERD Studio loads these with the last copy of each repeated key but will not change the files until one copy is removed; fix them before anything else.'
-          : 'ERD Studio shows these models as empty until they parse; fix them before anything else.')
+          : 'ERD Studio shows these tables as empty until they parse; fix them before anything else.')
         + (r.erd.unreadableModelFiles.some((u) => u.mergeConflict)
           ? " A merge conflict is the user's to resolve; once they have saved the file, re-run doctor."
           : ''),
@@ -411,8 +411,8 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
   if (r.erd.domainFormatIssues.length > 0) {
     steps.push({
       id: 'migrate-v5',
-      title: 'Migrate older domain files',
-      why: `${r.erd.domainFormatIssues.length} domain file(s) use an older format; run "ERD Studio: Migrate to v5" in VS Code before changing them.`,
+      title: 'Migrate older subject area files',
+      why: `${r.erd.domainFormatIssues.length} subject area file(s) use an older format; run "ERD Studio: Migrate Subject Areas to the Central Table Library" in VS Code before changing them.`,
       command: null,
     });
   }
@@ -421,9 +421,9 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
     steps.push({
       id: 'turn-round-relationships',
       title: 'Turn round relationships drawn backwards',
-      why: `${backwards === 1 ? '1 relationship looks' : `${backwards} relationships look`} drawn backwards: ${backwards === 1 ? 'it starts' : 'each starts'} at a model's key `
-        + 'and points at a column that is not the other model\'s key. Turn it round on the canvas (the ⚠ on the line → Turn round), '
-        + 'or rewrite it as a many-to-one from the column that is not a key to the key, in that column\'s model file. '
+      why: `${backwards === 1 ? '1 relationship looks' : `${backwards} relationships look`} drawn backwards: ${backwards === 1 ? 'it starts' : 'each starts'} at a table's key `
+        + 'and points at a column that is not the other table\'s key. Turn it round on the canvas (the ⚠ on the line → Turn round), '
+        + 'or rewrite it as a many-to-one from the column that is not a key to the key, in that column\'s table file. '
         + 'Leave one that was drawn this way on purpose.',
       command: null,
     });

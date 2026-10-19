@@ -114,7 +114,7 @@ describe('ModelNode header', () => {
     const name = container.querySelector('.model-node__name')!;
     expect(name.firstChild?.textContent).toBe('date');
     expect(container.querySelector('.model-node__model-id')!.textContent).toBe('gold_date');
-    expect(name.getAttribute('aria-label')).toBe('date (model gold_date)');
+    expect(name.getAttribute('aria-label')).toBe('date (table gold_date)');
   });
 
   it('is unchanged for a model without a label', () => {
@@ -124,7 +124,7 @@ describe('ModelNode header', () => {
   });
 });
 
-describe('AliasEditor (detail panel "Table name")', () => {
+describe('AliasEditor (detail panel "Warehouse name")', () => {
   async function setup(alias?: string, readOnly = false) {
     const { fireEvent } = await import('@testing-library/react');
     const { AliasEditor } = await import('../../src/components/DetailPanel/AliasEditor');

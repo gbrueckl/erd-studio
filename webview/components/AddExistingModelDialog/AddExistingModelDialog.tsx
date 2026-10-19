@@ -32,7 +32,7 @@ import './AddExistingModelDialog.css';
 type SourceKey = 'logical' | 'yml' | 'manifest';
 
 const SOURCE_CONFIG: Record<SourceKey, { label: string; description: string }> = {
-  logical: { label: 'Logical', description: 'ERD Studio model library' },
+  logical: { label: 'Logical', description: 'ERD Studio Table Library' },
   yml: { label: 'Physical', description: 'dbt .yml schema file' },
   manifest: { label: 'Compiled', description: 'Compiled manifest only' },
 };
@@ -199,7 +199,7 @@ export function AddExistingModelDialog() {
     return (
       <Panel position="top-center" className="add-existing-model-dialog">
         <div className="add-existing-model-dialog__header">
-          <h3 className="add-existing-model-dialog__title">Add Existing Model</h3>
+          <h3 className="add-existing-model-dialog__title">Add Existing Table</h3>
           <button
             className="add-existing-model-dialog__close"
             onClick={handleClose}
@@ -211,15 +211,15 @@ export function AddExistingModelDialog() {
         </div>
         <div className="add-existing-model-dialog__content">
           <div className="add-existing-model-dialog__empty">
-            <p>No models available to add.</p>
+            <p>No tables available to add.</p>
             <p className="add-existing-model-dialog__empty-hint">
               {modelFolder ? (
                 <>
-                  No models found in <code>{modelFolder}/</code>. Add <code>.yml</code> schema files to your dbt project or run <code>dbt compile</code>.
+                  No dbt models found in <code>{modelFolder}/</code>. Add <code>.yml</code> schema files to your dbt project or run <code>dbt compile</code>.
                 </>
               ) : (
                 <>
-                  Add <code>.yml</code> schema files to your dbt project, create models in <code>.erd-studio/logical-models/</code>, or run <code>dbt compile</code>.
+                  Add <code>.yml</code> schema files to your dbt project, create tables in <code>.erd-studio/logical-models/</code>, or run <code>dbt compile</code>.
                 </>
               )}
             </p>
@@ -233,7 +233,7 @@ export function AddExistingModelDialog() {
     <Panel position="top-center" className="add-existing-model-dialog">
       {/* Header */}
       <div className="add-existing-model-dialog__header">
-        <h3 className="add-existing-model-dialog__title">Add Existing Model</h3>
+        <h3 className="add-existing-model-dialog__title">Add Existing Table</h3>
         <button
           className="add-existing-model-dialog__close"
           onClick={handleClose}
@@ -251,7 +251,7 @@ export function AddExistingModelDialog() {
           <input
             type="text"
             className="add-existing-model-dialog__search-input"
-            placeholder="Search models..."
+            placeholder="Search tables..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             autoFocus
@@ -271,8 +271,8 @@ export function AddExistingModelDialog() {
             onClick={handleSelectAllShown}
             disabled={allShownSelected || atLimit}
             title={overLimit
-              ? `At most ${ADD_EXISTING_MODELS_LIMIT} models can be added at once`
-              : 'Tick every model the search and filters show'}
+              ? `At most ${ADD_EXISTING_MODELS_LIMIT} tables can be added at once`
+              : 'Tick every table the search and filters show'}
           >
             {overLimit ? `Select first ${ADD_EXISTING_MODELS_LIMIT} shown` : `Select all ${filteredModels.length} shown`}
           </button>
@@ -306,10 +306,10 @@ export function AddExistingModelDialog() {
         </div>
 
         {/* Model List */}
-        <div className="add-existing-model-dialog__list" role="listbox" aria-multiselectable={canPickMany} aria-label="Models">
+        <div className="add-existing-model-dialog__list" role="listbox" aria-multiselectable={canPickMany} aria-label="Tables">
           {filteredModels.length === 0 ? (
             <div className="add-existing-model-dialog__no-results">
-              No models match your search or filters
+              No tables match your search or filters
             </div>
           ) : (
             filteredModels.map((model) => {
@@ -345,7 +345,7 @@ export function AddExistingModelDialog() {
           onClick={handleAdd}
           disabled={visibleSelected.length === 0}
         >
-          {visibleSelected.length > 1 ? `Add ${visibleSelected.length} Models` : 'Add Model'}
+          {visibleSelected.length > 1 ? `Add ${visibleSelected.length} Tables` : 'Add Table'}
         </button>
       </div>
     </Panel>

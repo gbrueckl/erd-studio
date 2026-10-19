@@ -352,7 +352,7 @@ describe('loadDisplayDomain', () => {
     const err = await rejection(load({}).result);
     expect(err).toBeInstanceOf(DomainFileError);
     expect((err as DomainFileError).reason).toBe('missing');
-    expect((err as DomainFileError).message).toBe(`Domain file not found: ${DOMAIN}`);
+    expect((err as DomainFileError).message).toBe(`Subject area file not found: ${DOMAIN}`);
   });
 
   describe('maxModels', () => {
@@ -600,7 +600,7 @@ describe('loadDisplayDomain', () => {
     const err = await rejection(result);
     expect(err).toBeInstanceOf(DomainValidationError);
     expect((err as Error).message).toBe(
-      'Domain file .erd-studio/diamond/d.json has invalid layer "diamond". Expected one of: silver, gold',
+      'Subject area file .erd-studio/diamond/d.json has invalid layer "diamond". Expected one of: silver, gold',
     );
     expect(reads).toEqual(['.erd-studio/diamond/d.json', '.erd-studio/layers.json']);
   });

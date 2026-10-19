@@ -80,7 +80,7 @@ export async function mapWithLimit<T, R>(
 /** A domain lists more models than the host allows. Thrown before any model file is read. */
 export class TooManyModelsError extends Error {
   constructor(readonly count: number, readonly max: number) {
-    super(`The domain lists ${count} models; at most ${max} are allowed`);
+    super(`The subject area lists ${count} tables; at most ${max} are allowed`);
     this.name = 'TooManyModelsError';
   }
 }
@@ -229,7 +229,7 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
   // 1-3. The domain file itself.
   const domainText = await readFile(domainPath);
   if (domainText === null || domainText === undefined) {
-    throw new DomainFileError('missing', domainPath, `Domain file not found: ${domainPath}`);
+    throw new DomainFileError('missing', domainPath, `Subject area file not found: ${domainPath}`);
   }
   if (domainText.length > maxDomainChars) {
     throw new FileTooLargeError(domainPath, domainText.length, maxDomainChars);
@@ -311,7 +311,7 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
     });
   } catch (err) {
     if (err instanceof TypeError && !callerErrors.has(err)) {
-      const invalid = new DomainValidationError(`${domainPath} is not a loadable domain: ${err.message}`);
+      const invalid = new DomainValidationError(`${domainPath} is not a loadable subject area: ${err.message}`);
       // As `new Error(message, { cause })` sets it (that form needs ES2022 lib typings).
       Object.defineProperty(invalid, 'cause', { value: err, writable: true, configurable: true });
       throw invalid;

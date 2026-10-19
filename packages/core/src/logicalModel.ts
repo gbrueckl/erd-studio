@@ -230,7 +230,7 @@ export const MODEL_ALIAS_MAX_LENGTH = 128;
 
 /** Human-readable statement of the alias rule (used in error messages). */
 export const MODEL_ALIAS_RULE =
-  'A table name must start with a letter or underscore and use only letters, numbers and underscores.';
+  'A warehouse name must start with a letter or underscore and use only letters, numbers and underscores.';
 
 /** Whether `alias` is a usable table name for a model's `alias`. */
 export function isValidModelAlias(alias: unknown): alias is string {

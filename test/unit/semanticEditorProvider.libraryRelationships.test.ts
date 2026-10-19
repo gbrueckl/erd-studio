@@ -497,7 +497,7 @@ describe('"Mark … as primary key" travels with the relationship (#133 L1)', ()
     const orders = await h.open('orders');
     await orders.send({ type: 'addRelationship', payload: { ...EDGE, cardinality: 'many-to-one', markKey: { model: 'dim_customer', columns: ['customer_key'] } } });
     expect(orders.errors()).toEqual([
-      'Failed to add relationship: dim_customer already has a key marked — the relationship was not added. Set its keys in the model first.',
+      'Failed to add relationship: dim_customer already has a key marked — the relationship was not added. Set its keys in the table first.',
     ]);
     expect(_appliedEdits).toHaveLength(0);
     expect(h.logicalModelService.getModel('fct_order')?.relationships).toBeUndefined();

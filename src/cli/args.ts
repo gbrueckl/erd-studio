@@ -226,8 +226,8 @@ Shared options:
   --quiet               no human-readable output (exit code only)
   --verbose             show internal diagnostics on stderr
 
-export prints the domain's logical (design) diagram on stdout and writes no file:
+export prints a subject area's logical (design) diagram on stdout and writes no file:
   erd-studio export --domain .erd-studio/gold/sales.json --format dbml > sales.dbml
 
-Exit codes: 0 ok · 1 diff found drift · 2 usage error · 3 project/domain problem · 4 internal error
+Exit codes: 0 ok · 1 diff found drift · 2 usage error · 3 project/subject area problem · 4 internal error
 `;
