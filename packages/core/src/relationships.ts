@@ -68,6 +68,24 @@ export function canonicalRelationship<T extends Relationship>(rel: T): T {
   return rel.cardinality === 'one-to-many' ? reverseRelationship(rel) : rel;
 }
 
+/**
+ * The end of a relationship that holds the foreign key: the `to` end of a
+ * `one-to-many` (its "many" side), else the `from` end. The one rule the
+ * canvas's FK badge and the exports share (#163); a `one-to-many` saved by
+ * 1.6.6 / 1.6.7 starts at the "one" side, so its `from` column is the key it
+ * points at, not a foreign key.
+ */
+export function foreignKeyEnd(rel: Ends & { cardinality: string }): { model: string; column: string } {
+  return foreignKeyAtTo(rel.cardinality)
+    ? { model: rel.toModel, column: rel.toColumn }
+    : { model: rel.fromModel, column: rel.fromColumn };
+}
+
+/** Whether a relationship of this cardinality holds its foreign key at its `to` end ({@link foreignKeyEnd}). */
+export function foreignKeyAtTo(cardinality: string): boolean {
+  return cardinality === 'one-to-many';
+}
+
 /** The same relationship read from its other end: ends swapped, many-to-one ↔ one-to-many. */
 export function reverseRelationship<T extends Relationship>(rel: T): T {
   const flipped = { 'many-to-one': 'one-to-many', 'one-to-many': 'many-to-one' } as const;

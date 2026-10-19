@@ -1,0 +1,26 @@
+erDiagram
+%% erd-studio mermaid-export v1
+%% Not exported: canvas positions and sizes, sticky-note colours, nested meta values (lists and maps).
+%% Types and column names keep only letters, digits and _; a column comment gives the original when it differs.
+%% Diagram: sales (layer gold, logical stage)
+%% Description: ERD Studio 1.6.6 / 1.6.7 saved a line drawn from the dimension as one-to-many in the domain file (#163)
+
+  %% Model fct_sale
+  %%   schema: gold
+  %%   description: One row per sale
+  "fct_sale" {
+    BIGINT sale_id PK
+    INT store_key FK
+    DECIMAL_18_2 amount "type DECIMAL(18,2)"
+  }
+
+  %% Model dim_store
+  %%   schema: gold
+  %%   description: One row per store
+  "dim_store" {
+    INT store_key PK
+    VARCHAR store_name
+  }
+
+  %% dim_store.store_key -> fct_sale.store_key, one-to-many
+  "dim_store" ||--o{ "fct_sale" : "store_key"

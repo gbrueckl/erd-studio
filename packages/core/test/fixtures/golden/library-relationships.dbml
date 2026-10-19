@@ -22,7 +22,7 @@ One row per order line'''
 }
 
 Table gold.dim_customer {
-  customer_key INT [pk, note: 'Foreign key']
+  customer_key INT [pk]
   customer_name VARCHAR
   Note: '''Role: dimension
 Warehouse table (alias): customer'''

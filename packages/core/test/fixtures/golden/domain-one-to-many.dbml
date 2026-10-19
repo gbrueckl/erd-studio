@@ -1,0 +1,25 @@
+// erd-studio dbml-export v1
+// Not exported: canvas positions and sizes, sticky-note colours, nested meta values (lists and maps).
+// ERD Studio's own fields (role, grain, alias, rationale, natural keys, SCD type, additivity, meta) are in the notes.
+
+Project sales {
+  Note: '''Layer: gold
+Stage: logical
+
+ERD Studio 1.6.6 / 1.6.7 saved a line drawn from the dimension as one-to-many in the domain file (#163)'''
+}
+
+Table gold.fct_sale {
+  sale_id BIGINT [pk]
+  store_key INT
+  amount "DECIMAL(18,2)"
+  Note: 'One row per sale'
+}
+
+Table gold.dim_store {
+  store_key INT [pk]
+  store_name VARCHAR
+  Note: 'One row per store'
+}
+
+Ref: gold.dim_store.store_key < gold.fct_sale.store_key

@@ -39,7 +39,7 @@ describe('buildLogicalDisplayDomain', () => {
     expect(cols.find((c) => c.name === 'customer_id')!.isForeignKey).toBe(true);
     expect(cols.find((c) => c.name === 'legacy_ref')!.isForeignKey).toBe(true);
     expect(cols.find((c) => c.name === 'order_id')!.isForeignKey).toBe(false);
-    // The FK is only on the "from" side.
+    // The FK is only on the foreign-key end: the "from" side of a many-to-one.
     expect(out.models[1].columns[0].isForeignKey).toBe(false);
   });
 

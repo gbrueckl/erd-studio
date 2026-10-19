@@ -12,7 +12,7 @@ erDiagram
   %%   description: One row per order line
   "fct_order" {
     BIGINT order_line_id PK
-    INT customer_key
+    INT customer_key FK
     INT order_date_key FK
     INT product_key
     DECIMAL_18_2 amount "type DECIMAL(18,2); additive"
@@ -23,7 +23,7 @@ erDiagram
   %%   alias: customer
   %%   role: dimension
   "dim_customer" {
-    INT customer_key PK, FK
+    INT customer_key PK
     VARCHAR customer_name
   }
 

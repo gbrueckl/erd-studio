@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 5,
+  "domain": "sales",
+  "layer": "gold",
+  "description": "ERD Studio 1.6.6 / 1.6.7 saved a line drawn from the dimension as one-to-many in the domain file (#163)",
+  "logical": {
+    "models": [
+      {
+        "name": "fct_sale",
+        "schema": "gold",
+        "description": "One row per sale",
+        "columns": [
+          {
+            "name": "sale_id",
+            "dataType": "BIGINT",
+            "description": "",
+            "isPrimaryKey": true
+          },
+          {
+            "name": "store_key",
+            "dataType": "INT",
+            "description": ""
+          },
+          {
+            "name": "amount",
+            "dataType": "DECIMAL(18,2)",
+            "description": ""
+          }
+        ]
+      },
+      {
+        "name": "dim_store",
+        "schema": "gold",
+        "description": "One row per store",
+        "columns": [
+          {
+            "name": "store_key",
+            "dataType": "INT",
+            "description": "",
+            "isPrimaryKey": true
+          },
+          {
+            "name": "store_name",
+            "dataType": "VARCHAR",
+            "description": ""
+          }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "fromModel": "dim_store",
+        "fromColumn": "store_key",
+        "toModel": "fct_sale",
+        "toColumn": "store_key",
+        "cardinality": "one-to-many"
+      }
+    ]
+  },
+  "viewConfig": {
+    "positions": {
+      "fct_sale": {
+        "x": 0,
+        "y": 0
+      },
+      "dim_store": {
+        "x": 400,
+        "y": 0
+      }
+    }
+  }
+}
