@@ -2,7 +2,11 @@
 
 Read this when the prompt says **Pi mode**. The run was started by `~/issue-bot/run.sh` on a
 Raspberry Pi 5 (arm64, 8 GB), because a maintainer put the **`issue-to-pr`** label on the
-issue. It runs on Liam's Claude subscription, with no person watching.
+issue. It runs on Liam's Claude subscription, with no person watching. The runner swaps that
+label for **`pi-working`** when it takes the issue and removes it when the run ends. A run that
+ends without a `RESULT: pr`, `question` or `existing` line (a failed result, a non-zero exit,
+or no RESULT line at all) also gets **`pi-failed`**, which the next run of that issue clears.
+Leave all three labels alone.
 
 Everything in SKILL.md still applies, except where this file changes it. Pi mode is
 interactive mode **without a person**: unlike routine mode, `gh` (GraphQL included), git
