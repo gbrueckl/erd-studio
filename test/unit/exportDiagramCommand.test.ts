@@ -358,9 +358,9 @@ describe('errors', () => {
 describe('with the real exporter', () => {
   it('copies the fixture showcase domain as versioned Mermaid and DBML text', async () => {
     const layerService = new LayerService(FIXTURE_ROOT, '.erd-studio');
-    const domainService = new SubjectAreaService(layerService);
-    domainService.setTableLibraryService(new TableLibraryService(FIXTURE_ROOT, '.erd-studio'));
-    const exportDomain = (p: string, f: DiagramExportFormat) => exportSubjectAreaFile(domainService, p, f);
+    const subjectAreaService = new SubjectAreaService(layerService);
+    subjectAreaService.setTableLibraryService(new TableLibraryService(FIXTURE_ROOT, '.erd-studio'));
+    const exportDomain = (p: string, f: DiagramExportFormat) => exportSubjectAreaFile(subjectAreaService, p, f);
 
     for (const format of ['mermaid', 'dbml'] as const) {
       const ui = fakeUi({ format, action: 'copy' });

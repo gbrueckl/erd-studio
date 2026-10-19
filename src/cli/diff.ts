@@ -506,7 +506,7 @@ export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean):
   }
 
   const { unified, target, report } = computeSubjectAreaDiff(
-    { domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog },
+    { subjectAreaService: ctx.subjectAreaService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog },
     file,
     'logical',
   );
@@ -531,7 +531,7 @@ export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean):
     semanticDir: ctx.semanticDir,
     domain: unified.domain,
     layer: unified.layer,
-    modelFolder: (name) => ctx.logicalModelService.tableFolder(name),
+    modelFolder: (name) => ctx.tableLibraryService.tableFolder(name),
   });
   const unreadableModelFiles = unreadableTables(ctx, unified);
   // The entry each link is drawn from (core's read winner), keyed by link.
@@ -539,9 +539,9 @@ export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean):
   const relationshipHome: RelationshipHome = {
     inLibrary: new Map(libraryLines.map((line) => [linkKey(line), line])),
     addToLibrary: usesLibraryRelationships(
-      ctx.logicalModelService.listTables(),
-      ctx.domainService.countSubjectAreaFileRelationships(ctx.root, ctx.semanticDir),
-      ctx.logicalModelService.hasUnreadableRelationships(),
+      ctx.tableLibraryService.listTables(),
+      ctx.subjectAreaService.countSubjectAreaFileRelationships(ctx.root, ctx.semanticDir),
+      ctx.tableLibraryService.hasUnreadableRelationships(),
     ),
   };
   const fixes = fixesFromPlan(plan, rel, ctx.semanticDir, phantoms, unreadableModelFiles, relationshipHome);
@@ -571,13 +571,13 @@ export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean):
 function missingTableFiles(ctx: CliContext, unified: UnifiedSubjectArea): string[] {
   return unified.logical.models
     .map((m) => m.name)
-    .filter((name) => !ctx.logicalModelService.tableExists(name));
+    .filter((name) => !ctx.tableLibraryService.tableExists(name));
 }
 
 function unreadableTables(ctx: CliContext, unified: UnifiedSubjectArea): UnreadableTableFile[] {
   const out: UnreadableTableFile[] = [];
   for (const m of unified.logical.models) {
-    const err = ctx.logicalModelService.getTableFileError(m.name);
+    const err = ctx.tableLibraryService.getTableFileError(m.name);
     if (err) { out.push(toUnreadableTableFile(ctx.root, err)); }
   }
   return out;
@@ -602,7 +602,7 @@ export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResul
         `No ${ctx.semanticDir}/ folder in this project — check --semantic-dir (it must match the erdStudio.semanticDir setting).`,
       );
     }
-    const summaries = ctx.domainService.listSubjectAreas(ctx.root, ctx.semanticDir);
+    const summaries = ctx.subjectAreaService.listSubjectAreas(ctx.root, ctx.semanticDir);
     if (summaries.length === 0) {
       throw new CliEnvError(
         'no-domains',

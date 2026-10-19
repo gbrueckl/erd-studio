@@ -34,13 +34,13 @@ function deps(overrides: Partial<DrawFromDbtDeps> = {}): DrawFromDbtDeps {
       getAllLayers: () => [],
       saveConfig: async () => undefined,
     } as unknown as DrawFromDbtDeps['layerService'],
-    domainService: { listSubjectAreas: () => [] },
-    logicalModelService: {
+    subjectAreaService: { listSubjectAreas: () => [] },
+    tableLibraryService: {
       modelExists: () => false,
       saveModel: () => undefined,
       groupsByFolder: () => false,
       deleteModel: () => undefined,
-    } as unknown as DrawFromDbtDeps['logicalModelService'],
+    } as unknown as DrawFromDbtDeps['tableLibraryService'],
     loadDbt: async () => ({}),
     validateDomainName: () => undefined,
     onWritten: () => undefined,

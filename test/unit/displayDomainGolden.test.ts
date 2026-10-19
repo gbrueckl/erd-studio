@@ -206,7 +206,7 @@ function emptyYml(): YmlData {
 
 interface Host {
   provider: SemanticEditorProvider;
-  domainService: SubjectAreaService;
+  subjectAreaService: SubjectAreaService;
 }
 
 /**
@@ -215,10 +215,10 @@ interface Host {
  */
 function buildHost(root: string, options: { dbt?: boolean } = {}): Host {
   const layerService = new LayerService(root, SEMANTIC_DIR);
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(root, SEMANTIC_DIR);
-  domainService.setTableLibraryService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, root, SEMANTIC_DIR);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, SEMANTIC_DIR);
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, root, SEMANTIC_DIR);
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
     globalStorageUri: vscode.Uri.file(path.join(root, '.global-storage')),
@@ -237,20 +237,20 @@ function buildHost(root: string, options: { dbt?: boolean } = {}): Host {
 
   const provider = new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     manifestService,
     ymlParserService,
     templateService,
     layerService,
     root,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
     new OwnWriteTracker(),
   );
   if (options.dbt) {
     provider.setCatalogService(new CatalogService());
   }
-  return { provider, domainService };
+  return { provider, subjectAreaService };
 }
 
 function subjectAreaFile(root: string, relative: string): string {
@@ -338,8 +338,8 @@ describe('DisplayDomain golden output (extension host)', () => {
     });
 
     it('reads the UnifiedDomain with getDomain', () => {
-      const { domainService } = buildHost(root);
-      const unified = JSON.parse(JSON.stringify(domainService.getSubjectArea(subjectAreaFile(root, relative))));
+      const { subjectAreaService } = buildHost(root);
+      const unified = JSON.parse(JSON.stringify(subjectAreaService.getSubjectArea(subjectAreaFile(root, relative))));
       matchGolden(`${name}.unified.json`, normalise(unified, root));
       matchLogs(`${name}.unified`, root);
     });

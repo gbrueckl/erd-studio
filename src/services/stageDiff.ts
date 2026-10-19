@@ -22,7 +22,7 @@ import { buildLogicalDisplaySubjectArea, dbtKeyIndexOf } from './stageDisplay';
 /** Everything the comparison reads besides the domain file itself. */
 export interface SubjectAreaDiffInputs {
   /** Must have its LogicalModelService set, or v5 model names do not resolve. */
-  domainService: SubjectAreaService;
+  subjectAreaService: SubjectAreaService;
   ymlData: YmlData;
   manifest: ManifestData;
   catalog?: CatalogData;
@@ -55,7 +55,7 @@ export function buildStageForDiff(
   stage: Stage,
 ): DisplaySubjectArea {
   if (stage === 'physical') {
-    return inputs.domainService.buildPhysicalSubjectArea(unified, inputs.ymlData, inputs.manifest, inputs.catalog);
+    return inputs.subjectAreaService.buildPhysicalSubjectArea(unified, inputs.ymlData, inputs.manifest, inputs.catalog);
   }
   return buildLogicalDisplaySubjectArea(
     SubjectAreaService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns, dbtKeyIndexOf(inputs.ymlData, inputs.manifest),
@@ -80,7 +80,7 @@ export function computeSubjectAreaDiff(
   targetStage: Stage = otherStage(sourceStage),
 ): SubjectAreaDiffResult {
   // The read winner sees dbt's key evidence, as the canvas does (#133 L1).
-  const unified = inputs.domainService.getSubjectArea(domainPath, { dbtKeyIndex: dbtKeyIndexOf(inputs.ymlData, inputs.manifest) });
+  const unified = inputs.subjectAreaService.getSubjectArea(domainPath, { dbtKeyIndex: dbtKeyIndexOf(inputs.ymlData, inputs.manifest) });
   const source = buildStageForDiff(inputs, unified, sourceStage);
   const target = buildStageForDiff(inputs, unified, targetStage);
   const report = compare(source, target, new Set(unified.stubColumns ?? []));

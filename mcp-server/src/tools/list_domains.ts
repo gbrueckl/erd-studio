@@ -25,7 +25,7 @@ export const list_domains = {
     },
   },
   async handler({ project_path, layer }: { project_path: string; layer?: string }) {
-    const { domainService, projectPath, semanticDir } = buildServices(project_path);
+    const { subjectAreaService, projectPath, semanticDir } = buildServices(project_path);
 
     if (!isInitialized(projectPath, semanticDir)) {
       return {
@@ -47,7 +47,7 @@ export const list_domains = {
       };
     }
 
-    const summaries = domainService.listSubjectAreas(projectPath, semanticDir);
+    const summaries = subjectAreaService.listSubjectAreas(projectPath, semanticDir);
     const filtered = layer ? summaries.filter((s) => s.layer === layer) : summaries;
     return {
       content: [

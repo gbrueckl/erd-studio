@@ -49,10 +49,10 @@ describe('.erd-studio/modelling-approach.md is ignored by the extension', () => 
 
   it('adds no layer, domain or model, with or without layers.json', () => {
     const layerService = new LayerService(root, '.erd-studio');
-    const domainService = new SubjectAreaService(layerService);
-    domainService.setTableLibraryService(new TableLibraryService(root, '.erd-studio'));
+    const subjectAreaService = new SubjectAreaService(layerService);
+    subjectAreaService.setTableLibraryService(new TableLibraryService(root, '.erd-studio'));
     const layersBefore = layerService.detectLayersFromFilesystem().map((l) => l.id);
-    const domainsBefore = domainService.listSubjectAreas(root, '.erd-studio');
+    const domainsBefore = subjectAreaService.listSubjectAreas(root, '.erd-studio');
     expect(domainsBefore.length).toBeGreaterThan(0);
 
     fs.writeFileSync(path.join(semantic, 'modelling-approach.md'), APPROACH);

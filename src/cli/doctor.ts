@@ -219,7 +219,7 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
       conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
     };
   }
-  const domains = ctx.domainService.listSubjectAreas(ctx.root, ctx.semanticDir);
+  const domains = ctx.subjectAreaService.listSubjectAreas(ctx.root, ctx.semanticDir);
   const issues: DoctorResult['erd']['domainFormatIssues'] = [];
   const conflicted: ConflictedSubjectAreaFile[] = [];
   for (const d of domains) {
@@ -237,11 +237,11 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
   }
   const unreadable: UnreadableTableFile[] = [];
   const aliased: DataTypeAliasFile[] = [];
-  for (const entry of ctx.logicalModelService.listTableFiles()) {
+  for (const entry of ctx.tableLibraryService.listTableFiles()) {
     if (entry.shadowedBy) { continue; }
-    const err = ctx.logicalModelService.getTableFileError(entry.name);
+    const err = ctx.tableLibraryService.getTableFileError(entry.name);
     if (err) { unreadable.push(toUnreadableTableFile(ctx.root, err)); continue; }
-    const { columns, ignored, anchored } = ctx.logicalModelService.dataTypeAliasColumns(entry.name);
+    const { columns, ignored, anchored } = ctx.tableLibraryService.dataTypeAliasColumns(entry.name);
     if (columns.length + ignored.length + anchored.length > 0) {
       aliased.push({ name: entry.name, file: relPath(ctx.root, entry.filePath), columns, ignored, anchored });
     }
@@ -251,7 +251,7 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
     semanticDirExists: true,
     layers: ctx.layerService.getValidLayerIds(),
     domains: domains.length,
-    logicalModels: ctx.logicalModelService.listTableNames().length,
+    logicalModels: ctx.tableLibraryService.listTableNames().length,
     domainFormatIssues: issues,
     unreadableModelFiles: unreadable,
     conflictedDomainFiles: conflicted,
@@ -272,7 +272,7 @@ function backwardsRelationshipsOf(ctx: CliContext, domainFiles: string[]): Backw
     let relationships: Relationship[];
     let flagged: Set<Relationship>;
     try {
-      const domain = ctx.domainService.getSubjectAreaStage(file, { dbtKeyIndex });
+      const domain = ctx.subjectAreaService.getSubjectAreaStage(file, { dbtKeyIndex });
       const byName = new Map(domain.models.map((m) => [m.name.toLowerCase(), m]));
       relationships = domain.relationships;
       flagged = keysContradictedRelationships(relationships, (name) => byName.get(name.toLowerCase()), dbtKeyIndex);

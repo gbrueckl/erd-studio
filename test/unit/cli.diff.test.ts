@@ -48,7 +48,7 @@ describe('diff', () => {
     const d = result.domains[0];
     const file = path.join(PROJECT, '.erd-studio/silver/showcase.json');
     const expected = computeSubjectAreaDiff(
-      { domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
+      { subjectAreaService: ctx.subjectAreaService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
     expect(d.report).toEqual(expected.report);
     const plan = buildSyncPlan(expected.report, allSelections(expected.report, 'physical'), {
       manifest: ctx.manifest, ymlData: ctx.ymlData, projectRoot: PROJECT, semanticDir: '.erd-studio', domain: 'showcase', layer: 'silver',
@@ -600,8 +600,8 @@ describe('the read winner sees dbt\'s key evidence in the CLI as on the canvas (
 
     const ctx = await buildCliContext({ project: root, semanticDir: '.erd-studio' });
     // Flags alone draw the dimension's backwards copy; dbt's unique test on dim_customer.customer_key draws the fact's.
-    expect(ctx.domainService.getSubjectArea(file).logical.relationships[0].fromModel).toBe('dim_customer');
-    const canvas = computeSubjectAreaDiff({ domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
+    expect(ctx.subjectAreaService.getSubjectArea(file).logical.relationships[0].fromModel).toBe('dim_customer');
+    const canvas = computeSubjectAreaDiff({ subjectAreaService: ctx.subjectAreaService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
     expect(canvas.source.relationships).toEqual([expect.objectContaining({ fromModel: 'fct_order', toModel: 'dim_customer', cardinality: 'many-to-one' })]);
     expect(canvas.report.relationships.map((r) => r.status)).toEqual(['matched']);
 

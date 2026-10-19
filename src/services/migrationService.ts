@@ -192,7 +192,7 @@ export class MigrationService {
   constructor(
     private readonly workspaceRoot: string,
     private readonly layerService: LayerService,
-    private readonly logicalModelService: TableLibraryService,
+    private readonly tableLibraryService: TableLibraryService,
     /** Semantic directory relative to workspaceRoot (the `erdStudio.semanticDir` setting). */
     private readonly semanticDir: string = DEFAULT_SEMANTIC_DIR,
   ) {}
@@ -296,7 +296,7 @@ export class MigrationService {
     }
 
     // Ensure logical-models directory exists
-    this.logicalModelService.ensureDir();
+    this.tableLibraryService.ensureDir();
 
     // Phase 1: Extract all models across all domains, resolve conflicts
     const allModels = new Map<string, { model: SemanticTable; sources: string[] }>();
@@ -335,15 +335,15 @@ export class MigrationService {
     // Decided once, before anything is written: layer folders only when the
     // library already uses them or is empty — a flat library stays flat.
     const layerIds = new Set(this.layerService.getAllLayers().map((l) => l.id));
-    const useFolders = this.logicalModelService.groupsByFolder(layerIds);
+    const useFolders = this.tableLibraryService.groupsByFolder(layerIds);
     for (const [name, { model, sources }] of allModels) {
-      if (!this.logicalModelService.tableExists(name)) {
+      if (!this.tableLibraryService.tableExists(name)) {
         // The domain's layer is its parent directory name.
         const layers = new Set(sources.map((source) => path.basename(path.dirname(source))));
         const only = layers.size === 1 ? [...layers][0] : undefined;
         // Never create a folder for a directory that is not a configured layer.
         const folder = useFolders && only !== undefined && layerIds.has(only) ? only : undefined;
-        this.logicalModelService.saveTable(model, folder);
+        this.tableLibraryService.saveTable(model, folder);
         result.modelsCreated++;
       }
     }

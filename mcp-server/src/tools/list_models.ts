@@ -22,7 +22,7 @@ export const list_models = {
     },
   },
   async handler({ project_path }: { project_path: string }) {
-    const { logicalModelService, projectPath, semanticDir } = buildServices(project_path);
+    const { tableLibraryService, projectPath, semanticDir } = buildServices(project_path);
 
     if (!isInitialized(projectPath, semanticDir)) {
       return {
@@ -39,7 +39,7 @@ export const list_models = {
       };
     }
 
-    const models = logicalModelService.listTables();
+    const models = tableLibraryService.listTables();
     return {
       content: [
         {

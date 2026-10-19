@@ -23,9 +23,9 @@ const FIXTURE_ROOT = path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project');
 
 function buildProvider(rootDir: string) {
   const layerService = new LayerService(rootDir, '.erd-studio');
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(rootDir, '.erd-studio');
-  domainService.setTableLibraryService(logicalModelService);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(rootDir, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
     globalStorageUri: vscode.Uri.file(path.join(rootDir, '.global-storage')),
@@ -35,8 +35,8 @@ function buildProvider(rootDir: string) {
     subscriptions: [],
   } as unknown as import('vscode').ExtensionContext;
   return new SemanticEditorProvider(
-    context, domainService, new ManifestService(), new YmlParserService(), new TemplateService(),
-    layerService, rootDir, new SelectorsService(domainService, rootDir, '.erd-studio'), logicalModelService,
+    context, subjectAreaService, new ManifestService(), new YmlParserService(), new TemplateService(),
+    layerService, rootDir, new SelectorsService(subjectAreaService, rootDir, '.erd-studio'), tableLibraryService,
   );
 }
 

@@ -62,8 +62,8 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   constructor(
-    private readonly logicalModelService: TableLibraryService,
-    private readonly domainService: SubjectAreaService,
+    private readonly tableLibraryService: TableLibraryService,
+    private readonly subjectAreaService: SubjectAreaService,
     private readonly projectPath: string,
     private readonly semanticDir: string,
     /** Configured layers, for ordering and labelling folders. Optional. */
@@ -130,12 +130,12 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
       return element.type === 'folder' ? element.children : undefined;
     }
 
-    if (!this.logicalModelService.dirExists()) return [];
+    if (!this.tableLibraryService.dirExists()) return [];
 
     const usageMap = this.buildUsageMap();
     const toNode = (entry: TableFileEntry): TableLibraryTableNode => {
       // Through the service's mtime cache, so an unchanged library is not re-parsed.
-      const error = entry.shadowedBy ? null : this.logicalModelService.getTableFileError(entry.name);
+      const error = entry.shadowedBy ? null : this.tableLibraryService.getTableFileError(entry.name);
       return {
         type: 'model',
         name: entry.name,
@@ -156,7 +156,7 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
     };
     const byName = (a: TableLibraryTableNode, b: TableLibraryTableNode): number => a.name.localeCompare(b.name);
 
-    const entries = this.logicalModelService.listTableFiles();
+    const entries = this.tableLibraryService.listTableFiles();
     const topLevel = entries.filter(e => e.folder === '').map(toNode).sort(byName);
 
     const grouped = new Map<string, TableLibraryTableNode[]>();
@@ -175,7 +175,7 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
       const ib = layerOrder.get(b) ?? Number.MAX_SAFE_INTEGER;
       return ia !== ib ? ia - ib : a.localeCompare(b);
     });
-    const modelsDir = this.logicalModelService.getTablesDir();
+    const modelsDir = this.tableLibraryService.getTablesDir();
     const folderNodes: TableLibraryFolderNode[] = folders.map(folder => ({
       type: 'folder',
       folder,
@@ -239,7 +239,7 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
    */
   private buildUsageMap(): Map<string, string[]> {
     const map = new Map<string, string[]>();
-    const summaries = this.domainService.listSubjectAreas(this.projectPath, this.semanticDir);
+    const summaries = this.subjectAreaService.listSubjectAreas(this.projectPath, this.semanticDir);
 
     for (const summary of summaries) {
       try {

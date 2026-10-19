@@ -46,8 +46,8 @@ function deps(): DrawFromDbtDeps {
       getAllLayers: () => [],
       saveConfig: async () => undefined,
     } as unknown as DrawFromDbtDeps['layerService'],
-    domainService: { listSubjectAreas: () => [], countSubjectAreaFileRelationships: () => 0 },
-    logicalModelService: lms,
+    subjectAreaService: { listSubjectAreas: () => [], countSubjectAreaFileRelationships: () => 0 },
+    tableLibraryService: lms,
     loadDbt: async () => ({}),
     validateDomainName: () => undefined,
     onWritten: () => undefined,
@@ -111,7 +111,7 @@ describe('Draw from dbt — model files it rewrites', () => {
   it('names what failed when it cannot read the library to plan the diagram, and writes nothing', async () => {
     const error = vi.spyOn(vscode.window, 'showErrorMessage');
     const d = deps();
-    d.domainService.countSubjectAreaFileRelationships = () => { throw new Error('EACCES: permission denied, scandir'); };
+    d.subjectAreaService.countSubjectAreaFileRelationships = () => { throw new Error('EACCES: permission denied, scandir'); };
 
     await expect(drawFromDbt(d)).resolves.toBeUndefined();
 

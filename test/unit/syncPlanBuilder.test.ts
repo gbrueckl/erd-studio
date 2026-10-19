@@ -185,9 +185,9 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
     try {
       fs.cpSync(FIXTURE_ROOT, tmp, { recursive: true });
       const layerService = new LayerService(tmp, '.erd-studio');
-      const domainService = new SubjectAreaService(layerService);
-      const logicalModelService = new TableLibraryService(tmp, '.erd-studio');
-      domainService.setTableLibraryService(logicalModelService);
+      const subjectAreaService = new SubjectAreaService(layerService);
+      const tableLibraryService = new TableLibraryService(tmp, '.erd-studio');
+      subjectAreaService.setTableLibraryService(tableLibraryService);
       const manifestService = new ManifestService();
       const ymlParserService = new YmlParserService();
       const context = {
@@ -199,8 +199,8 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
         subscriptions: [],
       } as unknown as import('vscode').ExtensionContext;
       const provider = new SemanticEditorProvider(
-        context, domainService, manifestService, ymlParserService, new TemplateService(),
-        layerService, tmp, new SelectorsService(domainService, tmp, '.erd-studio'), logicalModelService,
+        context, subjectAreaService, manifestService, ymlParserService, new TemplateService(),
+        layerService, tmp, new SelectorsService(subjectAreaService, tmp, '.erd-studio'), tableLibraryService,
       );
 
       const file = path.join(tmp, '.erd-studio', 'silver', 'showcase.json');
@@ -238,7 +238,7 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
       expect(posted().find((m) => m.type === 'syncPlanGenerated')!.payload.totalActions).toBe(countSyncPlanActions(expected));
 
       // And the CLI route — computeDomainDiff + allSelections — sees the same report.
-      const cli = computeSubjectAreaDiff({ domainService, ymlData, manifest }, file, 'logical');
+      const cli = computeSubjectAreaDiff({ subjectAreaService, ymlData, manifest }, file, 'logical');
       expect(cli.report).toEqual(shown);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });

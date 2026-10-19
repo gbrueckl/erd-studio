@@ -108,15 +108,15 @@ const SUMMARIES: SubjectAreaSummary[] = [
 
 describe('ModelLibraryTreeProvider', () => {
   let provider: TableLibraryTreeProvider;
-  let mockLogicalModelService: TableLibraryService;
-  let mockDomainService: SubjectAreaService;
+  let mockTableLibraryService: TableLibraryService;
+  let mockSubjectAreaService: SubjectAreaService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLogicalModelService = createMockTableLibraryService(
+    mockTableLibraryService = createMockTableLibraryService(
       ['dim_customer', 'dim_date', 'fct_orders'],
     );
-    mockDomainService = createMockSubjectAreaService(SUMMARIES);
+    mockSubjectAreaService = createMockSubjectAreaService(SUMMARIES);
 
     // Default: customer-360 references dim_customer and fct_orders,
     // reporting references dim_customer only
@@ -131,8 +131,8 @@ describe('ModelLibraryTreeProvider', () => {
     });
 
     provider = new TableLibraryTreeProvider(
-      mockLogicalModelService,
-      mockDomainService,
+      mockTableLibraryService,
+      mockSubjectAreaService,
       '/project',
       '.erd-studio',
     );
@@ -155,10 +155,10 @@ describe('ModelLibraryTreeProvider', () => {
     });
 
     it('returns empty array when logical-models dir does not exist', () => {
-      mockLogicalModelService = createMockTableLibraryService([]);
+      mockTableLibraryService = createMockTableLibraryService([]);
       provider = new TableLibraryTreeProvider(
-        mockLogicalModelService,
-        mockDomainService,
+        mockTableLibraryService,
+        mockSubjectAreaService,
         '/project',
         '.erd-studio',
       );
@@ -282,7 +282,7 @@ describe('ModelLibraryTreeProvider', () => {
   describe('layer folders', () => {
     const build = (entries: TableFileEntry[], layers: LayerConfig[] = LAYERS) => new TableLibraryTreeProvider(
       createMockTableLibraryServiceFromEntries(entries),
-      mockDomainService,
+      mockSubjectAreaService,
       '/project',
       '.erd-studio',
       () => layers,
@@ -337,7 +337,7 @@ describe('ModelLibraryTreeProvider', () => {
     it('sorts folders alphabetically when no layers are supplied (default getLayers)', () => {
       const p = new TableLibraryTreeProvider(
         createMockTableLibraryServiceFromEntries([entry('a', 'silver'), entry('b', 'gold')]),
-        mockDomainService,
+        mockSubjectAreaService,
         '/project',
         '.erd-studio',
       );

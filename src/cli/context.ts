@@ -71,8 +71,8 @@ export interface CliContext {
   semanticDir: string;
   dbtConfig: DbtProjectConfig;
   layerService: LayerService;
-  logicalModelService: TableLibraryService;
-  domainService: SubjectAreaService;
+  tableLibraryService: TableLibraryService;
+  subjectAreaService: SubjectAreaService;
   manifest: ManifestData;
   manifestInfo: ManifestInputInfo;
   ymlData: YmlData;
@@ -197,9 +197,9 @@ export async function buildCliContext(opts: { project?: string; semanticDir: str
   const dbtConfig = readDbtProjectConfig(root);
 
   const layerService = new LayerService(root, semanticDir);
-  const logicalModelService = new TableLibraryService(root, semanticDir);
-  const domainService = new SubjectAreaService(layerService);
-  domainService.setTableLibraryService(logicalModelService);
+  const tableLibraryService = new TableLibraryService(root, semanticDir);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  subjectAreaService.setTableLibraryService(tableLibraryService);
 
   const manifestService = new ManifestService({ dbtConfig, parseInProcess: true });
   const catalogService = new CatalogService({ dbtConfig });
@@ -244,8 +244,8 @@ export async function buildCliContext(opts: { project?: string; semanticDir: str
     semanticDir,
     dbtConfig,
     layerService,
-    logicalModelService,
-    domainService,
+    tableLibraryService,
+    subjectAreaService,
     manifest,
     manifestInfo: {
       status: manifestStatus,

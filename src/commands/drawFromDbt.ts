@@ -61,8 +61,8 @@ export interface DrawFromDbtDeps {
   /** `model-paths` from dbt_project.yml. */
   modelPaths: readonly string[];
   layerService: Pick<LayerService, 'getValidLayerIds' | 'getCreatableLayers' | 'getAllLayers' | 'saveConfig'>;
-  domainService: Pick<SubjectAreaService, 'listSubjectAreas' | 'countSubjectAreaFileRelationships'>;
-  logicalModelService: Pick<
+  subjectAreaService: Pick<SubjectAreaService, 'listSubjectAreas' | 'countSubjectAreaFileRelationships'>;
+  tableLibraryService: Pick<
     TableLibraryService,
     'tableExists' | 'saveTable' | 'serializeTable' | 'groupsByFolder' | 'deleteTable' | 'listTables' | 'getTable' | 'hasUnreadableRelationships' | 'tablePath' | 'getTablesDir'
   >;
@@ -95,7 +95,7 @@ export async function drawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtRes
 }
 
 async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult | undefined> {
-  const { workspaceRoot, semanticDir, layerService, domainService, logicalModelService } = deps;
+  const { workspaceRoot, semanticDir, layerService, subjectAreaService, tableLibraryService } = deps;
 
   const { ymlData, manifest, catalog } = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: 'Reading your dbt project…' },
@@ -135,7 +135,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   }
   const layerLabel = creatable.find((l) => l.id === layer)?.label ?? layer;
 
-  const existingDomains = domainService.listSubjectAreas(workspaceRoot, semanticDir);
+  const existingDomains = subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
   const suggested = suggestSubjectAreaName(pick.scope, existingDomains.filter((d) => d.layer === layer).map((d) => d.domain));
   const chosenLayer = layer;
   const name = await vscode.window.showInputBox({
@@ -153,7 +153,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     ymlData,
     manifest,
     catalog,
-    libraryHas: (n) => logicalModelService.tableExists(n),
+    libraryHas: (n) => tableLibraryService.tableExists(n),
   });
   if (draft.modelNames.length === 0) {
     telemetry.feature('drawNothingDrawable');
@@ -179,23 +179,23 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   let routed: { kept: DbtDraft['relationships']; changed: DbtDraft['newModels'] };
   let dirty: string[];
   try {
-    folder = logicalModelService.groupsByFolder(new Set(layerService.getValidLayerIds())) ? chosenLayer : undefined;
+    folder = tableLibraryService.groupsByFolder(new Set(layerService.getValidLayerIds())) ? chosenLayer : undefined;
     routed = usesLibraryRelationships(
-      logicalModelService.listTables(),
-      domainService.countSubjectAreaFileRelationships(workspaceRoot, semanticDir),
-      logicalModelService.hasUnreadableRelationships(),
+      tableLibraryService.listTables(),
+      subjectAreaService.countSubjectAreaFileRelationships(workspaceRoot, semanticDir),
+      tableLibraryService.hasUnreadableRelationships(),
     )
-      ? routeToLibrary(draft.relationships, draft.newModels, (n) => logicalModelService.getTable(n),
-        drawnDiagramCopies(readSubjectAreaRelationships(domainService, workspaceRoot, semanticDir)))
+      ? routeToLibrary(draft.relationships, draft.newModels, (n) => tableLibraryService.getTable(n),
+        drawnDiagramCopies(readSubjectAreaRelationships(subjectAreaService, workspaceRoot, semanticDir)))
       : { kept: draft.relationships, changed: [] };
     dirty = dirtyFiles([
-      ...draft.newModels.map((m) => logicalModelService.tablePath(m.name, folder)),
-      ...routed.changed.map((m) => logicalModelService.tablePath(m.name)),
+      ...draft.newModels.map((m) => tableLibraryService.tablePath(m.name, folder)),
+      ...routed.changed.map((m) => tableLibraryService.tablePath(m.name)),
     ]);
     // Throws DuplicateKeyWriteRefused for a library file that is read but may
     // not be written (#164), or RelationshipsRewriteRefused, before the diagram
     // is on disk rather than after.
-    for (const model of routed.changed) logicalModelService.serializeTable(model);
+    for (const model of routed.changed) tableLibraryService.serializeTable(model);
   } catch (err) {
     if (err instanceof DuplicateKeyWriteRefused || err instanceof RelationshipsRewriteRefused) {
       void vscode.window.showErrorMessage(`${TITLE}: ${err.message} Nothing was changed.`);
@@ -208,7 +208,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     return undefined;
   }
   if (dirty.length > 0) {
-    const libraryRoot = path.dirname(logicalModelService.getTablesDir());
+    const libraryRoot = path.dirname(tableLibraryService.getTablesDir());
     const file = path.relative(libraryRoot, dirty[0]).split(path.sep).join('/');
     void vscode.window.showErrorMessage(
       `${TITLE}: ${file} has unsaved changes. Save or revert it, then try again. Nothing was changed.`,
@@ -226,7 +226,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     fs.mkdirSync(layerDir, { recursive: true });
 
     for (const model of draft.newModels) {
-      logicalModelService.saveTable(model, folder);
+      tableLibraryService.saveTable(model, folder);
       written.push(model.name);
     }
 
@@ -241,12 +241,12 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     ownWrites.recordWrite(domainPath);
     // Existing library models that gained a relationship, once the diagram is on disk.
     for (const model of routed.changed) {
-      if (!draft.newModels.includes(model)) logicalModelService.saveTable(model);
+      if (!draft.newModels.includes(model)) tableLibraryService.saveTable(model);
     }
   } catch (err) {
     // Leave no orphan model files behind a domain that was never written.
     for (const modelName of written) {
-      try { logicalModelService.deleteTable(modelName); } catch { /* best effort */ }
+      try { tableLibraryService.deleteTable(modelName); } catch { /* best effort */ }
     }
     const exists = err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST';
     if (!exists) { telemetry.error('drawWriteFailed'); }

@@ -44,7 +44,7 @@ export interface ExportResult {
 export async function runExport(ctx: CliContext, opts: ExportOptions): Promise<ExportResult> {
   const file = resolveSubjectAreaPath(ctx, opts.domain, opts.cwd);
   try {
-    const exported = await exportSubjectAreaFile(ctx.domainService, file, opts.format, {
+    const exported = await exportSubjectAreaFile(ctx.subjectAreaService, file, opts.format, {
       dbtKeyIndex: dbtKeyIndexOf(ctx.ymlData, ctx.manifest),
     });
     return {

@@ -30,13 +30,13 @@ export const read_model = {
     project_path: string;
     model_name: string;
   }) {
-    const { logicalModelService, projectPath, semanticDir } = buildServices(project_path);
+    const { tableLibraryService, projectPath, semanticDir } = buildServices(project_path);
 
     if (!isInitialized(projectPath, semanticDir)) {
       throw new Error(NOT_INITIALIZED_TIP);
     }
 
-    const model = logicalModelService.getTable(model_name);
+    const model = tableLibraryService.getTable(model_name);
     if (!model) {
       throw new Error(
         `Model not found: ${model_name}. Use list_models to see what's available, or call get_editor_setup if you haven't created any models yet.`,

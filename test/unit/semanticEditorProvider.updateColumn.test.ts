@@ -67,7 +67,7 @@ function makeDocument(text: string) {
  */
 function makeProvider(models: SemanticTable[]) {
   const saved: SemanticTable[] = [];
-  const logicalModelService = {
+  const tableLibraryService = {
     getModel: (name: string) => models.find((m) => m.name === name) ?? null,
     saveModel: (model: SemanticTable) => { saved.push(model); },
     serializeModel: (model: SemanticTable) => { saved.push(model); return `name: ${model.name}\n`; },
@@ -88,7 +88,7 @@ function makeProvider(models: SemanticTable[]) {
     { getAllLayers: () => [] } as never, // layerService
     '/ws',
     {} as never, // selectorsService
-    logicalModelService as never,
+    tableLibraryService as never,
   );
   // Refreshing the webview needs a live panel + services — not under test here.
   vi.spyOn(provider as unknown as { sendDomainData: () => Promise<void> }, 'sendDomainData')

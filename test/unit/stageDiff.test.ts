@@ -39,10 +39,10 @@ const SHOWCASE = path.join(FIXTURE_ROOT, '.erd-studio', 'silver', 'showcase.json
 
 function services(root: string) {
   const layerService = new LayerService(root, '.erd-studio');
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(root, '.erd-studio');
-  domainService.setTableLibraryService(logicalModelService);
-  return { layerService, domainService, logicalModelService };
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  return { layerService, domainService: subjectAreaService, logicalModelService: tableLibraryService };
 }
 
 let manifest: ManifestData;
@@ -60,18 +60,18 @@ afterEach(() => {
 });
 
 /** The provider's orchestration before the extraction, verbatim in shape. */
-function legacyDiff(domainService: SubjectAreaService, file: string, source: Stage, target: Stage) {
+function legacyDiff(subjectAreaService: SubjectAreaService, file: string, source: Stage, target: Stage) {
   const build = (stage: Stage) => {
-    const unified = domainService.getSubjectArea(file);
+    const unified = subjectAreaService.getSubjectArea(file);
     if (stage === 'physical') {
-      return domainService.buildPhysicalSubjectArea(unified, ymlData, manifest, catalog);
+      return subjectAreaService.buildPhysicalSubjectArea(unified, ymlData, manifest, catalog);
     }
-    const domain = domainService.getSubjectAreaStage(file);
+    const domain = subjectAreaService.getSubjectAreaStage(file);
     return buildLogicalDisplaySubjectArea(domain, unified.viewConfig, unified.stubColumns);
   };
   const s = build(source);
   const t = build(target);
-  const unified = domainService.getSubjectArea(file);
+  const unified = subjectAreaService.getSubjectArea(file);
   return compare(s, t, new Set(unified.stubColumns ?? []));
 }
 
@@ -83,7 +83,7 @@ describe('computeDomainDiff', () => {
 
   it.each<Stage>(['logical', 'physical'])('matches the previous orchestration from %s on showcase', (source) => {
     const { domainService } = services(FIXTURE_ROOT);
-    const result = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, SHOWCASE, source);
+    const result = computeSubjectAreaDiff({ subjectAreaService: domainService, ymlData, manifest, catalog }, SHOWCASE, source);
     expect(result.report).toEqual(legacyDiff(domainService, SHOWCASE, source, otherStage(source)));
     expect(result.report.sourceStage).toBe(source);
     expect(result.report.targetStage).toBe(otherStage(source));
@@ -94,7 +94,7 @@ describe('computeDomainDiff', () => {
 
   it('produces a non-trivial showcase report', () => {
     const { domainService } = services(FIXTURE_ROOT);
-    const { report } = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, SHOWCASE, 'logical');
+    const { report } = computeSubjectAreaDiff({ subjectAreaService: domainService, ymlData, manifest, catalog }, SHOWCASE, 'logical');
     expect(report.domain).toBe('showcase');
     expect(report.summary.totalModels).toBeGreaterThan(0);
     expect(report.models.map((m) => m.name)).toContain('dim_customer');
@@ -106,11 +106,11 @@ describe('computeDomainDiff', () => {
       fs.cpSync(FIXTURE_ROOT, tmp, { recursive: true });
       const file = path.join(tmp, '.erd-studio', 'silver', 'showcase.json');
       const { domainService } = services(tmp);
-      const before = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, file, 'logical').report;
+      const before = computeSubjectAreaDiff({ subjectAreaService: domainService, ymlData, manifest, catalog }, file, 'logical').report;
       const json = JSON.parse(fs.readFileSync(file, 'utf-8'));
       json.stubColumns = json.logical.models;
       fs.writeFileSync(file, JSON.stringify(json));
-      const after = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, file, 'logical').report;
+      const after = computeSubjectAreaDiff({ subjectAreaService: domainService, ymlData, manifest, catalog }, file, 'logical').report;
       // Stubbed models hide their missing (physical-only) columns.
       expect(after.summary.missingColumns).toBeLessThanOrEqual(before.summary.missingColumns);
       expect(after.models.flatMap((m) => m.columns).some((c) => c.status === 'missing')).toBe(false);
@@ -122,7 +122,7 @@ describe('computeDomainDiff', () => {
   it('diffs a v4 domain file without throwing', () => {
     const { domainService } = services(FIXTURE_ROOT);
     const file = path.join(FIXTURE_ROOT, '.erd-studio', 'gold', 'finance.json');
-    const { report, unified } = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, file, 'logical');
+    const { report, unified } = computeSubjectAreaDiff({ subjectAreaService: domainService, ymlData, manifest, catalog }, file, 'logical');
     expect(unified.schemaVersion).toBe(4);
     expect(report.models).toEqual([]);
   });
@@ -130,7 +130,7 @@ describe('computeDomainDiff', () => {
   it('propagates a missing domain file as an error', () => {
     const { domainService } = services(FIXTURE_ROOT);
     expect(() => computeSubjectAreaDiff(
-      { domainService, ymlData, manifest }, path.join(FIXTURE_ROOT, '.erd-studio', 'silver', 'nope.json'), 'logical',
+      { subjectAreaService: domainService, ymlData, manifest }, path.join(FIXTURE_ROOT, '.erd-studio', 'silver', 'nope.json'), 'logical',
     )).toThrow(/not found/);
   });
 });

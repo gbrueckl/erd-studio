@@ -673,14 +673,14 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly domainService: SubjectAreaService,
+    private readonly subjectAreaService: SubjectAreaService,
     private readonly manifestService: ManifestService,
     private readonly ymlParserService: YmlParserService,
     private readonly templateService: TemplateService,
     private readonly layerService: LayerService,
     private readonly workspaceRoot: string,
     private readonly selectorsService: SelectorsService,
-    readonly logicalModelService: import('../services/logicalModelService').TableLibraryService,
+    readonly tableLibraryService: import('../services/logicalModelService').TableLibraryService,
     /**
      * Shared with FileWatcherService: every file this provider writes is
      * recorded here so the watcher can tell our own saves apart from an
@@ -717,12 +717,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     const addedNames = new Set<string>();
 
     // 1. Logical models (already designed in ERD Studio's model library)
-    const logicalModels = this.logicalModelService.listTables();
+    const logicalModels = this.tableLibraryService.listTables();
     for (const model of logicalModels) {
       if (existingModelNames.has(model.name)) continue;
       // A yml whose internal `name:` is not path-safe cannot be added to a
       // domain — skip it rather than failing the whole payload.
-      const absPath = this.logicalModelService.resolveTablePath(model.name);
+      const absPath = this.tableLibraryService.resolveTablePath(model.name);
       if (absPath === null) continue;
       existingModels.push({
         name: model.name,
@@ -1754,12 +1754,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   private newTableFolder(domainFilePath: string): string | undefined {
     const layer = tableFolderForSubjectArea(domainFilePath);
     const layerIds = new Set(this.layerService.getAllLayers().map((l) => l.id));
-    return layerIds.has(layer) && this.logicalModelService.groupsByFolder(layerIds) ? layer : undefined;
+    return layerIds.has(layer) && this.tableLibraryService.groupsByFolder(layerIds) ? layer : undefined;
   }
 
   /** `logical-models/[{folder}/]{name}.yml` for an existing model file, for messages. */
   private libraryRelativePath(name: string): string {
-    const folder = this.logicalModelService.tableFolder(name);
+    const folder = this.tableLibraryService.tableFolder(name);
     return `logical-models/${folder ? `${folder}/` : ''}${name}.yml`;
   }
 
@@ -1781,12 +1781,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * its load error when it has one.
    */
   private async handleOpenModelFile(modelName: string, webview: vscode.Webview): Promise<void> {
-    const filePath = this.logicalModelService.findTableFile(modelName.trim());
+    const filePath = this.tableLibraryService.findTableFile(modelName.trim());
     if (!filePath) {
       this.post(webview, { type: 'error', payload: { message: `Table "${modelName}" not found in logical-models/.` } });
       return;
     }
-    const error = this.logicalModelService.getTableFileError(modelName.trim());
+    const error = this.tableLibraryService.getTableFileError(modelName.trim());
     await openTableFileAt(filePath, error?.line, error?.column);
   }
 
@@ -1795,7 +1795,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * but is broken), else the old "not found" wording.
    */
   private tableUnavailableMessage(modelName: string): string {
-    const error = this.logicalModelService.getTableFileError(modelName);
+    const error = this.tableLibraryService.getTableFileError(modelName);
     if (error) {
       const where = error.line !== undefined ? ` on line ${error.line}` : '';
       if (error.kind === 'read') return `Can't edit "${modelName}": its file could not be read.`;
@@ -1811,11 +1811,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * see `usesLibraryRelationships` for the opt-in rule.
    */
   private relationshipsInLibrary(models: readonly SemanticTable[]): boolean {
-    const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.logicalModelService.getTablesDir()));
+    const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.tableLibraryService.getTablesDir()));
     return usesLibraryRelationships(
       models,
-      this.domainService.countSubjectAreaFileRelationships(this.workspaceRoot, semanticDir),
-      this.logicalModelService.hasUnreadableRelationships(),
+      this.subjectAreaService.countSubjectAreaFileRelationships(this.workspaceRoot, semanticDir),
+      this.tableLibraryService.hasUnreadableRelationships(),
     );
   }
 
@@ -1829,16 +1829,16 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     added: readonly Relationship[],
     newModels: readonly SemanticTable[],
   ): { kept: Relationship[]; saves: SemanticTable[] } {
-    if (added.length === 0 || !this.relationshipsInLibrary(this.logicalModelService.listTables())) {
+    if (added.length === 0 || !this.relationshipsInLibrary(this.tableLibraryService.listTables())) {
       return { kept: [...added], saves: [...newModels] };
     }
     // A link another diagram still draws from its own copy stays in this
     // file: a library entry would take that diagram's drawing over (#133).
-    const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.logicalModelService.getTablesDir()));
+    const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.tableLibraryService.getTablesDir()));
     const here = path.resolve(document.uri.fsPath);
-    const others = drawnDiagramCopies(readSubjectAreaRelationships(this.domainService, this.workspaceRoot, semanticDir)
+    const others = drawnDiagramCopies(readSubjectAreaRelationships(this.subjectAreaService, this.workspaceRoot, semanticDir)
       .filter((d) => path.resolve(d.filePath) !== here));
-    const { kept, changed } = routeToLibrary(added, newModels, (name) => this.logicalModelService.getTable(name), others);
+    const { kept, changed } = routeToLibrary(added, newModels, (name) => this.tableLibraryService.getTable(name), others);
     const saves = [...newModels, ...changed.filter((m) => !newModels.includes(m))];
     return { kept, saves };
   }
@@ -1855,9 +1855,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     this.relationshipMoveOffered = true;
     try {
       if (this.context.workspaceState?.get<boolean>(RELATIONSHIP_MOVE_DECLINED_KEY)) return false;
-      if (this.relationshipsInLibrary(this.logicalModelService.listTables())) return false;
-      const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.logicalModelService.getTablesDir()));
-      const shared = sharedRelationshipCount(readSubjectAreaRelationships(this.domainService, this.workspaceRoot, semanticDir));
+      if (this.relationshipsInLibrary(this.tableLibraryService.listTables())) return false;
+      const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.tableLibraryService.getTablesDir()));
+      const shared = sharedRelationshipCount(readSubjectAreaRelationships(this.subjectAreaService, this.workspaceRoot, semanticDir));
       if (shared === 0) return false;
       telemetry.feature('relMoveOffered');
       const choice = await vscode.window.showInformationMessage(
@@ -1996,7 +1996,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
   /** Every library model except `exclude`, fresh copies an edit may change. */
   private otherLibraryTables(exclude: string): SemanticTable[] {
-    return this.logicalModelService.listTables().filter((m) => !sameName(m.name, exclude));
+    return this.tableLibraryService.listTables().filter((m) => !sameName(m.name, exclude));
   }
 
   private async applyTableEdit(
@@ -2010,7 +2010,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     /** Other diagrams' own relationship copies to rewrite in the same edit (see applyDomainEdit). */
     otherDomains?: (parsed: Record<string, unknown>) => boolean,
   ): Promise<boolean> {
-    const model = this.logicalModelService.getTable(modelName);
+    const model = this.tableLibraryService.getTable(modelName);
     if (!model) {
       throw new Error(this.tableUnavailableMessage(modelName));
     }
@@ -2067,20 +2067,20 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     if (!ops) return { docs, created, deleted };
 
     for (const name of ops.delete ?? []) {
-      if (!this.logicalModelService.tableExists(name)) continue;
-      const deletePath = this.logicalModelService.tablePath(name);
+      if (!this.tableLibraryService.tableExists(name)) continue;
+      const deletePath = this.tableLibraryService.tablePath(name);
       edit.deleteFile(vscode.Uri.file(deletePath), { ignoreIfNotExists: true });
       deleted.push(deletePath);
     }
 
     for (const { model, fromName } of ops.save ?? []) {
       const renamedFrom = fromName !== undefined && fromName !== model.name
-        ? this.logicalModelService.tableFolder(fromName)
+        ? this.tableLibraryService.tableFolder(fromName)
         : null;
-      const modelPath = this.logicalModelService.tablePath(model.name, renamedFrom ?? layerFolder);
+      const modelPath = this.tableLibraryService.tablePath(model.name, renamedFrom ?? layerFolder);
       const uri = vscode.Uri.file(modelPath);
-      const yamlText = this.logicalModelService.serializeTable(model, fromName);
-      if (this.logicalModelService.tableExists(model.name)) {
+      const yamlText = this.tableLibraryService.serializeTable(model, fromName);
+      if (this.tableLibraryService.tableExists(model.name)) {
         const modelDoc = await vscode.workspace.openTextDocument(uri);
         const range = new vscode.Range(
           modelDoc.positionAt(0),
@@ -2089,7 +2089,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         edit.replace(uri, range, yamlText);
         docs.push(modelDoc);
       } else {
-        this.logicalModelService.ensureDir(modelPath);
+        this.tableLibraryService.ensureDir(modelPath);
         edit.createFile(uri, { overwrite: false, contents: Buffer.from(yamlText, 'utf-8') });
         created.push(modelPath);
       }
@@ -2106,10 +2106,10 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     ];
     for (const name of names) {
       // The file addModelFileEdits would replace, read from or delete.
-      if (!this.logicalModelService.tableExists(name)) continue;
-      const filePath = this.logicalModelService.tablePath(name);
+      if (!this.tableLibraryService.tableExists(name)) continue;
+      const filePath = this.tableLibraryService.tablePath(name);
       if (dirtyFiles([filePath]).length > 0) {
-        return `logical-models/${path.relative(this.logicalModelService.getTablesDir(), filePath).split(path.sep).join('/')}`;
+        return `logical-models/${path.relative(this.tableLibraryService.getTablesDir(), filePath).split(path.sep).join('/')}`;
       }
     }
     return null;
@@ -2175,7 +2175,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     await document.save();
     this.ownWriteTracker.recordWrite(document.uri.fsPath);
     await this.saveDirtyTableDocuments(panelKey);
-    this.logicalModelService.invalidateCache();
+    this.tableLibraryService.invalidateCache();
     await this.sendSubjectAreaData(document, webview, panelKey);
     this._onDidWriteSubjectArea.fire({ uri: document.uri, modelLibraryChanged: true });
   }
@@ -2353,7 +2353,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       ...(modelFiles?.delete ?? []),
     ];
     for (const name of new Set(touchedModels)) {
-      this.logicalModelService.invalidateCache(name);
+      this.tableLibraryService.invalidateCache(name);
       await this.refreshSubjectAreasReferencingTable(name, panelKey);
     }
     this._onDidWriteSubjectArea.fire({
@@ -2381,9 +2381,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     currentPath: string,
     rewrite: (parsed: Record<string, unknown>) => boolean,
   ): Array<{ filePath: string; text: string }> {
-    const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.logicalModelService.getTablesDir()));
+    const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.tableLibraryService.getTablesDir()));
     const out: Array<{ filePath: string; text: string }> = [];
-    for (const summary of this.domainService.listSubjectAreas(this.workspaceRoot, semanticDir)) {
+    for (const summary of this.subjectAreaService.listSubjectAreas(this.workspaceRoot, semanticDir)) {
       if (samePath(summary.filePath, currentPath)) continue;
       let original: string;
       let parsed: Record<string, unknown>;
@@ -2448,9 +2448,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    */
   private warnAboutDuplicateTables(domain: UnifiedSubjectArea): void {
     const used = new Set(domain.logical.models.map((m) => m.name));
-    const modelsDir = this.logicalModelService.getTablesDir();
+    const modelsDir = this.tableLibraryService.getTablesDir();
     const rel = (p: string): string => `logical-models/${path.relative(modelsDir, p).split(path.sep).join('/')}`;
-    for (const entry of this.logicalModelService.listTableFiles()) {
+    for (const entry of this.tableLibraryService.listTableFiles()) {
       if (!entry.shadowedBy || !used.has(entry.name)) continue;
       const key = `${domain.layer}/${domain.domain}\0${entry.filePath}`;
       if (this.duplicateWarningsShown.has(key)) continue;
@@ -2597,7 +2597,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           const positionsWritten = await this.autoPositionNewTables(document, computed);
           if (positionsWritten) {
             // Re-read since we wrote new positions to the file
-            unifiedDomain = this.domainService.getSubjectArea(document.uri.fsPath, { dbtKeyIndex });
+            unifiedDomain = this.subjectAreaService.getSubjectArea(document.uri.fsPath, { dbtKeyIndex });
           }
         }
         // Whether or not they were persisted, the payload carries the positions
@@ -2606,7 +2606,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       }
 
       if (activeStage === 'physical') {
-        const physicalDomain = this.domainService.buildPhysicalSubjectArea(unifiedDomain, ymlData, manifest, catalog);
+        const physicalDomain = this.subjectAreaService.buildPhysicalSubjectArea(unifiedDomain, ymlData, manifest, catalog);
         const layerConfig = this.layerService.getLayer(unifiedDomain.layer);
         if (layerConfig) { physicalDomain.layerConfig = layerConfig; }
         this.post(webview, { type: 'domainLoaded', payload: physicalDomain, welcomeDismissed });
@@ -2688,8 +2688,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       const parsed = JSON.parse(document.getText()) as Record<string, unknown>;
       const section = this.getStageSection(parsed, 'logical');
       const v5 = this.isSubjectAreaV5(parsed);
-      const models = v5 ? this.logicalModelService.listTables() : ((section.models ?? []) as SemanticTable[]).filter((m) => !!m && typeof m === 'object');
-      const unreadableEntries = v5 && this.logicalModelService.hasUnreadableRelationships() ? 1 : 0;
+      const models = v5 ? this.tableLibraryService.listTables() : ((section.models ?? []) as SemanticTable[]).filter((m) => !!m && typeof m === 'object');
+      const unreadableEntries = v5 && this.tableLibraryService.hasUnreadableRelationships() ? 1 : 0;
       telemetry.relationshipState(surveyLibrary(models, (section.relationships ?? []) as Relationship[], { unreadableEntries }));
     } catch (err) {
       console.error('[SemanticEditorProvider] relationship survey failed:', err);
@@ -2713,7 +2713,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   private async readSubjectAreaTolerantly(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): Promise<UnifiedSubjectArea> {
     for (let attempt = 0; ; attempt++) {
       try {
-        return this.domainService.getSubjectArea(filePath, options);
+        return this.subjectAreaService.getSubjectArea(filePath, options);
       } catch (err) {
         const last = attempt >= SUBJECT_AREA_READ_RETRY_DELAYS_MS.length;
         if (last || !isRetryableSubjectAreaRead(err)) {
@@ -2929,7 +2929,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         // The model library is shared across domains — never overwrite a
         // logical-models/{name}.yml that another domain may depend on. Case is
         // ignored: `DimDate` next to `dimdate.yml` is one file on macOS/Windows.
-        const inLibrary = this.logicalModelService.findTableNameIgnoringCase(model.name);
+        const inLibrary = this.tableLibraryService.findTableNameIgnoringCase(model.name);
         if (inLibrary !== null) {
           webview.postMessage({
             type: 'error',
@@ -3261,7 +3261,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // No-op silently if the column or model is already gone (e.g. spam-clicked delete).
       if (this.isSubjectAreaV5(parsed)) {
         // The whole library, as read before the edit: where a composite the column is part of is found.
-        const library = this.logicalModelService.listTables();
+        const library = this.tableLibraryService.listTables();
         const ok = await this.applyTableEdit(
           document,
           webview,
@@ -3506,7 +3506,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     const ops: readonly RelationshipWriteOp[] = Array.isArray(op) ? op : [op as RelationshipWriteOp];
     const parsed = this.parseSubjectAreaDocument(document);
     const v5 = this.isSubjectAreaV5(parsed);
-    const models = v5 ? this.logicalModelService.listTables() : [];
+    const models = v5 ? this.tableLibraryService.listTables() : [];
     const home = v5 && this.relationshipsInLibrary(models) ? 'library' : 'domain';
     const dbt = await this.loadDbtKeyIndex();
     // Filled by the mutator, which applyDomainEdit runs before it reads modelFiles.
@@ -3607,7 +3607,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         }
         // The model library is shared across domains — renaming onto an
         // existing yml would silently replace another domain's model.
-        const inLibrary = this.logicalModelService.findTableNameIgnoringCase(trimmedNew);
+        const inLibrary = this.tableLibraryService.findTableNameIgnoringCase(trimmedNew);
         if (inLibrary !== null) {
           webview.postMessage({
             type: 'error',
@@ -3618,7 +3618,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
           });
           return;
         }
-        const existingModel = this.logicalModelService.getTable(payload.oldName);
+        const existingModel = this.tableLibraryService.getTable(payload.oldName);
         if (!existingModel) {
           webview.postMessage({ type: 'error', payload: { message: this.tableUnavailableMessage(payload.oldName) } });
           return;
@@ -3789,7 +3789,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
         // Single batched prompt for any underlying .yml files.
         const filesToOffer = [...namesSet].filter((name) =>
-          this.logicalModelService.tableExists(name),
+          this.tableLibraryService.tableExists(name),
         );
         if (filesToOffer.length > 0) {
           const fileIsSingle = filesToOffer.length === 1;
@@ -3809,7 +3809,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
               const singlePath = fileIsSingle ? this.libraryRelativePath(filesToOffer[0]) : '';
               for (const name of filesToOffer) {
                 deleteEdit.deleteFile(
-                  vscode.Uri.file(this.logicalModelService.tablePath(name)),
+                  vscode.Uri.file(this.tableLibraryService.tablePath(name)),
                   { ignoreIfNotExists: true },
                 );
               }
@@ -3910,9 +3910,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    */
   private noteDiagramsStillDrawing(document: vscode.TextDocument, keys: readonly RelationshipKey[]): void {
     try {
-      const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.logicalModelService.getTablesDir()));
+      const semanticDir = path.relative(this.workspaceRoot, path.dirname(this.tableLibraryService.getTablesDir()));
       // Compared the way the file system does: VS Code may spell the open file's path in another case.
-      const others = readSubjectAreaRelationships(this.domainService, this.workspaceRoot, semanticDir)
+      const others = readSubjectAreaRelationships(this.subjectAreaService, this.workspaceRoot, semanticDir)
         .filter((d) => !samePath(d.filePath, document.uri.fsPath));
       const labels = diagramsStillDrawing(keys, others);
       if (labels.length === 0) return;
@@ -4180,7 +4180,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         const ymlData = await this.ymlParserService.loadYmlData(this.workspaceRoot, undefined);
         const manifest = await this.manifestService.loadManifest(this.workspaceRoot);
         let seededModel: import('../types/semantic').SemanticTable | undefined;
-        if (!this.logicalModelService.tableExists(payload.modelName)) {
+        if (!this.tableLibraryService.tableExists(payload.modelName)) {
           const seed = seedTableFromDbt(payload.modelName, ymlData, manifest, await this.loadCatalog());
           if (!seed) {
             webview.postMessage({ type: 'error', payload: { message: `Table "${payload.modelName}" not found in .yml files, manifest, or logical-models/.` } });
@@ -4457,7 +4457,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         manifest,
         // Column types as the physical stage resolves them (catalog first).
         catalog: await this.loadCatalog(),
-        libraryHas: (name) => this.logicalModelService.tableExists(name),
+        libraryHas: (name) => this.tableLibraryService.tableExists(name),
         existingModelNames: existingNames,
         existingRelationships: (section.relationships ?? []) as Relationship[],
         ...(fromDbt ? {} : { limit: modelNames.length, skipDisabled: false }),
@@ -4838,7 +4838,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       const catalog = await this.loadCatalog();
       const dbtKeyIndex = dbtKeyIndexOf(ymlData, manifest);
 
-      const unifiedDomain = this.domainService.getSubjectArea(document.uri.fsPath, { dbtKeyIndex });
+      const unifiedDomain = this.subjectAreaService.getSubjectArea(document.uri.fsPath, { dbtKeyIndex });
 
       // Same in-memory auto-positioning as sendDomainData — never a write here.
       const computed = this.computeMissingPositions(unifiedDomain);
@@ -4850,7 +4850,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       if (targetStage === 'physical') {
         // Physical stage is derived from the dbt project itself, enriched by the
         // manifest and the warehouse catalog when either has been generated.
-        const physicalDomain = this.domainService.buildPhysicalSubjectArea(unifiedDomain, ymlData, manifest, catalog);
+        const physicalDomain = this.subjectAreaService.buildPhysicalSubjectArea(unifiedDomain, ymlData, manifest, catalog);
         const layerConfig = this.layerService.getLayer(unifiedDomain.layer);
         if (layerConfig) {
           physicalDomain.layerConfig = layerConfig;
@@ -4860,7 +4860,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (this.manifestService.isMissing) telemetry.featureOnce('manifestMissingPhysical');
       } else {
         // Logical — extract from unified file
-        const domain = this.domainService.getSubjectAreaStage(document.uri.fsPath, { dbtKeyIndex });
+        const domain = this.subjectAreaService.getSubjectAreaStage(document.uri.fsPath, { dbtKeyIndex });
         const displayDomain = this.buildDisplaySubjectArea(domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns);
         this.post(webview, { type: 'stageData', payload: displayDomain, ...reply, ...this.manifestHintFlag() });
       }
@@ -4903,7 +4903,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
       // The one comparison orchestration, shared with the `erd-studio diff` CLI.
       const { report } = computeSubjectAreaDiff(
-        { domainService: this.domainService, ymlData, manifest, catalog },
+        { subjectAreaService: this.subjectAreaService, ymlData, manifest, catalog },
         document.uri.fsPath,
         sourceStage,
         targetStage,
@@ -4971,7 +4971,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         semanticDir,
         domain: (parsed.domain as string | undefined) ?? '',
         layer: (parsed.layer as string | undefined) ?? '',
-        modelFolder: (name) => this.logicalModelService.tableFolder(name),
+        modelFolder: (name) => this.tableLibraryService.tableFolder(name),
       });
 
       const totalActions = countSyncPlanActions(syncPlan);

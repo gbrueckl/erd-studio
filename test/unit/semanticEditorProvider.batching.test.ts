@@ -76,13 +76,13 @@ function makeDoc(fsPath: string): MockDoc {
 
 function buildProvider(root: string) {
   const layerService = new LayerService(root, '.erd-studio');
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(root, '.erd-studio');
-  domainService.setTableLibraryService(logicalModelService);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
   const manifestService = new ManifestService();
   const ymlParserService = new YmlParserService();
   const templateService = new TemplateService();
-  const selectorsService = new SelectorsService(domainService, root, '.erd-studio');
+  const selectorsService = new SelectorsService(subjectAreaService, root, '.erd-studio');
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
@@ -93,14 +93,14 @@ function buildProvider(root: string) {
 
   return new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     manifestService,
     ymlParserService,
     templateService,
     layerService,
     root,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
 }
 

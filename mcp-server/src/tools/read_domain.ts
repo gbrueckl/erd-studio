@@ -38,7 +38,7 @@ export const read_domain = {
     layer: string;
     domain: string;
   }) {
-    const { domainService, projectPath, semanticDir } = buildServices(project_path);
+    const { subjectAreaService, projectPath, semanticDir } = buildServices(project_path);
 
     if (!isInitialized(projectPath, semanticDir)) {
       throw new Error(NOT_INITIALIZED_TIP);
@@ -51,8 +51,8 @@ export const read_domain = {
       );
     }
 
-    const unified = domainService.getSubjectArea(filePath);
-    const stage = domainService.getSubjectAreaStage(filePath);
+    const unified = subjectAreaService.getSubjectArea(filePath);
+    const stage = subjectAreaService.getSubjectAreaStage(filePath);
 
     return {
       content: [

@@ -191,7 +191,7 @@ export function clustersOf(relationships: readonly InventoryRelationship[]): str
 
 /** Domain files under the semantic dir with the model names each references (raw read, any format). */
 export function listSubjectAreaFiles(ctx: CliContext): InventoryResult['domains'] {
-  return ctx.domainService.listSubjectAreas(ctx.root, ctx.semanticDir).map((d) => {
+  return ctx.subjectAreaService.listSubjectAreas(ctx.root, ctx.semanticDir).map((d) => {
     let models: string[] = [];
     try {
       models = getRawSubjectAreaTableNames(JSON.parse(fs.readFileSync(d.filePath, 'utf-8')));
@@ -213,7 +213,7 @@ export function buildInventorySubjectArea(ctx: CliContext, names: readonly strin
     logical: { models: names.map((name) => ({ name, columns: [] })), relationships: [] },
     viewConfig: {},
   };
-  return ctx.domainService.buildPhysicalSubjectArea(unified, ctx.ymlData, ctx.manifest, ctx.catalog);
+  return ctx.subjectAreaService.buildPhysicalSubjectArea(unified, ctx.ymlData, ctx.manifest, ctx.catalog);
 }
 
 /** Names from `--models` (validated) or the whole project, plus what was skipped. */
@@ -368,7 +368,7 @@ export function runInventory(ctx: CliContext, opts: InventoryOptions = {}): Inve
     models,
     relationships,
     clusters: clustersOf(relationships),
-    alreadyModelled: names.filter((n) => ctx.logicalModelService.tableExists(n)).sort(),
+    alreadyModelled: names.filter((n) => ctx.tableLibraryService.tableExists(n)).sort(),
     domains: listSubjectAreaFiles(ctx),
     skipped,
     conventions,

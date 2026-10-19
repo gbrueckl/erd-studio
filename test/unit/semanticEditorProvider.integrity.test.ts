@@ -43,7 +43,7 @@ import { FileWatcherService } from '../../src/watchers/FileWatcherService';
 interface Harness {
   root: string;
   domainPath: string;
-  logicalModelService: TableLibraryService;
+  tableLibraryService: TableLibraryService;
   /** Tracker the provider records its own writes into (shared with watchers). */
   ownWrites: OwnWriteTracker;
   /** Open a second domain in another panel, sharing the same provider. */
@@ -84,19 +84,19 @@ async function createHarness(): Promise<Harness> {
   const semanticDir = '.erd-studio';
 
   const layerService = new LayerService(root, semanticDir);
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(root, semanticDir);
-  domainService.setTableLibraryService(logicalModelService);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, semanticDir);
+  subjectAreaService.setTableLibraryService(tableLibraryService);
   const manifestService = new ManifestService();
   const ymlParserService = new YmlParserService();
   const templateService = new TemplateService();
-  const selectorsService = new SelectorsService(domainService, root, semanticDir);
+  const selectorsService = new SelectorsService(subjectAreaService, root, semanticDir);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
 
   // Library
-  logicalModelService.saveTable(FCT_ORDER);
-  logicalModelService.saveTable(DIM_TASK);
-  logicalModelService.saveTable(DIM_CUSTOMER);
+  tableLibraryService.saveTable(FCT_ORDER);
+  tableLibraryService.saveTable(DIM_TASK);
+  tableLibraryService.saveTable(DIM_CUSTOMER);
 
   // Domain referencing fct_order + dim_task (dim_customer is used elsewhere)
   const domainDir = path.join(root, semanticDir, 'silver');
@@ -126,14 +126,14 @@ async function createHarness(): Promise<Harness> {
   const ownWrites = new OwnWriteTracker();
   const provider = new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     manifestService,
     ymlParserService,
     templateService,
     layerService,
     root,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
     ownWrites,
   );
 
@@ -148,7 +148,7 @@ async function createHarness(): Promise<Harness> {
   return {
     root,
     domainPath,
-    logicalModelService,
+    tableLibraryService,
     ownWrites,
     openSecondDomain: async (models) => {
       const otherPath = path.join(domainDir, 'other.json');
@@ -190,7 +190,7 @@ async function createHarness(): Promise<Harness> {
   };
 }
 
-const ymlPath = (h: Harness, name: string) => h.logicalModelService.tablePath(name);
+const ymlPath = (h: Harness, name: string) => h.tableLibraryService.tablePath(name);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -252,7 +252,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       expect(Buffer.from(createOp.options!.contents!).toString('utf-8')).toContain('name: dim_product');
 
       // Both sides landed on disk
-      expect(h.logicalModelService.getTable('dim_product')!.columns!.map((c) => c.name)).toEqual(['product_key']);
+      expect(h.tableLibraryService.getTable('dim_product')!.columns!.map((c) => c.name)).toEqual(['product_key']);
       expect(h.readDomain().logical.models).toContain('dim_product');
     });
 
@@ -272,7 +272,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
       expect(h.errors()).toEqual([]);
       expect(h.readDomain().logical.models).toContain(name);
-      expect(h.logicalModelService.getTable(name)!.columns!.map((c) => c.name)).toEqual(['id']);
+      expect(h.tableLibraryService.getTable(name)!.columns!.map((c) => c.name)).toEqual(['id']);
     });
 
     it('still refuses a model name that escapes the library directory', async () => {
@@ -311,7 +311,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       expect(h.errors()).toEqual([]);
       expect(h.readDomain().logical.models).toContain('DimDate');
       expect(fs.readFileSync(ymlPath(h, 'DimDate'), 'utf-8')).toContain('name: DimDate');
-      expect(h.logicalModelService.getTable('DimDate')!.columns!.map((c) => c.name)).toEqual(['DateKey', 'Date']);
+      expect(h.tableLibraryService.getTable('DimDate')!.columns!.map((c) => c.name)).toEqual(['DateKey', 'Date']);
     });
 
     // listModelFiles, not existsSync: on Linux CI existsSync is case-sensitive,
@@ -341,7 +341,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       });
 
       expect(h.errors()[0]).toMatch(/Column "Order_Key" already exists/);
-      expect(h.logicalModelService.getTable('fct_order')!.columns!.map((c) => c.name))
+      expect(h.tableLibraryService.getTable('fct_order')!.columns!.map((c) => c.name))
         .toEqual(['order_key', 'customer_key', 'amount']);
     });
 
@@ -351,7 +351,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       expect(h.errors()).toEqual([]);
       expect(h.readDomain().logical.models).toEqual(['FctOrders', 'dim_task']);
       expect(fs.existsSync(ymlPath(h, 'fct_order'))).toBe(false);
-      expect(h.logicalModelService.getTable('FctOrders')!.columns!.map((c) => c.name))
+      expect(h.tableLibraryService.getTable('FctOrders')!.columns!.map((c) => c.name))
         .toEqual(['order_key', 'customer_key', 'amount']);
     });
 
@@ -407,7 +407,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
       // Disk state: columns preserved under the new name, old file gone
       expect(fs.existsSync(ymlPath(h, 'fct_order'))).toBe(false);
-      const renamed = h.logicalModelService.getTable('fct_orders');
+      const renamed = h.tableLibraryService.getTable('fct_orders');
       expect(renamed!.columns!.map((c) => c.name)).toEqual(['order_key', 'customer_key', 'amount']);
       expect(renamed!.description).toBe('Orders');
 
@@ -435,7 +435,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
         '',
       ].join('\n');
       fs.writeFileSync(ymlPath(h, 'fct_order'), handWritten, 'utf-8');
-      h.logicalModelService.invalidateCache('fct_order');
+      h.tableLibraryService.invalidateCache('fct_order');
 
       await h.send({ type: 'renameModel', payload: { oldName: 'fct_order', newName: 'fct_orders' } });
 
@@ -478,7 +478,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       // The yml document was saved (not left dirty) and disk reflects the change
       const ymlDoc = _mockDocuments.get(vscode.Uri.file(ymlPath(h, 'fct_order')).toString());
       expect(ymlDoc?.isDirty).toBe(false);
-      expect(h.logicalModelService.getTable('fct_order')!.columns!.map((c) => c.name)).toContain('order_date');
+      expect(h.tableLibraryService.getTable('fct_order')!.columns!.map((c) => c.name)).toContain('order_date');
     });
 
     it('updateColumn (rename with FK) cascades relationships and the yml atomically', async () => {
@@ -496,7 +496,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       expect(edit._opsFor(h.domainPath)).toHaveLength(1);
       expect(edit._opsFor(ymlPath(h, 'fct_order'))).toHaveLength(1);
       expect(h.readDomain().logical.relationships[0].fromColumn).toBe('cust_key');
-      expect(h.logicalModelService.getTable('fct_order')!.columns!.map((c) => c.name)).toEqual(['order_key', 'cust_key', 'amount']);
+      expect(h.tableLibraryService.getTable('fct_order')!.columns!.map((c) => c.name)).toEqual(['order_key', 'cust_key', 'amount']);
     });
 
     it('reports failure and leaves the yml untouched when the WorkspaceEdit is rejected', async () => {
@@ -542,17 +542,17 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     it('writes the table name to the model file and clears it again', async () => {
       await h.send({ type: 'updateModelAlias', payload: { modelName: 'fct_order', alias: 'Orders' } });
       expect(h.errors()).toEqual([]);
-      expect(h.logicalModelService.getTable('fct_order')!.alias).toBe('Orders');
+      expect(h.tableLibraryService.getTable('fct_order')!.alias).toBe('Orders');
       expect(fs.readFileSync(ymlPath(h, 'fct_order'), 'utf-8')).toMatch(/\nalias: Orders\n/);
 
       await h.send({ type: 'updateModelAlias', payload: { modelName: 'fct_order', alias: '' } });
-      expect(h.logicalModelService.getTable('fct_order')).not.toHaveProperty('alias');
+      expect(h.tableLibraryService.getTable('fct_order')).not.toHaveProperty('alias');
       expect(fs.readFileSync(ymlPath(h, 'fct_order'), 'utf-8')).not.toMatch(/alias/);
     });
 
     it('treats an alias equal to the model name as no alias', async () => {
       await h.send({ type: 'updateModelAlias', payload: { modelName: 'fct_order', alias: 'fct_order' } });
-      expect(h.logicalModelService.getTable('fct_order')).not.toHaveProperty('alias');
+      expect(h.tableLibraryService.getTable('fct_order')).not.toHaveProperty('alias');
     });
 
     it('refuses a table name that is not a plain identifier, writing nothing', async () => {
@@ -570,19 +570,19 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     it('sets a model key, then removes it (dropping an empty meta: block)', async () => {
       await h.send({ type: 'updateMeta', payload: { modelName: 'fct_order', set: { owner: 'analytics' } } });
       expect(h.errors()).toEqual([]);
-      expect(h.logicalModelService.getTable('fct_order')!.meta).toEqual({ owner: 'analytics' });
+      expect(h.tableLibraryService.getTable('fct_order')!.meta).toEqual({ owner: 'analytics' });
       expect(read()).toMatch(/\nmeta:\n\s+owner: analytics\n/);
 
       await h.send({ type: 'updateMeta', payload: { modelName: 'fct_order', remove: ['owner'] } });
       expect(h.errors()).toEqual([]);
-      expect(h.logicalModelService.getTable('fct_order')).not.toHaveProperty('meta');
+      expect(h.tableLibraryService.getTable('fct_order')).not.toHaveProperty('meta');
       expect(read()).not.toMatch(/meta:|owner/);
     });
 
     it('sets a key on a column when columnName is given', async () => {
       await h.send({ type: 'updateMeta', payload: { modelName: 'fct_order', columnName: 'amount', set: { unit: 'AUD' } } });
       expect(h.errors()).toEqual([]);
-      const model = h.logicalModelService.getTable('fct_order')!;
+      const model = h.tableLibraryService.getTable('fct_order')!;
       expect(model.columns!.find((c) => c.name === 'amount')!.meta).toEqual({ unit: 'AUD' });
       expect(model).not.toHaveProperty('meta');
       expect(model.columns!.find((c) => c.name === 'order_key')).not.toHaveProperty('meta');
@@ -645,7 +645,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
         '',
       ].join('\n');
       fs.writeFileSync(ymlPath(h, 'fct_order'), handWritten, 'utf-8');
-      h.logicalModelService.invalidateCache('fct_order');
+      h.tableLibraryService.invalidateCache('fct_order');
 
       await h.send({ type: 'updateMeta', payload: { modelName: 'fct_order', set: { steward: 'jane' } } });
 
@@ -664,10 +664,10 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
         ['name: fct_order', 'meta:', '  tags: [pii, gold]', 'columns:', '  - name: order_key', '    dataType: string', ''].join('\n'),
         'utf-8',
       );
-      h.logicalModelService.invalidateCache('fct_order');
+      h.tableLibraryService.invalidateCache('fct_order');
       await h.send({ type: 'updateMeta', payload: { modelName: 'fct_order', set: { owner: 'x' } } });
       expect(h.errors()).toEqual([]);
-      expect(h.logicalModelService.getTable('fct_order')!.meta).toEqual({ tags: ['pii', 'gold'], owner: 'x' });
+      expect(h.tableLibraryService.getTable('fct_order')!.meta).toEqual({ tags: ['pii', 'gold'], owner: 'x' });
       expect(read()).toMatch(/\n  tags: \[ ?pii, gold ?\]\n  owner: x\n/);
     });
 
@@ -685,7 +685,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       });
 
       expect(h.errors()).toEqual([]);
-      const col = h.logicalModelService.getTable('fct_order')!.columns!.find((c) => c.name === 'amount')!;
+      const col = h.tableLibraryService.getTable('fct_order')!.columns!.find((c) => c.name === 'amount')!;
       expect(col.description).toBe('Order total');
       expect(col.meta).toEqual({ unit: 'AUD' });
     });
@@ -705,7 +705,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
   describe('model file with a YAML error (#110)', () => {
     /** Break fct_order.yml: an unquoted ": " inside a value on line 3. */
     function breakFctOrder(): string {
-      const file = h.logicalModelService.findTableFile('fct_order')!;
+      const file = h.tableLibraryService.findTableFile('fct_order')!;
       fs.writeFileSync(file, 'name: fct_order\ndescription: Orders\ncolumns: [\n  - name: x\n  bad: indent\n');
       return file;
     }
@@ -719,7 +719,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
     it('openModelFile is allowed on the physical stage and opens the file at the error line', async () => {
       const file = breakFctOrder();
-      const expected = h.logicalModelService.getTableFileError('fct_order');
+      const expected = h.tableLibraryService.getTableFileError('fct_order');
       expect(expected?.line).toBeTypeOf('number');
       const { open, show } = spyOpen();
 
@@ -742,7 +742,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
     it('an edit names the YAML error instead of "not found"', async () => {
       breakFctOrder();
-      const line = h.logicalModelService.getTableFileError('fct_order')!.line;
+      const line = h.tableLibraryService.getTableFileError('fct_order')!.line;
       await h.send({ type: 'updateModelDescription', payload: { modelName: 'fct_order', description: 'x' } });
       const errors = [...h.errors()];
       await h.send({ type: 'renameModel', payload: { oldName: 'fct_order', newName: 'fct_orders' } });
@@ -769,10 +769,10 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
   describe('model file with a key written twice (#164)', () => {
     /** fct_order.yml with its description written twice: the second (line 3) is read. */
     function duplicateDescription(): { file: string; text: string } {
-      const file = h.logicalModelService.findTableFile('fct_order')!;
+      const file = h.tableLibraryService.findTableFile('fct_order')!;
       const text = '# kept\nname: fct_order\ndescription: first\ndescription: Orders\ncolumns:\n  - name: order_key\n    dataType: string\n';
       fs.writeFileSync(file, text);
-      h.logicalModelService.invalidateCache('fct_order');
+      h.tableLibraryService.invalidateCache('fct_order');
       return { file, text };
     }
 
@@ -806,7 +806,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
   describe('duplicate model files', () => {
     it('warns once, naming both files, when the domain uses a name two files define', async () => {
       // fct_order sits at the top level (it wins); a silver/ copy is ignored.
-      const dir = path.join(h.logicalModelService.getTablesDir(), 'silver');
+      const dir = path.join(h.tableLibraryService.getTablesDir(), 'silver');
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, 'fct_order.yml'), 'name: fct_order\n');
       const warn = vi.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue(undefined as never);
@@ -824,7 +824,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     });
 
     it('does not warn about a duplicated name the domain does not use', async () => {
-      const dir = path.join(h.logicalModelService.getTablesDir(), 'gold');
+      const dir = path.join(h.tableLibraryService.getTablesDir(), 'gold');
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, 'dim_customer.yml'), 'name: dim_customer\n');
       const warn = vi.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue(undefined as never);
@@ -872,7 +872,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       const ymlDoc = _mockDocuments.get(vscode.Uri.file(ymlPath(h, 'fct_order')).toString())!;
 
       // Simulate VS Code undoing the grouped text edit: in-memory content reverts, document is dirty
-      const reverted = h.logicalModelService.serializeTable(FCT_ORDER);
+      const reverted = h.tableLibraryService.serializeTable(FCT_ORDER);
       ymlDoc._setText(reverted);
       expect(ymlDoc.isDirty).toBe(true);
 
@@ -880,7 +880,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
 
       expect(ymlDoc.isDirty).toBe(false);
       expect(fs.readFileSync(ymlPath(h, 'fct_order'), 'utf-8')).toBe(reverted);
-      expect(h.logicalModelService.getTable('fct_order')!.columns!.map((c) => c.name)).toEqual(['order_key', 'customer_key', 'amount']);
+      expect(h.tableLibraryService.getTable('fct_order')!.columns!.map((c) => c.name)).toEqual(['order_key', 'customer_key', 'amount']);
     });
 
     it('never force-saves a dirty model buffer the provider did not edit', async () => {
@@ -899,7 +899,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
         payload: { modelName: 'fct_order', column: { name: 'order_date', dataType: 'date', description: '' } },
       });
       const ourDoc = _mockDocuments.get(vscode.Uri.file(ymlPath(h, 'fct_order')).toString())!;
-      const reverted = h.logicalModelService.serializeTable(FCT_ORDER);
+      const reverted = h.tableLibraryService.serializeTable(FCT_ORDER);
       ourDoc._setText(reverted);
 
       await h.send({ type: 'undo' });
@@ -1015,7 +1015,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       expect(edit._opsFor(h.domainPath).map((op) => op.kind)).toEqual(['replace']);
       expect(edit._opsFor(ymlPath(h, 'dim_new')).map((op) => op.kind)).toEqual(['createFile']);
       expect(h.readDomain().logical.models).toContain('dim_new');
-      expect(h.logicalModelService.getTable('dim_new')!.columns!.map((c) => c.name)).toEqual(['dim_new_key']);
+      expect(h.tableLibraryService.getTable('dim_new')!.columns!.map((c) => c.name)).toEqual(['dim_new_key']);
     });
 
     it('writes nothing to the library when the WorkspaceEdit is rejected', async () => {
@@ -1059,7 +1059,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
       expect(h.readDomain().logical.relationships).toContainEqual({
         fromModel: 'fct_order', fromColumn: 'customer_key', toModel: 'dim_new', toColumn: 'dim_new_key', cardinality: 'many-to-one',
       });
-      expect(h.logicalModelService.getTable('dim_new')!.columns![0].isPrimaryKey).toBe(true);
+      expect(h.tableLibraryService.getTable('dim_new')!.columns![0].isPrimaryKey).toBe(true);
       // The library model on the other end is referenced, never rewritten.
       expect(_appliedEdits[0]._opsFor(ymlPath(h, 'fct_order'))).toEqual([]);
     });

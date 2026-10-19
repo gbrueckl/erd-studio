@@ -1313,19 +1313,19 @@ describe('canvas openGettingStarted', () => {
     const root = path.join(tmp, 'project');
     fs.cpSync(path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project'), root, { recursive: true });
     const layerService = new LayerService(root, '.erd-studio');
-    const domainService = new SubjectAreaService(layerService);
-    const logicalModelService = new TableLibraryService(root, '.erd-studio');
-    domainService.setTableLibraryService(logicalModelService);
+    const subjectAreaService = new SubjectAreaService(layerService);
+    const tableLibraryService = new TableLibraryService(root, '.erd-studio');
+    subjectAreaService.setTableLibraryService(tableLibraryService);
     const provider = new SemanticEditorProvider(
       makeContext(),
-      domainService,
+      subjectAreaService,
       new ManifestService(),
       new YmlParserService(),
       new TemplateService(),
       layerService,
       root,
-      new SelectorsService(domainService, root, '.erd-studio'),
-      logicalModelService,
+      new SelectorsService(subjectAreaService, root, '.erd-studio'),
+      tableLibraryService,
     );
     const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
     const text = fs.readFileSync(file, 'utf-8');

@@ -127,13 +127,13 @@ const PROJECT_PATH = '/tmp/test-project';
 
 describe('DomainTreeProvider', () => {
   let layerService: LayerService;
-  let domainService: SubjectAreaService;
+  let subjectAreaService: SubjectAreaService;
   let provider: SubjectAreaTreeProvider;
 
   beforeEach(() => {
     layerService = createMockLayerService();
-    domainService = createMockSubjectAreaService(ALL_SUMMARIES, buildSubjectAreaMap());
-    provider = new SubjectAreaTreeProvider(domainService, layerService, PROJECT_PATH);
+    subjectAreaService = createMockSubjectAreaService(ALL_SUMMARIES, buildSubjectAreaMap());
+    provider = new SubjectAreaTreeProvider(subjectAreaService, layerService, PROJECT_PATH);
   });
 
   describe('getChildren (root)', () => {
@@ -149,7 +149,7 @@ describe('DomainTreeProvider', () => {
     });
 
     it('returns empty array when semantic directory does not exist (F408 welcome)', () => {
-      const providerNoSemantic = new SubjectAreaTreeProvider(domainService, layerService, '/nonexistent/path');
+      const providerNoSemantic = new SubjectAreaTreeProvider(subjectAreaService, layerService, '/nonexistent/path');
       const children = providerNoSemantic.getChildren(undefined);
 
       expect(children).toHaveLength(0);
@@ -182,7 +182,7 @@ describe('DomainTreeProvider', () => {
     });
 
     it('never makes an empty tree non-empty, so the welcome view still shows', () => {
-      const providerNoSemantic = new SubjectAreaTreeProvider(domainService, layerService, '/nonexistent/path');
+      const providerNoSemantic = new SubjectAreaTreeProvider(subjectAreaService, layerService, '/nonexistent/path');
       providerNoSemantic.setProjectRow({ name: 'finance-dbt', location: 'workspace folder' });
       expect(providerNoSemantic.getChildren(undefined)).toEqual([]);
     });

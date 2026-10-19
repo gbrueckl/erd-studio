@@ -62,7 +62,7 @@ const EDGE = { fromModel: 'fct_order', fromColumn: 'customer_key', toModel: 'dim
 
 interface Harness {
   root: string;
-  logicalModelService: TableLibraryService;
+  tableLibraryService: TableLibraryService;
   domainPath: (name: string) => string;
   modelFile: (name: string) => string;
   open: (name: string) => Promise<{ send: (message: unknown) => Promise<void>; errors: () => string[] }>;
@@ -75,14 +75,14 @@ async function createHarness(options: {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-rel-telemetry-'));
   const semanticDir = '.erd-studio';
   const layerService = new LayerService(root, semanticDir);
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(root, semanticDir);
-  domainService.setTableLibraryService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, root, semanticDir);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, semanticDir);
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, root, semanticDir);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
   for (const model of TABLES) {
     const relationships = options.library?.[model.name];
-    logicalModelService.saveTable({ ...model, ...(relationships ? { relationships } : {}) });
+    tableLibraryService.saveTable({ ...model, ...(relationships ? { relationships } : {}) });
   }
   const domainDir = path.join(root, semanticDir, 'silver');
   fs.mkdirSync(domainDir, { recursive: true });
@@ -102,14 +102,14 @@ async function createHarness(options: {
     secrets: vscode.createMockSecretStorage(),
   } as unknown as vscode.ExtensionContext;
   const provider = new SemanticEditorProvider(
-    context, domainService, new ManifestService(), new YmlParserService(), new TemplateService(),
-    layerService, root, selectorsService, logicalModelService, new OwnWriteTracker(),
+    context, subjectAreaService, new ManifestService(), new YmlParserService(), new TemplateService(),
+    layerService, root, selectorsService, tableLibraryService, new OwnWriteTracker(),
   );
   return {
     root,
-    logicalModelService,
+    tableLibraryService,
     domainPath,
-    modelFile: (name) => fs.readFileSync(logicalModelService.tablePath(name), 'utf-8'),
+    modelFile: (name) => fs.readFileSync(tableLibraryService.tablePath(name), 'utf-8'),
     open: async (name) => {
       const document = createMockTextDocument(domainPath(name), fs.readFileSync(domainPath(name), 'utf-8'), { persist: true });
       const panel = createMockWebviewPanel();
@@ -240,11 +240,11 @@ describe('relationship telemetry — the provider', () => {
 
   it('a relationships: list that cannot be rewritten: the service is told once, and it is not a handler failure', async () => {
     h = await createHarness();
-    const file = h.logicalModelService.tablePath('fct_order');
+    const file = h.tableLibraryService.tablePath('fct_order');
     fs.writeFileSync(file, `${fs.readFileSync(file, 'utf-8')}relationships: not a list\n`);
-    h.logicalModelService.invalidateCache();
+    h.tableLibraryService.invalidateCache();
     const refused = vi.fn();
-    h.logicalModelService.onSyncRefused = refused;
+    h.tableLibraryService.onSyncRefused = refused;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const canvas = await h.open('orders');
     await canvas.send({ type: 'addRelationship', payload: { ...EDGE, cardinality: 'many-to-one' } });
@@ -280,8 +280,8 @@ describe('relationship telemetry — Move Relationships', () => {
     return options && typeof options === 'object' && options.modal ? args[args.length - 1] : undefined;
   }) as never);
   const run = (writeFile?: (filePath: string, text: string) => void) => moveRelationshipsToLibrary({
-    workspaceRoot: h.root, semanticDir: '.erd-studio', domainService: new SubjectAreaService(new LayerService(h.root, '.erd-studio')),
-    logicalModelService: h.logicalModelService, onWritten: async () => undefined, writeFile,
+    workspaceRoot: h.root, semanticDir: '.erd-studio', subjectAreaService: new SubjectAreaService(new LayerService(h.root, '.erd-studio')),
+    tableLibraryService: h.tableLibraryService, onWritten: async () => undefined, writeFile,
   });
 
   it('a one-to-many re-homed to the fact: relMoveRehomed, and the self-check stays silent', async () => {

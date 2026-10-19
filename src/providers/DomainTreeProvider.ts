@@ -91,7 +91,7 @@ export class SubjectAreaTreeProvider
   readonly dragMimeTypes = [LAYER_DRAG_MIME_TYPE];
 
   constructor(
-    private readonly domainService: SubjectAreaService,
+    private readonly subjectAreaService: SubjectAreaService,
     private readonly layerService: LayerService,
     private readonly projectPath: string,
     semanticDir?: string,
@@ -202,7 +202,7 @@ export class SubjectAreaTreeProvider
 
     let modelCount = 0;
     try {
-      const domain = this.domainService.getSubjectArea(filePath);
+      const domain = this.subjectAreaService.getSubjectArea(filePath);
       modelCount = domain.logical.models.length;
     } catch (err) {
       console.warn(`[DomainTreeProvider] Failed to load ${filePath}:`, err);
@@ -264,7 +264,7 @@ export class SubjectAreaTreeProvider
   // -------------------------------------------------------------------------
 
   private getLayerChildren(layer: Layer): TreeElement[] {
-    const summaries = this.domainService.listSubjectAreas(this.projectPath, this.semanticDir);
+    const summaries = this.subjectAreaService.listSubjectAreas(this.projectPath, this.semanticDir);
     const layerDomains = summaries.filter(s => s.layer === layer);
 
     const domainNodes: SubjectAreaNode[] = layerDomains.map(summary => ({

@@ -28,9 +28,9 @@ const SHOWCASE = path.join(DBT_PROJECT, '.erd-studio', 'silver', 'showcase.json'
 const CORE_FIXTURES = path.join(REPO_ROOT, 'packages', 'core', 'test', 'fixtures');
 
 function subjectAreaServiceFor(root: string): SubjectAreaService {
-  const domainService = new SubjectAreaService(new LayerService(root, '.erd-studio'));
-  domainService.setTableLibraryService(new TableLibraryService(root, '.erd-studio'));
-  return domainService;
+  const subjectAreaService = new SubjectAreaService(new LayerService(root, '.erd-studio'));
+  subjectAreaService.setTableLibraryService(new TableLibraryService(root, '.erd-studio'));
+  return subjectAreaService;
 }
 
 /** Core's own golden cases (packages/core/test/unit/exportDiagram.golden.test.ts). */
@@ -58,10 +58,10 @@ describe('exportDomainFile', () => {
   });
 
   it.each(['dbml', 'mermaid'] as const)('exports the showcase domain as %s, built as the canvas builds its logical stage', async (format) => {
-    const domainService = subjectAreaServiceFor(DBT_PROJECT);
-    const result = await exportSubjectAreaFile(domainService, SHOWCASE, format);
+    const subjectAreaService = subjectAreaServiceFor(DBT_PROJECT);
+    const result = await exportSubjectAreaFile(subjectAreaService, SHOWCASE, format);
 
-    const unified = domainService.getSubjectArea(SHOWCASE);
+    const unified = subjectAreaService.getSubjectArea(SHOWCASE);
     const display = buildLogicalDisplaySubjectArea(SubjectAreaService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns);
     expect(result).toEqual({
       content: exportDiagram(display, format),
@@ -96,10 +96,10 @@ describe('exportDomainFile', () => {
   });
 
   it('passes dbt\'s key evidence to the read when given', async () => {
-    const domainService = subjectAreaServiceFor(DBT_PROJECT);
-    const spy = vi.spyOn(domainService, 'getDomain');
+    const subjectAreaService = subjectAreaServiceFor(DBT_PROJECT);
+    const spy = vi.spyOn(subjectAreaService, 'getDomain');
     const dbtKeyIndex = buildDbtKeyIndex([]);
-    await exportSubjectAreaFile(domainService, SHOWCASE, 'dbml', { dbtKeyIndex });
+    await exportSubjectAreaFile(subjectAreaService, SHOWCASE, 'dbml', { dbtKeyIndex });
     expect(spy).toHaveBeenCalledWith(SHOWCASE, { dbtKeyIndex });
   });
 
@@ -109,9 +109,9 @@ describe('exportDomainFile', () => {
   });
 
   it('refuses an unknown format before reading anything', async () => {
-    const domainService = subjectAreaServiceFor(DBT_PROJECT);
-    const spy = vi.spyOn(domainService, 'getDomain');
-    await expect(exportSubjectAreaFile(domainService, SHOWCASE, 'svg' as DiagramExportFormat)).rejects.toThrow('Unknown diagram export format: svg');
+    const subjectAreaService = subjectAreaServiceFor(DBT_PROJECT);
+    const spy = vi.spyOn(subjectAreaService, 'getDomain');
+    await expect(exportSubjectAreaFile(subjectAreaService, SHOWCASE, 'svg' as DiagramExportFormat)).rejects.toThrow('Unknown diagram export format: svg');
     expect(spy).not.toHaveBeenCalled();
   });
 

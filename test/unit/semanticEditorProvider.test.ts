@@ -78,13 +78,13 @@ function makeDoc(fsPath: string): MockDoc {
 
 function buildProvider(root: string) {
   const layerService = new LayerService(root, '.erd-studio');
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(root, '.erd-studio');
-  domainService.setTableLibraryService(logicalModelService);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
   const manifestService = new ManifestService();
   const ymlParserService = new YmlParserService();
   const templateService = new TemplateService();
-  const selectorsService = new SelectorsService(domainService, root, '.erd-studio');
+  const selectorsService = new SelectorsService(subjectAreaService, root, '.erd-studio');
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
     globalStorageUri: vscode.Uri.file(path.join(root, '.global-storage')),
@@ -97,16 +97,16 @@ function buildProvider(root: string) {
 
   const provider = new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     manifestService,
     ymlParserService,
     templateService,
     layerService,
     root,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
-  return { provider, logicalModelService, context };
+  return { provider, logicalModelService: tableLibraryService, context };
 }
 
 const posted = (panel: MockPanel) => panel._postedMessages as Posted[];

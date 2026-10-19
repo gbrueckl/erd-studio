@@ -29,16 +29,16 @@ import { dbtKeyIndexOf } from '../../src/services/stageDisplay';
 
 export const SEMANTIC_DIR = '.erd-studio';
 
-export interface Project { root: string; logicalModelService: TableLibraryService; domainService: SubjectAreaService; domainPath: (d: SubjectAreaName) => string }
+export interface Project { root: string; tableLibraryService: TableLibraryService; subjectAreaService: SubjectAreaService; domainPath: (d: SubjectAreaName) => string }
 
 export function materialise(w: World): Project {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-statespace-'));
   const layerService = new LayerService(root, SEMANTIC_DIR);
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(root, SEMANTIC_DIR);
-  domainService.setTableLibraryService(logicalModelService);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, SEMANTIC_DIR);
+  subjectAreaService.setTableLibraryService(tableLibraryService);
   for (const name of ['dim', 'fct'] as const) {
-    logicalModelService.saveTable({
+    tableLibraryService.saveTable({
       name, columns: columnsOf(w.profile, name), ...(w.lib[name].length > 0 ? { relationships: w.lib[name] } : {}),
     });
   }
@@ -53,7 +53,7 @@ export function materialise(w: World): Project {
       viewConfig: { positions: Object.fromEntries(w.domModels[d].map((m, i) => [m, { x: i * 300, y: 0 }])) },
     }, null, 2) + '\n');
   }
-  return { root, logicalModelService, domainService, domainPath };
+  return { root, tableLibraryService, subjectAreaService, domainPath };
 }
 
 /** A profile's dbt tests as a schema yml the real YmlParserService reads (#133 L1). */
@@ -84,9 +84,9 @@ function writeDbtTests(root: string, spec: DbtSpec | undefined): void {
 }
 
 export function readBack(p: Project, profile: World['profile']): World {
-  p.logicalModelService.invalidateCache();
+  p.tableLibraryService.invalidateCache();
   const lib = {} as World['lib'];
-  for (const name of ['dim', 'fct'] as const) lib[name] = (p.logicalModelService.getTable(name)?.relationships ?? []).map((r) => ({ ...r }));
+  for (const name of ['dim', 'fct'] as const) lib[name] = (p.tableLibraryService.getTable(name)?.relationships ?? []).map((r) => ({ ...r }));
   const dom = {} as World['dom'];
   const domModels = {} as World['domModels'];
   for (const d of ['D1', 'D2', 'D3'] as const) {
@@ -105,7 +105,7 @@ export const norm = (w: World): string => JSON.stringify({
 
 /** Send one canvas message from `domain`; returns the error toasts and the information messages shown. */
 export async function sendToProvider(p: Project, message: unknown, domain: SubjectAreaName = 'D1'): Promise<{ errors: string[]; infos: string[] }> {
-  const selectorsService = new SelectorsService(p.domainService, p.root, SEMANTIC_DIR);
+  const selectorsService = new SelectorsService(p.subjectAreaService, p.root, SEMANTIC_DIR);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
   const infos: string[] = [];
   vi.spyOn(vscode.window, 'showInformationMessage').mockImplementation((async (text: string) => { infos.push(text); return undefined; }) as never);
@@ -116,8 +116,8 @@ export async function sendToProvider(p: Project, message: unknown, domain: Subje
     secrets: (vscode as unknown as { createMockSecretStorage: () => unknown }).createMockSecretStorage(),
   } as unknown as vscode.ExtensionContext;
   const provider = new SemanticEditorProvider(
-    context, p.domainService, new ManifestService(), new YmlParserService(), new TemplateService(),
-    new LayerService(p.root, SEMANTIC_DIR), p.root, selectorsService, p.logicalModelService, new OwnWriteTracker(),
+    context, p.subjectAreaService, new ManifestService(), new YmlParserService(), new TemplateService(),
+    new LayerService(p.root, SEMANTIC_DIR), p.root, selectorsService, p.tableLibraryService, new OwnWriteTracker(),
   );
   const document = createMockTextDocument(p.domainPath(domain), fs.readFileSync(p.domainPath(domain), 'utf-8'), { persist: true });
   const panel = createMockWebviewPanel();
@@ -152,8 +152,8 @@ export async function runRealMove(p: Project, picks: MovePick[]): Promise<void> 
     return items.find((it) => (pick ? !!it.definition && sameDefinition(it.definition.relationship, pick.relationship) : !it.definition));
   }) as never);
   await moveRelationshipsToLibrary({
-    workspaceRoot: p.root, semanticDir: SEMANTIC_DIR, domainService: p.domainService,
-    logicalModelService: p.logicalModelService, onWritten: async () => undefined,
+    workspaceRoot: p.root, semanticDir: SEMANTIC_DIR, subjectAreaService: p.subjectAreaService,
+    tableLibraryService: p.tableLibraryService, onWritten: async () => undefined,
     // As extension.ts wires it.
     loadDbtKeyIndex: async () => dbtKeyIndexOf(await new YmlParserService().loadYmlData(p.root, undefined), undefined),
   });

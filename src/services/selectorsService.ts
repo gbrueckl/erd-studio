@@ -119,7 +119,7 @@ export class SelectorsService {
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
-    private readonly domainService: SubjectAreaService,
+    private readonly subjectAreaService: SubjectAreaService,
     private readonly workspaceRoot: string,
     private readonly semanticDir: string,
     private readonly hooks?: SelectorsServiceHooks,
@@ -184,7 +184,7 @@ export class SelectorsService {
       return result;
     }
 
-    const summaries = this.domainService.listSubjectAreas(this.workspaceRoot, this.semanticDir);
+    const summaries = this.subjectAreaService.listSubjectAreas(this.workspaceRoot, this.semanticDir);
 
     const generated: SelectorDef[] = [];
     let modelsReferenced = 0;
@@ -197,7 +197,7 @@ export class SelectorsService {
     for (const summary of sorted) {
       let unified;
       try {
-        unified = this.domainService.getSubjectArea(summary.filePath);
+        unified = this.subjectAreaService.getSubjectArea(summary.filePath);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn(`[SelectorsService] Skipping ${summary.filePath}: ${msg}`);

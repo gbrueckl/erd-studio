@@ -47,7 +47,7 @@ export interface ExportSubjectAreaFileOptions {
  * that is not in `DIAGRAM_EXPORT_FORMATS` — before reading anything.
  */
 export async function exportSubjectAreaFile(
-  domainService: SubjectAreaService,
+  subjectAreaService: SubjectAreaService,
   domainPath: string,
   format: DiagramExportFormat,
   options: ExportSubjectAreaFileOptions = {},
@@ -55,7 +55,7 @@ export async function exportSubjectAreaFile(
   if (!DIAGRAM_EXPORT_FORMATS.includes(format)) {
     throw new Error(`Unknown diagram export format: ${String(format)}`);
   }
-  const unified = domainService.getSubjectArea(domainPath, options.dbtKeyIndex ? { dbtKeyIndex: options.dbtKeyIndex } : {});
+  const unified = subjectAreaService.getSubjectArea(domainPath, options.dbtKeyIndex ? { dbtKeyIndex: options.dbtKeyIndex } : {});
   const display = buildLogicalDisplaySubjectArea(
     SubjectAreaService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns, options.dbtKeyIndex,
   );

@@ -70,10 +70,10 @@ function makeDoc(fsPath: string) {
 /** Open the showcase canvas and wait for its first `domainLoaded`. */
 async function openShowcase(root: string) {
   const layerService = new LayerService(root, '.erd-studio');
-  const domainService = new SubjectAreaService(layerService);
-  const logicalModelService = new TableLibraryService(root, '.erd-studio');
-  domainService.setTableLibraryService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, root, '.erd-studio');
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, root, '.erd-studio');
 
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
@@ -86,14 +86,14 @@ async function openShowcase(root: string) {
 
   const provider = new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     new ManifestService(),
     new YmlParserService(),
     new TemplateService(),
     layerService,
     root,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
   provider.setReportTracking({ recordPending } as unknown as ReportTrackingService);
 

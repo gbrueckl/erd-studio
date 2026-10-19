@@ -101,7 +101,7 @@ describe('parseArgs — export', () => {
 describe('export', () => {
   it.each(DIAGRAM_EXPORT_FORMATS)('prints exactly the %s text exportDomainFile builds, and nothing else', async (format) => {
     const ctx = await buildCliContext({ project: PROJECT, semanticDir: '.erd-studio' });
-    const expected = await exportSubjectAreaFile(ctx.domainService, path.join(PROJECT, SHOWCASE), format, {
+    const expected = await exportSubjectAreaFile(ctx.subjectAreaService, path.join(PROJECT, SHOWCASE), format, {
       dbtKeyIndex: dbtKeyIndexOf(ctx.ymlData, ctx.manifest),
     });
 
