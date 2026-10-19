@@ -1581,10 +1581,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       const fileUri = vscode.Uri.file(filePath);
+      // A preview tab, like a single click in the Explorer (#167): browsing
+      // diagrams reuses one tab until an edit pins it. Without the option
+      // `openWith` pins every tab. VS Code still pins it when the user has
+      // `workbench.editor.enablePreview` off.
       await vscode.commands.executeCommand(
         'vscode.openWith',
         fileUri,
         DOMAIN_EDITOR_VIEW_TYPE,
+        { preview: true },
       );
       if (stage === 'physical') {
         editorProvider.switchStageForUri(fileUri, 'physical');
