@@ -370,6 +370,7 @@ import {
   validateMetaPayload,
   validateAnnotationPositions,
   validateAddModelsFromDbtPayload,
+  validateAddExistingModelsPayload,
   validateOpenModelFilePayload,
   validateLayoutFinishedPayload,
   validateExtraPairs,
@@ -452,6 +453,7 @@ export const PHYSICAL_READ_ONLY_MESSAGE = 'Physical stage is read-only. Switch t
 const EDIT_FEATURES: Partial<Record<string, TelemetryFeature>> = {
   addModel: 'editModel',
   addExistingModel: 'editModel',
+  addExistingModels: 'editModel',
   addModelsFromDbt: 'editModel',
   renameModel: 'editModel',
   removeModel: 'editModel',
@@ -1232,6 +1234,19 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
               await this.queueEdit(panelKey, () =>
                 this.handleAddExistingModel(document, webviewPanel.webview, payload, activeStage));
             }
+            break;
+          }
+          case 'addExistingModels': {
+            // Logical only, like addExistingModel: not in NON_MUTATION_TYPES.
+            const payload = (message as { payload?: unknown }).payload;
+            const payloadError = validateAddExistingModelsPayload(payload);
+            if (payloadError) {
+              this.post(webviewPanel.webview, { type: 'error', payload: { message: `Failed to add models: ${payloadError}` } });
+              break;
+            }
+            telemetry.feature('addModel');
+            await this.queueEdit(panelKey, () =>
+              this.handleAddExistingModels(document, webviewPanel.webview, (payload as { modelNames: string[] }).modelNames));
             break;
           }
           case 'addModelsFromDbt': {
@@ -4256,14 +4271,55 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  /** The queued half of {@link handleAddModelsFromDbt}: build the draft against the current document and write it. */
+  /**
+   * The Add Existing Model dialog with several rows ticked (#160): the same
+   * batch write as "Add models from dbt" — library models referenced, dbt-only
+   * ones seeded into the library, relationships between them and the domain
+   * added — in one `applyDomainEdit`, so one undo removes them all. The names
+   * are the user's explicit pick, so the draft's first-diagram cap does not
+   * apply; the payload validator already holds them to
+   * {@link ADD_EXISTING_MODELS_LIMIT}. v5 only, like the dbt batch.
+   */
+  private async handleAddExistingModels(
+    document: vscode.TextDocument,
+    webview: vscode.Webview,
+    modelNames: readonly string[],
+  ): Promise<void> {
+    try {
+      if (!this.isDomainV5(this.parseDomainDocument(document))) {
+        this.post(webview, {
+          type: 'error',
+          payload: { message: 'Adding several models at once needs the central model store. Run "ERD Studio: Migrate Domains to Central Model Store" first, or add them one at a time.' },
+        });
+        return;
+      }
+      const ymlData = await this.ymlParserService.loadYmlData(this.workspaceRoot, undefined);
+      const manifest = await this.manifestService.loadManifest(this.workspaceRoot);
+      await this.applyDbtModels(document, webview, modelNames, ymlData, manifest, 'picked');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[SemanticEditorProvider] Add existing models failed: ${message}`);
+      this.post(webview, { type: 'error', payload: { message: `Failed to add models: ${message}` } });
+    }
+  }
+
+  /**
+   * The queued half of {@link handleAddModelsFromDbt} and of
+   * {@link handleAddExistingModels}: build the draft against the current
+   * document and write it. `'dbt'` is the empty canvas's capped first draft;
+   * `'picked'` is the dialog's explicit pick, uncapped and worded without
+   * "from dbt" (it may be all library models).
+   */
   private async applyDbtModels(
     document: vscode.TextDocument,
     webview: vscode.Webview,
     modelNames: readonly string[],
     ymlData: YmlData,
     manifest: ManifestData,
+    origin: 'dbt' | 'picked' = 'dbt',
   ): Promise<void> {
+    const fromDbt = origin === 'dbt';
+    const from = fromDbt ? ' from dbt' : '';
     try {
       // Re-read inside the queue: an edit may have landed while the picker was open.
       const parsed = this.parseDomainDocument(document);
@@ -4278,13 +4334,22 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         libraryHas: (name) => this.logicalModelService.modelExists(name),
         existingModelNames: existingNames,
         existingRelationships: (section.relationships ?? []) as Relationship[],
+        ...(fromDbt ? {} : { limit: modelNames.length, skipDisabled: false }),
       });
-      const skippedNote = describeSkippedDbtModels(draft.skipped);
+      // A pick is matched to the domain ignoring case, as model names are
+      // unique that way, so a ticked row can already be there under another
+      // case (or added since by another panel): name it rather than drop it
+      // without a word. The dbt picker leaves those out up front.
+      const alreadyIn = fromDbt ? [] : draft.skipped.filter((s) => s.reason === 'already-in-domain').map((s) => s.name);
+      const skippedNote = [
+        describeSkippedDbtModels(draft.skipped),
+        alreadyIn.length > 0 ? `Already in this diagram: ${alreadyIn.slice(0, 5).join(', ')}${alreadyIn.length > 5 ? ` and ${alreadyIn.length - 5} more` : ''}.` : '',
+      ].filter(Boolean).join(' ');
       if (draft.modelNames.length === 0) {
-        telemetry.feature('addFromDbtNothingDrawable');
+        if (fromDbt) telemetry.feature('addFromDbtNothingDrawable');
         this.post(webview, {
           type: 'error',
-          payload: { message: `No models were added from dbt.${skippedNote ? ` ${skippedNote}` : ''}` },
+          payload: { message: `No models were added${from}.${skippedNote ? ` ${skippedNote}` : ''}` },
         });
         return;
       }
@@ -4321,15 +4386,15 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         {
           webview,
           stage: 'logical',
-          errorLabel: 'Failed to add models from dbt.',
+          errorLabel: `Failed to add models${from}.`,
           ...(routed.saves.length > 0 ? { modelFiles: { save: routed.saves.map((model) => ({ model })) } } : {}),
           onSuccess: () => {
-            telemetry.feature('addFromDbt');
+            if (fromDbt) telemetry.feature('addFromDbt');
             this.selectorsService.scheduleRegenerate();
             if (skippedNote) {
               const added = draft.modelNames.length;
               void vscode.window.showInformationMessage(
-                `Added ${added} model${added === 1 ? '' : 's'} from dbt. ${skippedNote}`,
+                `Added ${added} model${added === 1 ? '' : 's'}${from}. ${skippedNote}`,
               );
             }
           },
@@ -4337,11 +4402,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`[SemanticEditorProvider] Add models from dbt failed: ${message}`);
+      console.error(`[SemanticEditorProvider] Add models${from} failed: ${message}`);
       // A refusal the toast explains (a conflicted diagram, a model file
       // with unsaved edits) is not a breakage.
-      if (!isExplainedRefusal(err)) telemetry.error('addFromDbtFailed');
-      this.post(webview, { type: 'error', payload: { message: `Failed to add models from dbt: ${message}` } });
+      if (fromDbt && !isExplainedRefusal(err)) telemetry.error('addFromDbtFailed');
+      this.post(webview, { type: 'error', payload: { message: `Failed to add models${from}: ${message}` } });
     }
   }
 

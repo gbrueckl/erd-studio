@@ -7,7 +7,7 @@
  *                         feedbackSubmitted
  *   Webview → Extension:  ready, addModel, addColumn, removeColumn, addRelationship,
  *                         removeModel(s), removeRelationship(s), editRelationship,
- *                         addExistingModel, updatePositions, switchStage,
+ *                         addExistingModel(s), updatePositions, switchStage,
  *                         toggleDiscrepancy, requestFeedbackContext,
  *                         analyzeFeedback, setFeedbackProvider, submitFeedback,
  *                         copyFeedbackReport, openFeedbackLink,
@@ -389,6 +389,24 @@ export interface AddExistingModelMessage {
   type: 'addExistingModel';
   payload: {
     modelName: string;
+  };
+}
+
+/** Most models one `addExistingModels` request may add (the dialog's "Select all" stops here). */
+export const ADD_EXISTING_MODELS_LIMIT = 200;
+
+/**
+ * Add several picked models to the domain in one edit (#160): the Add
+ * Existing Model dialog with more than one row ticked. Library models are
+ * referenced; dbt-only ones are seeded into the library, as with
+ * `addExistingModel`. Names already in the domain are skipped. One
+ * WorkspaceEdit, one undo step. v5 domains only; at most
+ * {@link ADD_EXISTING_MODELS_LIMIT} names.
+ */
+export interface AddExistingModelsMessage {
+  type: 'addExistingModels';
+  payload: {
+    modelNames: string[];
   };
 }
 
@@ -775,6 +793,7 @@ export type WebviewMessage =
   | UpdateRelationshipMessage
   | EditRelationshipMessage
   | AddExistingModelMessage
+  | AddExistingModelsMessage
   | AddModelsFromDbtMessage
   | UpdatePositionsMessage
   | RefreshManifestMessage

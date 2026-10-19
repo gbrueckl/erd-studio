@@ -18,6 +18,7 @@ import {
   validatePositions,
   findDuplicateNames,
   validateAddModelsFromDbtPayload,
+  validateAddExistingModelsPayload,
   validateExtraPairs,
   validateMarkKey,
   validateRelationshipEnds,
@@ -26,6 +27,7 @@ import {
   validateExportDiagramPayload,
 } from '../../src/providers/payloadValidation';
 import { MODEL_NAME_PATTERN } from '../../src/types/naming';
+import { ADD_EXISTING_MODELS_LIMIT } from '../../src/types/messages';
 
 describe('validateModelName', () => {
   // Either case is allowed (issue #93): PascalCase modellers write DimDate.
@@ -253,6 +255,28 @@ describe('positions', () => {
     expect(validateAnnotationPositions([null])).toMatch(/non-empty/);
     expect(validateAnnotationPositions([{ id: 'n1', x: NaN, y: 2 }])).toMatch(/"n1".*finite/);
     expect(validateAnnotationPositions([{ id: 'n1', x: 1 }])).toMatch(/"n1"/);
+  });
+});
+
+describe('validateAddExistingModelsPayload', () => {
+  it('accepts 1 to ADD_EXISTING_MODELS_LIMIT path-safe names, dbt casing included', () => {
+    expect(validateAddExistingModelsPayload({ modelNames: ['fct_sale'] })).toBeNull();
+    expect(validateAddExistingModelsPayload({ modelNames: ['SAP_Orders', '2024_events'] })).toBeNull();
+    expect(validateAddExistingModelsPayload({ modelNames: Array.from({ length: ADD_EXISTING_MODELS_LIMIT }, (_, i) => `m${i}`) })).toBeNull();
+  });
+
+  it.each([undefined, null, [], 'fct_sale', {}, { modelNames: [] }, { modelNames: 'fct_sale' }])('rejects %j', (value) => {
+    expect(validateAddExistingModelsPayload(value)).toMatch(/needs a list of model names/);
+  });
+
+  it('rejects one name over the limit', () => {
+    const names = Array.from({ length: ADD_EXISTING_MODELS_LIMIT + 1 }, (_, i) => `m${i}`);
+    expect(validateAddExistingModelsPayload({ modelNames: names })).toMatch(/At most 200/);
+  });
+
+  it('rejects a list holding an unsafe or non-string name', () => {
+    expect(validateAddExistingModelsPayload({ modelNames: ['fct_sale', '../evil'] })).not.toBeNull();
+    expect(validateAddExistingModelsPayload({ modelNames: ['fct_sale', 42] })).not.toBeNull();
   });
 });
 
