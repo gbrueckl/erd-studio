@@ -58,6 +58,13 @@ describe('FkEdge — drawn backwards (#163)', () => {
     });
   });
 
+  it('takes the place of the ⇄ zone, which Turn round already is', () => {
+    expect(renderEdge(BACKWARDS).container.querySelector('.fk-edge__swap-zone')).toBeNull();
+    cleanup();
+    const { keysContradict: _k, ...plain } = BACKWARDS;
+    expect(renderEdge(plain).container.querySelector('.fk-edge__swap-zone')).not.toBeNull();
+  });
+
   it('draws no ⚠ without the flag, on the read-only stage, or for a reader', () => {
     const { keysContradict: _k, ...plain } = BACKWARDS;
     expect(renderEdge(plain).container.querySelector('.fk-edge__backwards')).toBeNull();

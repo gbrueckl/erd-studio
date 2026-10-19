@@ -368,10 +368,11 @@ function FkEdgeComponent({
         {viewer ? null : (data.keysContradict && !readOnly && discrepancyStatus !== 'missing' && (
           <span
             className={`fk-edge__backwards${dimmed ? ' fk-edge__backwards--dimmed' : ''}`}
-            // Right of the ⇄ zone (28px wide at the midpoint), clear of the role
-            // above and the composite chip below; it grows rightwards on hover.
+            // On the midpoint, in place of the ⇄ zone (Turn round is ⇄): the icon
+            // is centred on the line and Turn round opens to its right, clear of
+            // the role above and the composite chip below.
             style={{
-              transform: `translate(18px, -50%) translate(${midX}px, ${midY}px)`,
+              transform: `translate(-9px, -50%) translate(${midX}px, ${midY}px)`,
             }}
             onMouseEnter={(e) => { e.stopPropagation(); setBackwardsHovered(true); }}
             onMouseLeave={(e) => { e.stopPropagation(); setBackwardsHovered(false); }}
@@ -393,7 +394,7 @@ function FkEdgeComponent({
             )}
           </span>
         ))}
-        {!readOnly && discrepancyStatus !== 'missing' && (
+        {!readOnly && discrepancyStatus !== 'missing' && !(data.keysContradict && !viewer) && (
           <span
             className={`fk-edge__swap-zone${dimmed ? ' fk-edge__swap-zone--dimmed' : ''}`}
             style={{
