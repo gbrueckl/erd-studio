@@ -4,11 +4,11 @@ description: >-
   Take one ERD Studio GitHub issue all the way to a pull request into develop, with a
   narrated before/after video posted back to the issue for the reporter. Lists open issues
   newest first and asks which to tackle (takes it automatically when only one is open),
-  explains the problem in plain language, convenes a council — three perspectives chosen
-  for that issue plus a standing Impact Scout that maps everything else the fix must move
-  (harness version and SCHEMA_CONTENT, the reference doc, CLI/MCP/Confluence twins, goldens,
-  telemetry lists, docs, the same bug elsewhere) — implements it with a test, re-audits
-  the diff against the scout's map, renders the video, opens the PR and asks the reporter
+  explains the problem in plain language, convenes a council of five — three perspectives
+  chosen for that issue, a Reproducer that proves the bug with a failing test, and a
+  Breaker that attacks the fix — plus an Impact Scout that maps every ripple (harness
+  version, docs, CLI/MCP/Confluence twins, goldens, telemetry), implements it with a
+  test, re-audits the diff, renders the video, opens the PR and asks the reporter
   for feedback. Never merges until Liam says so. Also runs unattended as a Claude Code
   routine ("routine mode") and can add the video to an existing PR later (`--video <n>`).
   Use for /issue-to-pr, "tackle the latest issue", "fix #123 and ship a PR with a video",
@@ -35,6 +35,9 @@ as the video renders and passes your own check.
 - **Routine mode**: the prompt says so, or there's a `<routine-fire-payload>` in context.
   **Read `references/routine.md` first.** It overrides the steps that need a person, a
   browser or GraphQL.
+- **Pi mode**: the prompt says so. It was started on Liam's Raspberry Pi by the
+  `issue-to-pr` label. **Read `references/pi.md` first.** Nobody is watching, but `gh`, push
+  and a logged-in browser all work.
 - **`--video <n>`**: an open PR for #n already exists (usually from a routine) and lacks
   its video. Check out its branch, then do steps 0, 6 and 7.2–7.3 only. Swap the video
   into the PR body and post the issue comment, or edit the existing one with `gh api -X
@@ -124,33 +127,45 @@ Carry on without waiting, unless one of these holds. In each case stop and ask:
 - it's really several issues;
 - it needs a product decision only Liam can make.
 
-## 4. Convene the council: three perspectives and the Impact Scout
+## 4. Convene the council: five councillors and the Impact Scout
 
-**Read `references/council.md` now.** In one message, spawn **four** agents:
+**Read `references/council.md` now.** In one message, spawn **six** agents:
 - **three councillors** (`subagent_type: "Plan"`), with perspectives chosen for *this*
   issue, who argue over the fix;
-- **the Impact Scout** (`subagent_type: "Explore"`), a standing seat that doesn't argue.
-  It maps everything else the fix must move, through eight lenses: the same bug
+- **the Reproducer** (`subagent_type: "general-purpose"`), a standing councillor. It
+  proves the bug on `origin/develop` with a failing test, working only in
+  `$SCRATCH/before`, which also becomes the BEFORE build. It reports anything worse than
+  what was reported, and the scene to film;
+- **the Breaker** (`subagent_type: "Plan"`), a standing councillor. It writes the
+  pre-mortem: how the likely fix breaks in this repo's known failure states (undo, the
+  physical stage, watchers, case, old shapes, the twins);
+- **the Impact Scout** (`subagent_type: "Explore"`), a standing survey that doesn't
+  argue. It maps everything else the fix must move, through eight lenses: the same bug
   elsewhere, consumers, twin implementations, contracts (`references/ripple-map.md`), old
   data, tests that encode the old behaviour, user-facing words, and adjacent open issues.
 
-Synthesise a verdict. Show the council table plus the **Ripple** line. Ask Liam only when
-the councillors split on **product direction**. Otherwise proceed.
+Synthesise a verdict, starting from the Reproducer's evidence. Show the council table plus
+the **Ripple** line. If the Reproducer couldn't reproduce the bug, or found it already
+fixed, that's a step-3 stop case. Ask Liam only when the councillors split on **product
+direction**. Otherwise proceed.
 
-Fold the scout's **must-change** rows into the plan now. Its **check** rows are your
-step-5 audit list.
+Fold the scout's **must-change** rows and the Breaker's **breaks** rows into the plan now.
+The scout's **check** rows are your step-5 audit list.
 
 ## 5. Implement, then audit the ripple
 
-1. **Prepare the "before" build first**, before touching code, so it's ready when you
-   record: `git worktree add "$SCRATCH/before" origin/develop && (cd "$SCRATCH/before" &&
-   npm ci && npm run build)`. Run it in the background.
+1. **The "before" build** is the Reproducer's worktree, `$SCRATCH/before`, already built
+   on `origin/develop`. If the Reproducer couldn't build it, build it now in the
+   background: `git worktree add "$SCRATCH/before" origin/develop && (cd
+   "$SCRATCH/before" && npm ci && npm run build)`.
 2. Create the fix worktree and branch: `fix/<n>-<slug>` for bugs, `feat/<n>-<slug>` for
    features, cut from `origin/develop`.
-3. Make the change in the council's shape, **including every must-change ripple**. Match
-   the surrounding style and comment density.
-4. Add a test that pins **the rule, not the symptom**. Add a test for each ripple that
-   has a natural one, such as an old-shape golden or the same bug in its twin.
+3. Make the change in the council's shape, **including every must-change ripple and every
+   Breaker scenario the verdict took on**. Match the surrounding style and comment density.
+4. Start from **the Reproducer's failing test**: copy it onto the branch and make it pin
+   **the rule, not the symptom**. Show it fails on `$SCRATCH/before` and passes on the
+   branch. Add a test for each ripple and each Breaker scenario that has a natural one,
+   such as an old-shape golden or the same bug in its twin.
 5. **Ripple audit.** Use `SendMessage` to send the scout:
    - `git diff origin/develop...HEAD --stat`;
    - the changed exported symbols, message types, settings and file shapes;
@@ -160,6 +175,12 @@ step-5 audit list.
    Fix what it finds, or record why not. **Every row ends as one of three things:** done,
    ruled out with a reason, or flagged for Liam. None stays silent. If it can't be
    resumed, re-walk `ripple-map.md` yourself against the diff.
+
+   **Break audit**, in the same message turn: `SendMessage` the Breaker the full `git diff
+   origin/develop...HEAD` and ask it to attack the code that was actually written. Each
+   scenario it raises ends as one of three things: fixed with a test, shown to survive,
+   or flagged for Liam. If it can't be resumed, walk its seat checklist in council.md
+   yourself.
 6. Run the gates (see "Repo facts"). Add the CHANGELOG line.
 7. Commit with a message that explains the mechanism, and include `Closes #<n>`.
 
@@ -230,7 +251,8 @@ if what they'd see has changed, and reply with the new video.
 
 ## Reference files
 
-- `references/council.md`: the three perspectives, the Impact Scout's brief, and
+- `references/council.md`: the three chosen perspectives, the Reproducer's, Breaker's and
+  Impact Scout's briefs, and
   synthesis. **Read at step 4.**
 - `references/ripple-map.md`: ERD Studio's "if this, then also that" checklist, with each
   row marked as caught by CI or by convention only. The scout reads it. **Read at step 5
@@ -243,3 +265,5 @@ if what they'd see has changed, and reply with the new video.
   at step 7.**
 - `references/routine.md`: unattended mode in a Claude Code cloud routine. **Read first in
   routine mode.**
+- `references/pi.md`: unattended mode on the Raspberry Pi, including the Xvfb recording
+  setup and `scripts/gh_upload.mjs`. **Read first in Pi mode.**

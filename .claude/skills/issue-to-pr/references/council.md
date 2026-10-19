@@ -1,11 +1,19 @@
-# The council: three perspectives and a scout, one decision
+# The council: five councillors and a scout, one decision
 
 Read this at step 4, once you understand the issue well enough to explain it.
 
-The council has **four seats**:
+The council has **five councillors and a survey**:
 - **three perspectives**, chosen fresh for each issue, who argue about *how* to fix it;
-- **one standing seat, the Impact Scout**, who never argues about the fix. It maps *what
+- **two standing councillors**, the same on every issue:
+  - **the Reproducer**, who proves the bug on `origin/develop` with a failing test before
+    anyone settles on a fix (see "The Reproducer" below);
+  - **the Breaker**, who assumes the fix has shipped and failed, and finds out how (see
+    "The Breaker" below);
+- **the Impact Scout**, a standing survey that never argues about the fix. It maps *what
   else has to move* for any fix to be complete. See "The Impact Scout" below.
+
+Each standing seat covers a different way a fix fails. The Reproducer answers "is this the
+real bug?", the Breaker "is the fix correct?", and the scout "is the fix complete?".
 
 A single agent tends to fix the first mechanism it finds, at the first place it finds it.
 The council exists to put **real tension** on that choice before any code is written:
@@ -32,14 +40,19 @@ Adapt freely. Name each perspective in a few words and give it one sentence of
 
 ## Spawning them
 
-Send **one message with four `Agent` calls**: the three councillors plus the Impact
-Scout, so all four run concurrently. Use
-`subagent_type: "Plan"`: it is read-only, so a councillor can explore and verify but can't
-start editing. Give every councillor the same brief, with only the perspective block
-changing:
+Send **one message with six `Agent` calls**, so they all run concurrently:
+
+| Seat | `subagent_type` | Brief |
+|---|---|---|
+| 3 × chosen perspective | `Plan` (read-only) | the brief below, with a perspective block |
+| the Reproducer | `general-purpose` (it runs code, in scratch only) | the brief below, with the Reproducer's seat block instead of a perspective |
+| the Breaker | `Plan` (read-only) | the brief below, with the Breaker's seat block instead of a perspective |
+| the Impact Scout | `Explore` (read-only) | the brief below, with the scout's seat block instead of a perspective |
+
+Every seat gets the same brief, with only the last block changing:
 
 ```
-You are one of three councillors deciding how to fix GitHub issue #<n> in <repo> (working
+You are one of five councillors deciding how to fix GitHub issue #<n> in <repo> (working
 tree: <abs path>, base branch <base>). You are READ-ONLY: explore and verify, don't edit.
 
 ## The issue
@@ -50,7 +63,7 @@ tree: <abs path>, base branch <base>). You are READ-ONLY: explore and verify, do
 <repo conventions that constrain the fix: CLAUDE.md rules, test commands, changelog>
 
 ## Your perspective: <name>
-<one-sentence mandate>. Argue from it. Don't try to be balanced; the other two
+<one-sentence mandate>. Argue from it. Don't try to be balanced; the other
 councillors cover the other angles.
 
 ## Deliver (under 350 words)
@@ -64,8 +77,101 @@ councillors cover the other angles.
 Verify claims against the code before making them: cite file:line.
 ```
 
-Keep it to three perspectives. More councillors cost time and add less each. The scout
-isn't a fourth opinion. It's a survey, so it doesn't count against the three.
+Keep it to three chosen perspectives. The two standing councillors aren't more opinions:
+they bring evidence (the Reproducer) and attacks (the Breaker), so a fourth chosen
+perspective would cost time and add less than either. The scout is a survey, not a
+councillor.
+
+## The Reproducer
+
+Every other seat reasons from the code. The Reproducer **runs it**. A council that argues
+over a mechanism nobody has seen fail can design a careful fix for the wrong bug. Worse,
+the real damage often only surfaces later, while filming. On #161 the stale canvas
+writing a deleted file back to disk was only found during the recording, after the fix
+had been designed.
+
+It is the only seat that runs code, so it uses `subagent_type: "general-purpose"`, kept to
+scratch by its brief. Its worktree **is** the "before" build from step 5.1, so the
+evidence costs no extra install. Use this seat block:
+
+```
+## Your seat: the Reproducer
+Nothing is true until it fails on origin/develop. You don't argue for a fix; you supply
+the evidence the others are guessing at. Work ONLY in $SCRATCH/before: never edit the main
+checkout, never commit, never push, never comment on GitHub.
+
+1. Set up: `git worktree add "$SCRATCH/before" origin/develop && cd "$SCRATCH/before" &&
+   npm ci && npm run build`. This doubles as the BEFORE build for the video, so leave it
+   built.
+2. Reproduce at the lowest level that shows it: a vitest test (the repo's `vscode` mock
+   drives the provider; see `test/unit/semanticEditorProvider.*.test.ts`), else the CLI
+   against a fixture, else a scripted sequence of steps. Prefer a test: it becomes the
+   fix's first test.
+3. Then push further: what ELSE goes wrong in the same state? Data written, lost or
+   corrupted; a second panel; undo; a refresh; the physical stage. The worst consequence
+   is usually not the one reported.
+
+## Deliver (under 400 words)
+1. **Reproduced:** yes / partly / no / already fixed on develop (name the commit).
+2. **The failing test:** its path in $SCRATCH/before, the command, and the failure output
+   (≤ 15 lines). If not a test, the exact commands and what they printed.
+3. **Mechanism:** confirmed as briefed, or corrected, with file:line.
+4. **Worse than reported:** anything you found beyond the report, with evidence, or
+   "nothing found".
+5. **The scene to film:** the fixture, the steps in order, and the exact moment the bug
+   is visible. This is the BEFORE recording's script.
+```
+
+**How its evidence is used:**
+- It outranks argument. If it couldn't reproduce the bug, or found a different
+  mechanism, the verdict must follow the evidence. A "no" or "already fixed" is a step-3
+  stop case: stop and say so (or, unattended, comment and end the run).
+- Its failing test moves onto the fix branch as the first test. It must go **red on
+  develop and green on the branch**: run it both ways before committing.
+- "Worse than reported" findings join the fix, or the PR body's "Deliberately not
+  changed" with a reason.
+- Its scene to film becomes the BEFORE half of `record.sh`. If it reproduced the bug in a
+  test but couldn't film it, say so before step 6.
+
+## The Breaker
+
+The chosen perspectives each argue for a fix, and the scout checks that the fix is
+complete. Nobody is checking that it's **correct**: what the fix itself breaks in the
+states nobody thought about. The Breaker writes the pre-mortem. Use `subagent_type:
+"Plan"` with this seat block:
+
+```
+## Your seat: the Breaker
+Assume the fix described in "What we know so far" (or the most likely variant) shipped,
+and within a week a user reports that it broke something. Your job is to find out what.
+You don't propose the fix. You attack it. Cite file:line for every claim.
+
+Attack it in this repo's known failure states, and say "survives" or "breaks" for each one
+that applies (skip only the ones that can't reach this code, and say why):
+- undo/redo: the toolbar `undo`, and native Cmd+Z through `flushUndoRedo` and
+  `editedModelPaths`;
+- the physical stage and its message allowlist; two panels on the same domain; a
+  `retainContextWhenHidden` panel that wakes up later;
+- watchers and `ownWrites`: our own save racing an external one; a git checkout that
+  deletes then restores a file; a burst of events;
+- a dirty (unsaved) document; `applyEdit` rejected; `save()` resolving false;
+- names differing only in case; Windows paths and separators; a nested dbt project;
+- old shapes: v4 domains, a flat vs layer-folder model library, relationships in the
+  domain file vs the library, a YAML alias, a file written by 1.6.7;
+- the twins: the CLI, `mcp-server/`, and core's `loadDisplayDomain` (the Confluence app);
+- scale: a large library, or a slow manifest parse.
+
+## Deliver (under 400 words)
+A table of the scenarios that BREAK or are UNSURE, worst first:
+| Scenario | What the user sees | Where (file:line) | The test that would catch it |
+Then one line: "Most likely real break:". Don't list everything that survives: a short,
+sharp list beats a long safe one. Mark anything you couldn't verify "unverified".
+```
+
+**Keep the Breaker alive**, like the scout. After implementing, `SendMessage` it the actual
+diff (`git diff origin/<base>...HEAD`, not just the stat) and ask it to attack **the code
+that was written**. Every scenario it raises ends as one of three things: fixed with a
+test, shown to survive (say how), or flagged for Liam in the PR body. See SKILL.md step 5.
 
 ## The Impact Scout
 
@@ -137,14 +243,20 @@ this second pass catches the drift between them. See SKILL.md step 5.
 
 You are the chair, not a vote-counter. Weigh the arguments, not the headcount:
 
-1. Put the three recommendations side by side. Where they **agree**, that's settled.
-2. Where they **disagree**, decide on the merits. Correctness beats convenience. The
+1. **Start from the Reproducer's evidence.** It decides what the bug *is*. If it
+   couldn't reproduce it or found a different mechanism, re-read the other four in that
+   light. An argument for fixing a mechanism that didn't fail doesn't count.
+2. Put the three chosen recommendations side by side. Where they **agree**, that's
+   settled. Where they **disagree**, decide on the merits. Correctness beats convenience. The
    reporter's actual need beats the literal request. A smaller change beats a larger one
    when both fully solve it. And no surprise settings, migrations or API changes unless the
    issue requires them.
-3. Take the best **test** and the best **video moment** from whoever proposed them. These
-   often come from different councillors.
-4. Check the verdict against the repo's conventions from step 3.
+3. **Run the verdict past the Breaker's table.** Every "breaks" scenario that reaches the
+   chosen fix must be designed out or given a test now, not discovered in the diff.
+4. Take the best **test** and the best **video moment** from whoever proposed them. The
+   Reproducer's failing test and scene to film are the default. Use another councillor's
+   only when it pins the rule better.
+5. Check the verdict against the repo's conventions from step 3.
 
 Show it in the chat, compactly:
 
@@ -155,6 +267,8 @@ Show it in the chat, compactly:
 | Reporter's advocate | … | … |
 | Minimalist | … | … |
 | Maintainer | … | … |
+| Reproducer | reproduced: yes/partly/no · <the failing test> | <worse than reported> |
+| Breaker | — | <most likely real break> |
 
 **Verdict:** <the fix, 1–3 sentences>. **Why:** <one line>. **Overrode:** <dissent you set
 aside, and why>.
