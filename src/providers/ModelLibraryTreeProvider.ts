@@ -18,7 +18,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type { LogicalModelService, ModelFileEntry } from '../services/logicalModelService';
+import type { LogicalModelService, ModelFileEntry, ModelFileError } from '../services/logicalModelService';
 import type { DomainService } from '../services/domainService';
 import type { LayerConfig } from '../types/layer';
 import { getRawDomainModelNames } from '../types/semantic';
@@ -36,6 +36,8 @@ export interface ModelLibraryModelNode {
   readonly folder?: string;
   /** Path of the file that wins the lookup when this one is a duplicate. */
   readonly shadowedBy?: string;
+  /** What is wrong in the file, so the problem stays visible after its one warning (#164). */
+  readonly fileError?: Pick<ModelFileError, 'kind' | 'line' | 'mergeConflict' | 'readable' | 'key'>;
 }
 
 export interface ModelLibraryFolderNode {
@@ -98,6 +100,10 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
     item.contextValue = 'logicalModel';
     item.iconPath = new vscode.ThemeIcon(isOrphan ? 'warning' : 'symbol-class');
 
+    if (element.fileError) {
+      return this.fileErrorItem(item, element, element.fileError);
+    }
+
     if (isOrphan) {
       item.description = '(unused)';
       item.tooltip = 'Not referenced by any domain';
@@ -127,14 +133,27 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
     if (!this.logicalModelService.dirExists()) return [];
 
     const usageMap = this.buildUsageMap();
-    const toNode = (entry: ModelFileEntry): ModelLibraryModelNode => ({
-      type: 'model',
-      name: entry.name,
-      filePath: entry.filePath,
-      referencingDomains: entry.shadowedBy ? [] : usageMap.get(entry.name) ?? [],
-      folder: entry.folder,
-      ...(entry.shadowedBy ? { shadowedBy: entry.shadowedBy } : {}),
-    });
+    const toNode = (entry: ModelFileEntry): ModelLibraryModelNode => {
+      // Through the service's mtime cache, so an unchanged library is not re-parsed.
+      const error = entry.shadowedBy ? null : this.logicalModelService.getModelFileError(entry.name);
+      return {
+        type: 'model',
+        name: entry.name,
+        filePath: entry.filePath,
+        referencingDomains: entry.shadowedBy ? [] : usageMap.get(entry.name) ?? [],
+        folder: entry.folder,
+        ...(entry.shadowedBy ? { shadowedBy: entry.shadowedBy } : {}),
+        ...(error ? {
+          fileError: {
+            kind: error.kind,
+            ...(error.line !== undefined ? { line: error.line } : {}),
+            ...(error.mergeConflict ? { mergeConflict: true as const } : {}),
+            ...(error.readable ? { readable: true as const } : {}),
+            ...(error.key ? { key: error.key } : {}),
+          },
+        } : {}),
+      };
+    };
     const byName = (a: ModelLibraryModelNode, b: ModelLibraryModelNode): number => a.name.localeCompare(b.name);
 
     const entries = this.logicalModelService.listModelFiles();
@@ -169,6 +188,33 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  /** A model whose file needs fixing: marked, explained, and opened at the line. */
+  private fileErrorItem(
+    item: vscode.TreeItem,
+    element: ModelLibraryModelNode,
+    error: NonNullable<ModelLibraryModelNode['fileError']>,
+  ): vscode.TreeItem {
+    const at = error.line !== undefined ? ` — line ${error.line}` : '';
+    if (error.readable) {
+      item.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.warningForeground'));
+      item.description = `(${error.key ? `"${error.key}"` : 'a key'} written twice${at})`;
+      item.tooltip = `${error.key ? `"${error.key}"` : 'A key'} is written twice in the same block. ` +
+        'The diagram uses the last one, but ERD Studio can\'t change this model until the other copy is removed.';
+    } else {
+      item.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('list.errorForeground'));
+      item.description = error.mergeConflict ? `(merge conflict${at})` : error.kind === 'read' ? '(can\'t be read)' : `(YAML error${at})`;
+      item.tooltip = 'This file can\'t be read, so the model is missing from every diagram. Open it to fix it.';
+    }
+    item.resourceUri = vscode.Uri.file(element.filePath);
+    const at0 = new vscode.Position(error.line !== undefined && error.line >= 1 ? error.line - 1 : 0, 0);
+    item.command = {
+      command: 'vscode.open',
+      title: 'Open Model',
+      arguments: [item.resourceUri, { selection: new vscode.Range(at0, at0), preview: false }],
+    };
+    return item;
+  }
 
   private folderItem(element: ModelLibraryFolderNode): vscode.TreeItem {
     const layer = this.getLayers().find(l => l.id === element.folder);

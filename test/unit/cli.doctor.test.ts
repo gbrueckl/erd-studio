@@ -267,6 +267,31 @@ describe('doctor via main', () => {
     expect(clean.nextSteps.some((s) => s.id === 'fix-model-yaml')).toBe(false);
   });
 
+  it('lists a key written twice with its key and line, saying the model still loads (#164)', async () => {
+    const root = copyFixture('dbt-project');
+    fs.writeFileSync(
+      path.join(root, '.erd-studio/logical-models/fct_task_event.yml'),
+      'name: fct_task_event\ndescription: one\ndescription: two\ncolumns: []\n',
+    );
+    const r = await runDoctor({ project: root, semanticDir: '.erd-studio', noDbt: true, env: cleanEnv, homeDir: home });
+    expect(r.erd.unreadableModelFiles).toEqual([expect.objectContaining({
+      name: 'fct_task_event', line: 3, kind: 'yamlDuplicateKey', code: 'DUPLICATE_KEY', readable: true, key: 'description',
+    })]);
+    const step = r.nextSteps.find((s) => s.id === 'fix-model-yaml')!;
+    expect(step.why).toContain('fct_task_event.yml:3');
+    expect(step.why).toContain('`description` is written twice in one block');
+    expect(step.why).not.toContain('as empty');
+
+    let out = '';
+    await main(['doctor', '--project', root, '--no-dbt'], {
+      stdout: { write: (s: string) => { out += s; } },
+      stderr: { write: () => undefined },
+      cwd: root,
+      env: cleanEnv,
+    });
+    expect(out).toContain('fct_task_event.yml line 3: `description` is written twice in one block');
+  });
+
   it('names model files that spell a column type data_type, as a warning and never a next step (#144)', async () => {
     const root = copyFixture('dbt-project');
     const before = await runDoctor({ project: root, semanticDir: '.erd-studio', noDbt: true, env: cleanEnv, homeDir: home });

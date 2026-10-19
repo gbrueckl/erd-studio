@@ -4,6 +4,7 @@
  * message and the one-per-broken-file warning notification. Writes nothing.
  */
 
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ModelFileError, ModelFileErrorKind } from '../services/logicalModelService';
@@ -43,8 +44,17 @@ export function modelFileErrorTip(kind: ModelFileErrorKind, mergeConflict?: bool
 }
 
 /** The notification text for a model file that exists but cannot be read. */
-export function modelFileErrorNotice(error: Pick<ModelFileError, 'filePath' | 'kind' | 'line' | 'mergeConflict'>): string {
+export function modelFileErrorNotice(
+  error: Pick<ModelFileError, 'filePath' | 'kind' | 'line' | 'mergeConflict' | 'readable' | 'key'>,
+): string {
   const base = path.basename(error.filePath);
+  if (error.readable) {
+    // The model IS on the diagram (#164); only writing to it is held back.
+    const what = error.key ? `"${error.key}" is written twice` : 'A key is written twice';
+    const where = error.line !== undefined ? ` (line ${error.line})` : '';
+    return `${base}: ${what} in the same block${where}. ERD Studio uses the last one, ` +
+      "but can't change this model until you remove the other copy.";
+  }
   const tip = modelFileErrorTip(error.kind, error.mergeConflict);
   if (error.kind === 'read') {
     return `${base} couldn't be read and can't be shown on the diagram. ${tip}`;
@@ -72,4 +82,41 @@ export function notifyModelFileError(error: ModelFileError): void {
     .catch((err: unknown) => {
       console.error('[ERD Studio] Could not open model file:', err);
     });
+}
+
+/** workspaceState key: file path → the `mtime:size` it had when it was last warned about. */
+export const MODEL_FILE_WARNED_KEY = 'erdStudio.modelFileErrorsWarned';
+
+/** Most files remembered; the oldest are forgotten first. */
+const MAX_WARNED_FILES = 200;
+
+/**
+ * Whether to warn about a broken model file now (#164): yes unless it was
+ * warned about in an earlier session and has not changed since — a user who
+ * did not write the file, or never opens a diagram, would otherwise dismiss
+ * the same warning on every window. Records the file as warned about.
+ * Usage telemetry is not gated by this: the file is still wrong.
+ */
+export function shouldWarnAboutModelFile(state: vscode.Memento, filePath: string): boolean {
+  let signature: string;
+  try {
+    const stat = fs.statSync(filePath);
+    signature = `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return true;
+  }
+  const warned = { ...(state.get<Record<string, string>>(MODEL_FILE_WARNED_KEY) ?? {}) };
+  if (warned[filePath] === signature) {
+    return false;
+  }
+  delete warned[filePath];
+  warned[filePath] = signature;
+  const paths = Object.keys(warned);
+  for (const old of paths.slice(0, Math.max(0, paths.length - MAX_WARNED_FILES))) {
+    delete warned[old];
+  }
+  void Promise.resolve(state.update(MODEL_FILE_WARNED_KEY, warned)).catch((err: unknown) => {
+    console.error('[ERD Studio] Could not remember a model file warning:', err);
+  });
+  return true;
 }

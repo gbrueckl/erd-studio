@@ -778,8 +778,14 @@ describe('HarnessService', () => {
   });
 
   describe('HARNESS_VERSION', () => {
-    it('is 29 (the setup guide asks the user about merge conflicts, #150)', () => {
-      expect(HARNESS_VERSION).toBe('29');
+    it('is 30 (write each key once per block, #164)', () => {
+      expect(HARNESS_VERSION).toBe('30');
+    });
+
+    it('tells assistants to write each key once per block (#164)', () => {
+      const SCHEMA_CONTENT = service.generateContent('claude');
+      expect(SCHEMA_CONTENT).toContain('Write each key once per block');
+      expect(SCHEMA_CONTENT).toContain('a key written twice makes ERD Studio refuse every change to that file');
     });
 
     it('tells assistants a merge-conflict fix-model-yaml is the user\'s to settle (#150)', () => {

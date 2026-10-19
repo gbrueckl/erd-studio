@@ -766,6 +766,43 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     });
   });
 
+  describe('model file with a key written twice (#164)', () => {
+    /** fct_order.yml with its description written twice: the second (line 3) is read. */
+    function duplicateDescription(): { file: string; text: string } {
+      const file = h.logicalModelService.findModelFile('fct_order')!;
+      const text = '# kept\nname: fct_order\ndescription: first\ndescription: Orders\ncolumns:\n  - name: order_key\n    dataType: string\n';
+      fs.writeFileSync(file, text);
+      h.logicalModelService.invalidateCache('fct_order');
+      return { file, text };
+    }
+
+    it('the model is on the canvas with the last value and a loadWarning', async () => {
+      duplicateDescription();
+      await h.send({ type: 'ready' });
+      const loaded = (h.panel._postedMessages as Array<{ type: string; payload?: { models?: Array<Record<string, unknown>> } }>)
+        .filter((m) => m.type === 'domainLoaded')
+        .pop();
+      const model = loaded!.payload!.models!.find((m) => m.name === 'fct_order')!;
+      expect(model.loadError).toBeUndefined();
+      expect(model.description).toBe('Orders');
+      expect(model.loadWarning).toEqual({ kind: 'yamlDuplicateKey', key: 'description', line: 4 });
+    });
+
+    it('an edit is refused, naming the file and line, and nothing is written', async () => {
+      const { file, text } = duplicateDescription();
+      await h.send({ type: 'updateModelDescription', payload: { modelName: 'fct_order', description: 'x' } });
+      const errors = [...h.errors()];
+      await h.send({ type: 'renameModel', payload: { oldName: 'fct_order', newName: 'fct_orders' } });
+      errors.push(...h.errors());
+      expect(errors).toHaveLength(2);
+      for (const e of errors) {
+        expect(e).toContain('fct_order.yml, line 4: "description" is written twice in one block');
+      }
+      expect(_appliedEdits).toHaveLength(0);
+      expect(fs.readFileSync(file, 'utf-8')).toBe(text);
+    });
+  });
+
   describe('duplicate model files', () => {
     it('warns once, naming both files, when the domain uses a name two files define', async () => {
       // fct_order sits at the top level (it wins); a silver/ copy is ignored.

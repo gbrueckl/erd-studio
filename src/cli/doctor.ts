@@ -280,7 +280,9 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
       id: 'fix-model-yaml',
       title: `Fix ${r.erd.unreadableModelFiles.length === 1 ? 'a model file that does' : `${r.erd.unreadableModelFiles.length} model files that do`} not parse`,
       why: `${list.join('; ')}. `
-        + 'ERD Studio shows these models as empty until they parse; fix them before anything else.'
+        + (r.erd.unreadableModelFiles.every((u) => u.readable)
+          ? 'ERD Studio loads these with the last copy of each repeated key but will not change the files until one copy is removed; fix them before anything else.'
+          : 'ERD Studio shows these models as empty until they parse; fix them before anything else.')
         + (r.erd.unreadableModelFiles.some((u) => u.mergeConflict)
           ? " A merge conflict is the user's to resolve; once they have saved the file, re-run doctor."
           : ''),

@@ -7,7 +7,7 @@
  */
 
 import type { Node, Edge } from '@xyflow/react';
-import type { AnnotationColor, Cardinality, ColumnPair, DbtKeyHint, Layer, Meta, ModelLoadError, ModelRole, Stage } from '@erd-studio/core';
+import type { AnnotationColor, Cardinality, ColumnPair, DbtKeyHint, Layer, Meta, ModelLoadError, ModelLoadWarning, ModelRole, Stage } from '@erd-studio/core';
 import type { LayerConfig } from '@erd-studio/core';
 import type { ModelDiscrepancy } from '@erd-studio/core';
 import type { PhysicalProvenance } from '@erd-studio/core';
@@ -105,6 +105,11 @@ export type ModelNodeData = {
    * node shows the error and an "Open file" button instead of "No columns".
    */
   loadError?: ModelLoadError;
+  /**
+   * The model's file was read but needs fixing (logical stage only): a key
+   * written twice, whose last value is shown (#164). Absent from an older core.
+   */
+  loadWarning?: ModelLoadWarning;
   /** Whether this model is in stub display mode (PK/NK columns only). */
   isStub: boolean;
   /** Per-model discrepancy data when a cross-stage comparison report is active. */

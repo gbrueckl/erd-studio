@@ -33,6 +33,7 @@ const DOMAIN_CASES: Record<string, string> = {
   'v4-nameless-column': '.erd-studio/silver/orders.json',
   'composite-and-self': '.erd-studio/gold/vault.json',
   'data-type-alias': '.erd-studio/silver/orders.json',
+  'duplicate-key': '.erd-studio/silver/orders.json',
 };
 
 const ERROR_CASES: Record<string, string> = {

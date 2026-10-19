@@ -9,6 +9,12 @@
   "data-type-alias.unified": [],
   "dbt-project.physical.host": [],
   "dbt-project.stage-physical": [],
+  "duplicate-key.host": [
+    "warn: [LogicalModelService] Model \"dim_customer\": \"description\" is written twice in one block (line 4); the last value is used"
+  ],
+  "duplicate-key.unified": [
+    "warn: [LogicalModelService] Model \"dim_customer\": \"description\" is written twice in one block (line 4); the last value is used"
+  ],
   "errors.array.host": [
     "error: [SemanticEditorProvider] Failed to load domain: Domain file <root>/.erd-studio/silver/array.json does not contain a JSON object"
   ],

@@ -6,7 +6,7 @@ import type { ModelTemplate, NodePosition, Relationship, SemanticDomain, ViewCon
 import type { DisplayDomain, ExistingModelPreview, ManifestModelPreview } from './types/display.js';
 import type { LayerConfig } from './types/layer.js';
 import { computeNewModelPositions } from './positions.js';
-import { modelLoadErrorOf } from './types/semantic.js';
+import { modelLoadErrorOf, modelLoadWarningOf } from './types/semantic.js';
 
 /**
  * Detect models in logical.models that lack entries in viewConfig.positions
@@ -69,6 +69,7 @@ export function toDisplayDomain(domain: SemanticDomain, options: ToDisplayDomain
 
   const models = domain.models.map((model) => {
     const loadError = modelLoadErrorOf(model);
+    const loadWarning = modelLoadWarningOf(model);
     const fkCols = fkColumnsByModel.get(model.name) ?? new Set<string>();
     const columns = (model.columns ?? []).map((col) => ({
       name: col.name,
@@ -94,6 +95,7 @@ export function toDisplayDomain(domain: SemanticDomain, options: ToDisplayDomain
       ...(model.modelRole ? { modelRole: model.modelRole } : {}),
       ...(model.meta ? { meta: model.meta } : {}),
       ...(loadError ? { loadError: { ...loadError } } : {}),
+      ...(loadWarning ? { loadWarning: { ...loadWarning } } : {}),
     };
   });
 

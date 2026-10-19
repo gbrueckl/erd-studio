@@ -1,0 +1,24 @@
+// erd-studio dbml-export v1
+// Not exported: canvas positions and sizes, sticky-note colours, nested meta values (lists and maps).
+// ERD Studio's own fields (role, grain, alias, rationale, natural keys, SCD type, additivity, meta) are in the notes.
+
+Project orders {
+  Note: '''Layer: silver
+Stage: logical
+
+A model file with a key written twice, read as PyYAML reads it (#164)'''
+}
+
+Table fct_order {
+  order_id integer [pk]
+  customer_id integer
+  Note: 'One row per order'
+}
+
+Table dim_customer {
+  customer_id integer [pk]
+  email varchar [note: 'Primary contact email']
+  Note: 'One row per customer'
+}
+
+Ref: fct_order.customer_id > dim_customer.customer_id

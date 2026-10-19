@@ -80,6 +80,8 @@ const DOMAIN_CASES: Record<string, string> = {
   'composite-and-self': 'gold/vault.json',
   // #144: column types spelled dbt's way (`data_type:`), alone and beside a `dataType`.
   'data-type-alias': 'silver/orders.json',
+  // #164: a key written twice, read with the last copy winning and a loadWarning.
+  'duplicate-key': 'silver/orders.json',
 };
 
 /** Domain files under packages/core/test/fixtures/errors that must fail to load. */

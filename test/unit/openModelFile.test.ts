@@ -5,7 +5,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as vscode from 'vscode';
 
-import { modelFileErrorNotice, notifyModelFileError, openModelFileAt } from '../../src/commands/openModelFile';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { createMockMemento } from '../__mocks__/vscode';
+import {
+  MODEL_FILE_WARNED_KEY, modelFileErrorNotice, notifyModelFileError, openModelFileAt, shouldWarnAboutModelFile,
+} from '../../src/commands/openModelFile';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -62,3 +68,47 @@ describe('openModelFileAt / notifyModelFileError', () => {
     await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(1));
   });
 });
+
+describe('a key written twice in a file that is still read (#164)', () => {
+  it('says the model is shown with the last value, and what to remove', () => {
+    expect(modelFileErrorNotice({
+      filePath: '/p/.erd-studio/logical-models/dim_x.yml', kind: 'yamlDuplicateKey', line: 6, readable: true, key: 'description',
+    })).toBe(
+      'dim_x.yml: "description" is written twice in the same block (line 6). ERD Studio uses the last one, '
+        + "but can't change this model until you remove the other copy.",
+    );
+  });
+});
+
+describe('shouldWarnAboutModelFile (#164)', () => {
+  let dir: string;
+  let file: string;
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  function setUp(): void {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-warned-'));
+    file = path.join(dir, 'dim_x.yml');
+    fs.writeFileSync(file, 'name: dim_x\ndescription: a\ndescription: b\n');
+  }
+
+  it('warns once, then not again in a later session while the file is unchanged', () => {
+    setUp();
+    const state = createMockMemento();
+    expect(shouldWarnAboutModelFile(state as unknown as vscode.Memento, file)).toBe(true);
+    // A restart: a new service, the same workspaceState.
+    expect(shouldWarnAboutModelFile(state as unknown as vscode.Memento, file)).toBe(false);
+    expect(Object.keys(state.get(MODEL_FILE_WARNED_KEY) as object)).toEqual([file]);
+  });
+
+  it('warns again once the file has changed, even if it is still broken', () => {
+    setUp();
+    const state = createMockMemento();
+    shouldWarnAboutModelFile(state as unknown as vscode.Memento, file);
+    fs.writeFileSync(file, 'name: dim_x\ndescription: a\ndescription: bb\n');
+    const later = new Date(Date.now() + 5000);
+    fs.utimesSync(file, later, later);
+    expect(shouldWarnAboutModelFile(state as unknown as vscode.Memento, file)).toBe(true);
+    expect(shouldWarnAboutModelFile(state as unknown as vscode.Memento, file)).toBe(false);
+  });
+});
+

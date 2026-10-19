@@ -7,7 +7,7 @@
  * directly from its data source.
  */
 
-import type { Cardinality, Layer, Meta, ModelLoadError, ModelRole, ModelTemplate, Rationale, Stage, ViewConfig } from './semantic.js';
+import type { Cardinality, Layer, Meta, ModelLoadError, ModelLoadWarning, ModelRole, ModelTemplate, Rationale, Stage, ViewConfig } from './semantic.js';
 import type { LayerConfig } from './layer.js';
 import type { DbtKeyHint } from '../keyEvidence.js';
 
@@ -136,6 +136,12 @@ export interface DisplayModel {
    * node shows the error instead of an empty column list.
    */
   loadError?: ModelLoadError;
+  /**
+   * The model's file was read, but something in it needs fixing (logical stage
+   * only): a key written twice, whose last value is shown (#164). Absent from
+   * older cores, which left such a model out instead.
+   */
+  loadWarning?: ModelLoadWarning;
 }
 
 // ---------------------------------------------------------------------------
