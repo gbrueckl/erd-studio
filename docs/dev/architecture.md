@@ -32,7 +32,7 @@ catalog.json               ─→ CatalogService   ─┘                       
 
 ## Webview (`webview/`)
 
-The canvas itself lives in `@erd-studio/renderer` (above); `webview/` is the editor built around it. `App.tsx` wraps everything in `CanvasStoreProvider` (the singleton store below) and `CanvasEnvironmentProvider` (`host/vscodeCanvasHost.ts`, which forwards canvas edits to `acquireVsCodeApi().postMessage`), and gets its nodes, edges and click handlers from the renderer's `useCanvasGraph`.
+The canvas itself lives in `@erd-studio/renderer` (see `packages/CLAUDE.md`); `webview/` is the editor built around it. `App.tsx` wraps everything in `CanvasStoreProvider` (the singleton store below) and `CanvasEnvironmentProvider` (`host/vscodeCanvasHost.ts`, which forwards canvas edits to `acquireVsCodeApi().postMessage`), and gets its nodes, edges and click handlers from the renderer's `useCanvasGraph`.
 
 | Directory | Purpose |
 |-----------|---------|
@@ -43,9 +43,34 @@ The canvas itself lives in `@erd-studio/renderer` (above); `webview/` is the edi
 | `lib/` | `elkLayout` (the ELK runner; node sizing comes from `@erd-studio/renderer/sizing` and is re-exported), `keyboardShortcuts`, `stageRequest`, `stageUtils`, `validation` |
 | `styles/` | `host.css` — the webview's `html, body, #root` sizing, loaded after the renderer's `theme.css` (CSS custom properties mapping VS Code theme vars) |
 
+## Settings
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `erdStudio.projectPath` | `""` | dbt project root (absolute, or relative to a workspace folder). Auto-detected when empty. Change requires a window reload (the extension prompts). |
+| `erdStudio.semanticDir` | `.erd-studio` | ERD data directory relative to the project root. Change requires a window reload (prompted). |
+| `erdStudio.claudeSync.skipPermissions` | `false` | Pass `--dangerously-skip-permissions` when **Execute with Claude** launches Claude Code for a sync plan. The launch command is always confirmed in a modal first. |
+| `erdStudio.feedback.aiAssist` | `true` | Master switch for the Feedback dialog's single AI analysis call. On by default: tier 1 is the user's own model behind VS Code's own consent dialog. Off means no tier resolves at all. |
+| `erdStudio.feedback.provider` | `vscode` | Which destination does the analysis: `vscode`, `hosted`, `endpoint`, or the legacy `auto` (the original precedence). Every value but `auto` **pins** one tier and does not fall through — an unavailable pin resolves to `none` rather than sending the text somewhere the user did not pick. The dialog's picker offers only `vscode` and `hosted`; `auto` and `endpoint` still resolve where they are set, and each shows as a row when it is the current choice. Set from the dialog's own picker via `setFeedbackProvider`. |
+| `erdStudio.feedback.endpoint` | `""` | Base URL of an OpenAI-compatible chat-completions API (tier 2). Empty means "use VS Code's language model if there is one". |
+| `erdStudio.feedback.model` | `""` | Model id sent to `erdStudio.feedback.endpoint`. The API key lives in `context.secrets`, never in settings. |
+| `erdStudio.feedback.hostedFallback` | `true` | Allow the last-resort hosted tier (tier 3). Inert while `HOSTED_ANALYSIS_ENDPOINT` is empty; `false` removes the tier even once it is not. |
+| `erdStudio.feedback.trackReports` | `true` | Poll GitHub for issues the user filed and show them in **My Reports**. Needs a silent GitHub session; the view is hidden and nobody is prompted without one. |
+| `erdStudio.telemetry.enabled` | `true` | Usage telemetry off-switch (see `telemetry/README.md`). Can only turn telemetry **off**: VS Code's `telemetry.telemetryLevel` must also allow it. `machine`-scoped and in `USER_SCOPED_SETTINGS`, so a checked-in settings file cannot flip it either way. |
+
+`erdStudio.feedback.aiAssist`, `.provider`, `.endpoint`, `.model` and `.hostedFallback` are contributed with `"scope": "machine"` and are additionally listed in `USER_SCOPED_SETTINGS` (`src/services/configService.ts`), so `getErdStudioSetting()` reads **only** their global value. A repository's checked-in `.vscode/settings.json` must never be able to point the analysis request — and the API key from secret storage that travels with it — at a host of its author's choosing. Do not remove either half: the scope keeps the value out of `inspect()`, and the list is what makes that true for this codebase's hand-rolled precedence chain.
+
 ## Message protocol
 
 Extension <-> Webview communication uses discriminated unions on `type` field:
+- **Extension -> Webview**: `domainLoaded`, `stageData`, `discrepancyReport`, `manifestStaleness`, `syncPlanGenerated`, `openFeedback`, `feedbackContext`, `feedbackAnalysis`, `feedbackSubmitted`, `error`
+- **Webview -> Extension**:
+  - telemetry only: `layoutFinished` (`{ ms, ok }` after every auto layout; bucketed to a `layout*` feature, writes nothing, on the physical allowlist)
+  - lifecycle/navigation: `ready`, `dismissWelcome`, `dismissManifestHint` (no payload; the × on the logical stage's **Run dbt parse** hint, `webview/components/Canvas/ManifestHint.tsx` — the webview hides it at once, the host writes `MANIFEST_HINT_DISMISSED_KEY` to `workspaceState` and records `manifestHintDismissed`; the hint shows while a logical `domainLoaded` / `stageData` carries `manifestMissing: true`, which the host sets only when `manifestService.isMissing` and the workspace has not dismissed it — never on physical payloads; not on the physical allowlist), `openGettingStarted`, `viewFile`, `openModelFile`, `requestReload`, `switchStage`, `refreshManifest`, `undo`, `redo`, `exportDiagram` (no payload, `validateExportDiagramPayload`; the toolbar's **Export** corner button / overflow item — the host runs `erdStudio.exportDiagram` with the panel's document Uri; writes no domain data and always exports the logical design; on the physical allowlist)
+  - schema mutations: `addModel`, `addExistingModel`, `addModelsFromDbt` (no payload; the host opens the Draw-from-dbt scope picker, excluding models already in the domain, then writes every picked model and its relationships in one `applyDomainEdit` — `autoLayout: true` when the domain was empty), `renameModel`, `removeModel`, `removeModels`, `addColumn`, `removeColumn`, `updateColumn`, `reorderColumns`, `toggleColumnKey`, `updateModelDescription`, `updateModelGrain`, `updateModelAlias`, `updateModelRole`, `updateModelRationale`, `addRelationship`, `updateRelationship`, `editRelationship`, `removeRelationship`, `removeRelationships`
+  - canvas metadata: `updatePositions`, `addAnnotation`, `updateAnnotation`, `removeAnnotation`, `removeAnnotations`
+  - sync/discrepancy: `toggleDiscrepancy`, `generateSyncPlan`, `runDbtCompile`, `runDbtParse` (no payload; the physical stage notice's **Run dbt parse** — `runDbtParse()` in `src/commands/runDbtParse.ts`, also behind the "no manifest" notifications, runs `dbt parse` in a terminal in the project root and the manifest watcher refreshes the canvas), `launchClaudeSync`
+  - feedback: `requestFeedbackContext`, `analyzeFeedback`, `setFeedbackProvider`, `submitFeedback`, `copyFeedbackReport`, `openFeedbackLink`
 
 Every type in the unions has a live sender and handler — do not add a message type without wiring both ends (unknown types are logged by the `default:` branch, never silently dropped). Multi-select operations are batched: `removeModels`, `removeAnnotations`, `removeRelationships` and `updatePositions` (which carries `annotations?: [{id,x,y}]` for notes moved in the same drag) each produce **one** `WorkspaceEdit`, one save, one `domainLoaded` — i.e. one undo step. `switchStage` carries a `requestId` that the host echoes on `stageData` so the webview can drop stale replies (`webview/lib/stageRequest.ts`).
 

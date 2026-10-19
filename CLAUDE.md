@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | If you are changing… | Read first |
 |---|---|
 | Model library folders, `name` vs `alias`, relationships (library storage, orientation, composites, Move, rename cascade) | `docs/dev/relationships.md` |
-| Data flow, physical-stage derivation, custom editor, message protocol, edit pipeline, activation, watchers, discrepancies | `docs/dev/architecture.md` |
+| Settings (every one, with defaults), data flow, physical-stage derivation, custom editor, message protocol, edit pipeline, activation, watchers, discrepancies | `docs/dev/architecture.md` |
 | Anything under `packages/` (core pipeline, exporters, renderer, viewer mode) | `packages/CLAUDE.md` |
 | The Confluence app, its cache and what old files must still render | `docs/dev/compatibility.md` |
 | Send Feedback (dialog, AI analysis tiers, consent, redaction, My Reports) | `docs/dev/feedback.md` |
@@ -107,8 +107,10 @@ The canvas and the CLI reach comparisons through the same pure cores — `buildL
 - Any writer of a watched file (domain JSON, `layers.json`, `logical-models/*.yml`) records `ownWrites` **after** the bytes land.
 - Model yml writes edit the parsed YAML document in place, so comments, key order, unknown keys, number text and aliases survive. Never regenerate a file that parses.
 - Refresh paths (watchers, external edits, stage switches) never write. Only the initial `ready` load persists auto-computed positions, and only for a partially positioned domain.
-- Compare model and column names with `sameName()` / `normaliseName()` (case-insensitive). Names match `MODEL_NAME_PATTERN` / `COLUMN_NAME_PATTERN` (`src/types/naming.ts`; the renderer keeps its own copies). Refuse a case-only model rename.
-- `meta` is the user's free-form map: edit only through `updateMeta` patches; it is never compared, diffed or synced to dbt.
+- Compare model and column names with `sameName()` / `normaliseName()` (case-insensitive). Names match `MODEL_NAME_PATTERN` / `COLUMN_NAME_PATTERN` (`src/types/naming.ts`; the renderer keeps its own copies). Refuse a case-only model rename (the write-new + delete-old edit would delete the file on macOS/Windows). Add / Rename refuse a name already in the domain or the library in any case via `LogicalModelService.findModelNameIgnoringCase`, which lists files — never `existsSync`, which is case-sensitive on Linux.
+- `updateColumn` treats an omitted `scdType` / `additiveType` as "keep" and `null` as "clear".
+- `meta` is the user's free-form map: edit only through `updateMeta` patches; it is never compared, diffed or synced to dbt. `LogicalModelService.syncMeta` writes only the top-level key that changed, matching keys as the parser reads them (never via `YAMLMap.get/set`).
+- `SelectorsService` owns only `domain_*` selectors whose description ends with `Managed by ERD Studio.`; everything else in `selectors.yml` is preserved.
 
 ### Message protocol and the physical stage
 
@@ -150,7 +152,7 @@ The Confluence app renders whatever is committed in a customer's repo — writte
 
 ### Harness
 
-- **A schema change must update the harness:** changing the domain file schema (`packages/core/src/types/semantic.ts`, file layout, naming conventions) means updating `SCHEMA_CONTENT` (and the generators if needed) in `src/services/harnessService.ts`, **bumping `HARNESS_VERSION`**, and updating `docs/semantic-domain-json-reference.md`. Don't bump it for unrelated changes. Never silently overwrite a harness file that has no version marker. Never gitignore `.agents/`. Details: `src/harness/CLAUDE.md`.
+- **A schema change must update the harness:** changing the domain file schema (`packages/core/src/types/semantic.ts`, file layout, naming conventions) means updating `SCHEMA_CONTENT` (and the generators if needed) in `src/services/harnessService.ts`, **bumping `HARNESS_VERSION`**, and updating `docs/semantic-domain-json-reference.md`. Don't bump it for unrelated changes. Never silently overwrite a harness file that has no version marker. Never gitignore `.agents/`. Read `src/harness/CLAUDE.md` before editing `src/services/harnessService.ts` — it does not load on its own for files outside `src/harness/`.
 
 ### Webview
 
