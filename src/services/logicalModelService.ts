@@ -16,7 +16,7 @@ import * as path from 'path';
 import { Document, Pair, YAMLMap, YAMLSeq, parseDocument, isAlias, isMap, isNode, isPair, isScalar, isSeq, visit } from 'yaml';
 import type { Alias, Node, Scalar, ScalarTag, Tags } from 'yaml';
 
-import { LOGICAL_MODELS_DIR, RATIONALE_KEYS, classifyModelLoadError, parseLogicalModelText } from '@erd-studio/core';
+import { LOGICAL_MODELS_DIR, RATIONALE_KEYS, classifyModelLoadError, modelLoadWarningOf, parseLogicalModelText } from '@erd-studio/core';
 import type { ModelLoadErrorKind } from '@erd-studio/core';
 import type { ColumnDef, ModelRelationship, SemanticModel } from '../types/semantic';
 import type { YmlModelInfo } from '../types/ymlData';
@@ -99,6 +99,13 @@ export interface ModelFileError {
   code?: string;
   /** The file holds unresolved git merge conflicts (#145); `line` is the first `<<<<<<<`. */
   mergeConflict?: true;
+  /**
+   * The model was still read (#164): a key written twice, whose last value is
+   * used. The file is refused for writing until one copy is removed.
+   */
+  readable?: true;
+  /** For a readable duplicate key: the key written twice, as the file spells it. */
+  key?: string;
   message: string;
 }
 
@@ -107,6 +114,20 @@ export function describeModelFileError(name: string, filePath: string, err: unkn
   const message = err instanceof Error ? err.message : String(err);
   // The classification is core's, so the extension and loadDisplayDomain agree.
   return { name, filePath, ...classifyModelLoadError(err), message };
+}
+
+/** The {@link ModelFileError} for a model read from a file with a key written twice (#164). */
+function duplicateKeyFileError(name: string, filePath: string, warning: { key: string; line: number }): ModelFileError {
+  return {
+    name,
+    filePath,
+    kind: 'yamlDuplicateKey',
+    line: warning.line,
+    code: 'DUPLICATE_KEY',
+    readable: true,
+    ...(warning.key ? { key: warning.key } : {}),
+    message: `${warning.key ? `"${warning.key}"` : 'A key'} is written twice in one block (line ${warning.line}); the last value is used`,
+  };
 }
 
 export interface ModelFileEntry {
@@ -186,6 +207,18 @@ export class RelationshipsRewriteRefused extends Error {
   }
 }
 
+/**
+ * A model file that holds a key written twice (#164): it is read (the last
+ * copy wins) but never written, because an in-place edit would change the
+ * first copy, which nothing reads. The edit is refused, naming file and line.
+ */
+export class DuplicateKeyWriteRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DuplicateKeyWriteRefused';
+  }
+}
+
 export class LogicalModelService {
   private readonly modelsDir: string;
 
@@ -198,7 +231,8 @@ export class LogicalModelService {
   private readonly cache = new Map<string, CachedModel>();
 
   /**
-   * Told when a model file exists but cannot be read or parsed — at most
+   * Told when a model file exists but cannot be read or parsed, or was read
+   * with a key written twice (`readable`, #164) — at most
    * **once per file path per session** (#113), even if the file is fixed and
    * breaks again (an AI assistant's edit loop does exactly that). The
    * extension host counts these for usage telemetry and warns the user; other
@@ -269,7 +303,9 @@ export class LogicalModelService {
       return structuredClone(cached.model);
     }
     const content = fs.readFileSync(filePath, 'utf-8');
-    const model = parseLogicalModelText(content, fallbackName);
+    // A key written twice is read as dbt reads it, the last copy winning; the
+    // model carries a loadWarning and writes are refused (loadEditableDocument).
+    const model = parseLogicalModelText(content, fallbackName, { duplicateKeys: 'last' });
     if (!model) {
       this.cache.delete(filePath);
       return null;
@@ -362,27 +398,41 @@ export class LogicalModelService {
     }
     try {
       const model = this.readModelFile(filePath, name);
-      this.failedPaths.delete(filePath);
+      const warning = model ? modelLoadWarningOf(model) : undefined;
+      if (warning) {
+        this.recordFailure(filePath, duplicateKeyFileError(name, filePath, warning), null);
+      } else {
+        this.failedPaths.delete(filePath);
+      }
       return model;
     } catch (err) {
-      const error = describeModelFileError(name, filePath, err);
-      // Once per broken file, not once per canvas refresh that re-reads it
-      // (nor for getModelFileError's own re-read).
-      const known = this.failedPaths.has(filePath);
-      this.failedPaths.set(filePath, error);
-      if (!known) {
-        console.error(`[LogicalModelService] Failed to read model "${name}":`, err);
-        if (!this.reportedPaths.has(filePath)) {
-          this.reportedPaths.add(filePath);
-          this.onParseFailure?.(error);
-        }
-      }
+      this.recordFailure(filePath, describeModelFileError(name, filePath, err), err);
       return null;
     }
   }
 
+  /** Remember why `filePath` is broken, and report it once per session. */
+  private recordFailure(filePath: string, error: ModelFileError, cause: unknown): void {
+    // Once per broken file, not once per canvas refresh that re-reads it
+    // (nor for getModelFileError's own re-read).
+    const known = this.failedPaths.has(filePath);
+    this.failedPaths.set(filePath, error);
+    if (!known) {
+      if (error.readable) {
+        console.warn(`[LogicalModelService] Model "${error.name}": ${error.message}`);
+      } else {
+        console.error(`[LogicalModelService] Failed to read model "${error.name}":`, cause);
+      }
+      if (!this.reportedPaths.has(filePath)) {
+        this.reportedPaths.add(filePath);
+        this.onParseFailure?.(error);
+      }
+    }
+  }
+
   /**
-   * Why `name`'s file could not be read, or null when it reads cleanly, is
+   * Why `name`'s file could not be read (or, with `readable`, what is wrong in
+   * a file that was read), or null when it reads cleanly, is
    * missing, or its name is unsafe. Reads the file (through the cache), so the
    * answer is current — a file fixed since the last read reports null.
    */
@@ -588,7 +638,17 @@ export class LogicalModelService {
    * document generated from the model. Line endings follow the file's own.
    */
   private renderModel(model: SemanticModel, filePath: string): string {
-    const doc = this.loadEditableDocument(filePath) ?? new Document(this.modelToPlain(model));
+    const existing = this.loadEditableDocument(filePath);
+    // A model read from a file with a key written twice is never written, even
+    // when that key is `name:` and so points the write at another file (#164).
+    const warning = modelLoadWarningOf(model);
+    if (warning) {
+      throw new DuplicateKeyWriteRefused(
+        `Can't change "${model.name}": ${warning.key ? `"${warning.key}"` : 'a key'} is written twice in one block of its model file ` +
+          `(line ${warning.line}). Remove one copy, then try again.`,
+      );
+    }
+    const doc = existing ?? new Document(this.modelToPlain(model));
     if (isMap(doc.contents)) {
       this.applyModel(doc, doc.contents, model, filePath);
     }
@@ -832,24 +892,49 @@ export class LogicalModelService {
   /**
    * Parse an existing model file for in-place editing. Returns null when the
    * file is missing, malformed, or its root is not a mapping — callers then
-   * fall back to regenerating the file.
+   * fall back to regenerating the file. Throws {@link DuplicateKeyWriteRefused}
+   * for a file whose only errors are keys written twice: it is read (so it is
+   * on the canvas), and regenerating it would drop its comments and unknown
+   * keys while editing it in place would change the copy nothing reads.
    */
   private loadEditableDocument(filePath: string): Document | null {
     if (!fs.existsSync(filePath)) {
       return null;
     }
+    let text: string;
+    let doc: Document;
     try {
-      const text = fs.readFileSync(filePath, 'utf-8');
-      const doc = parseDocument(text, { customTags: keepNumberText });
-      if (doc.errors.length > 0 || !isMap(doc.contents)) {
-        return null;
-      }
-      SOURCE_TEXT.set(doc, text);
-      return doc;
+      text = fs.readFileSync(filePath, 'utf-8');
+      doc = parseDocument(text, { customTags: keepNumberText });
     } catch (err) {
       console.warn(`[LogicalModelService] Rewriting unparseable model file ${filePath}:`, err);
       return null;
     }
+    if (doc.errors.length > 0 && doc.errors.every((e) => e.code === 'DUPLICATE_KEY')) {
+      throw this.duplicateKeyRefusal(filePath, text, doc.errors[0].linePos?.[0]?.line);
+    }
+    if (doc.errors.length > 0 || !isMap(doc.contents)) {
+      return null;
+    }
+    SOURCE_TEXT.set(doc, text);
+    return doc;
+  }
+
+  /** The refusal for writing `filePath`, which holds a key written twice. */
+  private duplicateKeyRefusal(filePath: string, text: string, fallbackLine: number | undefined): DuplicateKeyWriteRefused {
+    let warning: { key: string; line: number } | undefined;
+    try {
+      const model = parseLogicalModelText(text, 'probe', { duplicateKeys: 'last' });
+      warning = model ? modelLoadWarningOf(model) : undefined;
+    } catch {
+      // The refusal stands without the key's name.
+    }
+    const line = warning?.line ?? fallbackLine;
+    const what = warning?.key ? `"${warning.key}" is written twice in one block` : 'a key is written twice in one block';
+    return new DuplicateKeyWriteRefused(
+      `${path.basename(filePath)}${line !== undefined ? `, line ${line}` : ''}: ${what}, so ERD Studio cannot change this file. ` +
+        'Remove one copy, then try again.',
+    );
   }
 
   /**
@@ -1505,7 +1590,12 @@ export class LogicalModelService {
   dataTypeAliasColumns(name: string): { columns: string[]; ignored: string[]; anchored: string[] } {
     const found = { columns: [] as string[], ignored: [] as string[], anchored: [] as string[] };
     const filePath = this.resolveModelPath(name);
-    const doc = filePath === null ? null : this.loadEditableDocument(filePath);
+    let doc: Document | null;
+    try {
+      doc = filePath === null ? null : this.loadEditableDocument(filePath);
+    } catch {
+      return found; // a key written twice: reported elsewhere
+    }
     if (!doc || !isMap(doc.contents)) return found;
     const resolve = (node: unknown): unknown => (isAlias(node) ? node.resolve(doc) : node);
     const columns = resolve(doc.contents.get('columns', true));

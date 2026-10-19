@@ -45,7 +45,7 @@ import { TelemetryService, telemetry } from './services/telemetryService';
 import { startKnownFixes } from './services/knownFixesService';
 import type { TelemetryErrorCode, TelemetryFeature } from './services/telemetryPayload';
 import { modelFileErrorCode } from './services/telemetryPayload';
-import { notifyModelFileError } from './commands/openModelFile';
+import { notifyModelFileError, shouldWarnAboutModelFile } from './commands/openModelFile';
 import { MyReportsTreeProvider, type MyReportNode } from './providers/MyReportsTreeProvider';
 import type { FeedbackKind } from './types/feedback';
 import { CliLauncherService, type CliLauncherOptions } from './services/cliLauncherService';
@@ -825,8 +825,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Fixed keys only — `error.message` may quote the file and never leaves the machine.
     telemetry.error('modelFileParse');
     telemetry.error(modelFileErrorCode(error.kind));
-    // Once per broken file per session (the service never re-reports a path, #113).
-    notifyModelFileError(error);
+    // Once per broken file per session (the service never re-reports a path, #113),
+    // and not again in a later session while the file is unchanged (#164).
+    if (shouldWarnAboutModelFile(context.workspaceState, error.filePath)) {
+      notifyModelFileError(error);
+    }
   };
   // A model file's relationships: list could not be rewritten in place, so an edit was refused.
   logicalModelService.onSyncRefused = () => telemetry.error('relSyncRefused');

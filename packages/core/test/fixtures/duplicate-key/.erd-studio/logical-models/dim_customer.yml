@@ -1,0 +1,12 @@
+name: dim_customer
+# A key written twice: the second description is the one dbt (PyYAML) keeps.
+description: "Customers (first copy)"
+description: "One row per customer"
+columns:
+  - name: customer_id
+    dataType: integer
+    isPrimaryKey: true
+  - name: email
+    dataType: varchar
+    description: "first copy"
+    description: "Primary contact email"

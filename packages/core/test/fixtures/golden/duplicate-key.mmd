@@ -1,0 +1,23 @@
+erDiagram
+%% erd-studio mermaid-export v1
+%% Not exported: canvas positions and sizes, sticky-note colours, nested meta values (lists and maps).
+%% Types and column names keep only letters, digits and _; a column comment gives the original when it differs.
+%% Diagram: orders (layer silver, logical stage)
+%% Description: A model file with a key written twice, read as PyYAML reads it (#164)
+
+  %% Model fct_order
+  %%   description: One row per order
+  "fct_order" {
+    integer order_id PK
+    integer customer_id FK
+  }
+
+  %% Model dim_customer
+  %%   description: One row per customer
+  "dim_customer" {
+    integer customer_id PK
+    varchar email "Primary contact email"
+  }
+
+  %% fct_order.customer_id -> dim_customer.customer_id, many-to-one
+  "fct_order" }o--|| "dim_customer" : "customer_id"

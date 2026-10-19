@@ -1,0 +1,8 @@
+name: fct_order
+description: "One row per order"
+columns:
+  - name: order_id
+    dataType: integer
+    isPrimaryKey: true
+  - name: customer_id
+    dataType: integer

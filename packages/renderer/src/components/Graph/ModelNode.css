@@ -537,6 +537,23 @@
   text-align: center;
 }
 
+/* A model read from a file that needs fixing: a key written twice (#164) */
+.model-node__load-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  border-bottom: 1px solid var(--warning-fg);
+}
+
+.model-node__load-warning-text {
+  flex: 1;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .model-node__load-error-text {
   font-size: 11px;
   line-height: 1.4;

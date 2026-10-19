@@ -17,7 +17,7 @@
 import { memo, useCallback, useMemo, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { ModelFlowNode, ModelNodeData, ColumnDisplay } from '../../types/graph';
-import type { ModelLoadError, Stage } from '@erd-studio/core';
+import type { ModelLoadError, ModelLoadWarning, Stage } from '@erd-studio/core';
 import type { ColumnDiscrepancy } from '@erd-studio/core';
 import type { PhysicalColumnSource, PhysicalProvenance } from '@erd-studio/core';
 import { COLLAPSED_COLUMN_LIMIT } from '../../hooks/useColumnExpansion';
@@ -561,8 +561,14 @@ function describeLoadError(error: ModelLoadError): string {
     : "YAML error — ERD Studio can't read this file.";
 }
 
+/** The node's one line for a model read from a file that needs fixing (#164). */
+function describeLoadWarning(warning: ModelLoadWarning): string {
+  const key = warning.key ? `"${warning.key}"` : 'A key';
+  return `${key} is written twice (line ${warning.line}) — the last one is shown. Remove the other copy to edit this model.`;
+}
+
 function ModelNodeComponent({ data, selected }: NodeProps<ModelFlowNode>) {
-  const { modelName, label, stage, layer, layerConfig, schema, columns, grain, meta, dimmed, readOnly, isGhost, ghostReason, provenance, loadError, isStub, isExpanded = false, onToggleExpansion, discrepancy, discrepancySourceStage, discrepancyTargetStage } = data;
+  const { modelName, label, stage, layer, layerConfig, schema, columns, grain, meta, dimmed, readOnly, isGhost, ghostReason, provenance, loadError, loadWarning, isStub, isExpanded = false, onToggleExpansion, discrepancy, discrepancySourceStage, discrepancyTargetStage } = data;
   const openNodeContextMenu = useEditorStore((s) => s.openNodeContextMenu);
   const send = useSend();
   const viewer = useIsViewer();
@@ -710,6 +716,24 @@ function ModelNodeComponent({ data, selected }: NodeProps<ModelFlowNode>) {
       {grain && (
         <div className="model-node__grain" title={grain}>
           {grain}
+        </div>
+      )}
+
+      {loadWarning && (
+        <div className="model-node__load-warning" role="status">
+          <span className="model-node__load-warning-text">{describeLoadWarning(loadWarning)}</span>
+          {viewer ? null : (
+            <button
+              type="button"
+              className="model-node__load-error-open nodrag"
+              onClick={(e) => {
+                e.stopPropagation();
+                send({ type: 'openModelFile', payload: { modelName } });
+              }}
+            >
+              Open file
+            </button>
+          )}
         </div>
       )}
 

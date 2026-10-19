@@ -174,7 +174,7 @@ import {
 import type { RelationshipWriteInput, RelationshipWriteOp } from '../services/libraryRelationships';
 import { auditRelationshipWrite, surveyLibrary } from '../services/relationshipHealth';
 import type { RelationshipAudit } from '../services/relationshipHealth';
-import { RelationshipsRewriteRefused } from '../services/logicalModelService';
+import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused } from '../services/logicalModelService';
 import { readDbtProjectConfig } from '../services/dbtProjectConfig';
 import { normaliseName } from '../services/nameUtils';
 
@@ -355,7 +355,7 @@ class EditRefused extends Error {
 
 /** A refusal the user was told about in plain words, which usage telemetry does not count as a failure. */
 function isExplainedRefusal(err: unknown): boolean {
-  return err instanceof EditRefused || err instanceof RelationshipsRewriteRefused;
+  return err instanceof EditRefused || err instanceof RelationshipsRewriteRefused || err instanceof DuplicateKeyWriteRefused;
 }
 import {
   isValidCardinality,

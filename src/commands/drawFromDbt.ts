@@ -36,7 +36,7 @@ import { DOMAIN_EDITOR_VIEW_TYPE } from '../services/recoveryService';
 import { telemetry } from '../services/telemetryService';
 import type { DomainService } from '../services/domainService';
 import type { LayerService } from '../services/layerService';
-import type { LogicalModelService } from '../services/logicalModelService';
+import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused, type LogicalModelService } from '../services/logicalModelService';
 import type { CatalogData } from '../types/catalog';
 import type { ManifestData } from '../types/manifest';
 import type { YmlData } from '../types/ymlData';
@@ -64,7 +64,7 @@ export interface DrawFromDbtDeps {
   domainService: Pick<DomainService, 'listDomains' | 'countDomainFileRelationships'>;
   logicalModelService: Pick<
     LogicalModelService,
-    'modelExists' | 'saveModel' | 'groupsByFolder' | 'deleteModel' | 'listModels' | 'getModel' | 'hasUnreadableRelationships' | 'modelPath' | 'getModelsDir'
+    'modelExists' | 'saveModel' | 'serializeModel' | 'groupsByFolder' | 'deleteModel' | 'listModels' | 'getModel' | 'hasUnreadableRelationships' | 'modelPath' | 'getModelsDir'
   >;
   /** Schema yml, manifest and catalog; each may be undefined (no yml, never compiled, no `dbt docs generate`). */
   loadDbt: () => Promise<{ ymlData?: YmlData; manifest?: ManifestData; catalog?: CatalogData }>;
@@ -192,7 +192,15 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
       ...draft.newModels.map((m) => logicalModelService.modelPath(m.name, folder)),
       ...routed.changed.map((m) => logicalModelService.modelPath(m.name)),
     ]);
+    // Throws DuplicateKeyWriteRefused for a library file that is read but may
+    // not be written (#164), or RelationshipsRewriteRefused, before the diagram
+    // is on disk rather than after.
+    for (const model of routed.changed) logicalModelService.serializeModel(model);
   } catch (err) {
+    if (err instanceof DuplicateKeyWriteRefused || err instanceof RelationshipsRewriteRefused) {
+      void vscode.window.showErrorMessage(`${TITLE}: ${err.message} Nothing was changed.`);
+      return undefined;
+    }
     telemetry.error('drawFromDbtFailed');
     void vscode.window.showErrorMessage(
       `${TITLE} could not read the model library to plan the diagram: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`,

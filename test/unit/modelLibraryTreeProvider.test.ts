@@ -43,6 +43,7 @@ function createMockLogicalModelServiceFromEntries(
     listModelNames: vi.fn(() => entries.filter(e => !e.shadowedBy).map(e => e.name)),
     modelPath: vi.fn((name: string) => entries.find(e => e.name === name && !e.shadowedBy)?.filePath ?? `${modelsDir}/${name}.yml`),
     deleteModel: vi.fn(),
+    getModelFileError: vi.fn(() => null),
   } as unknown as LogicalModelService;
 }
 
@@ -442,3 +443,48 @@ describe('ModelLibraryTreeProvider', () => {
     });
   });
 });
+
+describe('ModelLibraryTreeProvider: a model file that needs fixing (#164)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockReadFileSync.mockImplementation(() => v5DomainJson(['dim_customer', 'fct_orders']));
+  });
+
+  function providerWith(errors: Record<string, Partial<import('../../src/services/logicalModelService').ModelFileError>>) {
+    const service = createMockLogicalModelService(['dim_customer', 'fct_orders']);
+    (service.getModelFileError as ReturnType<typeof vi.fn>).mockImplementation((name: string) =>
+      errors[name] ? { name, filePath: `${DIR}/${name}.yml`, message: '', ...errors[name] } : null);
+    return new ModelLibraryTreeProvider(service, createMockDomainService(SUMMARIES), '/project', '.erd-studio');
+  }
+
+  function itemFor(provider: ModelLibraryTreeProvider, name: string) {
+    const node = (provider.getChildren() as ModelLibraryModelNode[]).find((n) => n.name === name)!;
+    return provider.getTreeItem(node);
+  }
+
+  it('marks a key written twice with the key and line, and opens the file at that line', () => {
+    const provider = providerWith({ dim_customer: { kind: 'yamlDuplicateKey', line: 14, readable: true, key: 'description' } });
+    const item = itemFor(provider, 'dim_customer');
+    expect((item.iconPath as ThemeIcon).id).toBe('warning');
+    expect(item.description).toBe('("description" written twice — line 14)');
+    expect(String(item.tooltip)).toContain('uses the last one');
+    expect(item.contextValue).toBe('logicalModel');
+    const [, options] = item.command!.arguments as [unknown, { selection: { start: { line: number } } }];
+    expect(options.selection.start.line).toBe(13);
+  });
+
+  it('marks a file that cannot be read with an error icon', () => {
+    const provider = providerWith({ dim_customer: { kind: 'yamlScalar', line: 4 } });
+    const item = itemFor(provider, 'dim_customer');
+    expect((item.iconPath as ThemeIcon).id).toBe('error');
+    expect(item.description).toBe('(YAML error — line 4)');
+  });
+
+  it('leaves a clean file as it was', () => {
+    const provider = providerWith({ dim_customer: { kind: 'yamlScalar', line: 4 } });
+    const item = itemFor(provider, 'fct_orders');
+    expect((item.iconPath as ThemeIcon).id).toBe('symbol-class');
+    expect(item.description).toBe('2 domains');
+  });
+});
+

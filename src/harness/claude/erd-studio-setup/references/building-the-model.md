@@ -106,6 +106,9 @@ double quotes**:
 - Always quote a value that contains `: ` or ` #`, or starts with any of
   `` ` @ * & ! % [ { - | > ' " ``.
 - Indent with spaces, never tabs.
+- Write each key once per block. Before adding a `description` (or any key) to a model or
+  column, check it is not already there and edit that line instead: a key written twice makes
+  ERD Studio refuse every change to the file until one copy is removed.
 - One YAML document per file: no `---` separators, no markdown code fences, no `{{ doc() }}` —
   paste the text itself.
 
