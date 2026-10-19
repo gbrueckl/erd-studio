@@ -12,7 +12,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { parseTableText, toDisplaySubjectArea } from '@erd-studio/core';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { validateMetaPayload } from '../../src/providers/payloadValidation';
 
 const MODEL_WITH_META = [
@@ -69,14 +69,14 @@ describe('parsing meta', () => {
 
 describe('writing meta', () => {
   let root: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
   let filePath: string;
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-meta-'));
-    service = new LogicalModelService(root, '.erd-studio');
+    service = new TableLibraryService(root, '.erd-studio');
     service.ensureDir();
-    filePath = service.modelPath('dim_customer');
+    filePath = service.tablePath('dim_customer');
     fs.writeFileSync(filePath, MODEL_WITH_META, 'utf-8');
   });
 
@@ -85,31 +85,31 @@ describe('writing meta', () => {
   });
 
   it('changes one value and leaves every other byte alone', () => {
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     model.meta = { ...model.meta!, owner: 'sales' };
-    const after = service.serializeModel(model);
+    const after = service.serializeTable(model);
     expect(after).toBe(MODEL_WITH_META.replace('owner: finance #', 'owner: sales #'));
   });
 
   it('removes only the key that was removed', () => {
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     const { owner: _owner, ...rest } = model.meta!;
     model.meta = rest;
-    const after = service.serializeModel(model);
+    const after = service.serializeTable(model);
     expect(after).toBe(MODEL_WITH_META.replace('  owner: finance # the team that answers questions\n', ''));
   });
 
   it('adds a new key at the end of the map', () => {
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     model.columns![0].meta = { ...model.columns![0].meta!, source_field: 'KUNNR' };
-    const after = service.serializeModel(model);
+    const after = service.serializeTable(model);
     expect(after).toBe(MODEL_WITH_META.replace('      steward: jane\n', '      steward: jane\n      source_field: KUNNR\n'));
   });
 
   it('keeps meta byte-identical through an unrelated edit', () => {
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     model.description = 'Everyone we sell to';
-    const after = service.serializeModel(model);
+    const after = service.serializeTable(model);
     expect(after).toBe(MODEL_WITH_META.replace('Customer dimension', 'Everyone we sell to'));
   });
 
@@ -124,54 +124,54 @@ describe('writing meta', () => {
       '',
     ].join('\n');
     fs.writeFileSync(filePath, withAlias, 'utf-8');
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     expect(model.meta!.lineage).toEqual({ source: 'sap' });
     model.meta = { ...model.meta!, owner: 'sales' };
-    expect(service.serializeModel(model)).toBe(withAlias.replace('owner: finance', 'owner: sales'));
+    expect(service.serializeTable(model)).toBe(withAlias.replace('owner: finance', 'owner: sales'));
   });
 
   it('updates a key YAML reads as a number or boolean in place, never duplicating it', () => {
     const odd = ['name: dim_customer', 'meta:', '  2024: budgeted', '  true: yes-key', '  owner: finance', ''].join('\n');
     fs.writeFileSync(filePath, odd, 'utf-8');
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     expect(Object.keys(model.meta!)).toEqual(['2024', 'true', 'owner']);
 
     model.meta = { ...model.meta!, '2024': 'actual' };
-    const after = service.serializeModel(model);
+    const after = service.serializeTable(model);
     expect(after).toBe(odd.replace('2024: budgeted', '2024: actual'));
     // The file still parses — a duplicate key would make it throw.
     fs.writeFileSync(filePath, after, 'utf-8');
-    expect(service.getModel('dim_customer')!.meta).toEqual({ '2024': 'actual', true: 'yes-key', owner: 'finance' });
+    expect(service.getTable('dim_customer')!.meta).toEqual({ '2024': 'actual', true: 'yes-key', owner: 'finance' });
   });
 
   it('removes a key named like an Object.prototype member', () => {
     fs.writeFileSync(filePath, 'name: dim_customer\nmeta:\n  toString: x\n  owner: finance\n', 'utf-8');
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     model.meta = { owner: 'finance' };
-    expect(service.serializeModel(model)).toBe('name: dim_customer\nmeta:\n  owner: finance\n');
+    expect(service.serializeTable(model)).toBe('name: dim_customer\nmeta:\n  owner: finance\n');
   });
 
   it('keeps a key named __proto__ as ordinary data', () => {
     const proto = 'name: dim_customer\nmeta:\n  __proto__: kept\n  owner: finance\n';
     fs.writeFileSync(filePath, proto, 'utf-8');
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     expect(Object.prototype.hasOwnProperty.call(model.meta, '__proto__')).toBe(true);
     model.description = 'Everyone we sell to';
-    expect(service.serializeModel(model)).toBe(`${proto}description: Everyone we sell to\n`);
+    expect(service.serializeTable(model)).toBe(`${proto}description: Everyone we sell to\n`);
   });
 
   it('removes the meta key when the last entry goes', () => {
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     delete model.meta;
     delete model.columns![0].meta;
-    const after = service.serializeModel(model);
+    const after = service.serializeTable(model);
     expect(after).not.toMatch(/meta:/);
     expect(after).toContain('description: Customer dimension');
   });
 
   it('writes meta into a brand-new file', () => {
-    service.saveModel({ name: 'fct_sale', meta: { owner: 'sales' }, columns: [{ name: 'id', dataType: 'int', description: '', meta: { pii: false } }] });
-    const text = fs.readFileSync(service.modelPath('fct_sale'), 'utf-8');
+    service.saveTable({ name: 'fct_sale', meta: { owner: 'sales' }, columns: [{ name: 'id', dataType: 'int', description: '', meta: { pii: false } }] });
+    const text = fs.readFileSync(service.tablePath('fct_sale'), 'utf-8');
     expect(parseTableText(text, 'fct_sale')).toMatchObject({
       meta: { owner: 'sales' },
       columns: [{ meta: { pii: false } }],

@@ -13,9 +13,9 @@ import * as vscode from 'vscode';
 import { createMockTextDocument, createMockWebviewPanel } from '../__mocks__/vscode';
 import { moveRelationshipsToLibrary } from '../../src/commands/moveRelationshipsToLibrary';
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { OwnWriteTracker } from '../../src/services/ownWriteTracker';
 import { SelectorsService } from '../../src/services/selectorsService';
@@ -29,16 +29,16 @@ import { dbtKeyIndexOf } from '../../src/services/stageDisplay';
 
 export const SEMANTIC_DIR = '.erd-studio';
 
-export interface Project { root: string; logicalModelService: LogicalModelService; domainService: DomainService; domainPath: (d: DomainName) => string }
+export interface Project { root: string; logicalModelService: TableLibraryService; domainService: SubjectAreaService; domainPath: (d: DomainName) => string }
 
 export function materialise(w: World): Project {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-statespace-'));
   const layerService = new LayerService(root, SEMANTIC_DIR);
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, SEMANTIC_DIR);
-  domainService.setLogicalModelService(logicalModelService);
+  const domainService = new SubjectAreaService(layerService);
+  const logicalModelService = new TableLibraryService(root, SEMANTIC_DIR);
+  domainService.setTableLibraryService(logicalModelService);
   for (const name of ['dim', 'fct'] as const) {
-    logicalModelService.saveModel({
+    logicalModelService.saveTable({
       name, columns: columnsOf(w.profile, name), ...(w.lib[name].length > 0 ? { relationships: w.lib[name] } : {}),
     });
   }
@@ -86,7 +86,7 @@ function writeDbtTests(root: string, spec: DbtSpec | undefined): void {
 export function readBack(p: Project, profile: World['profile']): World {
   p.logicalModelService.invalidateCache();
   const lib = {} as World['lib'];
-  for (const name of ['dim', 'fct'] as const) lib[name] = (p.logicalModelService.getModel(name)?.relationships ?? []).map((r) => ({ ...r }));
+  for (const name of ['dim', 'fct'] as const) lib[name] = (p.logicalModelService.getTable(name)?.relationships ?? []).map((r) => ({ ...r }));
   const dom = {} as World['dom'];
   const domModels = {} as World['domModels'];
   for (const d of ['D1', 'D2', 'D3'] as const) {

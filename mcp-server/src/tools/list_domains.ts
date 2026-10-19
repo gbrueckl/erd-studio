@@ -47,7 +47,7 @@ export const list_domains = {
       };
     }
 
-    const summaries = domainService.listDomains(projectPath, semanticDir);
+    const summaries = domainService.listSubjectAreas(projectPath, semanticDir);
     const filtered = layer ? summaries.filter((s) => s.layer === layer) : summaries;
     return {
       content: [

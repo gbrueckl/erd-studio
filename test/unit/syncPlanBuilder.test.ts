@@ -5,10 +5,10 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { allSelections, buildSyncPlan, countSyncPlanActions } from '../../src/services/syncPlanBuilder';
-import { computeDomainDiff } from '../../src/services/stageDiff';
-import { DomainService } from '../../src/services/domainService';
+import { computeSubjectAreaDiff } from '../../src/services/stageDiff';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
@@ -185,9 +185,9 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
     try {
       fs.cpSync(FIXTURE_ROOT, tmp, { recursive: true });
       const layerService = new LayerService(tmp, '.erd-studio');
-      const domainService = new DomainService(layerService);
-      const logicalModelService = new LogicalModelService(tmp, '.erd-studio');
-      domainService.setLogicalModelService(logicalModelService);
+      const domainService = new SubjectAreaService(layerService);
+      const logicalModelService = new TableLibraryService(tmp, '.erd-studio');
+      domainService.setTableLibraryService(logicalModelService);
       const manifestService = new ManifestService();
       const ymlParserService = new YmlParserService();
       const context = {
@@ -238,7 +238,7 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
       expect(posted().find((m) => m.type === 'syncPlanGenerated')!.payload.totalActions).toBe(countSyncPlanActions(expected));
 
       // And the CLI route — computeDomainDiff + allSelections — sees the same report.
-      const cli = computeDomainDiff({ domainService, ymlData, manifest }, file, 'logical');
+      const cli = computeSubjectAreaDiff({ domainService, ymlData, manifest }, file, 'logical');
       expect(cli.report).toEqual(shown);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });

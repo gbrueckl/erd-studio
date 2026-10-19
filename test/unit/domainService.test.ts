@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { SubjectAreaFileError, DomainService, derivePhysicalRelationships, isDomainFilePath, mergeCompositeForeignKeys, relationshipReferencesColumn, renameDomainInRaw } from '../../src/services/domainService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { SubjectAreaFileError, SubjectAreaService, derivePhysicalRelationships, isSubjectAreaFilePath, mergeCompositeForeignKeys, relationshipReferencesColumn, renameSubjectAreaInRaw } from '../../src/services/domainService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import type { LayerService } from '../../src/services/layerService';
 import type { LayerConfig } from '../../src/types/layer';
 import type { ManifestData, ManifestRelationshipTest } from '../../src/types/manifest';
@@ -48,17 +48,17 @@ function createMockLayerService(): LayerService {
 }
 
 describe('DomainService', () => {
-  let service: DomainService;
+  let service: SubjectAreaService;
   let mockLayerService: LayerService;
 
   beforeEach(() => {
     mockLayerService = createMockLayerService();
-    service = new DomainService(mockLayerService);
+    service = new SubjectAreaService(mockLayerService);
   });
 
   describe('listDomains', () => {
     it('discovers all .json files under .erd-studio/{layer}/', () => {
-      const domains = service.listDomains(FIXTURE_PROJECT_PATH);
+      const domains = service.listSubjectAreas(FIXTURE_PROJECT_PATH);
 
       const silverDomains = domains.filter((d) => d.layer === 'silver');
       const goldDomains = domains.filter((d) => d.layer === 'gold');
@@ -69,7 +69,7 @@ describe('DomainService', () => {
     });
 
     it('does not include stage in domain summaries', () => {
-      const domains = service.listDomains(FIXTURE_PROJECT_PATH);
+      const domains = service.listSubjectAreas(FIXTURE_PROJECT_PATH);
 
       for (const d of domains) {
         expect(d).not.toHaveProperty('stage');
@@ -77,7 +77,7 @@ describe('DomainService', () => {
     });
 
     it('returns correct file paths with layer directory', () => {
-      const domains = service.listDomains(FIXTURE_PROJECT_PATH);
+      const domains = service.listSubjectAreas(FIXTURE_PROJECT_PATH);
       const finance = domains.find((d) => d.domain === 'finance');
 
       expect(finance).toBeDefined();
@@ -87,23 +87,23 @@ describe('DomainService', () => {
     });
 
     it('returns empty array when .erd-studio directory does not exist', () => {
-      const domains = service.listDomains('/nonexistent/path');
+      const domains = service.listSubjectAreas('/nonexistent/path');
       expect(domains).toEqual([]);
     });
 
     it('returns empty array when no JSON files exist in layer', () => {
-      const domains = service.listDomains(FIXTURE_PROJECT_PATH);
+      const domains = service.listSubjectAreas(FIXTURE_PROJECT_PATH);
       const bronzeDomains = domains.filter((d) => d.layer === 'bronze');
       expect(bronzeDomains).toHaveLength(0);
     });
 
     it('supports custom semantic directory', () => {
-      const domains = service.listDomains(FIXTURE_PROJECT_PATH, '.erd-studio');
+      const domains = service.listSubjectAreas(FIXTURE_PROJECT_PATH, '.erd-studio');
       expect(domains.length).toBeGreaterThan(0);
     });
 
     it('orders domains by layer', () => {
-      const domains = service.listDomains(FIXTURE_PROJECT_PATH);
+      const domains = service.listSubjectAreas(FIXTURE_PROJECT_PATH);
       const layers = domains.map((d) => d.layer);
 
       // Silver should come before gold since bronze is empty
@@ -118,7 +118,7 @@ describe('DomainService', () => {
       const filePath = path.join(
         FIXTURE_PROJECT_PATH, '.erd-studio', 'gold', 'finance.json'
       );
-      const domain = service.getDomain(filePath);
+      const domain = service.getSubjectArea(filePath);
 
       expect(domain.schemaVersion).toBe(4);
       expect(domain.domain).toBe('finance');
@@ -130,7 +130,7 @@ describe('DomainService', () => {
       const filePath = path.join(
         FIXTURE_PROJECT_PATH, '.erd-studio', 'gold', 'finance.json'
       );
-      const domain = service.getDomain(filePath);
+      const domain = service.getSubjectArea(filePath);
 
       expect(domain.logical).toBeDefined();
       expect(domain.logical.models).toHaveLength(0);
@@ -140,7 +140,7 @@ describe('DomainService', () => {
       const filePath = path.join(
         FIXTURE_PROJECT_PATH, '.erd-studio', 'gold', 'finance.json'
       );
-      const domain = service.getDomain(filePath);
+      const domain = service.getSubjectArea(filePath);
 
       expect(domain.viewConfig).toBeDefined();
       expect(domain.viewConfig.positions).toBeDefined();
@@ -148,7 +148,7 @@ describe('DomainService', () => {
     });
 
     it('handles missing files with descriptive error', () => {
-      expect(() => service.getDomain('/nonexistent/domain.json')).toThrow(
+      expect(() => service.getSubjectArea('/nonexistent/domain.json')).toThrow(
         'Subject area file not found'
       );
     });
@@ -157,7 +157,7 @@ describe('DomainService', () => {
       const filePath = path.join(
         MALFORMED_PROJECT_PATH, '.erd-studio', 'silver', 'broken.json'
       );
-      expect(() => service.getDomain(filePath)).toThrow('Invalid JSON');
+      expect(() => service.getSubjectArea(filePath)).toThrow('Invalid JSON');
     });
 
     // A domain file is replaced wholesale, so "empty" and "truncated" are the
@@ -168,7 +168,7 @@ describe('DomainService', () => {
         MALFORMED_PROJECT_PATH, '.erd-studio', 'silver', 'broken.json'
       );
       let thrown: unknown;
-      try { service.getDomain(filePath); } catch (err) { thrown = err; }
+      try { service.getSubjectArea(filePath); } catch (err) { thrown = err; }
 
       expect(thrown).toBeInstanceOf(SubjectAreaFileError);
       expect((thrown as SubjectAreaFileError).reason).toBe('invalid-json');
@@ -182,7 +182,7 @@ describe('DomainService', () => {
       fs.writeFileSync(filePath, '   \n');
       try {
         let thrown: unknown;
-        try { service.getDomain(filePath); } catch (err) { thrown = err; }
+        try { service.getSubjectArea(filePath); } catch (err) { thrown = err; }
 
         expect(thrown).toBeInstanceOf(SubjectAreaFileError);
         expect((thrown as SubjectAreaFileError).reason).toBe('empty');
@@ -195,7 +195,7 @@ describe('DomainService', () => {
 
     it('reports a missing file as a non-transient DomainFileError', () => {
       let thrown: unknown;
-      try { service.getDomain('/nonexistent/domain.json'); } catch (err) { thrown = err; }
+      try { service.getSubjectArea('/nonexistent/domain.json'); } catch (err) { thrown = err; }
 
       expect(thrown).toBeInstanceOf(SubjectAreaFileError);
       expect((thrown as SubjectAreaFileError).reason).toBe('missing');
@@ -205,42 +205,42 @@ describe('DomainService', () => {
 
   describe('isDomainFilePath', () => {
     it('accepts {layer}/{domain}.json', () => {
-      expect(isDomainFilePath('/p/.erd-studio/silver/sales.json')).toBe(true);
-      expect(isDomainFilePath('/p/.erd-studio/gold/reporting.json')).toBe(true);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/silver/sales.json')).toBe(true);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/gold/reporting.json')).toBe(true);
     });
 
     it('rejects the reserved directories the custom editor glob also matches', () => {
-      expect(isDomainFilePath('/p/.erd-studio/templates/fact.json')).toBe(false);
-      expect(isDomainFilePath('/p/.erd-studio/templates/{id}.json')).toBe(false);
-      expect(isDomainFilePath('/p/.erd-studio/logical-models/dim_customer.json')).toBe(false);
-      expect(isDomainFilePath('/p/.erd-studio/logical/sales.json')).toBe(false);
-      expect(isDomainFilePath('/p/.erd-studio/physical/sales.json')).toBe(false);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/templates/fact.json')).toBe(false);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/templates/{id}.json')).toBe(false);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/logical-models/dim_customer.json')).toBe(false);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/logical/sales.json')).toBe(false);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/physical/sales.json')).toBe(false);
     });
 
     it('rejects hidden files and hidden layer directories', () => {
-      expect(isDomainFilePath('/p/.erd-studio/silver/.sync-plan.json')).toBe(false);
-      expect(isDomainFilePath('/p/.erd-studio/.trash/sales.json')).toBe(false);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/silver/.sync-plan.json')).toBe(false);
+      expect(isSubjectAreaFilePath('/p/.erd-studio/.trash/sales.json')).toBe(false);
     });
 
     it('throws when schemaVersion is missing', () => {
       const filePath = path.join(
         SPARSE_PROJECT_PATH, '.erd-studio', 'silver', 'no-schema-version.json'
       );
-      expect(() => service.getDomain(filePath)).toThrow('schemaVersion');
+      expect(() => service.getSubjectArea(filePath)).toThrow('schemaVersion');
     });
 
     it('throws when schemaVersion is from the future', () => {
       const filePath = path.join(
         SPARSE_PROJECT_PATH, '.erd-studio', 'silver', 'future-version.json'
       );
-      expect(() => service.getDomain(filePath)).toThrow('update the extension');
+      expect(() => service.getSubjectArea(filePath)).toThrow('update the extension');
     });
 
     it('applies defaults for missing optional fields', () => {
       const filePath = path.join(
         SPARSE_PROJECT_PATH, '.erd-studio', 'silver', 'minimal.json'
       );
-      const domain = service.getDomain(filePath);
+      const domain = service.getSubjectArea(filePath);
 
       expect(domain.layer).toBe('silver');
       // Domain name defaults to filename
@@ -256,7 +256,7 @@ describe('DomainService', () => {
       const filePath = path.join(
         FIXTURE_PROJECT_PATH, '.erd-studio', 'gold', 'finance.json'
       );
-      const stage = service.getDomainStage(filePath);
+      const stage = service.getSubjectAreaStage(filePath);
 
       expect(stage.stage).toBe('logical');
       expect(stage.domain).toBe('finance');
@@ -267,7 +267,7 @@ describe('DomainService', () => {
       const filePath = path.join(
         FIXTURE_PROJECT_PATH, '.erd-studio', 'silver', 'ncr.json'
       );
-      const stage = service.getDomainStage(filePath);
+      const stage = service.getSubjectAreaStage(filePath);
 
       expect(stage.description).toBe('ncr');
       expect(stage.modelFolder).toBe('models/silver');
@@ -390,7 +390,7 @@ describe('DomainService', () => {
     }
 
     it('creates a physical DisplayDomain with stage=physical and readOnly=true', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
 
       expect(result.stage).toBe('physical');
       expect(result.readOnly).toBe(true);
@@ -399,7 +399,7 @@ describe('DomainService', () => {
     });
 
     it('populates found models with manifest columns', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer');
       expect(customer).toBeDefined();
@@ -410,7 +410,7 @@ describe('DomainService', () => {
     });
 
     it('carries forward PK/FK/NK flags from logical domain', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer');
       const pkCol = customer!.columns.find(c => c.name === 'customer_id');
@@ -418,7 +418,7 @@ describe('DomainService', () => {
     });
 
     it('emits a model found in no physical source as a phantom rather than dropping it', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
 
       // fct_orders is in the design but nowhere in the dbt project: it renders
       // as a ghost, with nothing claimed about its shape.
@@ -432,14 +432,14 @@ describe('DomainService', () => {
     });
 
     it('excludes relationships when referenced models not in manifest', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
 
       // fct_orders is not in manifest, so no relationship tests can match
       expect(result.relationships).toHaveLength(0);
     });
 
     it('derives relationships from manifest relationship tests with cardinality', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifestWithBothModels());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifestWithBothModels());
 
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].fromModel).toBe('fct_orders');
@@ -451,7 +451,7 @@ describe('DomainService', () => {
     });
 
     it('uses global viewConfig positions', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
 
       expect(result.viewConfig.positions).toEqual({
         dim_customer: { x: 100, y: 200 },
@@ -460,14 +460,14 @@ describe('DomainService', () => {
     });
 
     it('does not include templates or manifestModels', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
 
       expect(result.templates).toBeUndefined();
       expect(result.manifestModels).toBeUndefined();
     });
 
     it('carries forward grain and modelRole from logical domain', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer');
       expect(customer!.grain).toBe('One row per customer');
@@ -500,7 +500,7 @@ describe('DomainService', () => {
     }
 
     it('includes manifest-only models when yml covers other models (partial yml is not all-or-nothing)', () => {
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), createPartialYmlData(), createManifestWithBothModels(),
       );
 
@@ -518,7 +518,7 @@ describe('DomainService', () => {
     });
 
     it('prefers yml columns over manifest columns when both exist, enriching data types from manifest', () => {
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), createPartialYmlData(), createManifestWithBothModels(),
       );
 
@@ -532,7 +532,7 @@ describe('DomainService', () => {
     });
 
     it('derives relationships from manifest tests even when yml has none', () => {
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), createPartialYmlData(), createManifestWithBothModels(),
       );
 
@@ -564,7 +564,7 @@ describe('DomainService', () => {
         fromModel: 'dim_customer', fromColumn: 'customer_name', toModel: 'fct_orders', toColumn: 'order_id',
       });
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), yml, manifest);
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, manifest);
 
       expect(result.relationships).toHaveLength(2);
       const keys = result.relationships.map(r => `${r.fromModel}.${r.fromColumn}->${r.toModel}.${r.toColumn}`).sort();
@@ -575,7 +575,7 @@ describe('DomainService', () => {
     });
 
     it('emits a model found nowhere with existsInProject false and no columns', () => {
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), createPartialYmlData(), undefined);
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), createPartialYmlData(), undefined);
 
       expect(result.models.map(m => m.name)).toEqual(['dim_customer', 'fct_orders']);
 
@@ -612,7 +612,7 @@ describe('DomainService', () => {
       // The regression that motivated the whole change: ManifestService returns
       // an empty ManifestData (never undefined) when dbt has not been compiled,
       // and every model used to grey out because of it.
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), createPartialYmlData(), emptyManifest(),
       );
 
@@ -630,7 +630,7 @@ describe('DomainService', () => {
         sourceFiles: new Map([['fct_orders', 'models/silver/fct_orders.sql']]),
       };
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), yml, emptyManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, emptyManifest());
 
       const orders = result.models.find(m => m.name === 'fct_orders')!;
       expect(orders.existsInProject).toBe(true);
@@ -650,7 +650,7 @@ describe('DomainService', () => {
         sourceFiles: new Map([['fct_orders', 'models/silver/fct_orders.sql']]),
       };
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), yml, manifest);
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, manifest);
 
       const orders = result.models.find(m => m.name === 'fct_orders')!;
       expect(orders.existsInProject).toBe(false);
@@ -664,7 +664,7 @@ describe('DomainService', () => {
       const manifest = emptyManifest();
       manifest.disabledModels = new Set(['dim_customer']);
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), createPartialYmlData(), manifest);
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), createPartialYmlData(), manifest);
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
       expect(customer.existsInProject).toBe(true);
@@ -674,7 +674,7 @@ describe('DomainService', () => {
     it('names the highest-authority source that supplied a data type', () => {
       // yml resolves the model and declares one type; the manifest fills the
       // other. The yml is the more authoritative of the two, so it is named.
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), createPartialYmlData(), createManifestWithBothModels(),
       );
 
@@ -697,7 +697,7 @@ describe('DomainService', () => {
         ]),
       };
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), yml, emptyManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, emptyManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
       expect(customer.columns[0].dataType).toBe('');
@@ -710,7 +710,7 @@ describe('DomainService', () => {
         { name: 'customer_id', description: '', dataType: null },
       ];
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), yml, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
       expect(customer.columns[0].dataType).toBe('bigint');
@@ -718,12 +718,12 @@ describe('DomainService', () => {
     });
 
     it('reports which dbt artifacts fed the physical stage', () => {
-      const withoutManifest = service.buildPhysicalDomain(
+      const withoutManifest = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), createPartialYmlData(), emptyManifest(),
       );
       expect(withoutManifest.physicalSources).toEqual({ yml: true, manifest: false, catalog: false });
 
-      const withManifest = service.buildPhysicalDomain(
+      const withManifest = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), EMPTY_YML_DATA, createManifest(),
       );
       expect(withManifest.physicalSources).toEqual({ yml: false, manifest: true, catalog: false });
@@ -774,7 +774,7 @@ describe('DomainService', () => {
         ]),
       ]);
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), yml, createManifest(), catalog);
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, createManifest(), catalog);
 
       const customer = result.models.find(m => m.name === 'dim_customer')!;
       const byName = new Map(customer.columns.map(c => [c.name, c.dataType]));
@@ -796,7 +796,7 @@ describe('DomainService', () => {
         ]),
       ]);
 
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), yml, emptyManifest(), catalog,
       );
 
@@ -822,13 +822,13 @@ describe('DomainService', () => {
         partial: false,
       };
 
-      const withManifest = service.buildPhysicalDomain(
+      const withManifest = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), EMPTY_YML_DATA, createManifest(), catalog,
       );
       expect(withManifest.models.find(m => m.name === 'dim_customer')!.columns.map(c => c.name))
         .toContain('V1_COL');
 
-      const withoutManifest = service.buildPhysicalDomain(
+      const withoutManifest = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), EMPTY_YML_DATA, emptyManifest(), catalog,
       );
       expect(withoutManifest.models.find(m => m.name === 'dim_customer')!.columns.map(c => c.name))
@@ -843,14 +843,14 @@ describe('DomainService', () => {
 
       // The manifest carries dim_customer only; both spellings name the same
       // schema and differ only in case, so the one the user wrote wins.
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), EMPTY_YML_DATA, createManifest(), catalog,
       );
       expect(result.models.find(m => m.name === 'dim_customer')!.schema).toBe('silver_schema');
       expect(result.models.find(m => m.name === 'fct_orders')!.schema).toBe('ANALYTICS');
 
       // Neither source: '' , and the node badge falls back to the layer.
-      const noSources = service.buildPhysicalDomain(
+      const noSources = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), createPartialYmlData(), emptyManifest(),
       );
       expect(noSources.models.find(m => m.name === 'dim_customer')!.schema).toBe('');
@@ -863,7 +863,7 @@ describe('DomainService', () => {
         ], { comment: 'Order facts as built' }),
       ]);
 
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), EMPTY_YML_DATA, emptyManifest(), catalog,
       );
 
@@ -890,7 +890,7 @@ describe('DomainService', () => {
         ]),
       ]);
 
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), yml, emptyManifest(), catalog,
       );
 
@@ -916,8 +916,8 @@ describe('DomainService', () => {
         catNode('model.my_project.fct_orders', 'fct_orders', [catCol('CUSTOMER_ID', 0, 'NUMBER')]),
       ]);
 
-      const without = service.buildPhysicalDomain(createUnifiedDomain(), yml, emptyManifest());
-      const withCatalog = service.buildPhysicalDomain(createUnifiedDomain(), yml, emptyManifest(), catalog);
+      const without = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, emptyManifest());
+      const withCatalog = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, emptyManifest(), catalog);
 
       expect(without.relationships).toHaveLength(1);
       expect(withCatalog.relationships).toEqual(without.relationships);
@@ -928,7 +928,7 @@ describe('DomainService', () => {
         catNode('model.my_project.dim_customer', 'dim_customer', []),
       ]);
 
-      const result = service.buildPhysicalDomain(
+      const result = service.buildPhysicalSubjectArea(
         createUnifiedDomain(), createPartialYmlData(), emptyManifest(), catalog,
       );
       expect(result.physicalSources).toEqual({ yml: true, manifest: false, catalog: true });
@@ -954,7 +954,7 @@ describe('DomainService', () => {
         compositeUniqueGroups: new Map(),
       };
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), yml, createManifest());
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), yml, createManifest());
 
       const customer = result.models.find(m => m.name === 'dim_customer');
       expect(customer).toBeDefined();
@@ -971,7 +971,7 @@ describe('DomainService', () => {
         fromModel: 'FCT_ORDERS', fromColumn: 'customer_id', toModel: 'Dim_Customer', toColumn: 'Customer_Id',
       }];
 
-      const result = service.buildPhysicalDomain(createUnifiedDomain(), EMPTY_YML_DATA, manifest);
+      const result = service.buildPhysicalSubjectArea(createUnifiedDomain(), EMPTY_YML_DATA, manifest);
 
       expect(result.relationships).toHaveLength(1);
       // Edge model names are rewritten to the domain's (logical) spelling
@@ -1194,7 +1194,7 @@ describe('DomainService', () => {
 
 describe('DomainService format handling', () => {
   let tmpRoot: string;
-  let service: DomainService;
+  let service: SubjectAreaService;
 
   /** Write a domain JSON into a temp .erd-studio/silver/ dir and return its path. */
   function writeDomain(name: string, body: unknown): string {
@@ -1207,7 +1207,7 @@ describe('DomainService format handling', () => {
 
   beforeEach(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-domain-format-'));
-    service = new DomainService(createMockLayerService());
+    service = new SubjectAreaService(createMockLayerService());
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -1223,12 +1223,12 @@ describe('DomainService format handling', () => {
         logical: { models: ['a', 'b'], relationships: [{ fromModel: 'a', fromColumn: 'x', toModel: 'b', toColumn: 'x' }] },
       });
       writeDomain('empty', { schemaVersion: 5, domain: 'empty', layer: 'silver', logical: { models: [], relationships: [] } });
-      expect(service.countDomainFileRelationships(tmpRoot)).toBe(1);
+      expect(service.countSubjectAreaFileRelationships(tmpRoot)).toBe(1);
       // A merge conflict must not make the project look like it keeps none.
       fs.appendFileSync(filePath, '\n<<<<<<< HEAD\n');
-      expect(service.countDomainFileRelationships(tmpRoot)).toBe(1);
+      expect(service.countSubjectAreaFileRelationships(tmpRoot)).toBe(1);
       fs.writeFileSync(filePath, '{ "logical": { "relationships": [] ,');
-      expect(service.countDomainFileRelationships(tmpRoot)).toBe(0);
+      expect(service.countSubjectAreaFileRelationships(tmpRoot)).toBe(0);
     });
   });
 
@@ -1243,8 +1243,8 @@ describe('DomainService format handling', () => {
         relationships: [],
         viewConfig: {},
       });
-      expect(() => service.getDomain(filePath)).toThrow(/no longer supported/);
-      expect(() => service.getDomain(filePath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
+      expect(() => service.getSubjectArea(filePath)).toThrow(/no longer supported/);
+      expect(() => service.getSubjectArea(filePath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
     });
 
     it('rejects a top-level models array even at schemaVersion 5', () => {
@@ -1256,7 +1256,7 @@ describe('DomainService format handling', () => {
         relationships: [],
         viewConfig: {},
       });
-      expect(() => service.getDomain(filePath)).toThrow(/no longer supported/);
+      expect(() => service.getSubjectArea(filePath)).toThrow(/no longer supported/);
     });
   });
 
@@ -1269,7 +1269,7 @@ describe('DomainService format handling', () => {
         logical: { models: [{ name: 'dim_x', columns: [] }], relationships: [] },
         viewConfig: {},
       });
-      expect(() => service.getDomain(filePath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
+      expect(() => service.getSubjectArea(filePath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
     });
 
     it('rejects mixed string/object model arrays instead of creating placeholder nodes', () => {
@@ -1280,7 +1280,7 @@ describe('DomainService format handling', () => {
         logical: { models: ['dim_project', { name: 'inline_obj', columns: [] }], relationships: [] },
         viewConfig: {},
       });
-      expect(() => service.getDomain(filePath)).toThrow(/mixes inline table objects/);
+      expect(() => service.getSubjectArea(filePath)).toThrow(/mixes inline table objects/);
     });
   });
 
@@ -1296,7 +1296,7 @@ describe('DomainService format handling', () => {
         },
         viewConfig: {},
       });
-      const domain = service.getDomain(filePath);
+      const domain = service.getSubjectArea(filePath);
       expect(domain.logical.models.map((m) => m.name)).toEqual(['dim_ok']);
     });
 
@@ -1318,7 +1318,7 @@ describe('DomainService format handling', () => {
         },
         viewConfig: {},
       });
-      const domain = service.getDomain(filePath);
+      const domain = service.getSubjectArea(filePath);
       expect(domain.logical.relationships).toEqual([
         { fromModel: 'fct_b', fromColumn: 'a_id', toModel: 'dim_a', toColumn: 'a_id', cardinality: 'many-to-one' },
         { fromModel: 'fct_b', fromColumn: 'b_id', toModel: 'dim_a', toColumn: 'a_id', cardinality: 'many-to-one' },
@@ -1341,7 +1341,7 @@ describe('DomainService format handling', () => {
           },
         },
       });
-      const domain = service.getDomain(filePath);
+      const domain = service.getSubjectArea(filePath);
       expect(domain.viewConfig.positions).toEqual({ dim_a: { x: 100, y: 200 } });
     });
   });
@@ -1365,31 +1365,31 @@ describe('DomainService format handling', () => {
         viewConfig: { positions: { dim_project: { x: 1, y: 2 } }, unknownViewKey: 'kept' },
       };
 
-      const renamed = JSON.parse(renameDomainInRaw(JSON.stringify(original), 'renamed'));
+      const renamed = JSON.parse(renameSubjectAreaInRaw(JSON.stringify(original), 'renamed'));
       expect(renamed).toEqual({ ...original, domain: 'renamed' });
       expect(renamed.logical.models.every((m: unknown) => typeof m === 'string')).toBe(true);
     });
 
     it('ends with a trailing newline and 2-space indentation', () => {
-      const out = renameDomainInRaw('{"schemaVersion":5,"domain":"a","layer":"silver","logical":{"models":[],"relationships":[]},"viewConfig":{}}', 'b');
+      const out = renameSubjectAreaInRaw('{"schemaVersion":5,"domain":"a","layer":"silver","logical":{"models":[],"relationships":[]},"viewConfig":{}}', 'b');
       expect(out.endsWith('}\n')).toBe(true);
       expect(out).toContain('\n  "domain": "b"');
     });
 
     it('throws for non-object JSON', () => {
-      expect(() => renameDomainInRaw('[]', 'x')).toThrow('JSON object');
-      expect(() => renameDomainInRaw('null', 'x')).toThrow('JSON object');
+      expect(() => renameSubjectAreaInRaw('[]', 'x')).toThrow('JSON object');
+      expect(() => renameSubjectAreaInRaw('null', 'x')).toThrow('JSON object');
     });
 
     it('end-to-end: a renamed v5 fixture still resolves models live from logical-models/', () => {
       // Copy the fixture project so we can rename and mutate yml safely
       fs.cpSync(path.join(FIXTURE_PROJECT_PATH, '.erd-studio'), path.join(tmpRoot, '.erd-studio'), { recursive: true });
-      const lms = new LogicalModelService(tmpRoot);
-      service.setLogicalModelService(lms);
+      const lms = new TableLibraryService(tmpRoot);
+      service.setTableLibraryService(lms);
 
       const oldPath = path.join(tmpRoot, '.erd-studio', 'silver', 'showcase.json');
       const newPath = path.join(tmpRoot, '.erd-studio', 'silver', 'renamed.json');
-      fs.writeFileSync(newPath, renameDomainInRaw(fs.readFileSync(oldPath, 'utf-8'), 'renamed'));
+      fs.writeFileSync(newPath, renameSubjectAreaInRaw(fs.readFileSync(oldPath, 'utf-8'), 'renamed'));
 
       // The renamed file is still a clean v5 document
       const rawRenamed = JSON.parse(fs.readFileSync(newPath, 'utf-8'));
@@ -1398,35 +1398,35 @@ describe('DomainService format handling', () => {
       expect(typeof rawRenamed.logical.models[0]).toBe('string');
 
       // A yml edit made after the rename is visible through the renamed domain
-      const before = service.getDomain(newPath);
+      const before = service.getSubjectArea(newPath);
       const target = before.logical.models.find((m) => m.name === 'fct_task_event')!;
       expect(target.columns!.some((c) => c.name === 'zzz_new_col')).toBe(false);
 
-      const model = lms.getModel('fct_task_event')!;
+      const model = lms.getTable('fct_task_event')!;
       model.columns = [...(model.columns ?? []), { name: 'zzz_new_col', dataType: 'INT', description: '' }];
-      lms.saveModel(model);
+      lms.saveTable(model);
 
-      const after = service.getDomain(newPath);
+      const after = service.getSubjectArea(newPath);
       const updated = after.logical.models.find((m) => m.name === 'fct_task_event')!;
       expect(updated.columns!.some((c) => c.name === 'zzz_new_col')).toBe(true);
     });
 
     it('regression: re-serialising the resolved UnifiedDomain produces a hybrid file that is now rejected', () => {
       fs.cpSync(path.join(FIXTURE_PROJECT_PATH, '.erd-studio'), path.join(tmpRoot, '.erd-studio'), { recursive: true });
-      service.setLogicalModelService(new LogicalModelService(tmpRoot));
+      service.setTableLibraryService(new TableLibraryService(tmpRoot));
 
       const oldPath = path.join(tmpRoot, '.erd-studio', 'silver', 'showcase.json');
-      const resolved = service.getDomain(oldPath);
+      const resolved = service.getSubjectArea(oldPath);
       resolved.domain = 'broken';
       const brokenPath = path.join(tmpRoot, '.erd-studio', 'silver', 'broken.json');
       fs.writeFileSync(brokenPath, JSON.stringify(resolved, null, 2));
 
-      expect(() => service.getDomain(brokenPath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
+      expect(() => service.getSubjectArea(brokenPath)).toThrow(/Migrate Subject Areas to the Central Table Library/);
     });
 
     it('renders a broken-reference placeholder for an unsafe model name instead of failing the canvas', () => {
       fs.cpSync(path.join(FIXTURE_PROJECT_PATH, '.erd-studio'), path.join(tmpRoot, '.erd-studio'), { recursive: true });
-      service.setLogicalModelService(new LogicalModelService(tmpRoot));
+      service.setTableLibraryService(new TableLibraryService(tmpRoot));
 
       const filePath = path.join(tmpRoot, '.erd-studio', 'silver', 'showcase.json');
       const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
@@ -1434,7 +1434,7 @@ describe('DomainService format handling', () => {
       raw.logical.models.push('../evil');
       fs.writeFileSync(filePath, JSON.stringify(raw, null, 2));
 
-      const domain = service.getDomain(filePath);
+      const domain = service.getSubjectArea(filePath);
       const names = domain.logical.models.map((m) => m.name);
       // Every real model still resolves...
       for (const name of goodNames) {

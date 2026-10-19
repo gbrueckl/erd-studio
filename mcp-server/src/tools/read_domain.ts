@@ -51,8 +51,8 @@ export const read_domain = {
       );
     }
 
-    const unified = domainService.getDomain(filePath);
-    const stage = domainService.getDomainStage(filePath);
+    const unified = domainService.getSubjectArea(filePath);
+    const stage = domainService.getSubjectAreaStage(filePath);
 
     return {
       content: [

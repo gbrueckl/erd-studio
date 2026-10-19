@@ -39,7 +39,7 @@ export const list_models = {
       };
     }
 
-    const models = logicalModelService.listModels();
+    const models = logicalModelService.listTables();
     return {
       content: [
         {

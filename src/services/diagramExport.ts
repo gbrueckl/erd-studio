@@ -15,10 +15,10 @@
 import { DIAGRAM_EXPORT_FORMATS, diagramExportFileName, exportDiagram } from '@erd-studio/core';
 import type { DbtKeyIndex, DiagramExportFormat } from '@erd-studio/core';
 
-import { DomainService } from './domainService';
-import { buildLogicalDisplayDomain } from './stageDisplay';
+import { SubjectAreaService } from './domainService';
+import { buildLogicalDisplaySubjectArea } from './stageDisplay';
 
-export interface DomainExport {
+export interface SubjectAreaExport {
   /** The export text, ending in a newline. */
   content: string;
   /** A safe file name for it, e.g. `showcase.dbml`. */
@@ -29,7 +29,7 @@ export interface DomainExport {
   layer: string;
 }
 
-export interface ExportDomainFileOptions {
+export interface ExportSubjectAreaFileOptions {
   /**
    * dbt's key evidence (#133 L1), as the canvas and `computeDomainDiff` pass
    * it: with it, a link stored twice with no key flagged is exported from the
@@ -46,18 +46,18 @@ export interface ExportDomainFileOptions {
  * unsupported-format or unknown-layer error), and an `Error` for a format
  * that is not in `DIAGRAM_EXPORT_FORMATS` — before reading anything.
  */
-export async function exportDomainFile(
-  domainService: DomainService,
+export async function exportSubjectAreaFile(
+  domainService: SubjectAreaService,
   domainPath: string,
   format: DiagramExportFormat,
-  options: ExportDomainFileOptions = {},
-): Promise<DomainExport> {
+  options: ExportSubjectAreaFileOptions = {},
+): Promise<SubjectAreaExport> {
   if (!DIAGRAM_EXPORT_FORMATS.includes(format)) {
     throw new Error(`Unknown diagram export format: ${String(format)}`);
   }
-  const unified = domainService.getDomain(domainPath, options.dbtKeyIndex ? { dbtKeyIndex: options.dbtKeyIndex } : {});
-  const display = buildLogicalDisplayDomain(
-    DomainService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns, options.dbtKeyIndex,
+  const unified = domainService.getSubjectArea(domainPath, options.dbtKeyIndex ? { dbtKeyIndex: options.dbtKeyIndex } : {});
+  const display = buildLogicalDisplaySubjectArea(
+    SubjectAreaService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns, options.dbtKeyIndex,
   );
   return {
     content: exportDiagram(display, format),

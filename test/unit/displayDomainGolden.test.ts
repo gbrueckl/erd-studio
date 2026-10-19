@@ -44,9 +44,9 @@ import {
   type MockEditOp,
 } from '../__mocks__/vscode';
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { CatalogService } from '../../src/services/catalogService';
@@ -206,7 +206,7 @@ function emptyYml(): YmlData {
 
 interface Host {
   provider: SemanticEditorProvider;
-  domainService: DomainService;
+  domainService: SubjectAreaService;
 }
 
 /**
@@ -215,9 +215,9 @@ interface Host {
  */
 function buildHost(root: string, options: { dbt?: boolean } = {}): Host {
   const layerService = new LayerService(root, SEMANTIC_DIR);
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, SEMANTIC_DIR);
-  domainService.setLogicalModelService(logicalModelService);
+  const domainService = new SubjectAreaService(layerService);
+  const logicalModelService = new TableLibraryService(root, SEMANTIC_DIR);
+  domainService.setTableLibraryService(logicalModelService);
   const selectorsService = new SelectorsService(domainService, root, SEMANTIC_DIR);
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
@@ -339,7 +339,7 @@ describe('DisplayDomain golden output (extension host)', () => {
 
     it('reads the UnifiedDomain with getDomain', () => {
       const { domainService } = buildHost(root);
-      const unified = JSON.parse(JSON.stringify(domainService.getDomain(domainFile(root, relative))));
+      const unified = JSON.parse(JSON.stringify(domainService.getSubjectArea(domainFile(root, relative))));
       matchGolden(`${name}.unified.json`, normalise(unified, root));
       matchLogs(`${name}.unified`, root);
     });

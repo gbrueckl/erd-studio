@@ -12,11 +12,11 @@ import * as path from 'path';
 
 import { buildDbtKeyIndex, SubjectAreaFileError, exportDiagram } from '@erd-studio/core';
 import type { DiagramExportFormat } from '@erd-studio/core';
-import { exportDomainFile } from '../../src/services/diagramExport';
-import { DomainService } from '../../src/services/domainService';
+import { exportSubjectAreaFile } from '../../src/services/diagramExport';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
-import { buildLogicalDisplayDomain } from '../../src/services/stageDisplay';
+import { TableLibraryService } from '../../src/services/logicalModelService';
+import { buildLogicalDisplaySubjectArea } from '../../src/services/stageDisplay';
 import { MERMAID_LOAD_TIMEOUT_MS, loadMermaidParsers, parseMermaid, readDbmlEverywhere } from '../../packages/core/test/exportParsers';
 
 // Load both Mermaid releases here, outside any test's timeout (#152).
@@ -27,9 +27,9 @@ const DBT_PROJECT = path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project');
 const SHOWCASE = path.join(DBT_PROJECT, '.erd-studio', 'silver', 'showcase.json');
 const CORE_FIXTURES = path.join(REPO_ROOT, 'packages', 'core', 'test', 'fixtures');
 
-function domainServiceFor(root: string): DomainService {
-  const domainService = new DomainService(new LayerService(root, '.erd-studio'));
-  domainService.setLogicalModelService(new LogicalModelService(root, '.erd-studio'));
+function domainServiceFor(root: string): SubjectAreaService {
+  const domainService = new SubjectAreaService(new LayerService(root, '.erd-studio'));
+  domainService.setTableLibraryService(new TableLibraryService(root, '.erd-studio'));
   return domainService;
 }
 
@@ -59,10 +59,10 @@ describe('exportDomainFile', () => {
 
   it.each(['dbml', 'mermaid'] as const)('exports the showcase domain as %s, built as the canvas builds its logical stage', async (format) => {
     const domainService = domainServiceFor(DBT_PROJECT);
-    const result = await exportDomainFile(domainService, SHOWCASE, format);
+    const result = await exportSubjectAreaFile(domainService, SHOWCASE, format);
 
-    const unified = domainService.getDomain(SHOWCASE);
-    const display = buildLogicalDisplayDomain(DomainService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns);
+    const unified = domainService.getSubjectArea(SHOWCASE);
+    const display = buildLogicalDisplaySubjectArea(SubjectAreaService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns);
     expect(result).toEqual({
       content: exportDiagram(display, format),
       fileName: `showcase.${EXTENSIONS[format]}`,
@@ -83,7 +83,7 @@ describe('exportDomainFile', () => {
   describe.each(Object.entries(CORE_CASES))('matches core\'s golden for %s', (name, domainPath) => {
     it.each(['dbml', 'mermaid'] as const)('%s', async (format) => {
       const root = path.join(CORE_FIXTURES, name);
-      const result = await exportDomainFile(domainServiceFor(root), path.join(root, domainPath), format);
+      const result = await exportSubjectAreaFile(domainServiceFor(root), path.join(root, domainPath), format);
       const golden = fs.readFileSync(path.join(CORE_FIXTURES, 'golden', `${name}.${EXTENSIONS[format]}`), 'utf-8');
       expect(result.content).toBe(golden);
     });
@@ -91,7 +91,7 @@ describe('exportDomainFile', () => {
 
   it('merges the model library\'s relationships, as the canvas draws them', async () => {
     const root = path.join(CORE_FIXTURES, 'library-relationships');
-    const { content } = await exportDomainFile(domainServiceFor(root), path.join(root, CORE_CASES['library-relationships']), 'dbml');
+    const { content } = await exportSubjectAreaFile(domainServiceFor(root), path.join(root, CORE_CASES['library-relationships']), 'dbml');
     expect(content).toContain('Ref: gold.fct_order.order_date_key > gold.dim_date.date_key');
   });
 
@@ -99,19 +99,19 @@ describe('exportDomainFile', () => {
     const domainService = domainServiceFor(DBT_PROJECT);
     const spy = vi.spyOn(domainService, 'getDomain');
     const dbtKeyIndex = buildDbtKeyIndex([]);
-    await exportDomainFile(domainService, SHOWCASE, 'dbml', { dbtKeyIndex });
+    await exportSubjectAreaFile(domainService, SHOWCASE, 'dbml', { dbtKeyIndex });
     expect(spy).toHaveBeenCalledWith(SHOWCASE, { dbtKeyIndex });
   });
 
   it('throws what getDomain throws', async () => {
     const missing = path.join(DBT_PROJECT, '.erd-studio', 'silver', 'no-such-domain.json');
-    await expect(exportDomainFile(domainServiceFor(DBT_PROJECT), missing, 'dbml')).rejects.toBeInstanceOf(SubjectAreaFileError);
+    await expect(exportSubjectAreaFile(domainServiceFor(DBT_PROJECT), missing, 'dbml')).rejects.toBeInstanceOf(SubjectAreaFileError);
   });
 
   it('refuses an unknown format before reading anything', async () => {
     const domainService = domainServiceFor(DBT_PROJECT);
     const spy = vi.spyOn(domainService, 'getDomain');
-    await expect(exportDomainFile(domainService, SHOWCASE, 'svg' as DiagramExportFormat)).rejects.toThrow('Unknown diagram export format: svg');
+    await expect(exportSubjectAreaFile(domainService, SHOWCASE, 'svg' as DiagramExportFormat)).rejects.toThrow('Unknown diagram export format: svg');
     expect(spy).not.toHaveBeenCalled();
   });
 

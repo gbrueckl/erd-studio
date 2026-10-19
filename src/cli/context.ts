@@ -17,9 +17,9 @@ import type { YmlData } from '../types/ymlData';
 import { CatalogService } from '../services/catalogService';
 import { findDbtProjectDir } from '../services/dbtEnv';
 import { readDbtProjectConfig, resolveCatalogPath, resolveManifestPath, type DbtProjectConfig } from '../services/dbtProjectConfig';
-import { DomainService } from '../services/domainService';
+import { SubjectAreaService } from '../services/domainService';
 import { LayerService } from '../services/layerService';
-import { LogicalModelService } from '../services/logicalModelService';
+import { TableLibraryService } from '../services/logicalModelService';
 import { checkManifestStalenessFs } from '../services/manifestStaleness';
 import { ManifestService } from '../services/manifestService';
 import { YmlParserService } from '../services/ymlParserService';
@@ -71,8 +71,8 @@ export interface CliContext {
   semanticDir: string;
   dbtConfig: DbtProjectConfig;
   layerService: LayerService;
-  logicalModelService: LogicalModelService;
-  domainService: DomainService;
+  logicalModelService: TableLibraryService;
+  domainService: SubjectAreaService;
   manifest: ManifestData;
   manifestInfo: ManifestInputInfo;
   ymlData: YmlData;
@@ -197,9 +197,9 @@ export async function buildCliContext(opts: { project?: string; semanticDir: str
   const dbtConfig = readDbtProjectConfig(root);
 
   const layerService = new LayerService(root, semanticDir);
-  const logicalModelService = new LogicalModelService(root, semanticDir);
-  const domainService = new DomainService(layerService);
-  domainService.setLogicalModelService(logicalModelService);
+  const logicalModelService = new TableLibraryService(root, semanticDir);
+  const domainService = new SubjectAreaService(layerService);
+  domainService.setTableLibraryService(logicalModelService);
 
   const manifestService = new ManifestService({ dbtConfig, parseInProcess: true });
   const catalogService = new CatalogService({ dbtConfig });

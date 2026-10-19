@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { TreeItemCollapsibleState } from 'vscode';
-import { DomainTreeProvider, type TreeElement } from '../../src/providers/DomainTreeProvider';
-import type { DomainService } from '../../src/services/domainService';
+import { SubjectAreaTreeProvider, type TreeElement } from '../../src/providers/DomainTreeProvider';
+import type { SubjectAreaService } from '../../src/services/domainService';
 import type { LayerService } from '../../src/services/layerService';
 import type { LayerConfig } from '../../src/types/layer';
 import type { SubjectAreaSummary, UnifiedSubjectArea, StageData } from '../../src/types/semantic';
@@ -61,7 +61,7 @@ function makeUnifiedDomain(overrides: Partial<UnifiedSubjectArea> = {}): Unified
 function createMockDomainService(
   summaries: SubjectAreaSummary[] = [],
   domains: Map<string, UnifiedSubjectArea> = new Map(),
-): DomainService {
+): SubjectAreaService {
   return {
     listDomains: vi.fn().mockReturnValue(summaries),
     getDomain: vi.fn((filePath: string) => {
@@ -69,7 +69,7 @@ function createMockDomainService(
       if (!d) throw new Error(`Not found: ${filePath}`);
       return d;
     }),
-  } as unknown as DomainService;
+  } as unknown as SubjectAreaService;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,13 +127,13 @@ const PROJECT_PATH = '/tmp/test-project';
 
 describe('DomainTreeProvider', () => {
   let layerService: LayerService;
-  let domainService: DomainService;
-  let provider: DomainTreeProvider;
+  let domainService: SubjectAreaService;
+  let provider: SubjectAreaTreeProvider;
 
   beforeEach(() => {
     layerService = createMockLayerService();
     domainService = createMockDomainService(ALL_SUMMARIES, buildDomainMap());
-    provider = new DomainTreeProvider(domainService, layerService, PROJECT_PATH);
+    provider = new SubjectAreaTreeProvider(domainService, layerService, PROJECT_PATH);
   });
 
   describe('getChildren (root)', () => {
@@ -149,7 +149,7 @@ describe('DomainTreeProvider', () => {
     });
 
     it('returns empty array when semantic directory does not exist (F408 welcome)', () => {
-      const providerNoSemantic = new DomainTreeProvider(domainService, layerService, '/nonexistent/path');
+      const providerNoSemantic = new SubjectAreaTreeProvider(domainService, layerService, '/nonexistent/path');
       const children = providerNoSemantic.getChildren(undefined);
 
       expect(children).toHaveLength(0);
@@ -182,7 +182,7 @@ describe('DomainTreeProvider', () => {
     });
 
     it('never makes an empty tree non-empty, so the welcome view still shows', () => {
-      const providerNoSemantic = new DomainTreeProvider(domainService, layerService, '/nonexistent/path');
+      const providerNoSemantic = new SubjectAreaTreeProvider(domainService, layerService, '/nonexistent/path');
       providerNoSemantic.setProjectRow({ name: 'finance-dbt', location: 'workspace folder' });
       expect(providerNoSemantic.getChildren(undefined)).toEqual([]);
     });
@@ -244,7 +244,7 @@ describe('DomainTreeProvider', () => {
         [{ domain: 'broken', layer: 'silver', filePath: '/broken.json' }],
         new Map(), // empty — getDomain will throw
       );
-      const failProvider = new DomainTreeProvider(failService, layerService, PROJECT_PATH);
+      const failProvider = new SubjectAreaTreeProvider(failService, layerService, PROJECT_PATH);
       const children = failProvider.getChildren({ type: 'layer', layer: 'silver' })!;
 
       const domain = children.find(c => c.type === 'domain');
@@ -409,7 +409,7 @@ describe('DomainTreeProvider', () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    function realFileProvider(models: unknown[]): { provider: DomainTreeProvider; getDomain: ReturnType<typeof vi.fn> } {
+    function realFileProvider(models: unknown[]): { provider: SubjectAreaTreeProvider; getDomain: ReturnType<typeof vi.fn> } {
       const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
       const domains = new Map<string, UnifiedSubjectArea>();
       domains.set(domainPath, makeUnifiedDomain({
@@ -418,8 +418,8 @@ describe('DomainTreeProvider', () => {
       }));
       const svc = createMockDomainService(summaries, domains);
       return {
-        provider: new DomainTreeProvider(svc, layerService, tempDir),
-        getDomain: svc.getDomain as unknown as ReturnType<typeof vi.fn>,
+        provider: new SubjectAreaTreeProvider(svc, layerService, tempDir),
+        getDomain: svc.getSubjectArea as unknown as ReturnType<typeof vi.fn>,
       };
     }
 
@@ -452,7 +452,7 @@ describe('DomainTreeProvider', () => {
     it('re-parses after invalidateDomain(filePath)', () => {
       const { provider: p, getDomain } = realFileProvider([{ name: 'a' }]);
       p.getChildren({ type: 'layer', layer: 'silver' });
-      p.invalidateDomain(domainPath);
+      p.invalidateSubjectArea(domainPath);
       p.getChildren({ type: 'layer', layer: 'silver' });
       expect(getDomain).toHaveBeenCalledTimes(2);
     });
@@ -460,7 +460,7 @@ describe('DomainTreeProvider', () => {
     it('re-parses everything after invalidateDomain() with no argument', () => {
       const { provider: p, getDomain } = realFileProvider([{ name: 'a' }]);
       p.getChildren({ type: 'layer', layer: 'silver' });
-      p.invalidateDomain();
+      p.invalidateSubjectArea();
       p.getChildren({ type: 'layer', layer: 'silver' });
       expect(getDomain).toHaveBeenCalledTimes(2);
     });
@@ -468,12 +468,12 @@ describe('DomainTreeProvider', () => {
     it('does not cache a failed parse', () => {
       const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
       const svc = createMockDomainService(summaries, new Map()); // getDomain throws
-      const p = new DomainTreeProvider(svc, layerService, tempDir);
+      const p = new SubjectAreaTreeProvider(svc, layerService, tempDir);
 
       p.getChildren({ type: 'layer', layer: 'silver' });
       p.getChildren({ type: 'layer', layer: 'silver' });
 
-      expect(svc.getDomain).toHaveBeenCalledTimes(2);
+      expect(svc.getSubjectArea).toHaveBeenCalledTimes(2);
     });
   });
 });

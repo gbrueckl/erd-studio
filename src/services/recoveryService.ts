@@ -15,18 +15,18 @@ import * as vscode from 'vscode';
  * in sync with the `customEditors` contribution in package.json. Per CLAUDE.md
  * this identifier is part of the legacy public API and must not be renamed.
  */
-export const DOMAIN_EDITOR_VIEW_TYPE = 'erdStudio.domainEditor';
+export const SUBJECT_AREA_EDITOR_VIEW_TYPE = 'erdStudio.domainEditor';
 
 /**
  * True when at least one editor tab is showing a domain canvas. Used to
  * decide whether a window reload is actually needed: if no canvas is open,
  * an extension update doesn't strand the user and we shouldn't bother them.
  */
-export function hasOpenDomainCanvas(): boolean {
+export function hasOpenSubjectAreaCanvas(): boolean {
   return vscode.window.tabGroups.all.some(group =>
     group.tabs.some(tab =>
       tab.input instanceof vscode.TabInputCustom &&
-      tab.input.viewType === DOMAIN_EDITOR_VIEW_TYPE,
+      tab.input.viewType === SUBJECT_AREA_EDITOR_VIEW_TYPE,
     ),
   );
 }

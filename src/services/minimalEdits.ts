@@ -278,7 +278,7 @@ function renderJsonArray(
  * file) and every other byte unchanged. Throws if `text` is not a JSON object
  * with a `logical` object.
  */
-export function setDomainRelationships(text: string, relationships: readonly Relationship[]): string {
+export function setSubjectAreaRelationships(text: string, relationships: readonly Relationship[]): string {
   const { bom, body } = splitBom(text);
   const parsed: unknown = JSON.parse(body);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {

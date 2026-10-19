@@ -18,7 +18,7 @@ import { useEditorStore } from '../../store/editorStore';
 import { useSend } from '../../hooks/useMessageBus';
 import { KeyBadgeGroup } from '@erd-studio/renderer/editor';
 import type { ColumnDef, DesignTable, TableRole, TableTemplate } from '../../../src/types/semantic';
-import { COLUMN_NAME_PATTERN, COLUMN_NAME_RULE, MODEL_NAME_PATTERN, findDuplicateNames, sameName } from '../../../src/types/naming';
+import { COLUMN_NAME_PATTERN, COLUMN_NAME_RULE, TABLE_NAME_PATTERN, findDuplicateNames, sameName } from '../../../src/types/naming';
 import './NewModelDialog.css';
 
 // ---------------------------------------------------------------------------
@@ -75,7 +75,7 @@ function validateForm(
   // so a name accepted here can always be renamed later.
   if (!modelName.trim()) {
     errors.modelName = 'Table name is required';
-  } else if (!MODEL_NAME_PATTERN.test(modelName)) {
+  } else if (!TABLE_NAME_PATTERN.test(modelName)) {
     errors.modelName = 'Start with a letter; use only letters, numbers, and underscores';
   } else if (template.prefix && !modelName.startsWith(template.prefix)) {
     errors.modelName = `Must start with "${template.prefix}" for ${template.label} template`;

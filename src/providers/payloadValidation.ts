@@ -11,9 +11,9 @@
  */
 
 import type { Cardinality, ColumnDef, TableRole, Stage } from '../types/semantic';
-import { COLUMN_NAME_PATTERN, MODEL_NAME_PATTERN, MODEL_NAME_RULE, findDuplicateNames } from '../types/naming';
+import { COLUMN_NAME_PATTERN, TABLE_NAME_PATTERN, TABLE_NAME_RULE, findDuplicateNames } from '../types/naming';
 import type { DuplicateMode, FeedbackKind } from '../types/feedback';
-import { ADD_EXISTING_MODELS_LIMIT } from '../types/messages';
+import { ADD_EXISTING_TABLES_LIMIT } from '../types/messages';
 import { MAX_COMPOSITE_PAIRS, TABLE_ALIAS_MAX_LENGTH, TABLE_ALIAS_RULE, RELATIONSHIP_ROLE_MAX_LENGTH, isValidTableAlias } from '@erd-studio/core';
 import { DUPLICATE_MODES, FEEDBACK_KINDS, isFeedbackAiProviderChoice } from '../types/feedback';
 
@@ -30,7 +30,7 @@ import { DUPLICATE_MODES, FEEDBACK_KINDS, isFeedbackAiProviderChoice } from '../
  * names that come from the user's own dbt project (Add Existing Model) are
  * whatever dbt allows, including uppercase and digit-leading names.
  */
-export function validateModelNameSafety(name: unknown): string | null {
+export function validateTableNameSafety(name: unknown): string | null {
   if (typeof name !== 'string') {
     return 'Table name is required.';
   }
@@ -49,19 +49,19 @@ export function validateModelNameSafety(name: unknown): string | null {
 
 /**
  * Validate a model name the user authored (New Model dialog, rename). On top
- * of {@link validateModelNameSafety} this enforces the project's naming
+ * of {@link validateTableNameSafety} this enforces the project's naming
  * convention (`[A-Za-z][A-Za-z0-9_]*`) so newly created models stay consistent.
  *
  * Do NOT use this for names discovered in the dbt project — see
- * {@link validateModelNameSafety}.
+ * {@link validateTableNameSafety}.
  */
-export function validateModelName(name: unknown): string | null {
-  const safetyError = validateModelNameSafety(name);
+export function validateTableName(name: unknown): string | null {
+  const safetyError = validateTableNameSafety(name);
   if (safetyError) {
     return safetyError;
   }
-  if (!MODEL_NAME_PATTERN.test((name as string).trim())) {
-    return MODEL_NAME_RULE;
+  if (!TABLE_NAME_PATTERN.test((name as string).trim())) {
+    return TABLE_NAME_RULE;
   }
   return null;
 }
@@ -75,7 +75,7 @@ export function validateModelAliasPayload(payload: unknown): string | null {
     return 'Missing payload.';
   }
   const { modelName, alias } = payload as { modelName?: unknown; alias?: unknown };
-  const nameError = validateModelNameSafety(modelName);
+  const nameError = validateTableNameSafety(modelName);
   if (nameError) {
     return nameError;
   }
@@ -109,7 +109,7 @@ export function validateMetaPayload(payload: unknown): string | null {
   const { modelName, columnName, set, remove } = payload as {
     modelName?: unknown; columnName?: unknown; set?: unknown; remove?: unknown;
   };
-  const nameError = validateModelNameSafety(modelName);
+  const nameError = validateTableNameSafety(modelName);
   if (nameError) {
     return nameError;
   }
@@ -307,7 +307,7 @@ export function validateMarkKey(markKey: unknown, link: LinkPayloadEnds): string
   return ends.some(([m, cols]) => sameText(m, model) && sameColumnSet(columns, cols)) ? null : invalid;
 }
 
-export const MODEL_ROLES: readonly TableRole[] = [
+export const TABLE_ROLES: readonly TableRole[] = [
   'conformed-dim',
   'domain-dim',
   'transaction-fact',
@@ -319,8 +319,8 @@ export const MODEL_ROLES: readonly TableRole[] = [
   'gold-dim',
 ];
 
-export function isValidModelRole(value: unknown): value is TableRole {
-  return typeof value === 'string' && (MODEL_ROLES as readonly string[]).includes(value);
+export function isValidTableRole(value: unknown): value is TableRole {
+  return typeof value === 'string' && (TABLE_ROLES as readonly string[]).includes(value);
 }
 
 export type KeyType = 'PK' | 'FK' | 'NK';
@@ -379,7 +379,7 @@ function validateStringList(value: unknown, label: string): string | null {
  * `FeedbackDomainSummary`). Nothing here reads a key the diagnostics do not
  * render, so a payload that carried one anyway could not surface it.
  */
-function validateFeedbackDomainSummary(value: unknown): string | null {
+function validateFeedbackSubjectAreaSummary(value: unknown): string | null {
   if (value === undefined) {
     return null;
   }
@@ -417,7 +417,7 @@ export function validateRequestFeedbackContextPayload(value: unknown): string | 
   const payload = value as { webviewErrors?: unknown; domain?: unknown };
   return (
     validateStringList(payload.webviewErrors, 'Webview errors') ??
-    validateFeedbackDomainSummary(payload.domain)
+    validateFeedbackSubjectAreaSummary(payload.domain)
   );
 }
 
@@ -516,7 +516,7 @@ export function validateSubmitFeedbackPayload(value: unknown): string | null {
   }
   return (
     validateStringList(payload.webviewErrors, 'Webview errors') ??
-    validateFeedbackDomainSummary(payload.domain)
+    validateFeedbackSubjectAreaSummary(payload.domain)
   );
 }
 
@@ -551,7 +551,7 @@ export function validateCopyFeedbackReportPayload(value: unknown): string | null
   }
   return (
     validateStringList(payload.webviewErrors, 'Webview errors') ??
-    validateFeedbackDomainSummary(payload.domain)
+    validateFeedbackSubjectAreaSummary(payload.domain)
   );
 }
 
@@ -574,7 +574,7 @@ export function validateSetFeedbackProviderPayload(value: unknown): string | nul
   }
   return (
     validateStringList(payload.webviewErrors, 'Webview errors') ??
-    validateFeedbackDomainSummary(payload.domain)
+    validateFeedbackSubjectAreaSummary(payload.domain)
   );
 }
 
@@ -623,7 +623,7 @@ export function validateAddModelsFromDbtPayload(value: unknown): string | null {
 
 /**
  * Validate an `addExistingModels` payload (#160): `{ modelNames }`, a
- * non-empty list of at most {@link ADD_EXISTING_MODELS_LIMIT} names. Each is
+ * non-empty list of at most {@link ADD_EXISTING_TABLES_LIMIT} names. Each is
  * held to the path-safety rule only — dbt allows uppercase and digit-leading
  * names, as `addExistingModel` does — because each may become a library file.
  */
@@ -635,11 +635,11 @@ export function validateAddExistingModelsPayload(value: unknown): string | null 
   if (!Array.isArray(modelNames) || modelNames.length === 0) {
     return 'Add tables needs a list of table names.';
   }
-  if (modelNames.length > ADD_EXISTING_MODELS_LIMIT) {
-    return `At most ${ADD_EXISTING_MODELS_LIMIT} tables can be added at once.`;
+  if (modelNames.length > ADD_EXISTING_TABLES_LIMIT) {
+    return `At most ${ADD_EXISTING_TABLES_LIMIT} tables can be added at once.`;
   }
   for (const name of modelNames) {
-    const nameError = validateModelNameSafety(name);
+    const nameError = validateTableNameSafety(name);
     if (nameError) return nameError;
   }
   return null;
@@ -684,7 +684,7 @@ export function validateOpenModelFilePayload(value: unknown): string | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return 'Open table file needs a table name.';
   }
-  return validateModelNameSafety((value as { modelName?: unknown }).modelName);
+  return validateTableNameSafety((value as { modelName?: unknown }).modelName);
 }
 
 /** `layoutFinished` (usage telemetry only): a non-negative finite duration, a boolean and an optional `firstOpen` boolean. */

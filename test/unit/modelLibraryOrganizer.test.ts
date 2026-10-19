@@ -4,11 +4,11 @@
 import { describe, it, expect } from 'vitest';
 
 import { describeOrganizePlan, planOrganizeByLayer, type OrganizePlan } from '../../src/services/modelLibraryOrganizer';
-import type { ModelFileEntry } from '../../src/services/logicalModelService';
+import type { TableFileEntry } from '../../src/services/logicalModelService';
 
 const DIR = '/p/.erd-studio/logical-models';
-const top = (name: string): ModelFileEntry => ({ name, folder: '', filePath: `${DIR}/${name}.yml` });
-const inFolder = (folder: string, name: string, shadowedBy?: string): ModelFileEntry => ({
+const top = (name: string): TableFileEntry => ({ name, folder: '', filePath: `${DIR}/${name}.yml` });
+const inFolder = (folder: string, name: string, shadowedBy?: string): TableFileEntry => ({
   name,
   folder,
   filePath: `${DIR}/${folder}/${name}.yml`,

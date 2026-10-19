@@ -17,7 +17,7 @@ import {
   surveyFeatures,
   surveyLibrary,
 } from '../../src/services/relationshipHealth';
-import type { HealthModel, RelationshipSnapshot } from '../../src/services/relationshipHealth';
+import type { HealthTable, RelationshipSnapshot } from '../../src/services/relationshipHealth';
 import { ERROR_CODES, FEATURES } from '../../src/services/telemetryPayload';
 import type { ColumnDef, TableRelationship, Relationship, SemanticTable } from '../../src/types/semantic';
 
@@ -343,7 +343,7 @@ describe('no name reaches the output', () => {
   it('returns only codes and counts, whatever the models and columns are called', () => {
     const names = ['acme_payroll', 'employee_salary_band', 'patient_diagnosis', 'ssn_hash', 'Secret Project Falcon', 'customer_email'];
     const [a, b, c, d, e, f] = names;
-    const models: HealthModel[] = [
+    const models: HealthTable[] = [
       { name: a, columns: [col(d, 'pk'), col(f)], relationships: [{ fromColumn: f, toModel: b, toColumn: c, cardinality: 'one-to-many', role: e, compositeKey: e }] },
       { name: b, columns: [col(c, 'pk')], relationships: [{ fromColumn: c, toModel: a, toColumn: f, cardinality: 'many-to-one', role: e }, { fromColumn: c, toModel: 'ghost_' + e, toColumn: d, cardinality: 'many-to-one' }] },
     ];

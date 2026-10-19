@@ -19,9 +19,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
@@ -53,9 +53,9 @@ function makeDoc(fsPath: string) {
 
 function buildProvider(rootDir: string) {
   const layerService = new LayerService(rootDir, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(rootDir, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
+  const domainService = new SubjectAreaService(layerService);
+  const logicalModelService = new TableLibraryService(rootDir, '.erd-studio');
+  domainService.setTableLibraryService(logicalModelService);
   const selectorsService = new SelectorsService(domainService, rootDir, '.erd-studio');
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),

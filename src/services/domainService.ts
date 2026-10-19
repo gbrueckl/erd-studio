@@ -31,7 +31,7 @@ import type { CatalogData, CatalogColumn } from '../types/catalog';
 import type { YmlData } from '../types/ymlData';
 import type { Cardinality } from '../types/semantic';
 import type { LayerService } from './layerService';
-import type { LogicalModelService } from './logicalModelService';
+import type { TableLibraryService } from './logicalModelService';
 import { normaliseName } from './nameUtils';
 import { catalogNodeFor, resolveColumnType } from './columnTypes';
 
@@ -64,7 +64,7 @@ const DEFAULT_SEMANTIC_DIR = '.erd-studio';
  * exists for the custom editor, which is handed a document whose path the
  * `**​/.erd-studio/*​/*.json` selector has already placed.
  */
-export function isDomainFilePath(fsPath: string): boolean {
+export function isSubjectAreaFilePath(fsPath: string): boolean {
   const file = path.basename(fsPath);
   const dir = path.basename(path.dirname(fsPath));
   return (
@@ -93,7 +93,7 @@ const SOURCE_AUTHORITY: readonly PhysicalColumnSource[] = ['catalog', 'yml', 'ma
  * unknown keys survive byte-for-byte (apart from re-indentation). Used by the
  * Rename Domain command.
  */
-export function renameDomainInRaw(rawText: string, newSlug: string): string {
+export function renameSubjectAreaInRaw(rawText: string, newSlug: string): string {
   const parsed = JSON.parse(rawText) as unknown;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Subject area file does not contain a JSON object');
@@ -103,8 +103,8 @@ export function renameDomainInRaw(rawText: string, newSlug: string): string {
   return JSON.stringify(doc, null, 2) + '\n';
 }
 
-export class DomainService {
-  private logicalModelService: LogicalModelService | null = null;
+export class SubjectAreaService {
+  private tableLibraryService: TableLibraryService | null = null;
 
   constructor(private readonly layerService: LayerService) {}
 
@@ -113,8 +113,8 @@ export class DomainService {
    * Called after construction since DomainService may be instantiated before
    * LogicalModelService is available (circular dependency avoidance).
    */
-  setLogicalModelService(service: LogicalModelService): void {
-    this.logicalModelService = service;
+  setTableLibraryService(service: TableLibraryService): void {
+    this.tableLibraryService = service;
   }
 
   /**
@@ -124,7 +124,7 @@ export class DomainService {
    * Directory structure:
    *   .erd-studio/{layer}/*.json
    */
-  listDomains(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): SubjectAreaSummary[] {
+  listSubjectAreas(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): SubjectAreaSummary[] {
     const basePath = path.join(projectPath, semanticDir);
 
     if (!fs.existsSync(basePath)) {
@@ -176,9 +176,9 @@ export class DomainService {
    * merge conflict) but whose text shows a non-empty `"relationships": [`
    * counts as one, so a broken file cannot switch the project's mode.
    */
-  countDomainFileRelationships(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): number {
+  countSubjectAreaFileRelationships(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): number {
     let count = 0;
-    for (const summary of this.listDomains(projectPath, semanticDir)) {
+    for (const summary of this.listSubjectAreas(projectPath, semanticDir)) {
       let text: string;
       try {
         text = fs.readFileSync(summary.filePath, 'utf-8');
@@ -208,7 +208,7 @@ export class DomainService {
    * twice with no key flagged is drawn from the copy dbt's tests orient. The
    * canvas and the diff pass it; callers that only list or count need not.
    */
-  getDomain(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): UnifiedSubjectArea {
+  getSubjectArea(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): UnifiedSubjectArea {
     if (!fs.existsSync(filePath)) {
       throw new SubjectAreaFileError('missing', filePath, `Subject area file not found: ${filePath}`);
     }
@@ -229,12 +229,12 @@ export class DomainService {
       domainNameFallback: path.basename(filePath, '.json'),
       parentDirName: path.basename(path.dirname(filePath)),
       layers: this.layerService,
-      getModel: this.logicalModelService
-        ? (name) => this.logicalModelService!.getModel(name)
+      getModel: this.tableLibraryService
+        ? (name) => this.tableLibraryService!.getTable(name)
         : undefined,
-      getModelError: this.logicalModelService
+      getModelError: this.tableLibraryService
         ? (name) => {
-          const error = this.logicalModelService!.getModelFileError(name);
+          const error = this.tableLibraryService!.getTableFileError(name);
           return error
             ? {
               kind: error.kind,
@@ -254,8 +254,8 @@ export class DomainService {
    *
    * Physical stage is not supported here — use buildPhysicalDomain() instead.
    */
-  getDomainStage(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): SemanticSubjectArea {
-    return DomainService.toLogicalStage(this.getDomain(filePath, options));
+  getSubjectAreaStage(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): SemanticSubjectArea {
+    return SubjectAreaService.toLogicalStage(this.getSubjectArea(filePath, options));
   }
 
   /**
@@ -334,7 +334,7 @@ export class DomainService {
    *
    * Uses the global viewConfig for positions so layout is consistent across all stages.
    */
-  buildPhysicalDomain(
+  buildPhysicalSubjectArea(
     unifiedDomain: UnifiedSubjectArea,
     ymlData: YmlData,
     manifest?: ManifestData,
@@ -564,11 +564,11 @@ export class DomainService {
     const mergedForeignKeys = mergeCompositeForeignKeys(ymlData.compositeForeignKeys, manifest?.compositeForeignKeys);
 
     const relationships = derivePhysicalRelationships(
-      renameTestModels(mergedRelationshipTests, resolvedViaRelation),
+      renameTestTables(mergedRelationshipTests, resolvedViaRelation),
       physicalModelNames,
       renameMapKeys(mergedUniqueColumns, resolvedViaRelation),
       renameMapKeys(mergedCompositeGroups, resolvedViaRelation),
-      renameTestModels(mergedForeignKeys, resolvedViaRelation),
+      renameTestTables(mergedForeignKeys, resolvedViaRelation),
     );
 
     return {
@@ -869,7 +869,7 @@ function physicalAlias(
 }
 
 /** Rewrite relationship test endpoints named in `renames` (normalised dbt name → logical name). */
-function renameTestModels<T extends { fromModel: string; toModel: string }>(tests: T[], renames: Map<string, string>): T[] {
+function renameTestTables<T extends { fromModel: string; toModel: string }>(tests: T[], renames: Map<string, string>): T[] {
   if (renames.size === 0) { return tests; }
   return tests.map(t => ({
     ...t,

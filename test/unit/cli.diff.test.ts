@@ -10,7 +10,7 @@ import { fixesFromPlan, runDiff, type DiffResult } from '../../src/cli/diff';
 import { canonicalRelationship } from '@erd-studio/core';
 import { main } from '../../src/cli/index';
 import type { InventoryResult } from '../../src/cli/inventory';
-import { computeDomainDiff } from '../../src/services/stageDiff';
+import { computeSubjectAreaDiff } from '../../src/services/stageDiff';
 import { allSelections, buildSyncPlan } from '../../src/services/syncPlanBuilder';
 import type { SyncPlan } from '../../src/types/syncPlan';
 import type { Relationship } from '../../src/types/semantic';
@@ -47,7 +47,7 @@ describe('diff', () => {
     expect(exitCode).toBe(1);
     const d = result.domains[0];
     const file = path.join(PROJECT, '.erd-studio/silver/showcase.json');
-    const expected = computeDomainDiff(
+    const expected = computeSubjectAreaDiff(
       { domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
     expect(d.report).toEqual(expected.report);
     const plan = buildSyncPlan(expected.report, allSelections(expected.report, 'physical'), {
@@ -600,8 +600,8 @@ describe('the read winner sees dbt\'s key evidence in the CLI as on the canvas (
 
     const ctx = await buildCliContext({ project: root, semanticDir: '.erd-studio' });
     // Flags alone draw the dimension's backwards copy; dbt's unique test on dim_customer.customer_key draws the fact's.
-    expect(ctx.domainService.getDomain(file).logical.relationships[0].fromModel).toBe('dim_customer');
-    const canvas = computeDomainDiff({ domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
+    expect(ctx.domainService.getSubjectArea(file).logical.relationships[0].fromModel).toBe('dim_customer');
+    const canvas = computeSubjectAreaDiff({ domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
     expect(canvas.source.relationships).toEqual([expect.objectContaining({ fromModel: 'fct_order', toModel: 'dim_customer', cardinality: 'many-to-one' })]);
     expect(canvas.report.relationships.map((r) => r.status)).toEqual(['matched']);
 

@@ -17,10 +17,10 @@
  * command in extension.ts builds the WorkspaceEdit from the plan.
  */
 
-import { MODEL_NAME_PATTERN, sameName } from '../types/naming';
+import { TABLE_NAME_PATTERN, sameName } from '../types/naming';
 
 /** A domain file that references the duplicated name. */
-export interface DomainReference {
+export interface SubjectAreaReference {
   filePath: string;
   domain: string;
   layer: string;
@@ -37,9 +37,9 @@ export interface DuplicateFixPlan {
   /** The alias it gets: the old name, so the table is still called `date`. */
   alias: string;
   /** Domains to repoint from `name` to `newName`: those in the copy's layer. */
-  repoint: DomainReference[];
+  repoint: SubjectAreaReference[];
   /** Domains that keep using the winning file, named so the dialog can say so. */
-  keep: DomainReference[];
+  keep: SubjectAreaReference[];
 }
 
 /**
@@ -52,7 +52,7 @@ export function suggestDuplicateName(name: string, folder: string, taken: Readon
   const base = prefix ? `${prefix}_${name}` : `${name}_copy`;
   const candidates = [base, ...[2, 3, 4, 5, 6, 7, 8, 9].map((n) => `${base}_${n}`)];
   const isTaken = (c: string) => taken.has(c) || [...taken].some((t) => sameName(t, c));
-  return candidates.find((c) => MODEL_NAME_PATTERN.test(c) && !isTaken(c)) ?? '';
+  return candidates.find((c) => TABLE_NAME_PATTERN.test(c) && !isTaken(c)) ?? '';
 }
 
 /**
@@ -64,7 +64,7 @@ export function planDuplicateFix(
   folder: string,
   newName: string,
   existingAlias: string | undefined,
-  references: readonly DomainReference[],
+  references: readonly SubjectAreaReference[],
 ): DuplicateFixPlan {
   const repoint = references.filter((r) => folder !== '' && r.layer === folder);
   const keep = references.filter((r) => !repoint.includes(r));
@@ -97,7 +97,7 @@ export function describeDuplicateFix(plan: DuplicateFixPlan, fromLabel: string, 
  * A document whose `logical.models` is not a list of names (v4 inline models)
  * is left alone — those domains carry their own model bodies.
  */
-export function repointDomainModel(doc: Record<string, unknown>, oldName: string, newName: string): boolean {
+export function repointSubjectAreaTable(doc: Record<string, unknown>, oldName: string, newName: string): boolean {
   const logical = doc.logical as Record<string, unknown> | undefined;
   if (!logical || !Array.isArray(logical.models) || !logical.models.every((m) => typeof m === 'string')) {
     return false;

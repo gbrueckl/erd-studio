@@ -13,10 +13,10 @@
 
 import type { DiagramExportFormat } from '@erd-studio/core';
 
-import { exportDomainFile } from '../services/diagramExport';
+import { exportSubjectAreaFile } from '../services/diagramExport';
 import { dbtKeyIndexOf } from '../services/stageDisplay';
 import { CliEnvError, relPath, type CliContext } from './context';
-import { describeDomainError, resolveDomainPath } from './diff';
+import { describeSubjectAreaError, resolveSubjectAreaPath } from './diff';
 
 export interface ExportOptions {
   /** The `--domain` argument, resolved like `diff --domain`. */
@@ -42,9 +42,9 @@ export interface ExportResult {
  * same codes and messages `diff --domain` uses (exit 3).
  */
 export async function runExport(ctx: CliContext, opts: ExportOptions): Promise<ExportResult> {
-  const file = resolveDomainPath(ctx, opts.domain, opts.cwd);
+  const file = resolveSubjectAreaPath(ctx, opts.domain, opts.cwd);
   try {
-    const exported = await exportDomainFile(ctx.domainService, file, opts.format, {
+    const exported = await exportSubjectAreaFile(ctx.domainService, file, opts.format, {
       dbtKeyIndex: dbtKeyIndexOf(ctx.ymlData, ctx.manifest),
     });
     return {
@@ -55,7 +55,7 @@ export async function runExport(ctx: CliContext, opts: ExportOptions): Promise<E
       content: exported.content,
     };
   } catch (err) {
-    const { code, message } = describeDomainError(ctx, file, err);
+    const { code, message } = describeSubjectAreaError(ctx, file, err);
     throw new CliEnvError(code, message);
   }
 }

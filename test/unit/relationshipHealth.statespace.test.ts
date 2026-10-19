@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { applyMoveToModel, moveTargets, planRelationshipWrite, resolveConflict, usesLibraryRelationships } from '../../src/services/libraryRelationships';
+import { applyMoveToTable, moveTargets, planRelationshipWrite, resolveConflict, usesLibraryRelationships } from '../../src/services/libraryRelationships';
 import type { RelationshipWriteInput, RelationshipWriteOp, MoveToLibraryPlan, ConflictDefinition } from '../../src/services/libraryRelationships';
 import { auditRelationshipWrite, checkLibraryRewrite } from '../../src/services/relationshipHealth';
 import type { SemanticTable } from '../../src/types/semantic';
@@ -52,7 +52,7 @@ function moveCheck(models: SemanticTable[], plan0: MoveToLibraryPlan, picks: Arr
     if (!model) continue;
     const copy: SemanticTable = { ...clone(model), relationships: model.relationships ? clone(model.relationships) : undefined };
     before.push(clone(model));
-    applyMoveToModel(plan, copy);
+    applyMoveToTable(plan, copy);
     after.push(copy);
   }
   return checkLibraryRewrite(before, after, [...plan.toLibrary, ...plan.rehome.map((r) => r.to)]);

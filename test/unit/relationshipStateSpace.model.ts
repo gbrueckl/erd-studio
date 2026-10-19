@@ -27,13 +27,13 @@
 import { buildDbtKeyIndex, linkEnd, mergeLibraryRelationships, orientLink } from '@erd-studio/core';
 import type { DbtKeyIndex } from '@erd-studio/core';
 import {
-  applyMoveToModel,
+  applyMoveToTable,
   diagramsStillDrawing,
   drawnDiagramCopies,
   moveTargets,
   planMoveToLibrary,
   planRelationshipWrite,
-  renameColumnInDomainRelationships,
+  renameColumnInSubjectAreaRelationships,
   renameColumnInRelationships,
   resolveConflict,
   routeToLibrary,
@@ -289,7 +289,7 @@ export function hostRenameColumn(w: World, model: ModelName, oldName: string, ne
   const out = withLib(w, models);
   // The open diagram, and every other diagram's own copies, in the same edit (#133 L5).
   for (const d of ['D1', 'D2', 'D3'] as const) {
-    renameColumnInDomainRelationships(out.dom[d] as unknown as Array<Record<string, unknown>>, model, oldName, newName);
+    renameColumnInSubjectAreaRelationships(out.dom[d] as unknown as Array<Record<string, unknown>>, model, oldName, newName);
   }
   return { world: out };
 }
@@ -335,7 +335,7 @@ export function moveApply(w: World, plan0: MoveToLibraryPlan, picks: MovePick[])
   let out = clone(w);
   for (const name of moveTargets(plan)) {
     const copy = libModels(out).find((m) => m.name === name.toLowerCase())!;
-    if (applyMoveToModel(plan, copy)) out = withLib(out, [copy]);
+    if (applyMoveToTable(plan, copy)) out = withLib(out, [copy]);
   }
   for (const d of ['D1', 'D2', 'D3'] as const) {
     const keys = plan.removeFromDomains.get(d);

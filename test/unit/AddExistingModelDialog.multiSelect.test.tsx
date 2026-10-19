@@ -18,7 +18,7 @@ vi.mock('@xyflow/react', () => ({
 
 import { AddExistingModelDialog } from '../../webview/components/AddExistingModelDialog/AddExistingModelDialog';
 import { useEditorStore } from '../../webview/store/editorStore';
-import { ADD_EXISTING_MODELS_LIMIT } from '../../src/types/messages';
+import { ADD_EXISTING_TABLES_LIMIT } from '../../src/types/messages';
 
 const model = (name: string) => ({
   name, schema: '', description: '', columnCount: 1, source: 'logical' as const,
@@ -79,11 +79,11 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
   });
 
   it('a tick hidden by the search does not count toward the limit', () => {
-    const many = Array.from({ length: ADD_EXISTING_MODELS_LIMIT }, (_, i) => model(`m_${String(i).padStart(3, '0')}`));
+    const many = Array.from({ length: ADD_EXISTING_TABLES_LIMIT }, (_, i) => model(`m_${String(i).padStart(3, '0')}`));
     useEditorStore.getState().setExistingModels([...many, model('sap_a')]);
     render(<AddExistingModelDialog />);
     fireEvent.change(screen.getByPlaceholderText('Search tables...'), { target: { value: 'm_' } });
-    fireEvent.click(screen.getByRole('button', { name: `Select all ${ADD_EXISTING_MODELS_LIMIT} shown` }));
+    fireEvent.click(screen.getByRole('button', { name: `Select all ${ADD_EXISTING_TABLES_LIMIT} shown` }));
     fireEvent.change(screen.getByPlaceholderText('Search tables...'), { target: { value: 'sap' } });
     fireEvent.click(screen.getByText('sap_a'));
     expect(ticked()).toEqual(['sap_a']);
@@ -140,18 +140,18 @@ describe('AddExistingModelDialog multi-select (#160)', () => {
     expect(ticked()).toEqual([]);
   });
 
-  it(`stops at ${ADD_EXISTING_MODELS_LIMIT} models`, () => {
-    const many = Array.from({ length: ADD_EXISTING_MODELS_LIMIT + 5 }, (_, i) => model(`m_${String(i).padStart(3, '0')}`));
+  it(`stops at ${ADD_EXISTING_TABLES_LIMIT} models`, () => {
+    const many = Array.from({ length: ADD_EXISTING_TABLES_LIMIT + 5 }, (_, i) => model(`m_${String(i).padStart(3, '0')}`));
     useEditorStore.getState().setExistingModels(many);
     render(<AddExistingModelDialog />);
-    fireEvent.click(screen.getByRole('button', { name: `Select first ${ADD_EXISTING_MODELS_LIMIT} shown` }));
-    expect(screen.getByText(`${ADD_EXISTING_MODELS_LIMIT} selected`)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: `Select first ${ADD_EXISTING_TABLES_LIMIT} shown` }));
+    expect(screen.getByText(`${ADD_EXISTING_TABLES_LIMIT} selected`)).toBeTruthy();
     // A further tick is refused rather than dropped later by the host.
-    fireEvent.click(screen.getByText(many[ADD_EXISTING_MODELS_LIMIT].name));
-    expect(screen.getByText(`${ADD_EXISTING_MODELS_LIMIT} selected`)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: `Add ${ADD_EXISTING_MODELS_LIMIT} Tables` }));
+    fireEvent.click(screen.getByText(many[ADD_EXISTING_TABLES_LIMIT].name));
+    expect(screen.getByText(`${ADD_EXISTING_TABLES_LIMIT} selected`)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: `Add ${ADD_EXISTING_TABLES_LIMIT} Tables` }));
     const sent = mockPostMessage.mock.calls[0][0];
     expect(sent.type).toBe('addExistingModels');
-    expect(sent.payload.modelNames).toHaveLength(ADD_EXISTING_MODELS_LIMIT);
+    expect(sent.payload.modelNames).toHaveLength(ADD_EXISTING_TABLES_LIMIT);
   });
 });

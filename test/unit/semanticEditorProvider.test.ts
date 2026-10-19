@@ -17,17 +17,17 @@ import {
   PHYSICAL_READ_ONLY_MESSAGE,
   MANIFEST_HINT_DISMISSED_KEY,
   describeSkippedDbtModels,
-  modelFolderForDomain,
+  tableFolderForSubjectArea,
 } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { CatalogService } from '../../src/services/catalogService';
 import { TemplateService } from '../../src/services/templateService';
 import { SelectorsService } from '../../src/services/selectorsService';
-import { DOMAIN_EDITOR_VIEW_TYPE } from '../../src/services/recoveryService';
+import { SUBJECT_AREA_EDITOR_VIEW_TYPE } from '../../src/services/recoveryService';
 import { hostErrorLog } from '../../src/services/feedbackService';
 import { telemetry } from '../../src/services/telemetryService';
 
@@ -78,9 +78,9 @@ function makeDoc(fsPath: string): MockDoc {
 
 function buildProvider(root: string) {
   const layerService = new LayerService(root, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
+  const domainService = new SubjectAreaService(layerService);
+  const logicalModelService = new TableLibraryService(root, '.erd-studio');
+  domainService.setTableLibraryService(logicalModelService);
   const manifestService = new ManifestService();
   const ymlParserService = new YmlParserService();
   const templateService = new TemplateService();
@@ -219,7 +219,7 @@ describe('auto-positioning (H24)', () => {
     });
     const before = fs.readFileSync(file, 'utf-8');
 
-    await provider.refreshAllOpenDomains();
+    await provider.refreshAllOpenSubjectAreas();
     await waitForType(panel, 'domainLoaded');
 
     expect(applyEditSpy).not.toHaveBeenCalled();
@@ -230,7 +230,7 @@ describe('auto-positioning (H24)', () => {
     expect(loaded.payload.viewConfig.positions.fct_order).toBeDefined();
     expect(Number.isFinite(loaded.payload.viewConfig.positions.fct_order.x)).toBe(true);
 
-    await provider.refreshDomainsReferencingModel('fct_order');
+    await provider.refreshSubjectAreasReferencingTable('fct_order');
     await waitForType(panel, 'domainLoaded', 2);
     expect(applyEditSpy).not.toHaveBeenCalled();
     expect(fs.readFileSync(file, 'utf-8')).toBe(before);
@@ -279,7 +279,7 @@ describe('first-open auto layout', () => {
     const { provider, panel, file } = await openShowcase(root, { clearViewConfig: true, sendReady: false });
     const before = fs.readFileSync(file, 'utf-8');
 
-    await provider.refreshAllOpenDomains();
+    await provider.refreshAllOpenSubjectAreas();
     await waitForType(panel, 'domainLoaded');
 
     expect(applyEditSpy).not.toHaveBeenCalled();
@@ -332,7 +332,7 @@ describe('disposed panels (H24)', () => {
     panel._simulateDispose();
 
     (provider as unknown as { post: (w: unknown, m: unknown) => void }).post(panel.webview, { type: 'error', payload: { message: 'x' } });
-    await provider.refreshAllOpenDomains();
+    await provider.refreshAllOpenSubjectAreas();
     await new Promise((r) => setTimeout(r, 30));
 
     expect(posted(panel).length).toBe(countBefore);
@@ -825,12 +825,12 @@ describe('exportDiagram', () => {
     const saved = tabGroups.activeTabGroup.activeTab;
     try {
       tabGroups.activeTabGroup.activeTab = undefined;
-      expect(provider.activeDomainPath()).toBeUndefined();
-      tabGroups.activeTabGroup.activeTab = { input: new vscode.TabInputCustom(vscode.Uri.file(file), DOMAIN_EDITOR_VIEW_TYPE) };
-      expect(provider.activeDomainPath()).toBe(file);
+      expect(provider.activeSubjectAreaPath()).toBeUndefined();
+      tabGroups.activeTabGroup.activeTab = { input: new vscode.TabInputCustom(vscode.Uri.file(file), SUBJECT_AREA_EDITOR_VIEW_TYPE) };
+      expect(provider.activeSubjectAreaPath()).toBe(file);
       // A custom editor this provider has no panel for is not a canvas.
       tabGroups.activeTabGroup.activeTab = { input: new vscode.TabInputCustom(vscode.Uri.file(path.join(root, 'x.json')), 'other') };
-      expect(provider.activeDomainPath()).toBeUndefined();
+      expect(provider.activeSubjectAreaPath()).toBeUndefined();
     } finally {
       tabGroups.activeTabGroup.activeTab = saved;
     }
@@ -1077,7 +1077,7 @@ describe('requestFeedbackDialog', () => {
   it('routes to the focused canvas and returns true', async () => {
     const { provider, panel, doc } = await openShowcase(root);
     vscode.window.tabGroups.activeTabGroup.activeTab = {
-      input: new vscode.TabInputCustom(doc.uri, DOMAIN_EDITOR_VIEW_TYPE),
+      input: new vscode.TabInputCustom(doc.uri, SUBJECT_AREA_EDITOR_VIEW_TYPE),
     };
 
     expect(provider.requestFeedbackDialog({ kind: 'bug', title: 'From palette' })).toBe(true);
@@ -1105,7 +1105,7 @@ describe('requestFeedbackDialog', () => {
     vscode.window.tabGroups.activeTabGroup.activeTab = {
       input: new vscode.TabInputCustom(
         vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'other.json')),
-        DOMAIN_EDITOR_VIEW_TYPE,
+        SUBJECT_AREA_EDITOR_VIEW_TYPE,
       ),
     };
     expect(provider.requestFeedbackDialog()).toBe(false);
@@ -1120,13 +1120,13 @@ describe('requestFeedbackDialog', () => {
 
 describe('modelFolderForDomain', () => {
   it('is the layer directory of the domain file', () => {
-    expect(modelFolderForDomain('/p/.erd-studio/silver/showcase.json')).toBe('silver');
-    expect(modelFolderForDomain('/p/.erd-studio/gold/finance.json')).toBe('gold');
-    expect(modelFolderForDomain(path.join('C:', 'p', '.erd-studio', 'bronze', 'x.json'))).toBe('bronze');
+    expect(tableFolderForSubjectArea('/p/.erd-studio/silver/showcase.json')).toBe('silver');
+    expect(tableFolderForSubjectArea('/p/.erd-studio/gold/finance.json')).toBe('gold');
+    expect(tableFolderForSubjectArea(path.join('C:', 'p', '.erd-studio', 'bronze', 'x.json'))).toBe('bronze');
   });
 
   it('returns whatever the parent directory is called (LogicalModelService rejects non-layer names)', () => {
-    expect(modelFolderForDomain('/tmp/Some Folder/domain.json')).toBe('Some Folder');
+    expect(tableFolderForSubjectArea('/tmp/Some Folder/domain.json')).toBe('Some Folder');
   });
 });
 

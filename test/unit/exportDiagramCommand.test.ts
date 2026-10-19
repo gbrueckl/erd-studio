@@ -18,16 +18,16 @@ import {
   FORMAT_ITEMS,
   MERMAID_COPIED_MESSAGE,
   NO_DIAGRAMS_MESSAGE,
-  domainPathFromArg,
+  subjectAreaPathFromArg,
   exportDiagramCommand,
   type ExportAction,
   type ExportDiagramDeps,
   type ExportDiagramUi,
 } from '../../src/commands/exportDiagram';
-import { exportDomainFile } from '../../src/services/diagramExport';
-import { DomainService } from '../../src/services/domainService';
+import { exportSubjectAreaFile } from '../../src/services/diagramExport';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { telemetry } from '../../src/services/telemetryService';
 import type { DiagramExportFormat } from '@erd-studio/core';
 
@@ -122,15 +122,15 @@ const DOMAIN = '/project/.erd-studio/silver/showcase.json';
 
 describe('domainPathFromArg', () => {
   it('reads a file Uri, a path string and the domain tree node', () => {
-    expect(domainPathFromArg(vscode.Uri.file(DOMAIN))).toBe(DOMAIN);
-    expect(domainPathFromArg(DOMAIN)).toBe(DOMAIN);
-    expect(domainPathFromArg({ type: 'domain', summary: { filePath: DOMAIN, domain: 'showcase', layer: 'silver' } })).toBe(DOMAIN);
+    expect(subjectAreaPathFromArg(vscode.Uri.file(DOMAIN))).toBe(DOMAIN);
+    expect(subjectAreaPathFromArg(DOMAIN)).toBe(DOMAIN);
+    expect(subjectAreaPathFromArg({ type: 'domain', summary: { filePath: DOMAIN, domain: 'showcase', layer: 'silver' } })).toBe(DOMAIN);
   });
 
   it('treats anything else as no argument', () => {
     for (const arg of [undefined, null, '', 42, {}, [], { type: 'layer', layer: 'silver' }, { type: 'domain', summary: {} },
       { fsPath: DOMAIN, scheme: 'untitled' }]) {
-      expect(domainPathFromArg(arg), JSON.stringify(arg)).toBeUndefined();
+      expect(subjectAreaPathFromArg(arg), JSON.stringify(arg)).toBeUndefined();
     }
   });
 });
@@ -358,9 +358,9 @@ describe('errors', () => {
 describe('with the real exporter', () => {
   it('copies the fixture showcase domain as versioned Mermaid and DBML text', async () => {
     const layerService = new LayerService(FIXTURE_ROOT, '.erd-studio');
-    const domainService = new DomainService(layerService);
-    domainService.setLogicalModelService(new LogicalModelService(FIXTURE_ROOT, '.erd-studio'));
-    const exportDomain = (p: string, f: DiagramExportFormat) => exportDomainFile(domainService, p, f);
+    const domainService = new SubjectAreaService(layerService);
+    domainService.setTableLibraryService(new TableLibraryService(FIXTURE_ROOT, '.erd-studio'));
+    const exportDomain = (p: string, f: DiagramExportFormat) => exportSubjectAreaFile(domainService, p, f);
 
     for (const format of ['mermaid', 'dbml'] as const) {
       const ui = fakeUi({ format, action: 'copy' });

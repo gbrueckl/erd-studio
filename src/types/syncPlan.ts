@@ -24,7 +24,7 @@ export type GroundTruth = 'logical' | 'physical';
  * Build a selection key for a discrepancy item.
  * Keys are deterministic strings used as Map keys in the Zustand store.
  */
-export function modelKey(modelName: string): string {
+export function tableKey(modelName: string): string {
   return `model:${modelName}`;
 }
 
@@ -57,17 +57,17 @@ export function relationshipSelectionKey(r: {
 // Resolution types  (one per discrepancy that the user resolved)
 // ---------------------------------------------------------------------------
 
-export type ModelAction =
+export type TableAction =
   | 'add-to-logical'
   | 'remove-from-logical'
   | 'add-to-physical'
   | 'remove-from-physical';
 
-export interface ModelResolution {
+export interface TableResolution {
   modelName: string;
   discrepancyStatus: 'extra' | 'missing';
   groundTruth: GroundTruth;
-  action: ModelAction;
+  action: TableAction;
 }
 
 export type ColumnAction =
@@ -133,7 +133,7 @@ export interface RelationshipResolution {
 // Model context  (file paths for the AI skill to locate files)
 // ---------------------------------------------------------------------------
 
-export interface ModelContext {
+export interface TableContext {
   modelName: string;
   /** Relative path to the logical model YAML (e.g. .erd-studio/logical-models/dim_customer.yml). */
   logicalModelPath: string;
@@ -159,9 +159,9 @@ export interface SyncPlan {
   /** The stage compared against. */
   targetStage: Stage;
   /** File path context for every model referenced in the actions. */
-  modelContext: Record<string, ModelContext>;
+  modelContext: Record<string, TableContext>;
   /** Model-level resolutions. */
-  models: ModelResolution[];
+  models: TableResolution[];
   /** Column-level resolutions. */
   columns: ColumnResolution[];
   /** Relationship-level resolutions. */
@@ -189,11 +189,11 @@ export interface SyncPlan {
  *
  * When sourceStage is 'physical', the semantics flip.
  */
-export function deriveModelAction(
+export function deriveTableAction(
   status: 'extra' | 'missing',
   groundTruth: GroundTruth,
   sourceStage: Stage,
-): ModelAction | null {
+): TableAction | null {
   const logicalIsSource = sourceStage === 'logical';
 
   if (status === 'extra') {

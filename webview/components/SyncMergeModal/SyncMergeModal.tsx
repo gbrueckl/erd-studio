@@ -18,7 +18,7 @@ import { STAGE_HEX } from '@erd-studio/renderer/editor';
 import { stageName } from '../../lib/stageUtils';
 import { SyncFooter, StalenessWarning } from '../DiscrepancyPanel/SyncControls';
 import {
-  modelKey,
+  tableKey,
   columnKey,
   relationshipKey,
   deriveColumnAction,
@@ -410,7 +410,7 @@ function ModelRowGroup({ model, conflictCols, sourceStage, targetStage, isCollap
   const setSyncSelection = useEditorStore((s) => s.setSyncSelection);
   const hasFoldableContent = conflictCols.length > 0;
 
-  const mKey = model.status !== 'matched' ? modelKey(model.name) : null;
+  const mKey = model.status !== 'matched' ? tableKey(model.name) : null;
 
   const columnKeys = useMemo(
     () => conflictCols.map((col) => columnKey(model.name, col.name)),
@@ -554,7 +554,7 @@ export function SyncMergeModal() {
   const allSyncKeys = useMemo(() => {
     const keys: string[] = [];
     for (const m of models) {
-      if (m.status !== 'matched') keys.push(modelKey(m.name));
+      if (m.status !== 'matched') keys.push(tableKey(m.name));
       for (const c of m.columns) {
         if (c.status !== 'matched') keys.push(columnKey(m.name, c.name));
       }
@@ -585,7 +585,7 @@ export function SyncMergeModal() {
     const status = new Map<string, boolean>();
     for (const m of models) {
       const keys: string[] = [];
-      if (m.status !== 'matched') keys.push(modelKey(m.name));
+      if (m.status !== 'matched') keys.push(tableKey(m.name));
       for (const c of m.columns) {
         if (c.status !== 'matched') keys.push(columnKey(m.name, c.name));
       }

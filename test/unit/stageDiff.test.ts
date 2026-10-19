@@ -16,12 +16,12 @@ vi.mock('../../src/services/stageDiff', async (importOriginal) => {
   return { ...actual, computeDomainDiff: vi.fn(actual.computeDomainDiff) };
 });
 
-import { computeDomainDiff, otherStage } from '../../src/services/stageDiff';
-import { buildLogicalDisplayDomain } from '../../src/services/stageDisplay';
+import { computeSubjectAreaDiff, otherStage } from '../../src/services/stageDiff';
+import { buildLogicalDisplaySubjectArea } from '../../src/services/stageDisplay';
 import { compare } from '../../src/services/discrepancyService';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { CatalogService } from '../../src/services/catalogService';
@@ -39,9 +39,9 @@ const SHOWCASE = path.join(FIXTURE_ROOT, '.erd-studio', 'silver', 'showcase.json
 
 function services(root: string) {
   const layerService = new LayerService(root, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
+  const domainService = new SubjectAreaService(layerService);
+  const logicalModelService = new TableLibraryService(root, '.erd-studio');
+  domainService.setTableLibraryService(logicalModelService);
   return { layerService, domainService, logicalModelService };
 }
 
@@ -56,22 +56,22 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-  vi.mocked(computeDomainDiff).mockClear();
+  vi.mocked(computeSubjectAreaDiff).mockClear();
 });
 
 /** The provider's orchestration before the extraction, verbatim in shape. */
-function legacyDiff(domainService: DomainService, file: string, source: Stage, target: Stage) {
+function legacyDiff(domainService: SubjectAreaService, file: string, source: Stage, target: Stage) {
   const build = (stage: Stage) => {
-    const unified = domainService.getDomain(file);
+    const unified = domainService.getSubjectArea(file);
     if (stage === 'physical') {
-      return domainService.buildPhysicalDomain(unified, ymlData, manifest, catalog);
+      return domainService.buildPhysicalSubjectArea(unified, ymlData, manifest, catalog);
     }
-    const domain = domainService.getDomainStage(file);
-    return buildLogicalDisplayDomain(domain, unified.viewConfig, unified.stubColumns);
+    const domain = domainService.getSubjectAreaStage(file);
+    return buildLogicalDisplaySubjectArea(domain, unified.viewConfig, unified.stubColumns);
   };
   const s = build(source);
   const t = build(target);
-  const unified = domainService.getDomain(file);
+  const unified = domainService.getSubjectArea(file);
   return compare(s, t, new Set(unified.stubColumns ?? []));
 }
 
@@ -83,7 +83,7 @@ describe('computeDomainDiff', () => {
 
   it.each<Stage>(['logical', 'physical'])('matches the previous orchestration from %s on showcase', (source) => {
     const { domainService } = services(FIXTURE_ROOT);
-    const result = computeDomainDiff({ domainService, ymlData, manifest, catalog }, SHOWCASE, source);
+    const result = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, SHOWCASE, source);
     expect(result.report).toEqual(legacyDiff(domainService, SHOWCASE, source, otherStage(source)));
     expect(result.report.sourceStage).toBe(source);
     expect(result.report.targetStage).toBe(otherStage(source));
@@ -94,7 +94,7 @@ describe('computeDomainDiff', () => {
 
   it('produces a non-trivial showcase report', () => {
     const { domainService } = services(FIXTURE_ROOT);
-    const { report } = computeDomainDiff({ domainService, ymlData, manifest, catalog }, SHOWCASE, 'logical');
+    const { report } = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, SHOWCASE, 'logical');
     expect(report.domain).toBe('showcase');
     expect(report.summary.totalModels).toBeGreaterThan(0);
     expect(report.models.map((m) => m.name)).toContain('dim_customer');
@@ -106,11 +106,11 @@ describe('computeDomainDiff', () => {
       fs.cpSync(FIXTURE_ROOT, tmp, { recursive: true });
       const file = path.join(tmp, '.erd-studio', 'silver', 'showcase.json');
       const { domainService } = services(tmp);
-      const before = computeDomainDiff({ domainService, ymlData, manifest, catalog }, file, 'logical').report;
+      const before = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, file, 'logical').report;
       const json = JSON.parse(fs.readFileSync(file, 'utf-8'));
       json.stubColumns = json.logical.models;
       fs.writeFileSync(file, JSON.stringify(json));
-      const after = computeDomainDiff({ domainService, ymlData, manifest, catalog }, file, 'logical').report;
+      const after = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, file, 'logical').report;
       // Stubbed models hide their missing (physical-only) columns.
       expect(after.summary.missingColumns).toBeLessThanOrEqual(before.summary.missingColumns);
       expect(after.models.flatMap((m) => m.columns).some((c) => c.status === 'missing')).toBe(false);
@@ -122,14 +122,14 @@ describe('computeDomainDiff', () => {
   it('diffs a v4 domain file without throwing', () => {
     const { domainService } = services(FIXTURE_ROOT);
     const file = path.join(FIXTURE_ROOT, '.erd-studio', 'gold', 'finance.json');
-    const { report, unified } = computeDomainDiff({ domainService, ymlData, manifest, catalog }, file, 'logical');
+    const { report, unified } = computeSubjectAreaDiff({ domainService, ymlData, manifest, catalog }, file, 'logical');
     expect(unified.schemaVersion).toBe(4);
     expect(report.models).toEqual([]);
   });
 
   it('propagates a missing domain file as an error', () => {
     const { domainService } = services(FIXTURE_ROOT);
-    expect(() => computeDomainDiff(
+    expect(() => computeSubjectAreaDiff(
       { domainService, ymlData, manifest }, path.join(FIXTURE_ROOT, '.erd-studio', 'silver', 'nope.json'), 'logical',
     )).toThrow(/not found/);
   });
@@ -176,7 +176,7 @@ describe('SemanticEditorProvider.handleToggleDiscrepancy', () => {
         { timeout: 4000 },
       );
 
-      const spy = vi.mocked(computeDomainDiff);
+      const spy = vi.mocked(computeSubjectAreaDiff);
       expect(spy).toHaveBeenCalledTimes(1);
       const [, domainPath, source, target] = spy.mock.calls[0];
       expect(domainPath).toBe(file);

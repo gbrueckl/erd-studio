@@ -5,25 +5,25 @@ import * as vscode from 'vscode';
 import {
   DRAFT_MODEL_LIMIT,
   buildDbtDraft,
-  buildDraftDomainDocument,
+  buildDraftSubjectAreaDocument,
   dbtTestsOf,
   folderRank,
   listDraftModels,
   listDraftScopes,
   markDraftKeys,
-  relationshipsForAddedModels,
-  seedModelFromDbt,
-  serializeDraftDomainDocument,
-  suggestDomainName,
+  relationshipsForAddedTables,
+  seedTableFromDbt,
+  serializeDraftSubjectAreaDocument,
+  suggestSubjectAreaName,
   suggestDraftLayer,
-  toDomainSlug,
+  toSubjectAreaSlug,
   type DraftScope,
 } from '../../src/services/dbtDraft';
 import { CHOOSE_MODELS_LABEL, pickDraftScope } from '../../src/providers/dbtDraftPicker';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { ManifestService } from '../../src/services/manifestService';
 import { CatalogService } from '../../src/services/catalogService';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
 import { normaliseName } from '../../src/services/nameUtils';
 import { detectSubjectAreaFormat } from '../../src/types/semantic';
@@ -223,7 +223,7 @@ describe('seedModelFromDbt', () => {
   it('copies the yml and fills gaps from the manifest', () => {
     const m = emptyManifest();
     m.models.set('fct_orders', manifestModel('fct_orders', 'models/marts/fct_orders.sql', [['customer_id', 'bigint']]));
-    const model = seedModelFromDbt('fct_orders', shopYml(), m)!;
+    const model = seedTableFromDbt('fct_orders', shopYml(), m)!;
     expect(model.schema).toBe('analytics');
     expect(model.columns!.find((c) => c.name === 'customer_id')).toEqual({ name: 'customer_id', dataType: 'bigint', description: 'customer_id doc' });
     expect(model.columns!.find((c) => c.name === 'amount')!.dataType).toBe('decimal');
@@ -233,8 +233,8 @@ describe('seedModelFromDbt', () => {
     const m = emptyManifest();
     m.models.set('x', manifestModel('x', 'models/x.sql', [['id', null]]));
     // No source has a type: empty, never an invented 'unknown'.
-    expect(seedModelFromDbt('x', undefined, m)!.columns).toEqual([{ name: 'id', dataType: '', description: 'id doc' }]);
-    expect(seedModelFromDbt('nope', shopYml(), m)).toBeUndefined();
+    expect(seedTableFromDbt('x', undefined, m)!.columns).toEqual([{ name: 'id', dataType: '', description: 'id doc' }]);
+    expect(seedTableFromDbt('nope', shopYml(), m)).toBeUndefined();
   });
 });
 
@@ -269,7 +269,7 @@ describe('seedModelFromDbt — column types from catalog.json', () => {
 
   it('fills types from the catalog, keeping the declared names and order and adding no column', () => {
     const { y, m, c } = untypedProject();
-    expect(seedModelFromDbt('fct_orders', y, m, c)!.columns!.map((x) => [x.name, x.dataType])).toEqual([
+    expect(seedTableFromDbt('fct_orders', y, m, c)!.columns!.map((x) => [x.name, x.dataType])).toEqual([
       ['order_id', 'NUMBER(38,0)'],
       ['customer_id', 'NUMBER(38,0)'],
       ['note', ''],
@@ -278,7 +278,7 @@ describe('seedModelFromDbt — column types from catalog.json', () => {
 
   it('leaves types empty without a catalog — the gap this closes', () => {
     const { y, m } = untypedProject();
-    expect(seedModelFromDbt('fct_orders', y, m)!.columns!.map((x) => x.dataType)).toEqual(['', '', '']);
+    expect(seedTableFromDbt('fct_orders', y, m)!.columns!.map((x) => x.dataType)).toEqual(['', '', '']);
   });
 
   it('resolves catalog, then yml data_type, then manifest — as the physical stage does', () => {
@@ -287,7 +287,7 @@ describe('seedModelFromDbt — column types from catalog.json', () => {
     const m = emptyManifest();
     m.models.set('dim_x', manifestModel('dim_x', 'models/marts/dim_x.sql', [['a', 'm_a'], ['b', 'm_b'], ['c', 'bigint']]));
     const c = catalogOf([{ uniqueId: 'model.p.dim_x', name: 'dim_x', columns: [col('A', 0, 'NUMBER')] }]);
-    expect(seedModelFromDbt('dim_x', y, m, c)!.columns!.map((x) => x.dataType)).toEqual(['NUMBER', 'int', 'bigint']);
+    expect(seedTableFromDbt('dim_x', y, m, c)!.columns!.map((x) => x.dataType)).toEqual(['NUMBER', 'int', 'bigint']);
   });
 
   it('joins the catalog by manifest unique_id first, by name without a manifest', () => {
@@ -299,8 +299,8 @@ describe('seedModelFromDbt — column types from catalog.json', () => {
       { uniqueId: 'model.p.orders.v2', name: 'orders', columns: [col('ID', 0, 'v2type')] },
       { uniqueId: 'model.p.orders.v1', name: 'orders', columns: [col('ID', 0, 'v1type')] },
     ]);
-    expect(seedModelFromDbt('orders', y, m, c)!.columns![0].dataType).toBe('v2type');
-    expect(seedModelFromDbt('orders', y, undefined, c)!.columns![0].dataType).toBe('v1type');
+    expect(seedTableFromDbt('orders', y, m, c)!.columns![0].dataType).toBe('v2type');
+    expect(seedTableFromDbt('orders', y, undefined, c)!.columns![0].dataType).toBe('v1type');
   });
 
   it('buildDbtDraft passes the catalog to its default seeding', () => {
@@ -315,7 +315,7 @@ describe('seedModelFromDbt — column types from catalog.json', () => {
     const catalog = await new CatalogService().loadCatalog(ROOT);
     expect(catalog).toBeDefined();
     // fct_task_event's yml declares no data_type; the catalog has the warehouse types.
-    const seeded = seedModelFromDbt('fct_task_event', ymlData, manifest, catalog)!;
+    const seeded = seedTableFromDbt('fct_task_event', ymlData, manifest, catalog)!;
     expect(seeded.columns!.map((x) => [x.name, x.dataType])).toEqual([
       ['event_id', 'integer'],
       ['task_key', 'integer'],
@@ -325,12 +325,12 @@ describe('seedModelFromDbt — column types from catalog.json', () => {
 
     // One rule: the physical stage resolves every column of every drawable model identically.
     const names = listDraftModels({ ymlData, manifest, projectRoot: ROOT, modelPaths: ['models'] }).map((e) => e.name);
-    const models = names.map((n) => seedModelFromDbt(n, ymlData, manifest, catalog)!);
+    const models = names.map((n) => seedTableFromDbt(n, ymlData, manifest, catalog)!);
     const unified: UnifiedSubjectArea = {
       schemaVersion: 4, domain: 'parity', layer: 'silver', description: '',
       logical: { models, relationships: [] }, viewConfig: {},
     };
-    const physical = new DomainService(new LayerService(ROOT)).buildPhysicalDomain(unified, ymlData, manifest, catalog);
+    const physical = new SubjectAreaService(new LayerService(ROOT)).buildPhysicalSubjectArea(unified, ymlData, manifest, catalog);
     for (const model of models) {
       const shown = physical.models.find((pm) => pm.name === model.name)!;
       const shownTypes = new Map(shown.columns.map((pc) => [normaliseName(pc.name), pc.dataType]));
@@ -345,7 +345,7 @@ describe('relationshipsForAddedModels', () => {
   const tests = dbtTestsOf(shopYml());
 
   it('keeps only edges touching an added model whose other end is in the domain', () => {
-    const rels = relationshipsForAddedModels(['dim_customers'], ['fct_orders'], tests.relationshipTests, tests.unique);
+    const rels = relationshipsForAddedTables(['dim_customers'], ['fct_orders'], tests.relationshipTests, tests.unique);
     expect(rels).toEqual([
       { fromModel: 'fct_orders', fromColumn: 'customer_id', toModel: 'dim_customers', toColumn: 'customer_id', cardinality: 'many-to-one' },
     ]);
@@ -355,11 +355,11 @@ describe('relationshipsForAddedModels', () => {
     const y = shopYml();
     y.relationshipTests = [{ fromModel: 'fct_orders', fromColumn: 'order_id', toModel: 'dim_customers', toColumn: 'customer_id' }];
     const t = dbtTestsOf(y);
-    expect(relationshipsForAddedModels([], ['fct_orders', 'dim_customers'], t.relationshipTests, t.unique)[0].cardinality).toBe('one-to-one');
+    expect(relationshipsForAddedTables([], ['fct_orders', 'dim_customers'], t.relationshipTests, t.unique)[0].cardinality).toBe('one-to-one');
     // Neither side unique is still many-to-one: the test names the "one" side.
     y.uniqueColumns = new Map();
     const t2 = dbtTestsOf(y);
-    expect(relationshipsForAddedModels([], ['fct_orders', 'dim_customers'], t2.relationshipTests, t2.unique)[0].cardinality).toBe('many-to-one');
+    expect(relationshipsForAddedTables([], ['fct_orders', 'dim_customers'], t2.relationshipTests, t2.unique)[0].cardinality).toBe('many-to-one');
   });
 
   it('skips relationships the domain already has and dedupes yml + manifest', () => {
@@ -367,7 +367,7 @@ describe('relationshipsForAddedModels', () => {
     m.relationshipTests = [{ fromModel: 'FCT_ORDERS', fromColumn: 'CUSTOMER_ID', toModel: 'dim_customers', toColumn: 'customer_id' }];
     const t = dbtTestsOf(shopYml(), m);
     expect(t.relationshipTests).toHaveLength(2);
-    const rels = relationshipsForAddedModels(
+    const rels = relationshipsForAddedTables(
       ['dim_customers', 'dim_products'], ['fct_orders'], t.relationshipTests, t.unique,
       [{ fromModel: 'fct_orders', fromColumn: 'product_id', toModel: 'dim_products', toColumn: 'product_id' }],
     );
@@ -377,7 +377,7 @@ describe('relationshipsForAddedModels', () => {
 
 describe('markDraftKeys', () => {
   it('marks a sole unique column as PK and relationship sources as FK', () => {
-    const model = seedModelFromDbt('fct_orders', shopYml())!;
+    const model = seedTableFromDbt('fct_orders', shopYml())!;
     const t = dbtTestsOf(shopYml());
     const marked = markDraftKeys(model, t.unique, [
       { fromModel: 'fct_orders', fromColumn: 'customer_id', toModel: 'dim_customers', toColumn: 'customer_id', cardinality: 'many-to-one' },
@@ -391,7 +391,7 @@ describe('markDraftKeys', () => {
   it('marks no PK when a composite key exists', () => {
     const y = shopYml();
     y.compositeUniqueGroups = new Map([['fct_orders', [['order_id', 'product_id']]]]);
-    const marked = markDraftKeys(seedModelFromDbt('fct_orders', y)!, dbtTestsOf(y).unique, []);
+    const marked = markDraftKeys(seedTableFromDbt('fct_orders', y)!, dbtTestsOf(y).unique, []);
     expect(marked.columns!.some((c) => c.isPrimaryKey)).toBe(false);
   });
 });
@@ -491,7 +491,7 @@ describe('buildDbtDraft', () => {
 
 describe('buildDraftDomainDocument', () => {
   it('writes a v5 domain with an empty viewConfig, so the canvas auto-lays it out', () => {
-    const doc = buildDraftDomainDocument({
+    const doc = buildDraftSubjectAreaDocument({
       domain: 'marts',
       layer: 'gold',
       description: ' From dbt ',
@@ -500,7 +500,7 @@ describe('buildDraftDomainDocument', () => {
     });
     expect(Object.keys(doc)).toEqual(['schemaVersion', 'domain', 'layer', 'description', 'logical', 'viewConfig']);
     expect(doc.description).toBe('From dbt');
-    const text = serializeDraftDomainDocument(doc);
+    const text = serializeDraftSubjectAreaDocument(doc);
     expect(text.endsWith('}\n')).toBe(true);
     const parsed = JSON.parse(text);
     expect(detectSubjectAreaFormat(parsed)).toBe('v5');
@@ -514,20 +514,20 @@ describe('suggestDomainName / toDomainSlug', () => {
   });
 
   it('names folders after their last segment and clusters after their hub', () => {
-    expect(suggestDomainName(folder('marts/finance'))).toBe('finance');
-    expect(suggestDomainName({ ...folder(''), kind: 'cluster', folder: undefined, modelNames: ['dim_customer', 'fct_x'] })).toBe('customer');
-    expect(suggestDomainName(folder(''))).toBe('dbt-draft');
-    expect(suggestDomainName(undefined)).toBe('dbt-draft');
+    expect(suggestSubjectAreaName(folder('marts/finance'))).toBe('finance');
+    expect(suggestSubjectAreaName({ ...folder(''), kind: 'cluster', folder: undefined, modelNames: ['dim_customer', 'fct_x'] })).toBe('customer');
+    expect(suggestSubjectAreaName(folder(''))).toBe('dbt-draft');
+    expect(suggestSubjectAreaName(undefined)).toBe('dbt-draft');
   });
 
   it('avoids taken names', () => {
-    expect(suggestDomainName(folder('marts'), ['marts', 'marts-2'])).toBe('marts-3');
+    expect(suggestSubjectAreaName(folder('marts'), ['marts', 'marts-2'])).toBe('marts-3');
   });
 
   it('slugs free text', () => {
-    expect(toDomainSlug('2024 Sales & Returns')).toBe('sales-returns');
-    expect(toDomainSlug('Finance')).toBe('finance');
-    expect(toDomainSlug('123')).toBe('');
+    expect(toSubjectAreaSlug('2024 Sales & Returns')).toBe('sales-returns');
+    expect(toSubjectAreaSlug('Finance')).toBe('finance');
+    expect(toSubjectAreaSlug('123')).toBe('');
   });
 });
 

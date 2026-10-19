@@ -156,7 +156,7 @@ function columnRemovalKeys(models: readonly SemanticTable[], domainRels: readonl
  * (`library`: its models), as drawn, so no copy of a member outlives the
  * key. Entries that are not relationships are kept.
  */
-export function removeColumnFromDomainRelationships<T>(
+export function removeColumnFromSubjectAreaRelationships<T>(
   relationships: readonly T[],
   modelName: string,
   column: string,
@@ -265,7 +265,7 @@ export function renameColumnInRelationships(
 }
 
 /** Follow a model rename in every other model's relationships that point at it (matched without case). */
-export function renameModelInRelationships(
+export function renameTableInRelationships(
   models: readonly SemanticTable[],
   oldName: string,
   newName: string,
@@ -290,7 +290,7 @@ export function renameModelInRelationships(
  * Entries that are not relationships are left alone. Returns whether any
  * entry changed.
  */
-export function renameColumnInDomainRelationships(
+export function renameColumnInSubjectAreaRelationships(
   relationships: ReadonlyArray<Record<string, unknown>>,
   modelName: string,
   oldColumn: string,
@@ -312,7 +312,7 @@ export function renameColumnInDomainRelationships(
 }
 
 /** Follow a model rename in a domain file's own `logical.relationships`, in place, matched without case. */
-export function renameModelInDomainRelationships(
+export function renameTableInSubjectAreaRelationships(
   relationships: ReadonlyArray<Record<string, unknown>>,
   oldName: string,
   newName: string,
@@ -408,7 +408,7 @@ export function planRelationshipWrite(op: RelationshipWriteOp, input: Relationsh
   if (input.models.length === 0) return { ...plan, inlineMarkKey: op.markKey };
   const target = input.models.find((m) => same(m.name, op.markKey!.model));
   if (!target) return refuse(`Table "${op.markKey.model}" not found in logical-models/.`, op.markKey.model);
-  const marked = markPrimaryKey(plan.changed.find((m) => same(m.name, target.name)) ?? copyModel(target), op.markKey.columns);
+  const marked = markPrimaryKey(plan.changed.find((m) => same(m.name, target.name)) ?? copyTable(target), op.markKey.columns);
   if (typeof marked === 'string') return refuse(marked.replace('{was}', op.kind === 'add' ? 'added' : 'changed'));
   return { ...plan, changed: [...plan.changed.filter((m) => !same(m.name, target.name)), marked] };
 }
@@ -503,7 +503,7 @@ function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): 
     // One edge of a composite deletes the whole group.
     const all = expandToGroups(models, domainRelationships, op.keys);
     const keys = new Set(all.map(linkKey));
-    const changed = models.map(copyModel).filter((m) => removeLibraryRelationships([m], all).length > 0);
+    const changed = models.map(copyTable).filter((m) => removeLibraryRelationships([m], all).length > 0);
     const kept = domainRelationships.filter((r) => !isEnds(r) || !keys.has(linkKey(r)));
     if (changed.length === 0 && kept.length === domainRelationships.length) return refuse('Relationship not found.');
     return { ok: true, changed, domainRelationships: kept.length === domainRelationships.length ? null : kept };
@@ -615,7 +615,7 @@ function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): 
     }
     if (!anchor) list.push(...entries);
     // A library copy (a project switching homes) is folded in too.
-    const changed = models.map(copyModel).filter((m) => dropWhere([m], (r) => replaceKeys.has(linkKey(r))).length > 0);
+    const changed = models.map(copyTable).filter((m) => dropWhere([m], (r) => replaceKeys.has(linkKey(r))).length > 0);
     return { ok: true, changed, domainRelationships: list, ...grouped };
   }
 
@@ -635,7 +635,7 @@ function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): 
     }
     if (isTarget && !placed) out.push(...next.map((n) => libraryEntry({ ...n, fromModel: model.name })));
     if (JSON.stringify(out) === JSON.stringify(list)) continue;
-    const copy = copyModel(model);
+    const copy = copyTable(model);
     if (out.length > 0) copy.relationships = out;
     else delete copy.relationships;
     changed.push(copy);
@@ -654,7 +654,7 @@ const isEnds = (r: unknown): r is Relationship => !!r && typeof r === 'object'
 const pickEnds = (r: RelationshipEnds): RelationshipEnds =>
   ({ fromModel: r.fromModel, fromColumn: r.fromColumn, toModel: r.toModel, toColumn: r.toColumn });
 
-const copyModel = (m: SemanticTable): SemanticTable =>
+const copyTable = (m: SemanticTable): SemanticTable =>
   ({ ...m, ...(m.relationships ? { relationships: m.relationships.map((r) => ({ ...r })) } : {}) });
 
 type DiagramRelationships = { label: string; models: readonly string[]; relationships: readonly Relationship[] };
@@ -1324,7 +1324,7 @@ export function moveTargets(plan: Pick<MoveToLibraryPlan, 'toLibrary' | 'rehome'
  * the link keeps that copy, gaining only a role it lacks. Returns whether the
  * model changed. Shared by the command and the exhaustive checker.
  */
-export function applyMoveToModel(plan: Pick<MoveToLibraryPlan, 'toLibrary' | 'rehome'>, model: SemanticTable): boolean {
+export function applyMoveToTable(plan: Pick<MoveToLibraryPlan, 'toLibrary' | 'rehome'>, model: SemanticTable): boolean {
   let changed = false;
   for (const { from, stored } of plan.rehome) {
     if (!same(from, model.name)) continue;

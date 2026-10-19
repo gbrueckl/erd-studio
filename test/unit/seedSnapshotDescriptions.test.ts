@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildCliContext } from '../../src/cli/context';
 import { runInventory } from '../../src/cli/inventory';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { extractManifestData } from '../../src/workers/manifestExtractor';
 import type { UnifiedSubjectArea } from '../../src/types/semantic';
@@ -171,7 +171,7 @@ describe('physical stage — seed / snapshot descriptions', () => {
   it('adds descriptions but no columns to a file-only seed', async () => {
     scaffold();
     const yml = await new YmlParserService().loadYmlData(tmp);
-    const physical = new DomainService().buildPhysicalDomain(unified(['raw_customers']), yml);
+    const physical = new SubjectAreaService().buildPhysicalSubjectArea(unified(['raw_customers']), yml);
     const seed = physical.models[0];
     expect(seed.description).toBe('Raw export of customers.');
     expect(seed.columns).toEqual([]);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { buildLogicalDisplayDomain, dbtKeyIndexOf, withDbtKeyHints } from '../../src/services/stageDisplay';
+import { buildLogicalDisplaySubjectArea, dbtKeyIndexOf, withDbtKeyHints } from '../../src/services/stageDisplay';
 import type { SemanticSubjectArea, SemanticTable } from '../../src/types/semantic';
 
 function model(name: string, columns: Array<Record<string, unknown>>, extra: Partial<SemanticTable> = {}): SemanticTable {
@@ -34,7 +34,7 @@ function domain(overrides: Partial<SemanticSubjectArea> = {}): SemanticSubjectAr
 
 describe('buildLogicalDisplayDomain', () => {
   it('derives isForeignKey from relationships and keeps declared FKs', () => {
-    const out = buildLogicalDisplayDomain(domain(), {});
+    const out = buildLogicalDisplaySubjectArea(domain(), {});
     const cols = out.models[0].columns;
     expect(cols.find((c) => c.name === 'customer_id')!.isForeignKey).toBe(true);
     expect(cols.find((c) => c.name === 'legacy_ref')!.isForeignKey).toBe(true);
@@ -44,7 +44,7 @@ describe('buildLogicalDisplayDomain', () => {
   });
 
   it('coerces key flags with === true', () => {
-    const out = buildLogicalDisplayDomain(domain(), {});
+    const out = buildLogicalDisplaySubjectArea(domain(), {});
     expect(out.models[0].columns[0].isPrimaryKey).toBe(true);
     const cust = out.models[1].columns[0];
     expect(cust.isPrimaryKey).toBe(false); // 'yes' is not true
@@ -53,7 +53,7 @@ describe('buildLogicalDisplayDomain', () => {
   });
 
   it('carries optional model/column fields only when set', () => {
-    const out = buildLogicalDisplayDomain(domain(), {});
+    const out = buildLogicalDisplaySubjectArea(domain(), {});
     expect(out.models[0]).toMatchObject({ grain: 'one row per order', modelRole: 'fact', schema: '' });
     expect(out.models[1]).not.toHaveProperty('grain');
     expect(out.models[0].columns[3]).toMatchObject({ additiveType: 'additive' });
@@ -62,7 +62,7 @@ describe('buildLogicalDisplayDomain', () => {
 
   it('builds the stage envelope with no canvas extras', () => {
     const viewConfig = { positions: { fct_order: { x: 1, y: 2 } } };
-    const out = buildLogicalDisplayDomain(domain(), viewConfig as never);
+    const out = buildLogicalDisplaySubjectArea(domain(), viewConfig as never);
     expect(out).toMatchObject({
       schemaVersion: 5, domain: 'orders', layer: 'gold', stage: 'logical',
       description: 'Order domain', readOnly: false, positionDraggable: true,
@@ -77,20 +77,20 @@ describe('buildLogicalDisplayDomain', () => {
   });
 
   it('includes stubColumns only when non-empty', () => {
-    expect(buildLogicalDisplayDomain(domain(), {}, [])).not.toHaveProperty('stubColumns');
-    expect(buildLogicalDisplayDomain(domain(), {}, ['dim_customer']).stubColumns).toEqual(['dim_customer']);
+    expect(buildLogicalDisplaySubjectArea(domain(), {}, [])).not.toHaveProperty('stubColumns');
+    expect(buildLogicalDisplaySubjectArea(domain(), {}, ['dim_customer']).stubColumns).toEqual(['dim_customer']);
   });
 
   it('tolerates a model with no columns array', () => {
     const d = domain({ models: [{ name: 'bare' } as SemanticTable], relationships: [] });
-    const out = buildLogicalDisplayDomain(d, {});
+    const out = buildLogicalDisplaySubjectArea(d, {});
     expect(out.models[0]).toEqual({ name: 'bare', schema: '', description: '', columns: [] });
   });
 });
 
 describe('withDbtKeyHints — dbt evidence on the editable payload (#133 L1)', () => {
   it('adds dbtKey only to the columns dbt\'s tests name, from the yml and the manifest', () => {
-    const display = buildLogicalDisplayDomain(domain(), {});
+    const display = buildLogicalDisplaySubjectArea(domain(), {});
     const index = dbtKeyIndexOf(
       { uniqueColumns: new Map([['FCT_ORDER', new Set(['order_id'])]]), compositeUniqueGroups: new Map(), relationshipTests: [] } as never,
       { uniqueColumns: new Map(), compositeUniqueGroups: new Map(), relationshipTests: [{ fromModel: 'fct_order', fromColumn: 'customer_id', toModel: 'dim_customer', toColumn: 'customer_id' }] } as never,
@@ -108,7 +108,7 @@ describe('withDbtKeyHints — dbt evidence on the editable payload (#133 L1)', (
   });
 
   it('returns the payload itself when dbt says nothing', () => {
-    const display = buildLogicalDisplayDomain(domain(), {});
+    const display = buildLogicalDisplaySubjectArea(domain(), {});
     expect(withDbtKeyHints(display, dbtKeyIndexOf(undefined, undefined))).toBe(display);
   });
 });

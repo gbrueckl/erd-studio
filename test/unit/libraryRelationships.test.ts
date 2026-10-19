@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import {
-  applyMoveToModel,
+  applyMoveToTable,
   describeLeftAlone,
   describeMovePlan,
   diagramsStillDrawing,
@@ -15,20 +15,20 @@ import {
   planRelationshipWrite,
   planMoveToLibrary,
   planRehome,
-  removeColumnFromDomainRelationships,
+  removeColumnFromSubjectAreaRelationships,
   removeColumnRelationships,
   removeLibraryRelationships,
   resolveConflict,
   sharedRelationshipCount,
-  renameColumnInDomainRelationships,
+  renameColumnInSubjectAreaRelationships,
   renameColumnInRelationships,
-  renameModelInDomainRelationships,
-  renameModelInRelationships,
+  renameTableInSubjectAreaRelationships,
+  renameTableInRelationships,
   routeToLibrary,
   upsertLibraryRelationship,
   usesLibraryRelationships,
 } from '../../src/services/libraryRelationships';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { buildDbtKeyIndex } from '@erd-studio/core';
 import type { ColumnPair } from '@erd-studio/core';
 import type { Relationship, SemanticTable } from '../../src/types/semantic';
@@ -73,7 +73,7 @@ describe('library relationship edits', () => {
   it('follows column and model renames in other models', () => {
     const model = fct([STORED]);
     renameColumnInRelationships([model], 'dim_customer', 'customer_key', 'customer_sk');
-    renameModelInRelationships([model], 'dim_customer', 'dim_client');
+    renameTableInRelationships([model], 'dim_customer', 'dim_client');
     expect(model.relationships).toEqual([{ ...STORED, toModel: 'dim_client', toColumn: 'customer_sk' }]);
   });
 
@@ -82,7 +82,7 @@ describe('library relationship edits', () => {
     const other = fct([{ ...STORED, toModel: 'Dim_Customer', toColumn: 'Customer_Key' }]);
     renameColumnInRelationships([own], 'fct_order', 'customer_key', 'customer_sk');
     renameColumnInRelationships([other], 'dim_customer', 'customer_key', 'customer_sk');
-    renameModelInRelationships([other], 'DIM_customer', 'dim_client');
+    renameTableInRelationships([other], 'DIM_customer', 'dim_client');
     expect(own.relationships).toEqual([{ ...STORED, fromColumn: 'customer_sk' }]);
     expect(other.relationships).toEqual([{ ...STORED, toModel: 'dim_client', toColumn: 'customer_sk' }]);
   });
@@ -93,14 +93,14 @@ describe('library relationship edits', () => {
       { ...REL, toColumn: 'CUSTOMER_KEY' },
       { note: 'not a relationship' },
     ];
-    expect(renameColumnInDomainRelationships(rels, 'fct_order', 'customer_key', 'customer_sk')).toBe(true);
-    expect(renameModelInDomainRelationships(rels, 'Dim_Customer', 'dim_client')).toBe(true);
+    expect(renameColumnInSubjectAreaRelationships(rels, 'fct_order', 'customer_key', 'customer_sk')).toBe(true);
+    expect(renameTableInSubjectAreaRelationships(rels, 'Dim_Customer', 'dim_client')).toBe(true);
     expect(rels).toEqual([
       { ...REL, fromModel: 'FCT_ORDER', fromColumn: 'customer_sk', toModel: 'dim_client' },
       { ...REL, fromColumn: 'customer_sk', toModel: 'dim_client', toColumn: 'CUSTOMER_KEY' },
       { note: 'not a relationship' },
     ]);
-    expect(renameColumnInDomainRelationships(rels, 'nope', 'customer_key', 'x')).toBe(false);
+    expect(renameColumnInSubjectAreaRelationships(rels, 'nope', 'customer_key', 'x')).toBe(false);
   });
 
   it('routes a link whose ends are spelled in another case to one model object (#133 L4)', () => {
@@ -166,15 +166,15 @@ describe('LogicalModelService writes relationships', () => {
   it('round-trips the list and leaves an unchanged one (and its comment) alone', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-rels-yml-'));
     try {
-      const service = new LogicalModelService(root, '.erd-studio');
-      service.saveModel(fct([STORED]));
-      const file = service.modelPath('fct_order');
+      const service = new TableLibraryService(root, '.erd-studio');
+      service.saveTable(fct([STORED]));
+      const file = service.tablePath('fct_order');
       const text = fs.readFileSync(file, 'utf-8').replace('relationships:', 'relationships: # shared across domains');
       fs.writeFileSync(file, text);
       service.invalidateCache();
-      const model = service.getModel('fct_order')!;
+      const model = service.getTable('fct_order')!;
       expect(model.relationships).toEqual([STORED]);
-      service.saveModel({ ...model, description: 'Orders' });
+      service.saveTable({ ...model, description: 'Orders' });
       expect(fs.readFileSync(file, 'utf-8')).toContain('# shared across domains');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -513,7 +513,7 @@ describe('the move preview and its leftovers', () => {
 
   it('applies a turned-round entry by itself, and gives a role only to the copy that says the same', () => {
     const model = fct([{ ...STORED, cardinality: 'one-to-one' }, STORED]);
-    applyMoveToModel({ toLibrary: [{ ...REL, role: 'buyer' }], rehome: [] }, model);
+    applyMoveToTable({ toLibrary: [{ ...REL, role: 'buyer' }], rehome: [] }, model);
     expect(model.relationships).toEqual([{ ...STORED, cardinality: 'one-to-one' }, { ...STORED, role: 'buyer' }]);
   });
 
@@ -617,9 +617,9 @@ describe('composite foreign keys (#133 L2)', () => {
     removeColumnRelationships(ms, SAT, 'LOAD_DATE');
     expect(ms[0].relationships).toBeUndefined();
     const own = GROUP.map((m) => ({ fromModel: PIT, ...m }));
-    expect(removeColumnFromDomainRelationships([...own, { note: 'x' }], PIT, 'customer_hk')).toEqual([{ note: 'x' }]);
+    expect(removeColumnFromSubjectAreaRelationships([...own, { note: 'x' }], PIT, 'customer_hk')).toEqual([{ note: 'x' }]);
     // A stale key on one entry is a single link: only it goes.
-    expect(removeColumnFromDomainRelationships(own.slice(0, 1), PIT, 'customer_hk')).toEqual([]);
+    expect(removeColumnFromSubjectAreaRelationships(own.slice(0, 1), PIT, 'customer_hk')).toEqual([]);
   });
 });
 

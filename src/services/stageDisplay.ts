@@ -31,7 +31,7 @@ import type { YmlData } from '../types/ymlData';
  * `dbtKeyIndex` lets a relationship drawn backwards be flagged
  * (`keysContradict`, #163) on dbt's evidence too, as the canvas flags it.
  */
-export function buildLogicalDisplayDomain(
+export function buildLogicalDisplaySubjectArea(
   domain: SemanticSubjectArea,
   viewConfig: ViewConfig,
   stubColumns?: string[],

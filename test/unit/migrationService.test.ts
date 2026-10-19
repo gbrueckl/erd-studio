@@ -9,7 +9,7 @@ import {
   migrateLegacySemanticDir,
 } from '../../src/services/migrationService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 
 describe('legacy semantic dir migration (erd-studio/ → .erd-studio/)', () => {
   let workspaceRoot: string;
@@ -191,7 +191,7 @@ describe('MigrationService.findV4Domains honours semanticDir', () => {
     return new MigrationService(
       workspaceRoot,
       new LayerService(workspaceRoot, semanticDir),
-      new LogicalModelService(workspaceRoot, semanticDir),
+      new TableLibraryService(workspaceRoot, semanticDir),
       semanticDir,
     );
   }
@@ -199,14 +199,14 @@ describe('MigrationService.findV4Domains honours semanticDir', () => {
   it('detects v4 domains under the default .erd-studio dir', () => {
     const filePath = writeV4Domain('.erd-studio');
     const svc = makeService('.erd-studio');
-    expect(svc.findV4Domains()).toEqual([filePath]);
+    expect(svc.findV4SubjectAreas()).toEqual([filePath]);
     expect(svc.needsMigration()).toBe(true);
   });
 
   it('detects v4 domains under a custom semanticDir', () => {
     const filePath = writeV4Domain('custom/models');
     const svc = makeService('custom/models');
-    expect(svc.findV4Domains()).toEqual([filePath]);
+    expect(svc.findV4SubjectAreas()).toEqual([filePath]);
     expect(svc.needsMigration()).toBe(true);
   });
 
@@ -236,7 +236,7 @@ describe('MigrationService.findV4Domains honours semanticDir', () => {
 describe('MigrationService (domain format → v5)', () => {
   let workspaceRoot: string;
   let migration: MigrationService;
-  let lms: LogicalModelService;
+  let lms: TableLibraryService;
 
   function writeDomain(name: string, body: unknown): string {
     const dir = path.join(workspaceRoot, '.erd-studio', 'silver');
@@ -254,7 +254,7 @@ describe('MigrationService (domain format → v5)', () => {
     workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-migration-v5-'));
     fs.mkdirSync(path.join(workspaceRoot, '.erd-studio'), { recursive: true });
     const layerService = new LayerService(workspaceRoot);
-    lms = new LogicalModelService(workspaceRoot);
+    lms = new TableLibraryService(workspaceRoot);
     migration = new MigrationService(workspaceRoot, layerService, lms);
   });
 
@@ -271,7 +271,7 @@ describe('MigrationService (domain format → v5)', () => {
       schemaVersion: 4, domain: 'empty4', layer: 'silver',
       logical: { models: [], relationships: [] }, viewConfig: {},
     });
-    expect(migration.findV4Domains()).toEqual([]);
+    expect(migration.findV4SubjectAreas()).toEqual([]);
     expect(migration.needsMigration()).toBe(false);
   });
 
@@ -286,15 +286,15 @@ describe('MigrationService (domain format → v5)', () => {
     });
     const before = fs.readFileSync(notesPath, 'utf-8');
 
-    expect(migration.findV4Domains()).toEqual([]);
+    expect(migration.findV4SubjectAreas()).toEqual([]);
     expect(migration.needsMigration()).toBe(false);
 
     const result = migration.migrate();
     expect(result.domainsConverted).toBe(0);
     expect(result.modelsCreated).toBe(0);
     expect(fs.readFileSync(notesPath, 'utf-8')).toBe(before);
-    expect(lms.modelExists('x')).toBe(false);
-    expect(lms.modelExists('y')).toBe(false);
+    expect(lms.tableExists('x')).toBe(false);
+    expect(lms.tableExists('y')).toBe(false);
   });
 
   it('migrates a v4 file with inline models', () => {
@@ -306,7 +306,7 @@ describe('MigrationService (domain format → v5)', () => {
       },
       viewConfig: {},
     });
-    expect(migration.findV4Domains()).toEqual([p]);
+    expect(migration.findV4SubjectAreas()).toEqual([p]);
 
     const result = migration.migrate();
     expect(result.domainsConverted).toBe(1);
@@ -315,9 +315,9 @@ describe('MigrationService (domain format → v5)', () => {
     const after = readJson(p);
     expect(after.schemaVersion).toBe(5);
     expect((after.logical as { models: unknown[] }).models).toEqual(['dim_a']);
-    expect(lms.getModel('dim_a')?.columns?.[0].name).toBe('a_id');
+    expect(lms.getTable('dim_a')?.columns?.[0].name).toBe('a_id');
     // Extracted into the folder of the domain's layer
-    expect(lms.modelFolder('dim_a')).toBe('silver');
+    expect(lms.tableFolder('dim_a')).toBe('silver');
     expect(fs.existsSync(path.join(workspaceRoot, '.erd-studio', 'logical-models', 'silver', 'dim_a.yml'))).toBe(true);
   });
 
@@ -353,13 +353,13 @@ describe('MigrationService (domain format → v5)', () => {
     const result = migration.migrate();
     expect(result.domainsConverted).toBe(2);
     expect(result.modelsCreated).toBe(3);
-    expect(lms.modelFolder('dim_shared')).toBe('');
-    expect(lms.modelFolder('fct_sale')).toBe('silver');
-    expect(lms.modelFolder('rpt_sales')).toBe('gold');
+    expect(lms.tableFolder('dim_shared')).toBe('');
+    expect(lms.tableFolder('fct_sale')).toBe('silver');
+    expect(lms.tableFolder('rpt_sales')).toBe('gold');
   });
 
   it('extracts to the top level when the library already holds flat model files (no folder created)', () => {
-    lms.saveModel({ name: 'dim_existing', columns: [] });
+    lms.saveTable({ name: 'dim_existing', columns: [] });
     expect(lms.groupsByFolder()).toBe(false);
     const p = writeDomain('v4', {
       schemaVersion: 4, domain: 'v4', layer: 'silver',
@@ -379,8 +379,8 @@ describe('MigrationService (domain format → v5)', () => {
     expect((readJson(p).logical as { models: unknown[] }).models).toEqual(['dim_a', 'fct_b']);
 
     const modelsDir = path.join(workspaceRoot, '.erd-studio', 'logical-models');
-    expect(lms.modelFolder('dim_a')).toBe('');
-    expect(lms.modelFolder('fct_b')).toBe('');
+    expect(lms.tableFolder('dim_a')).toBe('');
+    expect(lms.tableFolder('fct_b')).toBe('');
     expect(fs.existsSync(path.join(modelsDir, 'silver'))).toBe(false);
     expect(fs.readdirSync(modelsDir).sort()).toEqual(['dim_a.yml', 'dim_existing.yml', 'fct_b.yml']);
     expect(lms.groupsByFolder()).toBe(false);
@@ -405,14 +405,14 @@ describe('MigrationService (domain format → v5)', () => {
     migration.migrate();
     expect(decide).toHaveBeenCalledTimes(1);
     // dim_shared (two layers) is written flat — that must not flip later files to flat.
-    expect(lms.modelFolder('dim_shared')).toBe('');
-    expect(lms.modelFolder('fct_sale')).toBe('silver');
-    expect(lms.modelFolder('rpt_sales')).toBe('gold');
+    expect(lms.tableFolder('dim_shared')).toBe('');
+    expect(lms.tableFolder('fct_sale')).toBe('silver');
+    expect(lms.tableFolder('rpt_sales')).toBe('gold');
   });
 
   it('repairs a hybrid file (schemaVersion 5 + inline objects) without clobbering existing yml', () => {
     // Existing central definition — richer than the frozen inline copy
-    lms.saveModel({ name: 'dim_a', columns: [{ name: 'a_id', dataType: 'INT', description: '' }, { name: 'newer_col', dataType: 'INT', description: '' }] });
+    lms.saveTable({ name: 'dim_a', columns: [{ name: 'a_id', dataType: 'INT', description: '' }, { name: 'newer_col', dataType: 'INT', description: '' }] });
 
     const p = writeDomain('hybrid', {
       schemaVersion: 5, domain: 'hybrid', layer: 'silver',
@@ -426,7 +426,7 @@ describe('MigrationService (domain format → v5)', () => {
       },
       viewConfig: { positions: { dim_a: { x: 1, y: 2 } } },
     });
-    expect(migration.findV4Domains()).toEqual([p]);
+    expect(migration.findV4SubjectAreas()).toEqual([p]);
 
     const result = migration.migrate();
     expect(result.domainsConverted).toBe(1);
@@ -437,7 +437,7 @@ describe('MigrationService (domain format → v5)', () => {
     expect((after.logical as { models: unknown[] }).models).toEqual(['dim_a', 'dim_b', 'dim_c']);
     expect(after.viewConfig).toEqual({ positions: { dim_a: { x: 1, y: 2 } } });
     // Existing yml kept (not overwritten by the stale inline copy)
-    expect(lms.getModel('dim_a')?.columns?.map((c) => c.name)).toEqual(['a_id', 'newer_col']);
+    expect(lms.getTable('dim_a')?.columns?.map((c) => c.name)).toEqual(['a_id', 'newer_col']);
     expect(migration.needsMigration()).toBe(false);
   });
 
@@ -448,7 +448,7 @@ describe('MigrationService (domain format → v5)', () => {
       relationships: [{ fromModel: 'fct_y', fromColumn: 'x_id', toModel: 'dim_x', toColumn: 'x_id', cardinality: 'many-to-one' }],
       viewConfig: { positions: { dim_x: { x: 5, y: 6 } } },
     });
-    expect(migration.findV4Domains()).toEqual([p]);
+    expect(migration.findV4SubjectAreas()).toEqual([p]);
 
     const result = migration.migrate();
     expect(result.domainsConverted).toBe(1);
@@ -464,7 +464,7 @@ describe('MigrationService (domain format → v5)', () => {
       models: ['dim_x'],
     });
     expect(after.viewConfig).toEqual({ positions: { dim_x: { x: 5, y: 6 } } });
-    expect(lms.modelExists('dim_x')).toBe(true);
+    expect(lms.tableExists('dim_x')).toBe(true);
     expect(migration.needsMigration()).toBe(false);
   });
 });

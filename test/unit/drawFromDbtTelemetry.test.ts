@@ -34,7 +34,7 @@ function deps(overrides: Partial<DrawFromDbtDeps> = {}): DrawFromDbtDeps {
       getAllLayers: () => [],
       saveConfig: async () => undefined,
     } as unknown as DrawFromDbtDeps['layerService'],
-    domainService: { listDomains: () => [] },
+    domainService: { listSubjectAreas: () => [] },
     logicalModelService: {
       modelExists: () => false,
       saveModel: () => undefined,

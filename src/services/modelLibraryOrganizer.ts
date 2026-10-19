@@ -20,15 +20,15 @@
  * the plan reports them instead.
  */
 
-import type { ModelFileEntry } from './logicalModelService';
+import type { TableFileEntry } from './logicalModelService';
 
 /** One domain's layer and the model names it references. */
-export interface DomainModelUsage {
+export interface SubjectAreaTableUsage {
   readonly layer: string;
   readonly modelNames: readonly string[];
 }
 
-export interface ModelMove {
+export interface TableMove {
   readonly name: string;
   readonly layer: string;
   readonly from: string;
@@ -39,7 +39,7 @@ export interface ModelMove {
 
 export interface OrganizePlan {
   /** Files that move into their layer's folder (from the top level or another layer's folder). */
-  readonly moves: ModelMove[];
+  readonly moves: TableMove[];
   /** Top-level models referenced from more than one layer, with those layers. */
   readonly shared: { name: string; layers: string[] }[];
   /** Top-level models no domain references. */
@@ -56,8 +56,8 @@ export interface OrganizePlan {
  * `layer` cannot be a folder name (the model then stays put, as if shared).
  */
 export function planOrganizeByLayer(
-  entries: readonly ModelFileEntry[],
-  usage: readonly DomainModelUsage[],
+  entries: readonly TableFileEntry[],
+  usage: readonly SubjectAreaTableUsage[],
   targetPath: (name: string, layer: string) => string | null,
   layerIds: ReadonlySet<string> = new Set(usage.map(u => u.layer)),
 ): OrganizePlan {
@@ -71,7 +71,7 @@ export function planOrganizeByLayer(
   }
 
   const taken = new Set(entries.filter(e => e.folder !== '').map(e => `${e.folder}/${e.name}`));
-  const moves: ModelMove[] = [];
+  const moves: TableMove[] = [];
   const shared: { name: string; layers: string[] }[] = [];
   const unused: string[] = [];
   const conflicts: { name: string; layer: string }[] = [];

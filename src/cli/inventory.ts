@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import type { DisplaySubjectArea, PhysicalColumnSource } from '../types/display';
-import { MODEL_NAME_PATTERN } from '../types/naming';
+import { TABLE_NAME_PATTERN } from '../types/naming';
 import { readMeta } from '@erd-studio/core';
 import type { Cardinality, Meta, UnifiedSubjectArea } from '../types/semantic';
 import { getRawSubjectAreaTableNames } from '../types/semantic';
@@ -90,7 +90,7 @@ export interface InventoryOptions {
 }
 
 /** The synthetic domain's name — never written anywhere. */
-export const INVENTORY_DOMAIN = '__inventory__';
+export const INVENTORY_SUBJECT_AREA = '__inventory__';
 
 /**
  * Every model name the project knows, deduplicated case-insensitively: the
@@ -190,8 +190,8 @@ export function clustersOf(relationships: readonly InventoryRelationship[]): str
 }
 
 /** Domain files under the semantic dir with the model names each references (raw read, any format). */
-export function listDomainFiles(ctx: CliContext): InventoryResult['domains'] {
-  return ctx.domainService.listDomains(ctx.root, ctx.semanticDir).map((d) => {
+export function listSubjectAreaFiles(ctx: CliContext): InventoryResult['domains'] {
+  return ctx.domainService.listSubjectAreas(ctx.root, ctx.semanticDir).map((d) => {
     let models: string[] = [];
     try {
       models = getRawSubjectAreaTableNames(JSON.parse(fs.readFileSync(d.filePath, 'utf-8')));
@@ -203,17 +203,17 @@ export function listDomainFiles(ctx: CliContext): InventoryResult['domains'] {
 }
 
 /** The physical stage for `names`, built exactly as the canvas builds it for a domain holding them. */
-export function buildInventoryDomain(ctx: CliContext, names: readonly string[]): DisplaySubjectArea {
+export function buildInventorySubjectArea(ctx: CliContext, names: readonly string[]): DisplaySubjectArea {
   const layerIds = ctx.layerService.getValidLayerIds();
   const unified: UnifiedSubjectArea = {
     schemaVersion: 5,
-    domain: INVENTORY_DOMAIN,
+    domain: INVENTORY_SUBJECT_AREA,
     layer: layerIds[0] ?? 'silver',
     description: '',
     logical: { models: names.map((name) => ({ name, columns: [] })), relationships: [] },
     viewConfig: {},
   };
-  return ctx.domainService.buildPhysicalDomain(unified, ctx.ymlData, ctx.manifest, ctx.catalog);
+  return ctx.domainService.buildPhysicalSubjectArea(unified, ctx.ymlData, ctx.manifest, ctx.catalog);
 }
 
 /** Names from `--models` (validated) or the whole project, plus what was skipped. */
@@ -222,13 +222,13 @@ function chooseNames(ctx: CliContext, requested?: string[]): { names: string[]; 
   const names: string[] = [];
   if (requested && requested.length > 0) {
     for (const name of requested) {
-      if (MODEL_NAME_PATTERN.test(name)) { names.push(name); } else { skipped.push({ name, reason: 'invalid-name' }); }
+      if (TABLE_NAME_PATTERN.test(name)) { names.push(name); } else { skipped.push({ name, reason: 'invalid-name' }); }
     }
     return { names, skipped };
   }
   const found = projectModelNames(ctx);
   for (const name of found.names) {
-    if (MODEL_NAME_PATTERN.test(name)) { names.push(name); } else { skipped.push({ name, reason: 'invalid-name' }); }
+    if (TABLE_NAME_PATTERN.test(name)) { names.push(name); } else { skipped.push({ name, reason: 'invalid-name' }); }
   }
   for (const name of found.disabled) { skipped.push({ name, reason: 'disabled' }); }
   return { names, skipped };
@@ -236,7 +236,7 @@ function chooseNames(ctx: CliContext, requested?: string[]): { names: string[]; 
 
 /** Inventory models + relationships for `names`, with `suggestedLayer` from the plain folder rule. */
 function describeModels(ctx: CliContext, names: readonly string[], summary: boolean): { models: InventoryModel[]; relationships: InventoryRelationship[] } {
-  const physical = buildInventoryDomain(ctx, names);
+  const physical = buildInventorySubjectArea(ctx, names);
   const relationships: InventoryRelationship[] = physical.relationships.map((r) => ({
     fromModel: r.fromModel,
     fromColumn: r.fromColumn,
@@ -368,8 +368,8 @@ export function runInventory(ctx: CliContext, opts: InventoryOptions = {}): Inve
     models,
     relationships,
     clusters: clustersOf(relationships),
-    alreadyModelled: names.filter((n) => ctx.logicalModelService.modelExists(n)).sort(),
-    domains: listDomainFiles(ctx),
+    alreadyModelled: names.filter((n) => ctx.logicalModelService.tableExists(n)).sort(),
+    domains: listSubjectAreaFiles(ctx),
     skipped,
     conventions,
   };

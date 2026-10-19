@@ -15,10 +15,10 @@
  * A model name: starts with a letter, then letters/digits/underscores. Either
  * case is allowed (`dim_date`, `DimDate`, `D_Date`) — issue #93.
  */
-export const MODEL_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
+export const TABLE_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 /** Human-readable statement of the model-name rule (used in error messages). */
-export const MODEL_NAME_RULE =
+export const TABLE_NAME_RULE =
   'Table name must start with a letter and use only letters, numbers, and underscores.';
 
 /** A column name: letters (either case), digits, and underscores. */

@@ -6,7 +6,7 @@ import { parse as yamlParse } from 'yaml';
 
 import { SelectorsService } from '../../src/services/selectorsService';
 import type { SelectorsServiceHooks, SkipInfo } from '../../src/services/selectorsService';
-import type { DomainService } from '../../src/services/domainService';
+import type { SubjectAreaService } from '../../src/services/domainService';
 
 interface FakeDomain {
   domain: string;
@@ -15,7 +15,7 @@ interface FakeDomain {
   models: string[];
 }
 
-function fakeDomainService(domains: FakeDomain[]): DomainService {
+function fakeDomainService(domains: FakeDomain[]): SubjectAreaService {
   return {
     listDomains: () =>
       domains.map((d) => ({ domain: d.domain, layer: d.layer, filePath: d.filePath })),
@@ -34,7 +34,7 @@ function fakeDomainService(domains: FakeDomain[]): DomainService {
         viewConfig: {},
       };
     },
-  } as unknown as DomainService;
+  } as unknown as SubjectAreaService;
 }
 
 interface ParsedSelectors {

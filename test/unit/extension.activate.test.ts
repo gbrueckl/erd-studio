@@ -32,7 +32,7 @@ import {
   _resetFirstRunGuardForTests,
 } from '../../src/extension';
 import { GETTING_STARTED_VIEW_TYPE, GettingStartedPanel } from '../../src/providers/GettingStartedPanel';
-import { DOMAIN_EDITOR_VIEW_TYPE } from '../../src/services/recoveryService';
+import { SUBJECT_AREA_EDITOR_VIEW_TYPE } from '../../src/services/recoveryService';
 import type { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
@@ -185,7 +185,7 @@ describe('activate() without a dbt project', () => {
     await activate(context);
 
     expect(registerEditor).toHaveBeenCalledTimes(1);
-    expect(registerEditor.mock.calls[0][0]).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(registerEditor.mock.calls[0][0]).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);
     expect(createTreeView).not.toHaveBeenCalled();
 
     // The stub editor explains why nothing renders instead of showing a blank webview.
@@ -345,7 +345,7 @@ describe('activate() with a dbt project', () => {
     const opened = exec.mock.calls.filter((c) => c[0] === 'vscode.openWith');
     expect(opened).toHaveLength(1);
     expect((opened[0][1] as { fsPath: string }).fsPath).toBe(vscode.Uri.file('/x/orders.json').fsPath);
-    expect(opened[0][2]).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(opened[0][2]).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);
     expect(opened[0][3]).toEqual({ preview: true });
   });
 
@@ -358,7 +358,7 @@ describe('activate() with a dbt project', () => {
 
     expect(registerEditor).toHaveBeenCalledTimes(1);
     const [viewType, provider, options] = registerEditor.mock.calls[0] as unknown as [string, SemanticEditorProvider, unknown];
-    expect(viewType).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(viewType).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);
     expect(typeof provider.resolveCustomTextEditor).toBe('function');
     expect(options).toEqual({ webviewOptions: { retainContextWhenHidden: true } });
     expect(createTreeView.mock.calls.map((c) => c[0])).toEqual([
@@ -408,7 +408,7 @@ describe('activate() with a dbt project', () => {
       {} as import('vscode').CancellationToken,
     );
     vscode.window.tabGroups.activeTabGroup.activeTab = {
-      input: new vscode.TabInputCustom(doc.uri, DOMAIN_EDITOR_VIEW_TYPE),
+      input: new vscode.TabInputCustom(doc.uri, SUBJECT_AREA_EDITOR_VIEW_TYPE),
     };
     const input = vi.spyOn(vscode.window, 'showInputBox');
 
@@ -1161,7 +1161,7 @@ describe('erdStudio.drawFromDbt', () => {
     }
     expect(opened()).toHaveLength(1);
     expect(String((opened()[0][1] as { fsPath: string }).fsPath)).toBe(domainPath);
-    expect(opened()[0][2]).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(opened()[0][2]).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);
     // A diagram the user just made opens in a tab that stays (#167).
     expect(opened()[0][3]).toBeUndefined();
   });
@@ -1321,7 +1321,7 @@ describe('existing-diagrams notice', () => {
     const workspaceState = new Map<string, unknown>([['erdStudio.harnessInstallPrompted', true]]);
     context = makeContext(root, { workspaceState });
     vscode.window.tabGroups.all = [{
-      tabs: [{ input: new vscode.TabInputCustom(vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'showcase.json')), DOMAIN_EDITOR_VIEW_TYPE) }],
+      tabs: [{ input: new vscode.TabInputCustom(vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'showcase.json')), SUBJECT_AREA_EDITOR_VIEW_TYPE) }],
     }];
     const info = vi.spyOn(vscode.window, 'showInformationMessage');
 

@@ -3,7 +3,7 @@
  * CLI prints without `--json`). Colour only on a TTY and never with NO_COLOR.
  */
 
-import { describeUnreadable, mergeConflictHumanHint, type DiffResult, type DomainDiff, type Fix } from './diff';
+import { describeUnreadable, mergeConflictHumanHint, type DiffResult, type SubjectAreaDiff, type Fix } from './diff';
 import { foreignKeyAtTo } from '@erd-studio/core';
 import type { DoctorResult } from './doctor';
 import type { InventoryResult } from './inventory';
@@ -78,7 +78,7 @@ function fixLine(f: Fix, p: Paint): string {
   }
 }
 
-function domainBlock(d: DomainDiff, p: Paint): string[] {
+function subjectAreaBlock(d: SubjectAreaDiff, p: Paint): string[] {
   const head = `${d.domain} (${d.layer})`;
   if (d.error) { return [`${head} — ${p.red('could not be compared')}: ${d.error.message}`]; }
   if (d.needsMigration) { return [`${head} — ${p.yellow('older (v4) format')}: run "ERD Studio: Migrate Subject Areas to the Central Table Library" first`]; }
@@ -102,7 +102,7 @@ function domainBlock(d: DomainDiff, p: Paint): string[] {
 
 export function formatDiff(r: DiffResult, p: Paint): string {
   if (r.domains.length === 0) { return 'No subject areas to compare.\n'; }
-  return r.domains.map((d) => domainBlock(d, p).join('\n')).join('\n\n') + '\n';
+  return r.domains.map((d) => subjectAreaBlock(d, p).join('\n')).join('\n\n') + '\n';
 }
 
 export function formatDoctor(r: DoctorResult, p: Paint): string {

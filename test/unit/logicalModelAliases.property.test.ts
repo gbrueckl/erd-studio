@@ -23,7 +23,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { parse, parseDocument } from 'yaml';
 import { parseTableText } from '@erd-studio/core';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import type { SemanticTable } from '../../src/types/semantic';
 
 const CASES = 1500;
@@ -152,23 +152,23 @@ function unmanaged(text: string, renamed: Record<string, string>): Record<string
 
 describe('a save over YAML anchors and aliases (#157, randomised)', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
   let file: string;
 
   beforeAll(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-alias-prop-'));
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
     service.ensureDir();
-    file = service.modelPath('fct_order');
+    file = service.tablePath('fct_order');
   });
   afterAll(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
   const save = (text: string, edit: (m: SemanticTable) => void): { out: string; model: SemanticTable } => {
     fs.writeFileSync(file, text);
     service.invalidateCache();
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     edit(model);
-    service.saveModel(model);
+    service.saveTable(model);
     return { out: fs.readFileSync(file, 'utf-8'), model };
   };
 

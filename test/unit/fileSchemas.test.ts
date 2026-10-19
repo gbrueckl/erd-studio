@@ -20,7 +20,7 @@ import { LAYERS_SCHEMA_VERSION } from '../../packages/core/src/types/layer';
 import { RATIONALE_KEYS } from '../../packages/core/src/logicalModel';
 import { VALID_CARDINALITIES } from '../../packages/core/src/domain';
 import { ANNOTATION_COLORS } from '../../packages/renderer/src/lib/annotationColors';
-import { CARDINALITIES, MODEL_ROLES } from '../../src/providers/payloadValidation';
+import { CARDINALITIES, TABLE_ROLES } from '../../src/providers/payloadValidation';
 
 const ROOT = path.resolve(__dirname, '../..');
 const FIXTURE_DIR = path.join(ROOT, 'test/fixtures/dbt-project/.erd-studio');
@@ -125,8 +125,8 @@ describe('schemas match the TypeScript types', () => {
 
 describe('schema enums match the runtime', () => {
   it('modelRole is the role list the host validates against', () => {
-    expect(modelSchema.definitions.modelRole.enum).toEqual([...MODEL_ROLES]);
-    expect(modelSchema.definitions.modelRole.enumDescriptions).toHaveLength(MODEL_ROLES.length);
+    expect(modelSchema.definitions.modelRole.enum).toEqual([...TABLE_ROLES]);
+    expect(modelSchema.definitions.modelRole.enumDescriptions).toHaveLength(TABLE_ROLES.length);
   });
 
   it('cardinality is the set the domain parser keeps', () => {

@@ -47,7 +47,7 @@ import {
   type CliContext,
   type Envelope,
 } from './context';
-import { toUnreadableModelFile, unreadableHint, type UnreadableModelFile } from './diff';
+import { toUnreadableTableFile, unreadableHint, type UnreadableTableFile } from './diff';
 
 export type NextStepId =
   | 'install-dbt' | 'confirm-venv' | 'create-profile' | 'run-deps' | 'run-parse' | 'refresh-parse' | 'run-catalog'
@@ -97,13 +97,13 @@ export interface DoctorResult extends Envelope {
     logicalModels: number;
     domainFormatIssues: Array<{ file: string; format: 'v4' | 'hybrid' | 'legacy' }>;
     /** Library model files that exist but do not parse (shadowed duplicates are never read, so never listed). */
-    unreadableModelFiles: UnreadableModelFile[];
+    unreadableModelFiles: UnreadableTableFile[];
     /**
      * Domain files holding unresolved git merge conflicts (`<<<<<<<` …
      * `=======` … `>>>>>>>`); `line` is the first `<<<<<<<`. These cannot load
      * until the conflict is resolved and the file is saved.
      */
-    conflictedDomainFiles: ConflictedDomainFile[];
+    conflictedDomainFiles: ConflictedSubjectAreaFile[];
     /**
      * Model files that spell a column type dbt's way (`data_type:`). They read
      * as `dataType`, and the next time ERD Studio writes that model's file (a
@@ -134,7 +134,7 @@ export interface BackwardsRelationship {
   domains: string[];
 }
 
-export interface ConflictedDomainFile {
+export interface ConflictedSubjectAreaFile {
   /** Project-relative, forward slashes. */
   file: string;
   /** 1-based line of the first conflict marker. */
@@ -219,9 +219,9 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
       conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
     };
   }
-  const domains = ctx.domainService.listDomains(ctx.root, ctx.semanticDir);
+  const domains = ctx.domainService.listSubjectAreas(ctx.root, ctx.semanticDir);
   const issues: DoctorResult['erd']['domainFormatIssues'] = [];
-  const conflicted: ConflictedDomainFile[] = [];
+  const conflicted: ConflictedSubjectAreaFile[] = [];
   for (const d of domains) {
     try {
       const format = detectSubjectAreaFormat(parseSubjectAreaJson(fs.readFileSync(d.filePath, 'utf-8'), d.filePath));
@@ -235,12 +235,12 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
       }
     }
   }
-  const unreadable: UnreadableModelFile[] = [];
+  const unreadable: UnreadableTableFile[] = [];
   const aliased: DataTypeAliasFile[] = [];
-  for (const entry of ctx.logicalModelService.listModelFiles()) {
+  for (const entry of ctx.logicalModelService.listTableFiles()) {
     if (entry.shadowedBy) { continue; }
-    const err = ctx.logicalModelService.getModelFileError(entry.name);
-    if (err) { unreadable.push(toUnreadableModelFile(ctx.root, err)); continue; }
+    const err = ctx.logicalModelService.getTableFileError(entry.name);
+    if (err) { unreadable.push(toUnreadableTableFile(ctx.root, err)); continue; }
     const { columns, ignored, anchored } = ctx.logicalModelService.dataTypeAliasColumns(entry.name);
     if (columns.length + ignored.length + anchored.length > 0) {
       aliased.push({ name: entry.name, file: relPath(ctx.root, entry.filePath), columns, ignored, anchored });
@@ -251,7 +251,7 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
     semanticDirExists: true,
     layers: ctx.layerService.getValidLayerIds(),
     domains: domains.length,
-    logicalModels: ctx.logicalModelService.listModelNames().length,
+    logicalModels: ctx.logicalModelService.listTableNames().length,
     domainFormatIssues: issues,
     unreadableModelFiles: unreadable,
     conflictedDomainFiles: conflicted,
@@ -272,7 +272,7 @@ function backwardsRelationshipsOf(ctx: CliContext, domainFiles: string[]): Backw
     let relationships: Relationship[];
     let flagged: Set<Relationship>;
     try {
-      const domain = ctx.domainService.getDomainStage(file, { dbtKeyIndex });
+      const domain = ctx.domainService.getSubjectAreaStage(file, { dbtKeyIndex });
       const byName = new Map(domain.models.map((m) => [m.name.toLowerCase(), m]));
       relationships = domain.relationships;
       flagged = keysContradictedRelationships(relationships, (name) => byName.get(name.toLowerCase()), dbtKeyIndex);

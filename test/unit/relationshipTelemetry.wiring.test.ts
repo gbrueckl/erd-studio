@@ -14,13 +14,13 @@ import * as vscode from 'vscode';
 import { createMockWebviewPanel, createMockTextDocument, _resetMockWorkspace, _mockWorkspaceState } from '../__mocks__/vscode';
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
 import { moveRelationshipsToLibrary, writeFileAtomic } from '../../src/commands/moveRelationshipsToLibrary';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
 import { SelectorsService } from '../../src/services/selectorsService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { OwnWriteTracker } from '../../src/services/ownWriteTracker';
 import { telemetry } from '../../src/services/telemetryService';
 import type { Relationship, SemanticTable } from '../../src/types/semantic';
@@ -62,7 +62,7 @@ const EDGE = { fromModel: 'fct_order', fromColumn: 'customer_key', toModel: 'dim
 
 interface Harness {
   root: string;
-  logicalModelService: LogicalModelService;
+  logicalModelService: TableLibraryService;
   domainPath: (name: string) => string;
   modelFile: (name: string) => string;
   open: (name: string) => Promise<{ send: (message: unknown) => Promise<void>; errors: () => string[] }>;
@@ -75,14 +75,14 @@ async function createHarness(options: {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-rel-telemetry-'));
   const semanticDir = '.erd-studio';
   const layerService = new LayerService(root, semanticDir);
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, semanticDir);
-  domainService.setLogicalModelService(logicalModelService);
+  const domainService = new SubjectAreaService(layerService);
+  const logicalModelService = new TableLibraryService(root, semanticDir);
+  domainService.setTableLibraryService(logicalModelService);
   const selectorsService = new SelectorsService(domainService, root, semanticDir);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
   for (const model of MODELS) {
     const relationships = options.library?.[model.name];
-    logicalModelService.saveModel({ ...model, ...(relationships ? { relationships } : {}) });
+    logicalModelService.saveTable({ ...model, ...(relationships ? { relationships } : {}) });
   }
   const domainDir = path.join(root, semanticDir, 'silver');
   fs.mkdirSync(domainDir, { recursive: true });
@@ -109,7 +109,7 @@ async function createHarness(options: {
     root,
     logicalModelService,
     domainPath,
-    modelFile: (name) => fs.readFileSync(logicalModelService.modelPath(name), 'utf-8'),
+    modelFile: (name) => fs.readFileSync(logicalModelService.tablePath(name), 'utf-8'),
     open: async (name) => {
       const document = createMockTextDocument(domainPath(name), fs.readFileSync(domainPath(name), 'utf-8'), { persist: true });
       const panel = createMockWebviewPanel();
@@ -240,7 +240,7 @@ describe('relationship telemetry — the provider', () => {
 
   it('a relationships: list that cannot be rewritten: the service is told once, and it is not a handler failure', async () => {
     h = await createHarness();
-    const file = h.logicalModelService.modelPath('fct_order');
+    const file = h.logicalModelService.tablePath('fct_order');
     fs.writeFileSync(file, `${fs.readFileSync(file, 'utf-8')}relationships: not a list\n`);
     h.logicalModelService.invalidateCache();
     const refused = vi.fn();
@@ -280,7 +280,7 @@ describe('relationship telemetry — Move Relationships', () => {
     return options && typeof options === 'object' && options.modal ? args[args.length - 1] : undefined;
   }) as never);
   const run = (writeFile?: (filePath: string, text: string) => void) => moveRelationshipsToLibrary({
-    workspaceRoot: h.root, semanticDir: '.erd-studio', domainService: new DomainService(new LayerService(h.root, '.erd-studio')),
+    workspaceRoot: h.root, semanticDir: '.erd-studio', domainService: new SubjectAreaService(new LayerService(h.root, '.erd-studio')),
     logicalModelService: h.logicalModelService, onWritten: async () => undefined, writeFile,
   });
 

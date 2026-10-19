@@ -30,7 +30,7 @@ import { keepLineEndings } from './lineEndings';
 export { LOGICAL_MODELS_DIR } from '@erd-studio/core';
 
 /** Parsed model cached against the file's mtime + size. */
-interface CachedModel {
+interface CachedTable {
   readonly signature: string;
   readonly model: SemanticTable;
 }
@@ -74,7 +74,7 @@ function keepNumberText(tags: Tags): Tags {
  * is indexed — but a new file only ever lands in a folder with a layer-shaped
  * name, so nothing a domain file says can make the extension write elsewhere.
  */
-const MODEL_FOLDER_PATTERN = /^[a-z][a-z0-9_-]*$/;
+const TABLE_FOLDER_PATTERN = /^[a-z][a-z0-9_-]*$/;
 
 /** One model file found in the library. */
 /**
@@ -82,16 +82,16 @@ const MODEL_FOLDER_PATTERN = /^[a-z][a-z0-9_-]*$/;
  * the `yaml` library's own error code (never the message text), so it is safe
  * to count in usage telemetry and to branch on in the UI.
  */
-export type ModelFileErrorKind = TableLoadErrorKind;
+export type TableFileErrorKind = TableLoadErrorKind;
 
 /**
  * A model file that exists but cannot be read or parsed. `message` is the
  * parser's own text and may quote the file — show it locally, never send it.
  */
-export interface ModelFileError {
+export interface TableFileError {
   name: string;
   filePath: string;
-  kind: ModelFileErrorKind;
+  kind: TableFileErrorKind;
   /** 1-based, when the parser reported a position. */
   line?: number;
   column?: number;
@@ -110,14 +110,14 @@ export interface ModelFileError {
 }
 
 /** Describe a failure thrown while reading or parsing a model file. */
-export function describeModelFileError(name: string, filePath: string, err: unknown): ModelFileError {
+export function describeTableFileError(name: string, filePath: string, err: unknown): TableFileError {
   const message = err instanceof Error ? err.message : String(err);
   // The classification is core's, so the extension and loadDisplayDomain agree.
   return { name, filePath, ...classifyTableLoadError(err), message };
 }
 
-/** The {@link ModelFileError} for a model read from a file with a key written twice (#164). */
-function duplicateKeyFileError(name: string, filePath: string, warning: { key: string; line: number }): ModelFileError {
+/** The {@link TableFileError} for a model read from a file with a key written twice (#164). */
+function duplicateKeyFileError(name: string, filePath: string, warning: { key: string; line: number }): TableFileError {
   return {
     name,
     filePath,
@@ -130,7 +130,7 @@ function duplicateKeyFileError(name: string, filePath: string, warning: { key: s
   };
 }
 
-export interface ModelFileEntry {
+export interface TableFileEntry {
   /** Model name (the file stem). */
   readonly name: string;
   /** Sub-folder under logical-models/ (`''` for a file at the top level). */
@@ -147,7 +147,7 @@ export interface ModelFileEntry {
 
 /** Keys ERD Studio owns on a model file. Unknown keys are left untouched. */
 // `relationships` is synced on its own, entry by entry (syncRelationships).
-const MODEL_KEYS = ['name', 'schema', 'alias', 'description', 'grain', 'modelRole', 'rationale', 'meta', 'columns'] as const;
+const TABLE_KEYS = ['name', 'schema', 'alias', 'description', 'grain', 'modelRole', 'rationale', 'meta', 'columns'] as const;
 const RELATIONSHIP_KEYS = ['fromColumn', 'toModel', 'toColumn', 'cardinality', 'role', 'compositeKey'] as const;
 /** A non-empty top-level `relationships:` list, as text (for a file that does not parse). */
 const RELATIONSHIPS_IN_TEXT = /^relationships[ \t]*:(?:\s*#.*)*\s*(?:-|\[\s*[^\s\]])/m;
@@ -179,13 +179,13 @@ const COLUMN_READ_DEFAULTS: Readonly<Record<string, unknown>> = { name: '', data
  * The text each editable document was parsed from. The `yaml` library keeps
  * node offsets but not the source, and one question needs it: whether a key
  * that a write drops really had a blank line after it (see
- * {@link LogicalModelService.renameDataTypeAlias}).
+ * {@link TableLibraryService.renameDataTypeAlias}).
  */
 const SOURCE_TEXT = new WeakMap<Document, string>();
 /**
  * Every alias a save in progress judged to read as the model already has it,
  * with a detached copy of what it read then (see
- * {@link LogicalModelService.confirmAliases}).
+ * {@link TableLibraryService.confirmAliases}).
  */
 const KEPT_ALIASES = new WeakMap<Document, Map<Alias, Node>>();
 /** A line holding nothing but whitespace. */
@@ -219,8 +219,8 @@ export class DuplicateKeyWriteRefused extends Error {
   }
 }
 
-export class LogicalModelService {
-  private readonly modelsDir: string;
+export class TableLibraryService {
+  private readonly tablesDir: string;
 
   /**
    * In-memory parse cache keyed by file path. Each entry is validated against
@@ -228,7 +228,7 @@ export class LogicalModelService {
    * missed by the watcher) is never served stale; invalidateCache() drops
    * entries eagerly when the logical-model watcher fires.
    */
-  private readonly cache = new Map<string, CachedModel>();
+  private readonly cache = new Map<string, CachedTable>();
 
   /**
    * Told when a model file exists but cannot be read or parsed, or was read
@@ -237,9 +237,9 @@ export class LogicalModelService {
    * breaks again (an AI assistant's edit loop does exactly that). The
    * extension host counts these for usage telemetry and warns the user; other
    * callers (the MCP server, the CLI) leave it unset and ask
-   * {@link getModelFileError}, which always reflects the live state.
+   * {@link getTableFileError}, which always reflects the live state.
    */
-  onParseFailure?: (error: ModelFileError) => void;
+  onParseFailure?: (error: TableFileError) => void;
   /**
    * Told each time a save is refused because a model file's `relationships:`
    * list cannot be rewritten in place ({@link RelationshipsRewriteRefused}).
@@ -247,7 +247,7 @@ export class LogicalModelService {
    */
   onSyncRefused?: () => void;
   /** The last failure per file path, until the file reads cleanly again. */
-  private readonly failedPaths = new Map<string, ModelFileError>();
+  private readonly failedPaths = new Map<string, TableFileError>();
   /** Paths already reported to {@link onParseFailure}; never cleared in a session. */
   private readonly reportedPaths = new Set<string>();
   /**
@@ -263,7 +263,7 @@ export class LogicalModelService {
     semanticDir = '.erd-studio',
     private readonly ownWriteTracker: OwnWriteTracker = ownWrites,
   ) {
-    this.modelsDir = path.join(workspaceRoot, semanticDir, LOGICAL_MODELS_DIR);
+    this.tablesDir = path.join(workspaceRoot, semanticDir, LOGICAL_MODELS_DIR);
   }
 
   /**
@@ -277,7 +277,7 @@ export class LogicalModelService {
     }
     // An unsafe name was never cached (nothing was read for it), so there is
     // nothing to drop — and dropping a cache entry must never throw.
-    const filePath = this.resolveModelPath(name);
+    const filePath = this.resolveTablePath(name);
     if (filePath !== null) {
       this.cache.delete(filePath);
     }
@@ -289,7 +289,7 @@ export class LogicalModelService {
    * Returns null when the file is missing, empty, not a mapping, or has no
    * `name`; throws on read/parse failure.
    */
-  private readModelFile(filePath: string, fallbackName: string): SemanticTable | null {
+  private readTableFile(filePath: string, fallbackName: string): SemanticTable | null {
     let stat: fs.Stats;
     try {
       stat = fs.statSync(filePath);
@@ -321,24 +321,24 @@ export class LogicalModelService {
   /**
    * Returns the path to the logical-models directory.
    */
-  getModelsDir(): string {
-    return this.modelsDir;
+  getTablesDir(): string {
+    return this.tablesDir;
   }
 
   /**
    * Check if the logical-models directory exists.
    */
   dirExists(): boolean {
-    return fs.existsSync(this.modelsDir);
+    return fs.existsSync(this.tablesDir);
   }
 
   /**
    * Ensure the logical-models directory exists, creating it if necessary.
-   * Pass a model file path (from {@link modelPath}) to create its layer
+   * Pass a model file path (from {@link tablePath}) to create its layer
    * folder as well; a path outside the library is refused.
    */
   ensureDir(forFile?: string): void {
-    const root = path.resolve(this.modelsDir);
+    const root = path.resolve(this.tablesDir);
     const dir = forFile === undefined ? root : path.dirname(path.resolve(forFile));
     const rel = path.relative(root, dir);
     if (rel.startsWith('..') || path.isAbsolute(rel)) {
@@ -355,11 +355,11 @@ export class LogicalModelService {
    * Read paths must degrade rather than fail: a hand-edited or AI-written
    * domain file can reference a name that is not path-safe, and one bad entry
    * must show as one broken-reference node, not take down the whole canvas.
-   * Write paths keep using {@link modelPath}, which throws.
+   * Write paths keep using {@link tablePath}, which throws.
    */
-  resolveModelPath(name: string): string | null {
+  resolveTablePath(name: string): string | null {
     try {
-      return this.modelPath(name);
+      return this.tablePath(name);
     } catch (err) {
       console.warn(`[LogicalModelService] Unsafe model name: ${err instanceof Error ? err.message : String(err)}`);
       return null;
@@ -370,20 +370,20 @@ export class LogicalModelService {
    * Check if a model file exists. An unsafe name has no file (and is never
    * looked up on disk), so this returns false rather than throwing.
    */
-  modelExists(name: string): boolean {
-    const filePath = this.resolveModelPath(name);
+  tableExists(name: string): boolean {
+    const filePath = this.resolveTablePath(name);
     return filePath !== null && fs.existsSync(filePath);
   }
 
   /**
    * The library's spelling of a model whose name matches `name` ignoring
-   * case, or null when there is none. {@link modelExists} asks the file
+   * case, or null when there is none. {@link tableExists} asks the file
    * system, which ignores case on macOS/Windows but not on Linux; this lists
    * the files, so `dimdate.yml` blocks a new `DimDate` on every platform —
    * the two would be one file on a teammate's Mac and one table in dbt.
    */
-  findModelNameIgnoringCase(name: string): string | null {
-    return this.listModelFiles().find((e) => sameName(e.name, name))?.name ?? null;
+  findTableNameIgnoringCase(name: string): string | null {
+    return this.listTableFiles().find((e) => sameName(e.name, name))?.name ?? null;
   }
 
   /**
@@ -391,13 +391,13 @@ export class LogicalModelService {
    * Returns null if the name is not path-safe, or the file doesn't exist or is
    * invalid — callers render a broken-reference placeholder for null.
    */
-  getModel(name: string): SemanticTable | null {
-    const filePath = this.resolveModelPath(name);
+  getTable(name: string): SemanticTable | null {
+    const filePath = this.resolveTablePath(name);
     if (filePath === null) {
       return null;
     }
     try {
-      const model = this.readModelFile(filePath, name);
+      const model = this.readTableFile(filePath, name);
       const warning = model ? tableLoadWarningOf(model) : undefined;
       if (warning) {
         this.recordFailure(filePath, duplicateKeyFileError(name, filePath, warning), null);
@@ -406,13 +406,13 @@ export class LogicalModelService {
       }
       return model;
     } catch (err) {
-      this.recordFailure(filePath, describeModelFileError(name, filePath, err), err);
+      this.recordFailure(filePath, describeTableFileError(name, filePath, err), err);
       return null;
     }
   }
 
   /** Remember why `filePath` is broken, and report it once per session. */
-  private recordFailure(filePath: string, error: ModelFileError, cause: unknown): void {
+  private recordFailure(filePath: string, error: TableFileError, cause: unknown): void {
     // Once per broken file, not once per canvas refresh that re-reads it
     // (nor for getModelFileError's own re-read).
     const known = this.failedPaths.has(filePath);
@@ -436,12 +436,12 @@ export class LogicalModelService {
    * missing, or its name is unsafe. Reads the file (through the cache), so the
    * answer is current — a file fixed since the last read reports null.
    */
-  getModelFileError(name: string): ModelFileError | null {
-    const filePath = this.resolveModelPath(name);
+  getTableFileError(name: string): TableFileError | null {
+    const filePath = this.resolveTablePath(name);
     if (filePath === null || !fs.existsSync(filePath)) {
       return null;
     }
-    this.getModel(name);
+    this.getTable(name);
     return this.failedPaths.get(filePath) ?? null;
   }
 
@@ -449,14 +449,14 @@ export class LogicalModelService {
    * Every model file in the library: the top level first, then each
    * one-level sub-folder in alphabetical order, files sorted by name inside
    * each. A name that appears more than once is flagged `shadowedBy` on every
-   * copy but the first (the one {@link findModelFile} resolves to).
+   * copy but the first (the one {@link findTableFile} resolves to).
    * Dot-folders, deeper nesting and symlinked folders are not scanned.
    */
-  listModelFiles(): ModelFileEntry[] {
-    if (!fs.existsSync(this.modelsDir)) {
+  listTableFiles(): TableFileEntry[] {
+    if (!fs.existsSync(this.tablesDir)) {
       return [];
     }
-    const entries: ModelFileEntry[] = [];
+    const entries: TableFileEntry[] = [];
     const winners = new Map<string, string>();
     const add = (dir: string, folder: string): void => {
       let files: string[];
@@ -480,9 +480,9 @@ export class LogicalModelService {
         }
       }
     };
-    add(this.modelsDir, '');
+    add(this.tablesDir, '');
     for (const folder of this.listFolders()) {
-      add(path.join(this.modelsDir, folder), folder);
+      add(path.join(this.tablesDir, folder), folder);
     }
     return entries;
   }
@@ -493,7 +493,7 @@ export class LogicalModelService {
    */
   listFolders(): string[] {
     try {
-      return fs.readdirSync(this.modelsDir, { withFileTypes: true })
+      return fs.readdirSync(this.tablesDir, { withFileTypes: true })
         .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
         .map((d) => d.name)
         .sort((a, b) => a.localeCompare(b));
@@ -507,12 +507,12 @@ export class LogicalModelService {
    * one folder down). A shadowed duplicate is skipped, and so are files that
    * fail to parse.
    */
-  listModels(): SemanticTable[] {
+  listTables(): SemanticTable[] {
     const models: SemanticTable[] = [];
-    for (const entry of this.listModelFiles()) {
+    for (const entry of this.listTableFiles()) {
       if (entry.shadowedBy) continue;
       try {
-        const model = this.readModelFile(entry.filePath, entry.name);
+        const model = this.readTableFile(entry.filePath, entry.name);
         if (model) {
           models.push(model);
         }
@@ -527,8 +527,8 @@ export class LogicalModelService {
    * List model names (without reading full content), each once even when a
    * name is present in more than one folder.
    */
-  listModelNames(): string[] {
-    return this.listModelFiles().filter((e) => !e.shadowedBy).map((e) => e.name);
+  listTableNames(): string[] {
+    return this.listTableFiles().filter((e) => !e.shadowedBy).map((e) => e.name);
   }
 
   /**
@@ -537,10 +537,10 @@ export class LogicalModelService {
    * relationship mode (`usesLibraryRelationships`).
    */
   hasUnreadableRelationships(): boolean {
-    return this.listModelFiles().some((entry) => {
+    return this.listTableFiles().some((entry) => {
       if (entry.shadowedBy) return false;
       try {
-        this.readModelFile(entry.filePath, entry.name);
+        this.readTableFile(entry.filePath, entry.name);
         return false;
       } catch {
         try { return RELATIONSHIPS_IN_TEXT.test(fs.readFileSync(entry.filePath, 'utf-8')); } catch { return false; }
@@ -561,7 +561,7 @@ export class LogicalModelService {
    * `Staging/` from counting as opting in. Without it any folder counts.
    */
   groupsByFolder(layerIds?: ReadonlySet<string>): boolean {
-    const entries = this.listModelFiles();
+    const entries = this.listTableFiles();
     return entries.length === 0 ||
       entries.some((e) => e.folder !== '' && (layerIds === undefined || layerIds.has(e.folder)));
   }
@@ -570,11 +570,11 @@ export class LogicalModelService {
    * The folder a model's file lives in: `''` for the top level, the folder
    * name for a file one level down, or null when there is no file.
    */
-  modelFolder(name: string): string | null {
-    const filePath = this.findModelFile(name);
+  tableFolder(name: string): string | null {
+    const filePath = this.findTableFile(name);
     if (filePath === null) return null;
     const dir = path.dirname(filePath);
-    return dir === path.resolve(this.modelsDir) ? '' : path.basename(dir);
+    return dir === path.resolve(this.tablesDir) ? '' : path.basename(dir);
   }
 
   // -------------------------------------------------------------------------
@@ -599,10 +599,10 @@ export class LogicalModelService {
    * uses `serializeModel()`), so the yml change is undoable together with the
    * domain change. Use this for non-editor callers (migration, seeding, CLI).
    */
-  saveModel(model: SemanticTable, folder?: string): void {
-    const filePath = this.modelPath(model.name, folder);
+  saveTable(model: SemanticTable, folder?: string): void {
+    const filePath = this.tablePath(model.name, folder);
     this.ensureDir(filePath);
-    this.writeAtomic(filePath, this.renderModel(model, filePath));
+    this.writeAtomic(filePath, this.renderTable(model, filePath));
   }
 
   /**
@@ -618,18 +618,18 @@ export class LogicalModelService {
    * file does not exist yet, so without it the document would be regenerated
    * from scratch and everything hand-written in the old file would be lost.
    */
-  serializeModel(model: SemanticTable, fromName?: string): string {
-    return this.renderModel(model, this.modelPath(fromName ?? model.name));
+  serializeTable(model: SemanticTable, fromName?: string): string {
+    return this.renderTable(model, this.tablePath(fromName ?? model.name));
   }
 
   /**
-   * Like {@link serializeModel}, but the document that supplies comments, key
+   * Like {@link serializeTable}, but the document that supplies comments, key
    * order and unknown keys is the file at `sourcePath`. Name lookups resolve to
    * the file that WINS a duplicated name, so the copy that is ignored can only
    * be addressed by its path.
    */
-  serializeModelAt(model: SemanticTable, sourcePath: string): string {
-    return this.renderModel(model, sourcePath);
+  serializeTableAt(model: SemanticTable, sourcePath: string): string {
+    return this.renderTable(model, sourcePath);
   }
 
   /**
@@ -637,7 +637,7 @@ export class LogicalModelService {
    * `filePath` edited in place when it can be parsed, otherwise a fresh
    * document generated from the model. Line endings follow the file's own.
    */
-  private renderModel(model: SemanticTable, filePath: string): string {
+  private renderTable(model: SemanticTable, filePath: string): string {
     const existing = this.loadEditableDocument(filePath);
     // A model read from a file with a key written twice is never written, even
     // when that key is `name:` and so points the write at another file (#164).
@@ -648,9 +648,9 @@ export class LogicalModelService {
           `(line ${warning.line}). Remove one copy, then try again.`,
       );
     }
-    const doc = existing ?? new Document(this.modelToPlain(model));
+    const doc = existing ?? new Document(this.tableToPlain(model));
     if (isMap(doc.contents)) {
-      this.applyModel(doc, doc.contents, model, filePath);
+      this.applyTable(doc, doc.contents, model, filePath);
     }
     return keepLineEndings(doc.toString(STRINGIFY_OPTIONS), this.readExisting(filePath));
   }
@@ -686,8 +686,8 @@ export class LogicalModelService {
   /**
    * Delete a model's YAML file.
    */
-  deleteModel(name: string): void {
-    const filePath = this.modelPath(name);
+  deleteTable(name: string): void {
+    const filePath = this.tablePath(name);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
       this.ownWriteTracker.recordDelete(filePath);
@@ -706,22 +706,22 @@ export class LogicalModelService {
    * non-editor callers. The editor renames through a WorkspaceEdit and gets
    * the same document carry-over via `serializeModel(model, fromName)`.
    */
-  renameModel(oldName: string, newName: string): void {
-    const model = this.getModel(oldName);
+  renameTable(oldName: string, newName: string): void {
+    const model = this.getTable(oldName);
     if (!model) {
       throw new Error(`Table "${oldName}" not found in logical-models/`);
     }
-    if (newName !== oldName && this.modelExists(newName)) {
+    if (newName !== oldName && this.tableExists(newName)) {
       throw new Error(`Table "${newName}" already exists in logical-models/`);
     }
     // Carry the existing document (comments, key order, extra keys) across
     // to the new file rather than regenerating it from the parsed model.
     // The renamed file stays in the folder the old one was in.
-    const folder = this.modelFolder(oldName) ?? '';
-    const oldPath = this.modelPath(oldName);
+    const folder = this.tableFolder(oldName) ?? '';
+    const oldPath = this.tablePath(oldName);
     const oldText = this.readExisting(oldPath);
     const doc = this.loadEditableDocument(oldPath);
-    const target = this.modelPath(newName, folder);
+    const target = this.tablePath(newName, folder);
     this.ensureDir(target);
     if (doc) {
       doc.set('name', newName);
@@ -729,9 +729,9 @@ export class LogicalModelService {
     } else {
       // Regenerated, but with the old file's line endings.
       model.name = newName;
-      this.writeAtomic(target, keepLineEndings(this.renderModel(model, target), oldText));
+      this.writeAtomic(target, keepLineEndings(this.renderTable(model, target), oldText));
     }
-    this.deleteModel(oldName);
+    this.deleteTable(oldName);
   }
 
   // -------------------------------------------------------------------------
@@ -744,8 +744,8 @@ export class LogicalModelService {
    * If the model file already exists, returns the existing model without overwriting.
    */
   createFromManifest(name: string, manifest: ManifestData, folder?: string): SemanticTable | null {
-    if (this.modelExists(name)) {
-      return this.getModel(name);
+    if (this.tableExists(name)) {
+      return this.getTable(name);
     }
 
     const manifestModel = manifest.models.get(name);
@@ -753,8 +753,8 @@ export class LogicalModelService {
       return null;
     }
 
-    const model = this.manifestToSemanticModel(manifestModel);
-    this.saveModel(model, folder);
+    const model = this.manifestToSemanticTable(manifestModel);
+    this.saveTable(model, folder);
     return model;
   }
 
@@ -764,11 +764,11 @@ export class LogicalModelService {
    * If the model file already exists, returns true without overwriting.
    */
   createFromYml(name: string, ymlModel: YmlModelInfo, folder?: string): boolean {
-    if (this.modelExists(name)) {
+    if (this.tableExists(name)) {
       return true;
     }
 
-    this.saveModel(this.ymlToSemanticModel(ymlModel), folder);
+    this.saveTable(this.ymlToSemanticTable(ymlModel), folder);
     return true;
   }
 
@@ -777,7 +777,7 @@ export class LogicalModelService {
    * Used by `createFromYml` and by the editor, which seeds a new library file
    * through a WorkspaceEdit instead of writing it directly.
    */
-  ymlToSemanticModel(ymlModel: YmlModelInfo): SemanticTable {
+  ymlToSemanticTable(ymlModel: YmlModelInfo): SemanticTable {
     const columns: ColumnDef[] = ymlModel.columns.map((col) => ({
       name: col.name,
       dataType: col.dataType ?? 'unknown',
@@ -800,7 +800,7 @@ export class LogicalModelService {
    * Columns get name, dataType, and description from manifest.
    * Design metadata (keys, SCD, etc.) are left unset for the user to fill in.
    */
-  manifestToSemanticModel(manifestModel: ManifestModelInfo): SemanticTable {
+  manifestToSemanticTable(manifestModel: ManifestModelInfo): SemanticTable {
     const columns: ColumnDef[] = manifestModel.columns.map((col) => ({
       name: col.name,
       dataType: col.data_type ?? 'unknown',
@@ -817,7 +817,7 @@ export class LogicalModelService {
 
   /**
    * Get the file path for a model: the file that already holds it (top level
-   * first, then each folder alphabetically — see {@link findModelFile}), or,
+   * first, then each folder alphabetically — see {@link findTableFile}), or,
    * when there is none, where a new one would be created — in
    * `logical-models/{folder}/` when `folder` is given and layer-shaped,
    * otherwise at the top level.
@@ -826,21 +826,21 @@ export class LogicalModelService {
    * outside `logical-models/` (path separators, `..`, absolute paths) is
    * rejected rather than silently written elsewhere in the workspace.
    */
-  modelPath(name: string, folder?: string): string {
-    return this.findModelFile(name) ?? this.newModelPath(name, folder);
+  tablePath(name: string, folder?: string): string {
+    return this.findTableFile(name) ?? this.newTablePath(name, folder);
   }
 
   /**
    * The path of the file that holds `name`, or null when no file does.
-   * Throws on a name that is not path-safe (like {@link modelPath}).
+   * Throws on a name that is not path-safe (like {@link tablePath}).
    */
-  findModelFile(name: string): string | null {
-    const topLevel = this.newModelPath(name);
+  findTableFile(name: string): string | null {
+    const topLevel = this.newTablePath(name);
     if (fs.existsSync(topLevel)) {
       return topLevel;
     }
     for (const folder of this.listFolders()) {
-      const candidate = path.join(path.resolve(this.modelsDir), folder, `${name}.yml`);
+      const candidate = path.join(path.resolve(this.tablesDir), folder, `${name}.yml`);
       if (fs.existsSync(candidate)) {
         return candidate;
       }
@@ -853,11 +853,11 @@ export class LogicalModelService {
    * (see MODEL_FOLDER_PATTERN) nor an existing library folder is ignored and
    * the top level used instead.
    */
-  private newModelPath(name: string, folder?: string): string {
+  private newTablePath(name: string, folder?: string): string {
     if (typeof name !== 'string' || !name.trim() || name.includes('/') || name.includes('\\') || name.includes('..')) {
       throw new Error(`Invalid table name "${String(name)}": must not contain path separators.`);
     }
-    const modelsDir = path.resolve(this.modelsDir);
+    const modelsDir = path.resolve(this.tablesDir);
     const resolved = path.resolve(modelsDir, `${name}.yml`);
     if (path.dirname(resolved) !== modelsDir) {
       throw new Error(`Invalid table name "${name}": resolves outside the logical-models directory.`);
@@ -865,15 +865,15 @@ export class LogicalModelService {
     // A layer-shaped name may be created; any folder already in the library
     // (listed by readdir, so it cannot hold a separator) may be written into —
     // that is what keeps a renamed file in a hand-made `Staging/` folder.
-    if (folder && (LogicalModelService.isModelFolderName(folder) || this.listFolders().includes(folder))) {
+    if (folder && (TableLibraryService.isTableFolderName(folder) || this.listFolders().includes(folder))) {
       return path.join(modelsDir, folder, `${name}.yml`);
     }
     return resolved;
   }
 
   /** Whether `folder` may be created under logical-models/ (the layer id format). */
-  static isModelFolderName(folder: string): boolean {
-    return MODEL_FOLDER_PATTERN.test(folder);
+  static isTableFolderName(folder: string): boolean {
+    return TABLE_FOLDER_PATTERN.test(folder);
   }
 
   // -------------------------------------------------------------------------
@@ -941,8 +941,8 @@ export class LogicalModelService {
    * Apply a model onto an existing document, touching only managed keys
    * whose value differs. Keys ERD Studio does not know about are preserved.
    */
-  private applyModel(doc: Document, root: YAMLMap, model: SemanticTable, filePath: string): void {
-    const plain = this.modelToPlain(model);
+  private applyTable(doc: Document, root: YAMLMap, model: SemanticTable, filePath: string): void {
+    const plain = this.tableToPlain(model);
     // Every alias starts out kept as it reads now — under a key ERD Studio
     // does not manage too (`x-note: *g`), and as a key (`*k: …`) — so none
     // follows an anchor this save rewrites or removes (#157). The sync below
@@ -953,7 +953,7 @@ export class LogicalModelService {
     });
     KEPT_ALIASES.set(doc, kept);
     try {
-      this.syncMap(doc, root, plain, MODEL_KEYS);
+      this.syncMap(doc, root, plain, TABLE_KEYS);
       this.syncRelationships(doc, root, (plain.relationships ?? []) as Record<string, unknown>[], filePath);
       this.settleKeptAliases(doc);
     } finally {
@@ -984,7 +984,7 @@ export class LogicalModelService {
 
   /**
    * After every write of a save: a kept alias (see {@link confirmAliases} and
-   * {@link applyModel}) that no longer reads what it read when it was kept —
+   * {@link applyTable}) that no longer reads what it read when it was kept —
    * its anchor was rewritten, or dropped, by this same save, or no longer
    * comes before it — becomes a plain copy of that value, keeping the line's
    * comments, so no key the canvas did not change reads differently and no
@@ -1101,7 +1101,7 @@ export class LogicalModelService {
     const refuse = (node: unknown, why: string): Error => {
       const offset = isNode(node) ? node.range?.[0] ?? 0 : 0;
       const line = fs.readFileSync(filePath, 'utf-8').slice(0, offset).split('\n').length;
-      const file = `${LOGICAL_MODELS_DIR}/${path.relative(this.modelsDir, filePath).split(path.sep).join('/')}`;
+      const file = `${LOGICAL_MODELS_DIR}/${path.relative(this.tablesDir, filePath).split(path.sep).join('/')}`;
       this.onSyncRefused?.();
       return new RelationshipsRewriteRefused(`${file}, line ${line}: ${why}, so ERD Studio cannot change it. Fix it by hand first.`);
     };
@@ -1589,7 +1589,7 @@ export class LogicalModelService {
    */
   dataTypeAliasColumns(name: string): { columns: string[]; ignored: string[]; anchored: string[] } {
     const found = { columns: [] as string[], ignored: [] as string[], anchored: [] as string[] };
-    const filePath = this.resolveModelPath(name);
+    const filePath = this.resolveTablePath(name);
     let doc: Document | null;
     try {
       doc = filePath === null ? null : this.loadEditableDocument(filePath);
@@ -1638,7 +1638,7 @@ export class LogicalModelService {
    * Build a clean plain object for serialisation, omitting undefined/empty
    * fields. Key order here defines the order used for new files.
    */
-  private modelToPlain(model: SemanticTable): Record<string, unknown> {
+  private tableToPlain(model: SemanticTable): Record<string, unknown> {
     const obj: Record<string, unknown> = { name: model.name };
 
     if (model.schema) obj.schema = model.schema;

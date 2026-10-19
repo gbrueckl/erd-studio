@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseTableText } from '@erd-studio/core';
 
-import { relationshipsRewriteLoses, rewriteJsonScalars, setDomainRelationships, setYamlRelationships } from '../../src/services/minimalEdits';
+import { relationshipsRewriteLoses, rewriteJsonScalars, setSubjectAreaRelationships, setYamlRelationships } from '../../src/services/minimalEdits';
 import type { TableRelationship, Relationship } from '../../src/types/semantic';
 
 // ---------------------------------------------------------------------------
@@ -262,7 +262,7 @@ describe('setDomainRelationships', () => {
     ['tab', '\t'],
   ])('replaces only the array with %s indentation', (_label, indent) => {
     const input = domainText(indent, '[{"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}]');
-    const out = setDomainRelationships(input, [R1, R2]);
+    const out = setSubjectAreaRelationships(input, [R1, R2]);
     expect(splitAroundRelationships(out)).toEqual(splitAroundRelationships(input));
     expectOnlyRelationshipsChanged(input, out, [R1, R2]);
     const i2 = indent.repeat(2);
@@ -276,18 +276,18 @@ describe('setDomainRelationships', () => {
 
   it('renders an empty list as []', () => {
     const input = domainText('  ', '[\n      {"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}\n    ]');
-    const out = setDomainRelationships(input, []);
+    const out = setSubjectAreaRelationships(input, []);
     expect(out).toBe(domainText('  ', '[]'));
   });
 
   it('is idempotent', () => {
-    const once = setDomainRelationships(domainText('  ', '[]'), [R1]);
-    expect(setDomainRelationships(once, [R1])).toBe(once);
+    const once = setSubjectAreaRelationships(domainText('  ', '[]'), [R1]);
+    expect(setSubjectAreaRelationships(once, [R1])).toBe(once);
   });
 
   it('keeps CRLF and a BOM', () => {
     const input = '﻿' + domainText('  ', '[]').replace(/\n/g, '\r\n');
-    const out = setDomainRelationships(input, [R1]);
+    const out = setSubjectAreaRelationships(input, [R1]);
     expect(out.startsWith('﻿{\r\n')).toBe(true);
     expect(out).not.toMatch(/(?<!\r)\n/);
     expect(splitAroundRelationships(out)).toEqual(splitAroundRelationships(input));
@@ -300,7 +300,7 @@ describe('setDomainRelationships', () => {
   "other": {"relationships": [1, 2]},
   "logical": {"models": [], "relationships": []}
 }`;
-    const out = setDomainRelationships(input, [R1]);
+    const out = setSubjectAreaRelationships(input, [R1]);
     expect(out.slice(0, out.indexOf('"logical"'))).toBe(input.slice(0, input.indexOf('"logical"')));
     expectOnlyRelationshipsChanged(input, out, [R1]);
     // logical is on one line: the array is compact too
@@ -315,7 +315,7 @@ describe('setDomainRelationships', () => {
     }
 }
 `;
-    const out = setDomainRelationships(input, [R1]);
+    const out = setSubjectAreaRelationships(input, [R1]);
     expect(out).toBe(`{
     "logical": {
         "models": ["a", "b"],
@@ -337,17 +337,17 @@ describe('setDomainRelationships', () => {
 
   it('inserts as the last key when there is no models key, and into an empty logical object', () => {
     const noModels = '{\n  "logical": {\n    "notes": "x"\n  }\n}';
-    expect(setDomainRelationships(noModels, [])).toBe('{\n  "logical": {\n    "notes": "x",\n    "relationships": []\n  }\n}');
+    expect(setSubjectAreaRelationships(noModels, [])).toBe('{\n  "logical": {\n    "notes": "x",\n    "relationships": []\n  }\n}');
 
     const empty = '{\n  "logical": {}\n}\n';
-    expect(setDomainRelationships(empty, [])).toBe('{\n  "logical": {\n    "relationships": []\n  }\n}\n');
+    expect(setSubjectAreaRelationships(empty, [])).toBe('{\n  "logical": {\n    "relationships": []\n  }\n}\n');
   });
 
   it('throws when there is no logical object', () => {
-    expect(() => setDomainRelationships('[]', [])).toThrow(/not a JSON object/);
-    expect(() => setDomainRelationships('{"logical": []}', [])).toThrow(/no "logical" object/);
-    expect(() => setDomainRelationships('{}', [])).toThrow(/no "logical" object/);
-    expect(() => setDomainRelationships('{', [])).toThrow();
+    expect(() => setSubjectAreaRelationships('[]', [])).toThrow(/not a JSON object/);
+    expect(() => setSubjectAreaRelationships('{"logical": []}', [])).toThrow(/no "logical" object/);
+    expect(() => setSubjectAreaRelationships('{}', [])).toThrow(/no "logical" object/);
+    expect(() => setSubjectAreaRelationships('{', [])).toThrow();
   });
 });
 

@@ -22,7 +22,7 @@ import type { DisplaySubjectArea } from '@erd-studio/core';
 import { transformSubjectArea } from '@erd-studio/renderer/editor';
 import type { FkFlowEdge } from '@erd-studio/renderer/editor';
 import {
-  applyMoveToModel, groupOf, moveTargets, planMoveToLibrary, planRelationshipWrite, removeColumnFromDomainRelationships,
+  applyMoveToTable, groupOf, moveTargets, planMoveToLibrary, planRelationshipWrite, removeColumnFromSubjectAreaRelationships,
   removeColumnRelationships, resolveConflict, usesLibraryRelationships,
 } from '../../src/services/libraryRelationships';
 import type { ConflictDefinition, MoveToLibraryPlan, RelationshipWriteOp } from '../../src/services/libraryRelationships';
@@ -90,7 +90,7 @@ export function gMoveApply(w: GWorld, plan0: MoveToLibraryPlan, picks: Array<Con
   let out = clone(w);
   for (const name of moveTargets(plan)) {
     const copy = gModels(out).find((m) => m.name === name.toLowerCase())!;
-    if (applyMoveToModel(plan, copy)) out = withModels(out, [copy]);
+    if (applyMoveToTable(plan, copy)) out = withModels(out, [copy]);
   }
   for (const d of DS) {
     const keys = plan.removeFromDomains.get(d);
@@ -439,7 +439,7 @@ export function checkGroupState(copies: GroupCopy[]): Array<{ op: string; violat
     removeColumnRelationships([fct], 'fct', 'k_x', library);
     removeColumnRelationships(models.filter((m) => m !== fct), 'fct', 'k_x', library);
     const a = withModels(w, models);
-    a.dom.D1 = removeColumnFromDomainRelationships(a.dom.D1, 'fct', 'k_x', library);
+    a.dom.D1 = removeColumnFromSubjectAreaRelationships(a.dom.D1, 'fct', 'k_x', library);
     const v: Violation[] = [];
     if (libGroup && libraryAndD1(a).some((r) => linkKey(r) === L || linkKey(r) === LX)) v.push(['G6 column-removal-removes-group', 'a member survived']);
     results.push({ op: 'remove column fct.k_x', violations: v });

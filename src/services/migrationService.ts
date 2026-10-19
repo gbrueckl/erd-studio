@@ -15,7 +15,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { LogicalModelService } from './logicalModelService';
+import { TableLibraryService } from './logicalModelService';
 import { LayerService } from './layerService';
 import { keepLineEndings } from './lineEndings';
 import type { SemanticTable, Relationship, ViewConfig } from '../types/semantic';
@@ -25,7 +25,7 @@ import { CURRENT_SCHEMA_VERSION, detectSubjectAreaFormat, getRawSubjectAreaTable
 // Types
 // ---------------------------------------------------------------------------
 
-interface V4DomainFile {
+interface V4SubjectAreaFile {
   schemaVersion: number;
   domain: string;
   layer: string;
@@ -43,7 +43,7 @@ interface V4DomainFile {
  * under `logical.models` (v4 / hybrid) or a legacy top-level `models` array.
  * String entries (v5 name references) are ignored.
  */
-function inlineModelsOf(raw: unknown): SemanticTable[] {
+function inlineTablesOf(raw: unknown): SemanticTable[] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
   const obj = raw as Record<string, unknown>;
   const logicalModels = (obj.logical as Record<string, unknown> | undefined)?.models;
@@ -95,7 +95,7 @@ function safeLstat(p: string): fs.Stats | null {
  * layer directory. Migration must never restructure a file that fails this
  * test, no matter what `detectDomainFormat` would call it.
  */
-export function isDomainDocument(parsed: unknown): boolean {
+export function isSubjectAreaDocument(parsed: unknown): boolean {
   return (
     typeof parsed === 'object' &&
     parsed !== null &&
@@ -105,9 +105,9 @@ export function isDomainDocument(parsed: unknown): boolean {
 }
 
 /** True when the file parses as JSON with a `schemaVersion` field (a domain file). */
-function looksLikeDomainFile(filePath: string): boolean {
+function looksLikeSubjectAreaFile(filePath: string): boolean {
   try {
-    return isDomainDocument(JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown);
+    return isSubjectAreaDocument(JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown);
   } catch {
     return false;
   }
@@ -164,7 +164,7 @@ export function findLegacySemanticDir(
       if (!f.endsWith('.json')) return false;
       const filePath = path.join(sub, f);
       const fileStat = safeLstat(filePath);
-      return !!fileStat && fileStat.isFile() && looksLikeDomainFile(filePath);
+      return !!fileStat && fileStat.isFile() && looksLikeSubjectAreaFile(filePath);
     });
   });
   return hasLayerWithDomains ? legacy : null;
@@ -192,7 +192,7 @@ export class MigrationService {
   constructor(
     private readonly workspaceRoot: string,
     private readonly layerService: LayerService,
-    private readonly logicalModelService: LogicalModelService,
+    private readonly logicalModelService: TableLibraryService,
     /** Semantic directory relative to workspaceRoot (the `erdStudio.semanticDir` setting). */
     private readonly semanticDir: string = DEFAULT_SEMANTIC_DIR,
   ) {}
@@ -208,11 +208,11 @@ export class MigrationService {
    * - `legacy` pre-v4 files (schemaVersion < 4 or top-level `models`)
    *
    * Uses the shared {@link detectSubjectAreaFormat} so this agrees with DomainService,
-   * but only for files that {@link isDomainDocument} recognises as domain files
+   * but only for files that {@link isSubjectAreaDocument} recognises as domain files
    * (a numeric `schemaVersion`) — an unrelated `.json` a user keeps in a layer
    * directory is never a migration candidate, however it happens to be shaped.
    */
-  findV4Domains(): string[] {
+  findV4SubjectAreas(): string[] {
     const semanticDir = path.join(this.workspaceRoot, this.semanticDir);
     if (!fs.existsSync(semanticDir)) {
       return [];
@@ -235,13 +235,13 @@ export class MigrationService {
           // guard any parseable .json in a layer directory that happens to have
           // a top-level `models` array would be classified 'legacy' and
           // silently restructured.
-          if (!isDomainDocument(parsed)) continue;
+          if (!isSubjectAreaDocument(parsed)) continue;
           const format = detectSubjectAreaFormat(parsed);
           if (format === 'hybrid' || format === 'legacy') {
             v4Paths.push(filePath);
           } else if (format === 'v4') {
             // Only v4 files that actually carry inline models need converting
-            const models = (parsed as V4DomainFile).logical?.models ?? [];
+            const models = (parsed as V4SubjectAreaFile).logical?.models ?? [];
             if (models.length > 0) {
               v4Paths.push(filePath);
             }
@@ -259,7 +259,7 @@ export class MigrationService {
    * Returns true if any v4 domain files exist that need migration.
    */
   needsMigration(): boolean {
-    return this.findV4Domains().length > 0;
+    return this.findV4SubjectAreas().length > 0;
   }
 
   // -------------------------------------------------------------------------
@@ -284,7 +284,7 @@ export class MigrationService {
    *    the "richest" version (most design annotations) is kept.
    */
   migrate(): MigrationResult {
-    const v4Paths = this.findV4Domains();
+    const v4Paths = this.findV4SubjectAreas();
     const result: MigrationResult = {
       domainsConverted: 0,
       modelsCreated: 0,
@@ -308,7 +308,7 @@ export class MigrationService {
 
         // Inline objects only — string entries (hybrid files) already live in
         // logical-models/ and must not be overwritten with a placeholder.
-        for (const model of inlineModelsOf(parsed)) {
+        for (const model of inlineTablesOf(parsed)) {
           if (!model.name) continue;
 
           const existing = allModels.get(model.name);
@@ -337,13 +337,13 @@ export class MigrationService {
     const layerIds = new Set(this.layerService.getAllLayers().map((l) => l.id));
     const useFolders = this.logicalModelService.groupsByFolder(layerIds);
     for (const [name, { model, sources }] of allModels) {
-      if (!this.logicalModelService.modelExists(name)) {
+      if (!this.logicalModelService.tableExists(name)) {
         // The domain's layer is its parent directory name.
         const layers = new Set(sources.map((source) => path.basename(path.dirname(source))));
         const only = layers.size === 1 ? [...layers][0] : undefined;
         // Never create a folder for a directory that is not a configured layer.
         const folder = useFolders && only !== undefined && layerIds.has(only) ? only : undefined;
-        this.logicalModelService.saveModel(model, folder);
+        this.logicalModelService.saveTable(model, folder);
         result.modelsCreated++;
       }
     }

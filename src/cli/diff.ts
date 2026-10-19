@@ -18,11 +18,11 @@ import type { Cardinality, Relationship, UnifiedSubjectArea } from '../types/sem
 import { detectSubjectAreaFormat } from '../types/semantic';
 import type { SyncPlan } from '../types/syncPlan';
 import { SubjectAreaFileError } from '../services/domainService';
-import type { ModelFileError, ModelFileErrorKind } from '../services/logicalModelService';
+import type { TableFileError, TableFileErrorKind } from '../services/logicalModelService';
 import { usesLibraryRelationships } from '../services/libraryRelationships';
 import { canonicalRelationship, linkKey, mergeLibraryRelationships, reverseRelationship } from '@erd-studio/core';
 import type { ColumnPair } from '@erd-studio/core';
-import { computeDomainDiff } from '../services/stageDiff';
+import { computeSubjectAreaDiff } from '../services/stageDiff';
 import { allSelections, buildSyncPlan } from '../services/syncPlanBuilder';
 import { CliEnvError, inputsOf, relPath, type ArtifactStatus, type CliContext, type Envelope } from './context';
 
@@ -64,11 +64,11 @@ export interface Fix {
  * an empty placeholder, so every column difference reported against it would
  * be noise — the file has to be fixed first.
  */
-export interface UnreadableModelFile {
+export interface UnreadableTableFile {
   name: string;
   /** Project-relative, forward slashes. */
   file: string;
-  kind: ModelFileErrorKind;
+  kind: TableFileErrorKind;
   line?: number;
   column?: number;
   /** The `yaml` library's error code, e.g. `BLOCK_AS_IMPLICIT_KEY`. */
@@ -87,7 +87,7 @@ export interface UnreadableModelFile {
 }
 
 /** One-line advice per failure kind, for the fix text and the human output. */
-export const MODEL_YAML_HINTS: Record<ModelFileErrorKind, string> = {
+export const TABLE_YAML_HINTS: Record<TableFileErrorKind, string> = {
   yamlScalar: 'wrap the value in double quotes',
   yamlIndent: 'indent with spaces, never tabs',
   yamlDuplicateKey: 'a key appears twice — keep one',
@@ -102,7 +102,7 @@ export const MODEL_YAML_HINTS: Record<ModelFileErrorKind, string> = {
  * of a conflict to keep is the user's call — it is usually a teammate's work —
  * so the conflict advice asks the assistant to show it, not to resolve it.
  */
-export function unreadableHint(u: Pick<UnreadableModelFile, 'kind' | 'mergeConflict' | 'readable' | 'key'>): string {
+export function unreadableHint(u: Pick<UnreadableTableFile, 'kind' | 'mergeConflict' | 'readable' | 'key'>): string {
   if (u.readable) {
     return `${u.key ? `\`${u.key}\`` : 'a key'} is written twice in one block — the last copy is what loads; `
       + 'delete the other copy (ERD Studio will not change this file until you do)';
@@ -110,7 +110,7 @@ export function unreadableHint(u: Pick<UnreadableModelFile, 'kind' | 'mergeConfl
   return u.mergeConflict
     ? 'unresolved git merge conflict — git left two versions there: show the user the file and line and ask which side '
       + "to keep (don't pick a side or run git commands yourself)"
-    : MODEL_YAML_HINTS[u.kind];
+    : TABLE_YAML_HINTS[u.kind];
 }
 
 /** The terminal line's advice for a conflicted file: short, and it picks no side. */
@@ -118,8 +118,8 @@ export function mergeConflictHumanHint(rerun: 'doctor' | 'diff'): string {
   return `unresolved git merge conflict — resolve it (keep one side), save, then re-run ${rerun}`;
 }
 
-/** A {@link ModelFileError} as the CLI reports it: project-relative, redacted. */
-export function toUnreadableModelFile(root: string, err: ModelFileError): UnreadableModelFile {
+/** A {@link TableFileError} as the CLI reports it: project-relative, redacted. */
+export function toUnreadableTableFile(root: string, err: TableFileError): UnreadableTableFile {
   const file = relPath(root, err.filePath);
   return {
     name: err.name,
@@ -139,15 +139,15 @@ export function toUnreadableModelFile(root: string, err: ModelFileError): Unread
  * `fct_order.yml line 4: YAML error (BLOCK_AS_IMPLICIT_KEY) — wrap the value in double quotes`,
  * for the terminal; `rerun` names the command to run again once a conflict is resolved.
  */
-export function describeUnreadable(u: UnreadableModelFile, rerun: 'doctor' | 'diff'): string {
+export function describeUnreadable(u: UnreadableTableFile, rerun: 'doctor' | 'diff'): string {
   const where = `${path.posix.basename(u.file)}${u.line !== undefined ? ` line ${u.line}` : ''}`;
   if (u.mergeConflict) { return `${where}: ${mergeConflictHumanHint(rerun)}`; }
   if (u.readable) { return `${where}: ${unreadableHint(u)}`; }
   const what = u.kind === 'read' ? 'could not be read' : `YAML error${u.code ? ` (${u.code})` : ''}`;
-  return u.kind === 'read' ? `${where}: ${MODEL_YAML_HINTS.read}` : `${where}: ${what} — ${MODEL_YAML_HINTS[u.kind]}`;
+  return u.kind === 'read' ? `${where}: ${TABLE_YAML_HINTS.read}` : `${where}: ${what} — ${TABLE_YAML_HINTS[u.kind]}`;
 }
 
-export interface DomainDiff {
+export interface SubjectAreaDiff {
   file: string;
   domain: string;
   layer: string;
@@ -168,7 +168,7 @@ export interface DomainDiff {
    * `fix-model-yaml` fix in place of its column fixes, so the domain is never
    * clean until they read.
    */
-  unreadableModelFiles: UnreadableModelFile[];
+  unreadableModelFiles: UnreadableTableFile[];
   /**
    * Models dbt has but lists no columns for (only the source file proves they
    * exist). `compare()` calls them matched with no column rows, so a clean
@@ -189,7 +189,7 @@ export interface DiffResult extends Envelope {
   inputs: { manifest: ArtifactStatus; catalog: ArtifactStatus };
   /** Every domain clean (and none errored or needing migration). */
   clean: boolean;
-  domains: DomainDiff[];
+  domains: SubjectAreaDiff[];
 }
 
 export interface DiffOptions {
@@ -200,7 +200,7 @@ export interface DiffOptions {
 }
 
 /** Resolve a `--domain` argument: as given (from the cwd), else relative to the project root. */
-export function resolveDomainPath(ctx: CliContext, arg: string, cwd: string = process.cwd()): string {
+export function resolveSubjectAreaPath(ctx: CliContext, arg: string, cwd: string = process.cwd()): string {
   const candidates = path.isAbsolute(arg) ? [arg] : [path.resolve(cwd, arg), path.resolve(ctx.root, arg)];
   const hit = candidates.find((c) => fs.existsSync(c));
   if (!hit) {
@@ -216,7 +216,7 @@ export function resolveDomainPath(ctx: CliContext, arg: string, cwd: string = pr
  * take — the assistant reading `diff` / `export` shows the user the file and
  * line and leaves the choice of side to them.
  */
-export function conflictedDomainMessage(file: string, line: number | undefined): string {
+export function conflictedSubjectAreaMessage(file: string, line: number | undefined): string {
   return `${file} has unresolved git merge conflicts${line !== undefined ? ` (first at line ${line})` : ''}: `
     + 'git left two versions there. Show the user the file and line; if only positions differ either side is safe to keep, '
     + "otherwise ask the user which side to keep. Don't pick a side or run git commands yourself.";
@@ -227,12 +227,12 @@ export function conflictedDomainMessage(file: string, line: number | undefined):
  * the project-relative path. Shared with `export --domain`, so one broken file
  * reads the same from both subcommands.
  */
-export function describeDomainError(ctx: CliContext, file: string, err: unknown): { code: string; message: string } {
+export function describeSubjectAreaError(ctx: CliContext, file: string, err: unknown): { code: string; message: string } {
   const rel = relPath(ctx.root, file);
   const raw = err instanceof Error ? err.message : String(err);
   const message = redactPaths(raw.split(file).join(rel));
   if (err instanceof SubjectAreaFileError) {
-    if (err.mergeConflict) { return { code: 'merge-conflict', message: conflictedDomainMessage(rel, err.line) }; }
+    if (err.mergeConflict) { return { code: 'merge-conflict', message: conflictedSubjectAreaMessage(rel, err.line) }; }
     return { code: err.reason === 'missing' ? 'domain-missing' : 'domain-invalid', message };
   }
   if (/invalid layer/.test(raw)) { return { code: 'unknown-layer', message }; }
@@ -278,8 +278,8 @@ export function fixesFromPlan(
   plan: SyncPlan,
   domainFile: string,
   semanticDir: string,
-  phantoms: DomainDiff['phantoms'],
-  unreadable: UnreadableModelFile[] = [],
+  phantoms: SubjectAreaDiff['phantoms'],
+  unreadable: UnreadableTableFile[] = [],
   relationshipHome: RelationshipHome = { inLibrary: new Map(), addToLibrary: false },
 ): Fix[] {
   const ymlFile = (model: string): string =>
@@ -472,7 +472,7 @@ export function fixesFromPlan(
 }
 
 /** Compare one domain file. Load errors are thrown (the caller decides between exit 3 and `domains[i].error`). */
-export function diffDomain(ctx: CliContext, file: string, strict: boolean): DomainDiff {
+export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean): SubjectAreaDiff {
   const rel = relPath(ctx.root, file);
 
   let raw: unknown;
@@ -505,7 +505,7 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
     };
   }
 
-  const { unified, target, report } = computeDomainDiff(
+  const { unified, target, report } = computeSubjectAreaDiff(
     { domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog },
     file,
     'logical',
@@ -531,16 +531,16 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
     semanticDir: ctx.semanticDir,
     domain: unified.domain,
     layer: unified.layer,
-    modelFolder: (name) => ctx.logicalModelService.modelFolder(name),
+    modelFolder: (name) => ctx.logicalModelService.tableFolder(name),
   });
-  const unreadableModelFiles = unreadableModels(ctx, unified);
+  const unreadableModelFiles = unreadableTables(ctx, unified);
   // The entry each link is drawn from (core's read winner), keyed by link.
   const libraryLines = mergeLibraryRelationships(unified.logical.models, []);
   const relationshipHome: RelationshipHome = {
     inLibrary: new Map(libraryLines.map((line) => [linkKey(line), line])),
     addToLibrary: usesLibraryRelationships(
-      ctx.logicalModelService.listModels(),
-      ctx.domainService.countDomainFileRelationships(ctx.root, ctx.semanticDir),
+      ctx.logicalModelService.listTables(),
+      ctx.domainService.countSubjectAreaFileRelationships(ctx.root, ctx.semanticDir),
       ctx.logicalModelService.hasUnreadableRelationships(),
     ),
   };
@@ -559,7 +559,7 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
       matchedRelationships: report.relationships.filter((r) => r.status === 'matched').length,
     },
     phantoms,
-    missingModelFiles: missingModelFiles(ctx, unified),
+    missingModelFiles: missingTableFiles(ctx, unified),
     unreadableModelFiles,
     modelsWithoutColumns,
     fixes,
@@ -568,17 +568,17 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
   };
 }
 
-function missingModelFiles(ctx: CliContext, unified: UnifiedSubjectArea): string[] {
+function missingTableFiles(ctx: CliContext, unified: UnifiedSubjectArea): string[] {
   return unified.logical.models
     .map((m) => m.name)
-    .filter((name) => !ctx.logicalModelService.modelExists(name));
+    .filter((name) => !ctx.logicalModelService.tableExists(name));
 }
 
-function unreadableModels(ctx: CliContext, unified: UnifiedSubjectArea): UnreadableModelFile[] {
-  const out: UnreadableModelFile[] = [];
+function unreadableTables(ctx: CliContext, unified: UnifiedSubjectArea): UnreadableTableFile[] {
+  const out: UnreadableTableFile[] = [];
   for (const m of unified.logical.models) {
-    const err = ctx.logicalModelService.getModelFileError(m.name);
-    if (err) { out.push(toUnreadableModelFile(ctx.root, err)); }
+    const err = ctx.logicalModelService.getTableFileError(m.name);
+    if (err) { out.push(toUnreadableTableFile(ctx.root, err)); }
   }
   return out;
 }
@@ -589,7 +589,7 @@ function unreadableModels(ctx: CliContext, unified: UnifiedSubjectArea): Unreada
  * one broken file does not hide the rest.
  */
 export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResult; exitCode: 0 | 1 } {
-  const domains: DomainDiff[] = [];
+  const domains: SubjectAreaDiff[] = [];
 
   if (opts.all) {
     // `--all` over nothing must never read as "clean": a wrong or omitted
@@ -602,7 +602,7 @@ export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResul
         `No ${ctx.semanticDir}/ folder in this project — check --semantic-dir (it must match the erdStudio.semanticDir setting).`,
       );
     }
-    const summaries = ctx.domainService.listDomains(ctx.root, ctx.semanticDir);
+    const summaries = ctx.domainService.listSubjectAreas(ctx.root, ctx.semanticDir);
     if (summaries.length === 0) {
       throw new CliEnvError(
         'no-domains',
@@ -611,7 +611,7 @@ export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResul
     }
     for (const summary of summaries) {
       try {
-        domains.push(diffDomain(ctx, summary.filePath, opts.strict === true));
+        domains.push(diffSubjectArea(ctx, summary.filePath, opts.strict === true));
       } catch (err) {
         domains.push({
           file: relPath(ctx.root, summary.filePath),
@@ -624,17 +624,17 @@ export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResul
           unreadableModelFiles: [],
           modelsWithoutColumns: [],
           fixes: [],
-          error: describeDomainError(ctx, summary.filePath, err),
+          error: describeSubjectAreaError(ctx, summary.filePath, err),
         });
       }
     }
   } else {
     for (const arg of opts.domains ?? []) {
-      const file = resolveDomainPath(ctx, arg, opts.cwd);
+      const file = resolveSubjectAreaPath(ctx, arg, opts.cwd);
       try {
-        domains.push(diffDomain(ctx, file, opts.strict === true));
+        domains.push(diffSubjectArea(ctx, file, opts.strict === true));
       } catch (err) {
-        const { code, message } = describeDomainError(ctx, file, err);
+        const { code, message } = describeSubjectAreaError(ctx, file, err);
         throw new CliEnvError(code, message);
       }
     }

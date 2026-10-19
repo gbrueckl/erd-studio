@@ -298,9 +298,9 @@ export type TelemetryErrorCode = (typeof ERROR_CODES)[number];
 
 export type ActivationOutcome = 'project_found' | 'no_project';
 export type TenureBucket = '0' | '1-7' | '8-30' | '31-90' | '90+';
-export type DomainCountBucket = '0' | '1-3' | '4-10' | '10+';
+export type SubjectAreaCountBucket = '0' | '1-3' | '4-10' | '10+';
 /** `none` means no canvas with a model in it was opened that day. */
-export type ModelCountBucket = 'none' | '1-10' | '11-50' | '51+';
+export type TableCountBucket = 'none' | '1-10' | '11-50' | '51+';
 export type ManifestState = 'ok' | 'missing' | 'stale' | 'unknown';
 export type TelemetryStage = 'logical' | 'physical';
 export type TelemetrySchemaFormat = 'v5' | 'v4';
@@ -358,12 +358,12 @@ export interface DailyCounters {
   /** Most recent activation outcome; `null` until this window has activated. */
   activation: ActivationOutcome | null;
   hasSemanticDir: boolean;
-  domainCount: DomainCountBucket;
+  domainCount: SubjectAreaCountBucket;
   activations: number;
   canvasOpens: number;
   stages: TelemetryStage[];
   schemaFormats: TelemetrySchemaFormat[];
-  modelCount: ModelCountBucket;
+  modelCount: TableCountBucket;
   manifest: ManifestState;
   catalog: boolean;
   features: Partial<Record<TelemetryFeature, number>>;
@@ -423,12 +423,12 @@ export interface HeartbeatBody {
   tenure: TenureBucket;
   activation: ActivationOutcome;
   hasSemanticDir: boolean;
-  domainCount: DomainCountBucket;
+  domainCount: SubjectAreaCountBucket;
   activations: number;
   canvasOpens: number;
   stages: TelemetryStage[];
   schemaFormats: TelemetrySchemaFormat[];
-  modelCount: ModelCountBucket;
+  modelCount: TableCountBucket;
   manifest: ManifestState;
   catalog: boolean;
   features: Partial<Record<TelemetryFeature, number>>;
@@ -469,21 +469,21 @@ export function tenureBucket(days: number): TenureBucket {
   return '90+';
 }
 
-export function domainCountBucket(count: number): DomainCountBucket {
+export function subjectAreaCountBucket(count: number): SubjectAreaCountBucket {
   if (count <= 0) return '0';
   if (count <= 3) return '1-3';
   if (count <= 10) return '4-10';
   return '10+';
 }
 
-export function modelCountBucket(count: number): ModelCountBucket {
+export function tableCountBucket(count: number): TableCountBucket {
   if (count <= 0) return 'none';
   if (count <= 10) return '1-10';
   if (count <= 50) return '11-50';
   return '51+';
 }
 
-const MODEL_COUNT_ORDER: readonly ModelCountBucket[] = ['none', '1-10', '11-50', '51+'];
+const TABLE_COUNT_ORDER: readonly TableCountBucket[] = ['none', '1-10', '11-50', '51+'];
 
 export function recentDaysBucket(count: number): RecentDaysBucket {
   if (count <= 0) return '0';
@@ -637,7 +637,7 @@ export function recordActivation(
     ...state,
     activation: info.outcome,
     hasSemanticDir: info.hasSemanticDir,
-    domainCount: domainCountBucket(info.domainCount),
+    domainCount: subjectAreaCountBucket(info.domainCount),
     activations: Math.min(state.activations + 1, MAX_ACTIVATIONS),
   };
 }
@@ -646,8 +646,8 @@ export function recordCanvasOpen(
   state: DailyCounters,
   info: { stage: TelemetryStage; format: TelemetrySchemaFormat; modelCount: number },
 ): DailyCounters {
-  const seen = modelCountBucket(info.modelCount);
-  const largest = MODEL_COUNT_ORDER.indexOf(seen) > MODEL_COUNT_ORDER.indexOf(state.modelCount) ? seen : state.modelCount;
+  const seen = tableCountBucket(info.modelCount);
+  const largest = TABLE_COUNT_ORDER.indexOf(seen) > TABLE_COUNT_ORDER.indexOf(state.modelCount) ? seen : state.modelCount;
   return {
     ...state,
     canvasOpens: Math.min(state.canvasOpens + 1, MAX_CANVAS_OPENS),
@@ -678,7 +678,7 @@ export function recordFeatureOnce(state: DailyCounters, feature: TelemetryFeatur
   return state.features[feature] ? state : recordFeature(state, feature);
 }
 
-const MODEL_FILE_ERROR_CODES: Record<TableLoadErrorKind, TelemetryErrorCode> = {
+const TABLE_FILE_ERROR_CODES: Record<TableLoadErrorKind, TelemetryErrorCode> = {
   read: 'modelFileRead',
   yamlIndent: 'modelFileYamlIndent',
   yamlScalar: 'modelFileYamlScalar',
@@ -688,8 +688,8 @@ const MODEL_FILE_ERROR_CODES: Record<TableLoadErrorKind, TelemetryErrorCode> = {
 };
 
 /** The error sub-code counted for a model-file failure of `kind`; recorded alongside `modelFileParse`. */
-export function modelFileErrorCode(kind: TableLoadErrorKind): TelemetryErrorCode {
-  return MODEL_FILE_ERROR_CODES[kind] ?? 'modelFileYamlOther';
+export function tableFileErrorCode(kind: TableLoadErrorKind): TelemetryErrorCode {
+  return TABLE_FILE_ERROR_CODES[kind] ?? 'modelFileYamlOther';
 }
 
 /**
@@ -697,9 +697,9 @@ export function modelFileErrorCode(kind: TableLoadErrorKind): TelemetryErrorCode
  * or cannot be read, its text is not JSON (or empty), it is JSON that fails
  * validation (schema version, format, layer), or anything else threw.
  */
-export type DomainLoadFailure = 'notDomain' | 'missing' | 'unreadable' | 'json' | 'invalid' | 'internal';
+export type SubjectAreaLoadFailure = 'notDomain' | 'missing' | 'unreadable' | 'json' | 'invalid' | 'internal';
 
-const DOMAIN_LOAD_ERROR_CODES: Record<DomainLoadFailure, TelemetryErrorCode> = {
+const SUBJECT_AREA_LOAD_ERROR_CODES: Record<SubjectAreaLoadFailure, TelemetryErrorCode> = {
   notDomain: 'domainLoadNotDomain',
   missing: 'domainLoadMissing',
   unreadable: 'domainLoadUnreadable',
@@ -709,8 +709,8 @@ const DOMAIN_LOAD_ERROR_CODES: Record<DomainLoadFailure, TelemetryErrorCode> = {
 };
 
 /** The error sub-code counted for a canvas load failure of `kind`; recorded alongside `domainLoad`. */
-export function domainLoadErrorCode(kind: DomainLoadFailure): TelemetryErrorCode {
-  return DOMAIN_LOAD_ERROR_CODES[kind] ?? 'domainLoadInternal';
+export function subjectAreaLoadErrorCode(kind: SubjectAreaLoadFailure): TelemetryErrorCode {
+  return SUBJECT_AREA_LOAD_ERROR_CODES[kind] ?? 'domainLoadInternal';
 }
 
 /** The feature key for an auto layout that took `ms` milliseconds, or failed. */
@@ -777,7 +777,7 @@ export function buildHeartbeat(state: DailyCounters, env: HeartbeatEnv): Heartbe
     canvasOpens: clampCount(state.canvasOpens, MAX_CANVAS_OPENS),
     stages: (['logical', 'physical'] as const).filter(s => state.stages?.includes(s)),
     schemaFormats: (['v5', 'v4'] as const).filter(f => state.schemaFormats?.includes(f)),
-    modelCount: pick(state.modelCount, MODEL_COUNT_ORDER, 'none'),
+    modelCount: pick(state.modelCount, TABLE_COUNT_ORDER, 'none'),
     manifest: pick(state.manifest, ['ok', 'missing', 'stale', 'unknown'], 'unknown'),
     catalog: state.catalog === true,
     features: allowedCounts(state.features, FEATURES),
