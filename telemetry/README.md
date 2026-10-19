@@ -57,9 +57,13 @@ the local archive together.
 
 ## What it does
 
-- `POST /v1/heartbeat` — validate, upsert, `204`. Everything else is `404`
-  (another path) or `405` (another method on this path). No CORS headers: the
-  caller is the VS Code extension host, not a browser.
+- `POST /v1/heartbeat` — validate, upsert, `204`.
+- `GET` / `HEAD /known-fixes` — the bundled [known-fixes registry](#known-fixes-registry),
+  `200`, `Cache-Control: public, max-age=300`. Static, the same for every
+  caller, no D1, and **not logged at all** (see below).
+- Everything else is `404` (another path) or `405` (another method on a known
+  path). No CORS headers: the caller is the VS Code extension host, not a
+  browser.
 - `KILL_SWITCH` truthy → every request `503` before any D1 access.
 - Body over **8,192 bytes** → `413`, counted while streaming, so a missing or
   lying `Content-Length` does not help. (A heartbeat with every feature and
@@ -72,6 +76,73 @@ the local archive together.
 - Upsert on `(install_id, day)`, last write wins.
 - A D1 failure → `503`. The extension drops failed heartbeats silently and never
   retries, so a D1 outage loses a day of data and nothing else.
+
+## Known-fixes registry
+
+[`known-fixes.json`](known-fixes.json) lists error codes that a newer release
+fixes. When the extension records one of those codes on an older version, it
+shows one notification: *"ERD Studio 1.7.0 fixes this: … You're on 1.6.9."*
+with **Update** (opens ERD Studio in the Extensions view) or **Reload Window**
+(when that version is already installed and waiting), and **Not now**. It is
+shown at most once per code per running version.
+
+**How it is served.** The Worker bundles the file at deploy time and serves it
+at `GET https://erd-studio-telemetry.w2solutions.ai/known-fixes`. A change to
+it is a change to `telemetry/`, so `deploy.yml` redeploys the Worker when it
+reaches `main` — **no extension release is needed** for a new entry to go live.
+The extension fetches the **whole** list, with no query string, id, version
+or error code, the first time an error is recorded in a session (at most once
+a day; cached in `globalState` for 24 hours; 3 s timeout; every failure
+ignored), and matches it on the user's machine. The server cannot tell which
+error happened, so the Worker logs nothing about these requests, not even a
+count. The check has its own user-scoped setting, `erdStudio.checkKnownFixes`
+(default on), and does not depend on telemetry being enabled.
+
+### Format
+
+The file is a JSON array of objects. Each object has exactly these keys:
+
+| Key | Required | Rule |
+|---|---|---|
+| `code` | yes | An `ERROR_CODES` key from `src/services/telemetryPayload.ts`, spelt exactly (e.g. `"domainLoadJson"`). This is the code the **old** version records when it hits the bug, which may not be the code the fixed version records. |
+| `fixedIn` | yes | The first released extension version with the fix, `major.minor.patch` (e.g. `"1.7.0"`). No `v` prefix, no pre-release suffix. It must be a version that is published or about to be published from `main`. |
+| `summary` | yes | One plain-language sentence, at most **140 characters**, saying what the fix changes for the user. It is shown after "ERD Studio 1.7.0 fixes this:", so start with the thing they noticed ("A diagram with … now …"). No file paths, no line breaks, no markdown, no names from anyone's project. |
+| `issue` | no | The GitHub issue number it fixed, as a number (`110`, not `"#110"`). |
+
+```json
+[
+  {
+    "code": "modelFileParse",
+    "fixedIn": "1.6.2",
+    "summary": "A model file with a YAML mistake now shows the line of the error and an Open file button, instead of looking empty or not found.",
+    "issue": 110
+  }
+]
+```
+
+Rules for adding entries:
+
+- **Add entries only, in `fixedIn` order** (oldest first). Never edit or remove
+  an entry for a fix that has shipped; if a fix turns out incomplete, add a new
+  entry with the later `fixedIn`.
+- **One code may have several entries** (a second cause fixed later). A user
+  on a version older than more than one of them sees the newest one, since
+  updating installs every fix.
+- **Only list a fix once it is released.** `fixedIn` is the version heading in
+  `CHANGELOG.md` on `main` whose notes include the fix. The deploy workflow
+  picks that number at release time (a patch bump unless one is pinned), so it
+  is not known before then, and an entry pointing at a version not yet on the
+  Marketplace would send users to an update that does not exist.
+- **An entry only fires for users on a version that has the prompt** (the
+  first release after 1.6.8). Entries whose `fixedIn` is 1.6.8 or earlier can
+  never show a notification: anyone on a version with the prompt already has
+  those fixes. The seed entries (all 1.6.5 or earlier) are kept as worked examples of
+  the format, not because they do anything.
+- `test/unit/knownFixesRegistry.test.ts` (the root `npm test`) checks every
+  entry: known code, valid `fixedIn`, summary ≤ 140 characters with no path or
+  line break, integer `issue`, no unknown keys, no duplicate `code` + `fixedIn`,
+  and `fixedIn` order. The extension also drops any fetched entry that fails
+  those rules, so one bad entry cannot break the others.
 
 ## Deploy
 

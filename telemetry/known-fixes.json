@@ -1,0 +1,18 @@
+[
+  {
+    "code": "modelFileParse",
+    "fixedIn": "1.6.2",
+    "summary": "A model file with a YAML mistake now shows the line of the error and an Open file button, instead of looking empty or not found.",
+    "issue": 110
+  },
+  {
+    "code": "domainLoad",
+    "fixedIn": "1.6.5",
+    "summary": "A diagram no longer fails to open when another program is writing its file at the same moment."
+  },
+  {
+    "code": "sampleCloneFailed",
+    "fixedIn": "1.6.5",
+    "summary": "Try the Sample Project on a machine without Git now offers a Download ZIP button instead of failing."
+  }
+]

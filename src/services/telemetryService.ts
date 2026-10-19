@@ -263,6 +263,25 @@ async function postHeartbeat(body: HeartbeatBody): Promise<void> {
 
 let active: TelemetryService | undefined;
 
+let errorCodeListener: ((code: TelemetryErrorCode) => void) | undefined;
+
+/**
+ * Called with every error code the facade records, **whether or not telemetry
+ * is on** — the known-fixes check (`knownFixesService.ts`) sends nothing about
+ * the user, so it has its own switch. One listener; `undefined` removes it.
+ */
+export function setErrorCodeListener(listener: ((code: TelemetryErrorCode) => void) | undefined): void {
+  errorCodeListener = listener;
+}
+
+function errorRecorded(code: TelemetryErrorCode): void {
+  try {
+    errorCodeListener?.(code);
+  } catch {
+    // A listener must never break the call site that recorded the error.
+  }
+}
+
 /**
  * One-line call sites. Each takes only fixed keys, booleans and counts, so a
  * name, path or message cannot be passed. Safe before a service exists.
@@ -301,6 +320,7 @@ export const telemetry = {
     active?.update(s => recordFeatureOnce(s, feature));
   },
   error(code: TelemetryErrorCode): void {
+    errorRecorded(code);
     active?.update(s => recordError(s, code));
   },
   /** Canvas open: each relationship state found (`surveyLibrary`), at most once a day — counts only, never which links. */
@@ -315,6 +335,7 @@ export const telemetry = {
   /** After a relationship write: one error per invariant it broke (`checkRelationshipWrite`). */
   relationshipInvariants(broken: readonly RelationshipInvariant[]): void {
     const codes = invariantErrorCodes(broken);
+    codes.forEach(errorRecorded);
     if (codes.length > 0) active?.update(s => codes.reduce(recordError, s));
   },
 };

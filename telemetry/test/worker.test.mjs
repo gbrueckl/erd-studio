@@ -545,6 +545,64 @@ describe('optional 1.6.3 fields', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Known-fixes registry
+// ---------------------------------------------------------------------------
+
+describe('GET /known-fixes', () => {
+  const REGISTRY = JSON.parse(readFileSync(new URL('../known-fixes.json', import.meta.url), 'utf8'));
+
+  it('returns the bundled registry as JSON with a short public cache', async () => {
+    const env = makeEnv();
+    const response = await call(makeRequest(null, { method: 'GET', path: '/known-fixes' }), env);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('Content-Type') ?? '', /^application\/json/);
+    assert.equal(response.headers.get('Cache-Control'), 'public, max-age=300');
+    assert.deepEqual(await response.json(), REGISTRY);
+    assert.equal(env.DB.statements.length, 0);
+  });
+
+  it('is the same response whatever the query string says', async () => {
+    const plain = await call(makeRequest(null, { method: 'GET', path: '/known-fixes' }));
+    const queried = await call(makeRequest(null, { method: 'GET', path: '/known-fixes?code=domainLoad&v=1.0.0' }));
+    assert.equal(await queried.text(), await plain.text());
+  });
+
+  it('answers HEAD with no body', async () => {
+    const response = await call(makeRequest(null, { method: 'HEAD', path: '/known-fixes' }));
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), '');
+  });
+
+  it('405s other methods with Allow: GET, HEAD', async () => {
+    for (const method of ['POST', 'PUT', 'DELETE', 'OPTIONS']) {
+      const env = makeEnv();
+      const response = await call(makeRequest(heartbeat(), { method, path: '/known-fixes' }), env);
+      assert.equal(response.status, 405, method);
+      assert.equal(response.headers.get('Allow'), 'GET, HEAD');
+      assert.equal(env.DB.statements.length, 0);
+    }
+  });
+
+  it('404s neighbouring paths', async () => {
+    for (const path of ['/known-fixes/', '/known-fixes.json', '/v1/known-fixes']) {
+      assert.equal((await call(makeRequest(null, { method: 'GET', path }))).status, 404, path);
+    }
+  });
+
+  it('logs nothing at all, so how often it is asked is never recorded', async () => {
+    logLines = [];
+    await call(makeRequest(null, { method: 'GET', path: '/known-fixes?code=domainLoad' }));
+    await call(makeRequest(null, { method: 'POST', path: '/known-fixes' }));
+    assert.deepEqual(logLines, []);
+  });
+
+  it('is behind the kill switch like every other request', async () => {
+    const response = await call(makeRequest(null, { method: 'GET', path: '/known-fixes' }), makeEnv({ KILL_SWITCH: 'on' }));
+    assert.equal(response.status, 503);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Retention
 // ---------------------------------------------------------------------------
 
