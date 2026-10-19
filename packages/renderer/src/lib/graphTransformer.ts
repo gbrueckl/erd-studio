@@ -3,7 +3,7 @@
  *
  * This is a pure function with no side effects, making it easy to unit test.
  * It handles:
- *   1. Mapping each DisplayTable → ModelFlowNode (with position + columns)
+ *   1. Mapping each DisplayTable → TableFlowNode (with position + columns)
  *   2. Mapping each DisplayRelationship → FkFlowEdge (with handle side selection)
  *   3. Selecting optimal handle sides based on relative node positions
  *   4. Injecting discrepancy data and ghost nodes/edges when a comparison report is active

@@ -14,7 +14,7 @@ This page matches each word on screen to the name you'll find in the files and i
 | **Diagram / canvas** | The `viewConfig` section of the subject area file (positions, notes) | `ErdCanvas` (`@erd-studio/renderer`), `SemanticEditorProvider` (the VS Code editor) | The picture of one subject area that you edit. |
 | **Layer** | `.erd-studio/layers.json`; the `{layer}` folder a subject area file sits in, and the `layer` field | `Layer`, `LayerConfig`, `LayerService` | A stage of your warehouse (bronze, silver, gold). Optionally also a folder in the Table Library. |
 | **Logical stage** | The table YAMLs plus the subject area file's `logical` section | `Stage` = `'logical'`, `buildLogicalDisplaySubjectArea` | Your design, in blue. The stage you edit. |
-| **Physical stage** | Nothing: it is never saved | `Stage` = `'physical'`, `SubjectAreaService.buildPhysicalDomain` | What your dbt project has, in green, read from dbt every time. Read-only. |
+| **Physical stage** | Nothing: it is never saved | `Stage` = `'physical'`, `SubjectAreaService.buildPhysicalSubjectArea` | What your dbt project has, in green, read from dbt every time. Read-only. |
 | **Relationship** | A `relationships:` entry in the table YAML that holds the foreign key (no `fromModel`, since that is the file's own table), or a `logical.relationships` entry with `fromModel` / `toModel` in a subject area file | `Relationship`, `DisplayRelationship` | A line between two tables, from the foreign key to the key it points at. |
 
 Other on-disk names that keep the old word: `modelRole` (the table's role, such as `conformed-dim`), `modelFolder`, `linkedModel` on a note, and the `--domain` and `--models` options of the `erd-studio` command-line helper.

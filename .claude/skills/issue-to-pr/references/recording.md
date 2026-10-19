@@ -135,7 +135,7 @@ This is the setup the #82 video (liam-machine/erd-studio) was made with:
 
 The mocked webview is the same bundle VS Code loads, but the host is fake. If the bug is
 in what the **host** posts, capture the real payload first (in VS Code, log it from
-`sendDomainData`) and paste it into the mock. Don't hand-write a payload that "should"
+`sendSubjectAreaData`) and paste it into the mock. Don't hand-write a payload that "should"
 reproduce it.
 
 ### Linux / headless (a routine, or any machine without a screen)

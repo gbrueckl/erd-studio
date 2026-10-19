@@ -89,7 +89,7 @@ Four esbuild targets (`esbuild.js`, each in both build and watch branches):
 
 ```
 {layer}/{domain}.json ─┐
-logical-models/**.yml ─┴→ SubjectAreaService.getDomain() ─→ UnifiedSubjectArea ─→ .logical → DisplaySubjectArea
+logical-models/**.yml ─┴→ SubjectAreaService.getSubjectArea() ─→ UnifiedSubjectArea ─→ .logical → DisplaySubjectArea
 schema .yml + source files ─→ YmlParserService ─┐                                         │
 manifest.json              ─→ ManifestService  ─┼→ buildPhysicalSubjectArea() ─→ DisplaySubjectArea │
 catalog.json               ─→ CatalogService   ─┘                                         │
@@ -107,7 +107,7 @@ The canvas and the CLI reach comparisons through the same pure cores — `buildL
 - Any writer of a watched file (domain JSON, `layers.json`, `logical-models/*.yml`) records `ownWrites` **after** the bytes land.
 - Model yml writes edit the parsed YAML document in place, so comments, key order, unknown keys, number text and aliases survive. Never regenerate a file that parses.
 - Refresh paths (watchers, external edits, stage switches) never write. Only the initial `ready` load persists auto-computed positions, and only for a partially positioned domain.
-- Compare model and column names with `sameName()` / `normaliseName()` (case-insensitive). Names match `TABLE_NAME_PATTERN` / `COLUMN_NAME_PATTERN` (`src/types/naming.ts`; the renderer keeps its own copies). Refuse a case-only model rename (the write-new + delete-old edit would delete the file on macOS/Windows). Add / Rename refuse a name already in the domain or the library in any case via `TableLibraryService.findModelNameIgnoringCase`, which lists files — never `existsSync`, which is case-sensitive on Linux.
+- Compare model and column names with `sameName()` / `normaliseName()` (case-insensitive). Names match `TABLE_NAME_PATTERN` / `COLUMN_NAME_PATTERN` (`src/types/naming.ts`; the renderer keeps its own copies). Refuse a case-only model rename (the write-new + delete-old edit would delete the file on macOS/Windows). Add / Rename refuse a name already in the domain or the library in any case via `TableLibraryService.findTableNameIgnoringCase`, which lists files — never `existsSync`, which is case-sensitive on Linux.
 - `updateColumn` treats an omitted `scdType` / `additiveType` as "keep" and `null` as "clear".
 - `meta` is the user's free-form map: edit only through `updateMeta` patches; it is never compared, diffed or synced to dbt. `TableLibraryService.syncMeta` writes only the top-level key that changed, matching keys as the parser reads them (never via `YAMLMap.get/set`).
 - `SelectorsService` owns only `domain_*` selectors whose description ends with `Managed by ERD Studio.`; everything else in `selectors.yml` is preserved.

@@ -14,7 +14,7 @@ You work through GitHub: issues, comments and a small set of PRs. Liam (the main
 
 Every user-visible problem (toast, notification, error screen, dialog, empty state) should meet all of these. Judge every error and user report against them.
 
-1. **Says what happened in plain words.** No stack traces, internal names (`DomainValidationError`, `relInv…`) or jargon the user didn't write.
+1. **Says what happened in plain words.** No stack traces, internal names (`SubjectAreaValidationError`, `relInv…`) or jargon the user didn't write.
 2. **Says whose problem it is.**
    - *Yours:* names the file or setting at fault and the exact fix ("`orders.yml` line 12 has `customer_id` twice — remove one").
    - *Ours:* says plainly it is a bug in ERD Studio, not something they did; offers **Send Feedback**; offers **Update** when a newer version fixes it.
@@ -43,7 +43,7 @@ Check out `liam-machine/erd-studio` (clone if needed) and `git fetch origin main
 
 **Telemetry:** Cloudflare D1 `erd-studio-telemetry` (id `58f599b8-709f-47bf-9164-057cfdd06050`), table `heartbeats`: one row per install per UTC day, schema in `telemetry/schema.sql`; `errors` / `features` are JSON objects (use `json_each`); every field is described in `telemetry.json` and CLAUDE.md "Usage telemetry". Query it with the Cloudflare Developer Platform connector's D1 query tool (ToolSearch `cloudflare d1`). If it is unavailable or unauthorised, say so in the journal and the summary and do the work that needs none (STEP 0, STEP 1, STEP 3 for user reports and the proactive sweep, the journal); never guess at data. Always `COALESCE(dev,0)=0`. Keep queries small (D1 rejects large UNIONs). Default window: last 14 days; widen when a question needs it. Count installs with `COUNT(DISTINCT install_id)`.
 
-**Code meanings:** `ERROR_CODES` / `FEATURES` in `src/services/telemetryPayload.ts` (with comments), then grep `telemetry.error('<code>')` and helpers (`domainLoadErrorCode`, `modelFileErrorCode`, `manifestFailureCode`). `manifestMissing` is retired; ignore it.
+**Code meanings:** `ERROR_CODES` / `FEATURES` in `src/services/telemetryPayload.ts` (with comments), then grep `telemetry.error('<code>')` and helpers (`subjectAreaLoadErrorCode`, `tableFileErrorCode`, `manifestFailureCode`). `manifestMissing` is retired; ignore it.
 
 ## The run
 

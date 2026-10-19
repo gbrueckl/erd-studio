@@ -156,7 +156,7 @@ describe('legacy semantic dir migration (erd-studio/ → .erd-studio/)', () => {
   });
 });
 
-describe('MigrationService.findV4Domains honours semanticDir', () => {
+describe('MigrationService.findV4SubjectAreas honours semanticDir', () => {
   let workspaceRoot: string;
 
   beforeEach(() => {

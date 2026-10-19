@@ -3,7 +3,7 @@
  * palette command, the canvas and the `erd-studio export` CLI share.
  *
  * The domain is read exactly as the canvas's logical stage reads it
- * (`SubjectAreaService.getDomain` → `buildLogicalDisplaySubjectArea`, the same core
+ * (`SubjectAreaService.getSubjectArea` → `buildLogicalDisplaySubjectArea`, the same core
  * `computeSubjectAreaDiff` uses), so library relationships are merged and a link
  * stored twice is drawn from the same winner. The text itself comes from
  * `@erd-studio/core`'s `exportDiagram`, which every host shares.
@@ -42,7 +42,7 @@ export interface ExportSubjectAreaFileOptions {
 /**
  * The logical (design) stage of the domain at `domainPath` in `format`.
  *
- * Throws what `SubjectAreaService.getDomain` throws (`SubjectAreaFileError`, an
+ * Throws what `SubjectAreaService.getSubjectArea` throws (`SubjectAreaFileError`, an
  * unsupported-format or unknown-layer error), and an `Error` for a format
  * that is not in `DIAGRAM_EXPORT_FORMATS` — before reading anything.
  */

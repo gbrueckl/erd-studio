@@ -2,7 +2,7 @@
  * Logical stage → DisplaySubjectArea, the pure core.
  *
  * A thin wrapper over `@erd-studio/core`'s `toDisplaySubjectArea` — the one
- * implementation the canvas (`SemanticEditorProvider.buildDisplayDomain`) also
+ * implementation the canvas (`SemanticEditorProvider.buildDisplaySubjectArea`) also
  * uses — without the canvas-only extras (templates, add-model pickers, layer
  * config). The discrepancy comparison only reads the core, so
  * `computeSubjectAreaDiff` (`stageDiff.ts`), shared by the canvas and the

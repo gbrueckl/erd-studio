@@ -1,7 +1,7 @@
 {
   "name": "@erd-studio/core",
   "version": "0.2.0",
-  "description": "ERD Studio domain model: types and the pure raw-files -> DisplayDomain pipeline.",
+  "description": "ERD Studio domain model: types and the pure raw-files -> DisplaySubjectArea pipeline.",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",

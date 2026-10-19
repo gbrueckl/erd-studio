@@ -517,7 +517,7 @@ describe('TableLibraryService', () => {
 // modelPath — path traversal guard (H21)
 // ---------------------------------------------------------------------------
 
-describe('TableLibraryService.modelPath', () => {
+describe('TableLibraryService.tablePath', () => {
   let tempDir: string;
   let service: TableLibraryService;
 

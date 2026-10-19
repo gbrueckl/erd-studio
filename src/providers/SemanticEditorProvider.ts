@@ -2338,7 +2338,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         this.editedTablePaths.set(panelKey, ourPaths);
       }
       // Our own writes are suppressed at the watcher, so the refreshes it
-      // used to drive are issued here instead: this panel via sendDomainData,
+      // used to drive are issued here instead: this panel via sendSubjectAreaData,
       // the sidebar/model library via onDidWriteSubjectArea, and any OTHER open
       // panel that shows a model we just wrote.
       if (refreshWebview && webview) {
@@ -2768,7 +2768,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
   /**
    * Persist auto-computed positions to the document via WorkspaceEdit so they
-   * survive reloads. Only called from the `ready` path — see sendDomainData.
+   * survive reloads. Only called from the `ready` path — see sendSubjectAreaData.
    * Returns true if positions were written.
    */
   private async autoPositionNewTables(
@@ -2776,7 +2776,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     computed: Record<string, NodePosition>,
   ): Promise<boolean> {
     // Merge computed positions into the document. No webview refresh — the
-    // caller (sendDomainData) is about to send the payload itself.
+    // caller (sendSubjectAreaData) is about to send the payload itself.
     return this.applySubjectAreaEdit(
       document,
       (_section, parsed) => {
@@ -3656,7 +3656,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             stage,
             // fromName carries the OLD file's YAML document (comments, key
             // order, unknown keys) across to the new path — see
-            // TableLibraryService.serializeModel.
+            // TableLibraryService.serializeTable.
             modelFiles: {
               save: [
                 { model: renamedModel, fromName: payload.oldName },
@@ -4840,7 +4840,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
       const unifiedDomain = this.subjectAreaService.getSubjectArea(document.uri.fsPath, { dbtKeyIndex });
 
-      // Same in-memory auto-positioning as sendDomainData — never a write here.
+      // Same in-memory auto-positioning as sendSubjectAreaData — never a write here.
       const computed = this.computeMissingPositions(unifiedDomain);
       if (computed) {
         unifiedDomain.viewConfig.positions = { ...(unifiedDomain.viewConfig.positions ?? {}), ...computed };

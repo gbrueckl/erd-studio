@@ -189,7 +189,7 @@ export function withLib(w: World, models: readonly SemanticTable[]): World {
 export const subjectAreaRelCount = (w: World): number => w.dom.D1.length + w.dom.D2.length + w.dom.D3.length;
 export const libraryMode = (w: World): boolean => usesLibraryRelationships(libTables(w), subjectAreaRelCount(w));
 
-/** What diagram `d` draws: core's read path, as `SubjectAreaService.getDomain` calls it. */
+/** What diagram `d` draws: core's read path, as `SubjectAreaService.getSubjectArea` calls it. */
 export function draw(w: World, d: SubjectAreaName, modelOrder?: TableName[], reverseEntries = false, dbt?: DbtKeyIndex): Relationship[] {
   const order = modelOrder ?? w.domModels[d];
   const models = libTables(w, order);

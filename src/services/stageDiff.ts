@@ -66,7 +66,7 @@ export function buildStageForDiff(
  * Read `domainPath` once, build the source and target stages, and compare
  * them with the domain's `stubColumns` suppression.
  *
- * Throws what `SubjectAreaService.getDomain` throws (`SubjectAreaFileError`, an
+ * Throws what `SubjectAreaService.getSubjectArea` throws (`SubjectAreaFileError`, an
  * unsupported-format or unknown-layer error) — the caller decides how to
  * report it.
  *

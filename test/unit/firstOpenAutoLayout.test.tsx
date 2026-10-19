@@ -51,7 +51,7 @@ vi.mock('../../webview/lib/elkLayout', async (importOriginal) => {
 import { Toolbar } from '../../webview/components/Toolbar/Toolbar';
 import { useEditorStore } from '../../webview/store/editorStore';
 import { useFirstOpenAutoLayout } from '../../webview/hooks/useFirstOpenAutoLayout';
-import type { ModelFlowNode, FkFlowEdge } from '../../webview/types/graph';
+import type { TableFlowNode, FkFlowEdge } from '../../webview/types/graph';
 import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
@@ -72,19 +72,19 @@ function makeSubjectArea(stage: 'logical' | 'physical' = 'logical'): DisplaySubj
   } as unknown as DisplaySubjectArea;
 }
 
-function makeNode(id: string): ModelFlowNode {
+function makeNode(id: string): TableFlowNode {
   return {
     id,
     type: 'model',
     position: { x: 0, y: 0 },
     data: { modelName: id, stage: 'logical', layer: 'silver', columns: [] },
-  } as ModelFlowNode;
+  } as TableFlowNode;
 }
 
 const nodes = [makeNode('model_a'), makeNode('model_b')];
 const edges: FkFlowEdge[] = [];
 
-async function renderToolbar(nodeList: ModelFlowNode[] = nodes) {
+async function renderToolbar(nodeList: TableFlowNode[] = nodes) {
   // async act: the layout the effect starts settles inside it.
   await act(async () => {
     render(
@@ -186,7 +186,7 @@ describe('useFirstOpenAutoLayout', () => {
 
     const { rerender } = renderHook(
       ({ nodeList }) => useFirstOpenAutoLayout(runLayout, useEditorStore.getState().domain, nodeList, false),
-      { initialProps: { nodeList: [] as ModelFlowNode[] } },
+      { initialProps: { nodeList: [] as TableFlowNode[] } },
     );
     deliverSubjectAreaLoaded(makeSubjectArea());
     rerender({ nodeList: nodes });

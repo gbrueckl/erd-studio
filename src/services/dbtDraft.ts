@@ -437,7 +437,7 @@ export function customDraftScope(modelNames: readonly string[], models: readonly
 
 /**
  * A logical model copied from dbt: the schema yml first (as
- * `TableLibraryService.ymlToSemanticModel` does), with the manifest filling a
+ * `TableLibraryService.ymlToSemanticTable` does), with the manifest filling a
  * missing description and the schema; the manifest alone when no yml declares
  * the model. Undefined when neither has it.
  *

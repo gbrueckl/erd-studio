@@ -5,7 +5,7 @@
  * Layer folders make it natural to create `silver/date.yml` and
  * `gold/date.yml`, but a model's name is its identity: domains, relationships
  * and positions all refer to `date`, and dbt itself refuses two models called
- * `date`. So only one file can win (see `TableLibraryService.listModelFiles`)
+ * `date`. So only one file can win (see `TableLibraryService.listTableFiles`)
  * and the other is ignored — which used to mean a gold canvas silently showed
  * the silver table's columns.
  *
