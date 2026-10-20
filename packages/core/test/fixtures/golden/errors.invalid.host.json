@@ -1,7 +1,10 @@
 {
   "type": "error",
   "payload": {
-    "message": "Invalid JSON in subject area file <root>/.erd-studio/silver/invalid.json: Expected ',' or '}' after property value in JSON at position 69",
-    "kind": "domain-file"
+    "message": ".erd-studio/silver/invalid.json has a mistake at line 4, column 20: a comma is missing after this value.",
+    "kind": "domain-file",
+    "fileProblem": "syntax",
+    "line": 4,
+    "column": 20
   }
 }

@@ -94,6 +94,7 @@ function EditorCanvas() {
   const error = useEditorStore((s) => s.error);
   const errorKind = useEditorStore((s) => s.errorKind);
   const errorMergeConflict = useEditorStore((s) => s.errorMergeConflict);
+  const errorFileProblem = useEditorStore((s) => s.errorFileProblem);
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
   const setError = useEditorStore((s) => s.setError);
@@ -233,7 +234,14 @@ function EditorCanvas() {
           break;
         case 'error':
           useEditorStore.getState().recordError('extension', msg.payload.message);
-          setError(msg.payload.message, msg.payload.kind, msg.payload.mergeConflict === true);
+          setError(
+            msg.payload.message,
+            msg.payload.kind,
+            msg.payload.mergeConflict === true,
+            msg.payload.fileProblem
+              ? { problem: msg.payload.fileProblem, line: msg.payload.line, column: msg.payload.column }
+              : null,
+          );
           break;
         case 'openFeedback':
           useEditorStore.getState().setFeedbackDialogOpen(true, msg.payload ?? null);
@@ -271,6 +279,11 @@ function EditorCanvas() {
   // a domain file the canvas cannot parse, and the right home for a template.
   const handleOpenFile = useCallback(() => {
     vscode.postMessage({ type: 'viewFile' });
+  }, [vscode]);
+
+  // Open it with the cursor on the JSON mistake the error screen names (#186).
+  const handleOpenFileAt = useCallback((line: number, column?: number) => {
+    vscode.postMessage({ type: 'viewFile', payload: { line, ...(column !== undefined ? { column } : {}) } });
   }, [vscode]);
 
   // The "deleted or renamed" screen's two ways on (#161): close this tab, or
@@ -465,6 +478,50 @@ function EditorCanvas() {
         </button>
         <button type="button" className="editor-message__button" onClick={handleCloseEditor}>
           Close
+        </button>
+      </div>
+    );
+  }
+
+  // A domain file that is empty or not valid JSON (#186) is the user's file
+  // to fix, not an ERD Studio fault: say so, say where, and offer the way to
+  // the mistake — never Report a Bug. Like the conflict screen, the host
+  // reloads the canvas by itself on the save that fixes it.
+  if (error && !domain && errorKind === 'domain-file' && errorFileProblem) {
+    const { problem, line, column } = errorFileProblem;
+    return (
+      <div className="editor-message editor-message--error" role="alert">
+        {problem === 'syntax' ? (
+          <>
+            <p className="editor-message__title">This diagram&apos;s file isn&apos;t valid JSON</p>
+            <p className="editor-message__detail">{error}</p>
+            <p className="editor-message__detail">
+              This is a problem in the file, not in ERD Studio — it is often left by a hand edit or an AI
+              assistant. Fix it and save, and the diagram reloads by itself.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="editor-message__title">This diagram&apos;s file is empty</p>
+            <p className="editor-message__detail">{error}</p>
+            <p className="editor-message__detail">
+              If a tool or a git operation just emptied it, restore it (for example with{' '}
+              <code>git checkout -- &lt;file&gt;</code>), or delete the file if you no longer need the diagram.
+              Once it has content again, the diagram reloads by itself.
+            </p>
+          </>
+        )}
+        {problem === 'syntax' && line !== undefined ? (
+          <button type="button" className="editor-message__button" onClick={() => handleOpenFileAt(line, column)}>
+            Open at Line {line}
+          </button>
+        ) : (
+          <button type="button" className="editor-message__button" onClick={handleOpenFile}>
+            Open as Text
+          </button>
+        )}
+        <button type="button" className="editor-message__button" onClick={handleRetryLoad}>
+          Retry
         </button>
       </div>
     );

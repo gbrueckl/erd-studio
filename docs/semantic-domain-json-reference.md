@@ -583,6 +583,8 @@ Red Hat YAML matches paths with dot-folders skipped, so a project inside a hidde
 
 **Unresolved git merge conflicts.** A subject area or table file that still holds git's conflict markers — a `<<<<<<<` line, then `=======`, then `>>>>>>>` (a diff3 `|||||||` section between the first two is fine) — and so does not parse is reported as a merge conflict, with the line of the first `<<<<<<<`, rather than as invalid JSON or a YAML error: the canvas says so (and loads by itself once the file is resolved and saved), a table file's node reads "Unresolved git merge conflict on line N", `erd-studio diff` / `export` report the error code `merge-conflict`, and `erd-studio doctor` lists the file under `conflictedDomainFiles` (a table file under `unreadableModelFiles`, with `mergeConflict: true`). A file that parses is never reported, whatever its text contains. Keep one side of each conflict, save, then `git add` the file; when only `viewConfig.positions` conflicts, either side is safe to keep.
 
+**A JSON mistake or an empty file.** A subject area file that is not valid JSON (a trailing comma, a missing comma, a file cut short) opens on a screen that names the file within the project and the line and column of the mistake, with **Open at Line N** to go straight to it; a file that stays empty says so. Both are problems in the file, not in ERD Studio: fix it and save, and the diagram reloads by itself.
+
 ## Complete Example
 
 File: `.erd-studio/silver/sales.json`

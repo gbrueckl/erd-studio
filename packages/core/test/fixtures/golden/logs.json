@@ -33,7 +33,7 @@
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/empty.json is empty — re-reading in 150ms (likely mid-write)",
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/empty.json is empty — re-reading in 350ms (likely mid-write)",
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/empty.json is empty — re-reading in 700ms (likely mid-write)",
-    "error: [SemanticEditorProvider] Failed to load domain: Subject area file is empty: <root>/.erd-studio/silver/empty.json"
+    "error: [SemanticEditorProvider] Failed to load domain: .erd-studio/silver/empty.json has no content."
   ],
   "errors.future.host": [
     "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/future.json has schemaVersion 7 but this extension only supports up to version 6. Please update the extension."
@@ -45,7 +45,7 @@
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/invalid.json is invalid-json — re-reading in 150ms (likely mid-write)",
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/invalid.json is invalid-json — re-reading in 350ms (likely mid-write)",
     "warn: [SemanticEditorProvider] <root>/.erd-studio/silver/invalid.json is invalid-json — re-reading in 700ms (likely mid-write)",
-    "error: [SemanticEditorProvider] Failed to load domain: Invalid JSON in subject area file <root>/.erd-studio/silver/invalid.json: Expected ',' or '}' after property value in JSON at position 69"
+    "error: [SemanticEditorProvider] Failed to load domain: .erd-studio/silver/invalid.json has a mistake at line 4, column 20: a comma is missing after this value."
   ],
   "errors.legacy.host": [
     "error: [SemanticEditorProvider] Failed to load domain: Subject area file <root>/.erd-studio/silver/legacy.json uses a pre-v4 layout (schemaVersion < 4 or a top-level \"models\" array) that is no longer supported. Run \"ERD Studio: Migrate Subject Areas to the Central Table Library\" to convert it, or move \"models\"/\"relationships\" under a \"logical\" section and set \"schemaVersion\" to 5."

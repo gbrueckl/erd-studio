@@ -50,6 +50,17 @@ export const NON_SUBJECT_AREA_DIRS: ReadonlySet<string> = new Set([
 export type SubjectAreaFileErrorReason = 'missing' | 'unreadable' | 'empty' | 'invalid-json';
 
 /**
+ * What kind of JSON mistake an 'invalid-json' file holds (#186), worked out
+ * from the text around the parser's position:
+ *
+ * - `trailing-comma` — a comma right before a closing `}` or `]`;
+ * - `missing-comma` — a value followed by another with no comma between;
+ * - `truncated` — the text ends before the JSON does;
+ * - `unexpected` — anything else, located where the parser stopped.
+ */
+export type JsonSyntaxProblem = 'trailing-comma' | 'missing-comma' | 'truncated' | 'unexpected';
+
+/**
  * A domain file that could not be read or parsed.
  *
  * `transient` is the point of the type. A domain file is replaced, not patched
@@ -65,26 +76,207 @@ export type SubjectAreaFileErrorReason = 'missing' | 'unreadable' | 'empty' | 'i
  * `<<<<<<<`, and re-reading cannot help — someone has to keep one side. It
  * stays an 'invalid-json' (a flag, not a new reason) so a host that predates
  * the flag still reports it as the unparseable file it is.
+ *
+ * Any other 'invalid-json' carries `line`, `column` and `syntaxProblem` when
+ * the parser said where it stopped (#186), so a host can point the user at
+ * the mistake rather than echo the parser. `message` is unchanged by them.
  */
 export class SubjectAreaFileError extends Error {
   readonly transient: boolean;
   /** The file holds unresolved git conflict markers; always false unless reason is 'invalid-json'. */
   readonly mergeConflict: boolean;
-  /** 1-based line of the first conflict marker, when `mergeConflict`. */
+  /**
+   * 1-based line: of the first conflict marker when `mergeConflict`, else of
+   * the JSON mistake when the parser located one.
+   */
   readonly line?: number;
+  /** 1-based column of the JSON mistake, alongside `line`; absent for a conflict. */
+  readonly column?: number;
+  /** What the JSON mistake looks like, when `line` locates one; absent for a conflict. */
+  readonly syntaxProblem?: JsonSyntaxProblem;
 
   constructor(
     readonly reason: SubjectAreaFileErrorReason,
     readonly filePath: string,
     message: string,
-    options: { mergeConflict?: boolean; line?: number } = {},
+    options: { mergeConflict?: boolean; line?: number; column?: number; syntaxProblem?: JsonSyntaxProblem } = {},
   ) {
     super(message);
     this.name = 'SubjectAreaFileError';
     this.mergeConflict = options.mergeConflict === true;
     if (options.line !== undefined) this.line = options.line;
+    if (options.column !== undefined) this.column = options.column;
+    if (options.syntaxProblem !== undefined) this.syntaxProblem = options.syntaxProblem;
     this.transient = reason === 'empty' || (reason === 'invalid-json' && !this.mergeConflict);
   }
+}
+
+/** Where `JSON.parse` stopped, as a character offset into `raw`, from its message. */
+function jsonParseOffset(raw: string, parserMessage: string): number | undefined {
+  // V8 (Node, Chrome, Electron): "… in JSON at position N", with or without
+  // a trailing "(line L column C)" depending on the version.
+  const position = /\bposition (\d+)/.exec(parserMessage);
+  if (position) return Math.min(Number(position[1]), raw.length);
+  // SpiderMonkey (Firefox): "… at line L column C of the JSON data".
+  const lineColumn = /\bline (\d+) column (\d+)/.exec(parserMessage);
+  if (lineColumn) {
+    const lines = raw.split('\n');
+    const line = Math.min(Number(lineColumn[1]), lines.length);
+    let offset = 0;
+    for (let i = 0; i < line - 1; i++) offset += lines[i].length + 1;
+    return Math.min(offset + Number(lineColumn[2]) - 1, raw.length);
+  }
+  // "Unexpected end of JSON input" (V8), "unexpected end of data" (SpiderMonkey).
+  if (/end of (?:JSON input|data)/i.test(parserMessage)) return raw.length;
+  return undefined;
+}
+
+const isJsonWhitespace = (ch: string): boolean => ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r';
+
+/**
+ * Where `firstJsonErrorOffset` stopped, and whether a comma (between items)
+ * was one of the things that could have come next there.
+ */
+class JsonScanStop {
+  constructor(readonly at: number, readonly commaFits = false) {}
+}
+
+/**
+ * The offset of the first character that stops `raw` being JSON, by walking
+ * the JSON grammar; `raw.length` when it ends too early, `undefined` when it
+ * parses. Only ever run on text `JSON.parse` already rejected: engines word
+ * their errors differently and V8's "Unexpected token" names no position.
+ */
+function firstJsonErrorOffset(raw: string): JsonScanStop | undefined {
+  let i = 0;
+  const fail = (at: number, commaFits = false): never => { throw new JsonScanStop(at, commaFits); };
+  const ws = (): void => { while (i < raw.length && isJsonWhitespace(raw[i])) i++; };
+  const literal = (word: string): void => {
+    const start = i;
+    for (const ch of word) { if (raw[i] !== ch) fail(start); i++; }
+  };
+  const digits = (): void => {
+    if (!/[0-9]/.test(raw[i] ?? '')) fail(i);
+    while (/[0-9]/.test(raw[i] ?? '')) i++;
+  };
+  const string = (): void => {
+    i++;
+    for (;;) {
+      if (i >= raw.length) fail(i);
+      const ch = raw[i];
+      if (ch === '"') { i++; return; }
+      if (ch < ' ') fail(i);
+      if (ch === '\\') {
+        i++;
+        if (raw[i] === 'u') {
+          i++;
+          for (let k = 0; k < 4; k++, i++) { if (!/[0-9a-fA-F]/.test(raw[i] ?? '')) fail(i); }
+          continue;
+        }
+        if (!'"\\/bfnrt'.includes(raw[i] ?? 'x')) fail(i);
+      }
+      i++;
+    }
+  };
+  const value = (): void => {
+    ws();
+    const ch = raw[i];
+    if (ch === '{') {
+      i++; ws();
+      if (raw[i] === '}') { i++; return; }
+      for (;;) {
+        ws();
+        if (raw[i] !== '"') fail(i);
+        string(); ws();
+        if (raw[i] !== ':') fail(i);
+        i++; value(); ws();
+        if (raw[i] === ',') { i++; continue; }
+        if (raw[i] === '}') { i++; return; }
+        fail(i, true);
+      }
+    }
+    if (ch === '[') {
+      i++; ws();
+      if (raw[i] === ']') { i++; return; }
+      for (;;) {
+        value(); ws();
+        if (raw[i] === ',') { i++; continue; }
+        if (raw[i] === ']') { i++; return; }
+        fail(i, true);
+      }
+    }
+    if (ch === '"') { string(); return; }
+    if (ch === 't') { literal('true'); return; }
+    if (ch === 'f') { literal('false'); return; }
+    if (ch === 'n') { literal('null'); return; }
+    if (ch === '-' || /[0-9]/.test(ch ?? '')) {
+      if (ch === '-') i++;
+      if (raw[i] === '0') i++; else digits();
+      if (raw[i] === '.') { i++; digits(); }
+      if (raw[i] === 'e' || raw[i] === 'E') {
+        i++;
+        if (raw[i] === '+' || raw[i] === '-') i++;
+        digits();
+      }
+      return;
+    }
+    fail(i);
+  };
+  try {
+    value(); ws();
+    return i < raw.length ? new JsonScanStop(i) : undefined;
+  } catch (err) {
+    if (err instanceof JsonScanStop) return new JsonScanStop(Math.min(err.at, raw.length), err.commaFits);
+    return undefined; // nesting deep enough to overflow the stack: let the message decide
+  }
+}
+
+/** The last character of a complete value: a string, number, literal, object or array. */
+const endsValue = (ch: string): boolean => /["\]}0-9el]/.test(ch);
+/** The first character of a value or of a property name. */
+const startsValue = (ch: string): boolean => /["{[0-9tfn-]/.test(ch);
+
+/**
+ * Locate the mistake in text `JSON.parse` rejected (#186), as a 1-based line
+ * and column, and say what it looks like. The parser's own position is often
+ * one step past the mistake — at the `}` after a trailing comma, at the
+ * property after a missing comma — so this steps back to where a person would
+ * put the fix. `undefined` when the parser did not say where it stopped.
+ */
+export function locateJsonSyntaxError(
+  raw: string,
+  parserMessage: string,
+): { line: number; column: number; problem: JsonSyntaxProblem } | undefined {
+  const scanned = firstJsonErrorOffset(raw);
+  const at = scanned?.at ?? jsonParseOffset(raw, parserMessage);
+  if (at === undefined) return undefined;
+  // Without a scan (a nesting deep enough to overflow it), only the parser's
+  // own "expected ':'" tells a missing colon from a missing comma.
+  const commaFits = scanned ? scanned.commaFits : !parserMessage.includes("':'");
+  let next = at;
+  while (next < raw.length && isJsonWhitespace(raw[next])) next++;
+  let prev = at - 1;
+  while (prev >= 0 && isJsonWhitespace(raw[prev])) prev--;
+
+  let offset = at;
+  let problem: JsonSyntaxProblem = 'unexpected';
+  if (next >= raw.length) {
+    problem = 'truncated';
+    offset = prev + 1;
+  } else if ((raw[next] === '}' || raw[next] === ']') && raw[prev] === ',') {
+    problem = 'trailing-comma';
+    offset = prev;
+  } else if (commaFits && prev >= 0 && prev < at - 1 && endsValue(raw[prev]) && startsValue(raw[next])) {
+    // Only where a comma could go, and only across whitespace: `01` is a
+    // bad number, not two values.
+    problem = 'missing-comma';
+    offset = prev + 1;
+  }
+
+  const before = raw.slice(0, offset);
+  const line = before.split('\n').length;
+  const column = offset - (before.lastIndexOf('\n') + 1) + 1;
+  return { line, column, problem };
 }
 
 /**
@@ -107,6 +299,7 @@ export const VALID_CARDINALITIES: ReadonlySet<Cardinality> = new Set<Cardinality
  * Throws a transient `SubjectAreaFileError` for an empty file ('empty') and for
  * text that is not JSON ('invalid-json') — except text holding git conflict
  * markers, an 'invalid-json' with `mergeConflict` set that is not transient.
+ * A plain 'invalid-json' carries where the mistake is (`locateJsonSyntaxError`).
  * Reading the file — and the 'missing' / 'unreadable' failures — is the
  * caller's job.
  */
@@ -120,7 +313,9 @@ export function parseSubjectAreaJson(raw: string, filePath: string): unknown {
   }
 
   try {
-    return JSON.parse(raw);
+    // A byte order mark (Windows PowerShell 5 writes one) is not a mistake
+    // the user can see or fix in the text editor, which hides it (#186).
+    return JSON.parse(raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw);
   } catch (err) {
     // Only text that already failed to parse is checked, so a valid file
     // whose description quotes a marker can never be reported as conflicted.
@@ -135,10 +330,12 @@ export function parseSubjectAreaJson(raw: string, filePath: string): unknown {
       );
     }
     const message = err instanceof Error ? err.message : String(err);
+    const located = locateJsonSyntaxError(raw, message);
     throw new SubjectAreaFileError(
       'invalid-json',
       filePath,
       `Invalid JSON in subject area file ${filePath}: ${message}`,
+      located ? { line: located.line, column: located.column, syntaxProblem: located.problem } : {},
     );
   }
 }

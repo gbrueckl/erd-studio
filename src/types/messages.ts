@@ -153,6 +153,16 @@ export interface ErrorMessage {
      * canvas loads by itself once the file is resolved and saved.
      */
     mergeConflict?: true;
+    /**
+     * With `kind: 'domain-file'` (#186): the file is the user's to fix, and
+     * `message` already says so in plain words with a project-relative path.
+     * `empty` — it has no content after the re-reads; `syntax` — it is not
+     * valid JSON. Never set with `mergeConflict`, nor for an unreadable file.
+     */
+    fileProblem?: 'empty' | 'syntax';
+    /** With `fileProblem: 'syntax'`: the 1-based line and column of the mistake, when it was located. */
+    line?: number;
+    column?: number;
   };
 }
 
@@ -515,9 +525,13 @@ export interface DismissManifestHintMessage {
 
 /**
  * Request to open the underlying JSON file in VS Code's default text editor.
+ * With a payload (#186), the cursor is placed at the 1-based line and column
+ * of a JSON mistake; without one (the toolbar's View JSON) the file opens as
+ * it always did.
  */
 export interface ViewFileMessage {
   type: 'viewFile';
+  payload?: { line: number; column?: number };
 }
 
 /**

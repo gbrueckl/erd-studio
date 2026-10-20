@@ -91,7 +91,7 @@ import {
   setMetaEntry,
   toDisplaySubjectArea,
 } from '@erd-studio/core';
-import type { DbtKeyIndex } from '@erd-studio/core';
+import type { DbtKeyIndex, JsonSyntaxProblem } from '@erd-studio/core';
 import { dbtKeyIndexOf, withDbtKeyHints } from '../services/stageDisplay';
 import { keepLineEndings } from '../services/lineEndings';
 import { rewriteJsonScalars } from '../services/minimalEdits';
@@ -127,6 +127,7 @@ import type {
   ErrorMessage,
   OpenFeedbackLinkMessage,
   OpenModelFileMessage,
+  ViewFileMessage,
   SetFeedbackProviderMessage,
   OpenFeedbackMessage,
   RelationshipKey,
@@ -201,6 +202,26 @@ const SUBJECT_AREA_READ_RETRY_DELAYS_MS = [150, 350, 700];
  */
 function isRetryableSubjectAreaRead(err: unknown): err is SubjectAreaFileError {
   return err instanceof SubjectAreaFileError && (err.transient || err.reason === 'unreadable');
+}
+
+/** What a located JSON mistake looks like, in words (#186). */
+const JSON_MISTAKE_HINTS: Record<JsonSyntaxProblem, string> = {
+  'trailing-comma': 'there is a comma after the last item, before a closing } or ]',
+  'missing-comma': 'a comma is missing after this value',
+  truncated: 'the file stops before the JSON is complete, so a closing } or ] may be missing',
+  unexpected: 'the text there is not valid JSON',
+};
+
+/**
+ * The plain sentence for a domain file that is not valid JSON (#186): where
+ * the mistake is, by line and column, rather than the parser's wording and
+ * character offset. `shown` is the project-relative path.
+ */
+export function describeJsonMistake(shown: string, err: Pick<SubjectAreaFileError, 'line' | 'column' | 'syntaxProblem'>): string {
+  if (err.line === undefined || err.column === undefined || err.syntaxProblem === undefined) {
+    return `${shown} is not valid JSON.`;
+  }
+  return `${shown} has a mistake at line ${err.line}, column ${err.column}: ${JSON_MISTAKE_HINTS[err.syntaxProblem]}.`;
 }
 
 /** The fixed telemetry reason for a canvas load failure — never its message. */
@@ -388,6 +409,7 @@ import {
   validateAddExistingModelsPayload,
   validateOpenModelFilePayload,
   validateLayoutFinishedPayload,
+  validateViewFilePayload,
   validateExtraPairs,
   validateMarkKey,
   validateRelationshipEnds,
@@ -1296,7 +1318,18 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
             break;
           }
           case 'viewFile': {
-            await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
+            // With a position (#186), land the cursor on the JSON mistake the
+            // error screen names; the toolbar's View JSON sends none.
+            const payload = (message as ViewFileMessage).payload;
+            if (payload !== undefined && validateViewFilePayload(payload)) {
+              const line = Math.min(payload.line, Math.max(document.lineCount, 1)) - 1;
+              const position = new vscode.Position(line, (payload.column ?? 1) - 1);
+              await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default', {
+                selection: new vscode.Range(position, position),
+              });
+            } else {
+              await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
+            }
             break;
           }
           case 'layoutFinished': {
@@ -2462,7 +2495,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     try {
       data = parseSubjectAreaJson(text, shown);
     } catch (err) {
-      if (err instanceof SubjectAreaFileError) throw new EditRefused(err.message);
+      if (err instanceof SubjectAreaFileError) {
+        const fileProblem = this.subjectAreaFileProblemPayload(err, document.uri.fsPath);
+        if (!fileProblem) throw new EditRefused(err.message);
+        const next = fileProblem.fileProblem === 'empty' ? 'Restore its content, then try again.' : 'Fix it and save, then try again.';
+        throw new EditRefused(`${fileProblem.message} ${next}`);
+      }
       throw err;
     }
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -2555,6 +2593,40 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     });
     // dbt's key evidence orients new relationships on an editable canvas (#133 L1).
     return readOnly ? display : withDbtKeyHints(display, dbtKeyIndex);
+  }
+
+  /**
+   * A domain file's path as the user should see it: project-relative with `/`
+   * separators, or just its name when it is outside the project (another
+   * drive on Windows), so no screen or toast shows an absolute path.
+   */
+  private shownSubjectAreaPath(fsPath: string): string {
+    const relative = path.relative(this.workspaceRoot, fsPath);
+    if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) return path.basename(fsPath);
+    return relative.split(path.sep).join('/');
+  }
+
+  /**
+   * The "isn't valid JSON" / "is empty" screens' payload (#186) for a domain
+   * file the user has to fix, or `undefined` for any other failure (a merge
+   * conflict keeps its own screen). The message is the plain sentence the
+   * screen and the toast over a live canvas both show; it carries the line
+   * and column, so a second mistake elsewhere is news to `postLoadError`.
+   */
+  private subjectAreaFileProblemPayload(err: SubjectAreaFileError, fsPath: string): ErrorMessage['payload'] | undefined {
+    if (err.mergeConflict) return undefined;
+    const shown = this.shownSubjectAreaPath(fsPath);
+    if (err.reason === 'empty') {
+      return { message: `${shown} has no content.`, kind: 'domain-file', fileProblem: 'empty' };
+    }
+    if (err.reason !== 'invalid-json') return undefined;
+    return {
+      message: describeJsonMistake(shown, err),
+      kind: 'domain-file',
+      fileProblem: 'syntax',
+      ...(err.line !== undefined ? { line: err.line } : {}),
+      ...(err.column !== undefined ? { column: err.column } : {}),
+    };
   }
 
   /** The "deleted or renamed" screen's payload (#161), naming the file project-relative. */
@@ -2702,6 +2774,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // screen as a delete seen live, so Retry and Open as Text never show.
       if (err instanceof SubjectAreaFileError && err.reason === 'missing') {
         this.postLoadError(webview, errorKey, this.subjectAreaMissingPayload(document), err, 'missing');
+        return;
+      }
+      const fileProblem = err instanceof SubjectAreaFileError ? this.subjectAreaFileProblemPayload(err, document.uri.fsPath) : undefined;
+      if (fileProblem) {
+        this.postLoadError(webview, errorKey, fileProblem, err, classifySubjectAreaLoadFailure(err));
         return;
       }
       const message = err instanceof Error ? err.message : String(err);
@@ -4939,7 +5016,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[SemanticEditorProvider] Stage switch failed: ${message}`);
-      this.post(webview, { type: 'error', payload: { message: `Failed to switch stage: ${message}` } });
+      // A file the user broke (#186) is named the way the load screen names it.
+      const fileProblem = err instanceof SubjectAreaFileError ? this.subjectAreaFileProblemPayload(err, document.uri.fsPath) : undefined;
+      this.post(webview, { type: 'error', payload: { message: `Failed to switch stage: ${fileProblem?.message ?? message}` } });
     }
   }
 
