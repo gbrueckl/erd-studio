@@ -33,7 +33,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { LOGICAL_MODELS_DIR } from '../services/logicalModelService';
+import { LOGICAL_MODELS_DIR, TABLES_DIR } from '../services/logicalModelService';
 import { NON_SUBJECT_AREA_DIRS } from '../services/domainService';
 import { LAYERS_CONFIG_FILE } from '../services/layerService';
 import { OwnWriteTracker, ownWrites } from '../services/ownWriteTracker';
@@ -349,7 +349,8 @@ export class FileWatcherService implements vscode.Disposable {
   private setupTableWatcher(): void {
     const pattern = new vscode.RelativePattern(
       this.workspaceRoot,
-      `${this.semanticDir}/${LOGICAL_MODELS_DIR}/**/*.yml`,
+      // v6's `tables/` library too (#162); a `tables` layer folder holds no yml.
+      `${this.semanticDir}/{${LOGICAL_MODELS_DIR},${TABLES_DIR}}/**/*.yml`,
     );
     const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 

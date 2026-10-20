@@ -59,7 +59,8 @@ describe('diagram export goldens', () => {
   it('covers every fixture project that has a domain to load', () => {
     const projects = fs
       .readdirSync(FIXTURES, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && d.name !== 'golden' && d.name !== 'errors')
+      // naming-*: v6 and mixed copies of other projects, held to those projects' goldens (#181).
+      .filter((d) => d.isDirectory() && d.name !== 'golden' && d.name !== 'errors' && !d.name.startsWith('naming-'))
       .map((d) => d.name)
       .sort();
     expect(Object.keys(SUBJECT_AREA_CASES).sort()).toEqual(projects);

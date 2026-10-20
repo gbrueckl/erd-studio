@@ -384,6 +384,39 @@ describe('TableLibraryTreeProvider', () => {
       expect(((martsItem.iconPath as ThemeIcon).color as ThemeColor).id).toBe('erdStudio.layer.custom');
     });
 
+    it('keeps v6\'s tables/ folders apart from logical-models/ folders, after them (#181)', () => {
+      const TDIR = '/project/.erd-studio/tables';
+      const v6 = (name: string, folder = ''): TableFileEntry => ({
+        name, folder, library: 'tables', filePath: folder ? `${TDIR}/${folder}/${name}.yml` : `${TDIR}/${name}.yml`,
+      });
+      const provider = build([entry('fct_a', 'gold'), entry('dim_top'), v6('fct_b', 'gold'), v6('dim_c')]);
+      const roots = provider.getChildren() as TableLibraryNode[];
+      expect(roots.map((n) => (n.type === 'folder' ? `${n.library ?? ''}:${n.folder}` : n.name))).toEqual([':gold', 'tables:', 'tables:gold', 'dim_top']);
+      const [v5Gold, v6Top, v6Gold] = roots as TableLibraryFolderNode[];
+      expect(v5Gold.children.map((c) => c.name)).toEqual(['fct_a']);
+      expect(v6Gold.filePath).toBe(`${TDIR}/gold`);
+      expect(v6Gold.children.map((c) => c.name)).toEqual(['fct_b']);
+      const top = provider.getTreeItem(v6Top);
+      expect(top.label).toBe('tables/');
+      expect(top.tooltip).toContain('reads but cannot edit yet');
+      const gold = provider.getTreeItem(v6Gold);
+      expect(gold.label).toBe('Gold');
+      expect(gold.description).toBe('1 table · tables/');
+      expect(gold.id).not.toBe(provider.getTreeItem(v5Gold).id);
+    });
+
+    it('offers no Delete or duplicate fix on a tables/ file, and names a copy in both libraries (#181)', () => {
+      const t = (name: string, shadowedBy?: string): TableFileEntry => ({
+        name, folder: '', library: 'tables', filePath: `/project/.erd-studio/tables/${name}.yml`, ...(shadowedBy ? { shadowedBy } : {}),
+      });
+      const p = build([entry('dim_a'), t('dim_b'), t('dim_a', `${DIR}/dim_a.yml`)]);
+      const [v6Folder] = folders(p.getChildren() as TableLibraryNode[]);
+      const items = v6Folder.children.map((c) => p.getTreeItem(c));
+      expect(items.map((i) => i.contextValue)).toEqual(['logicalModelReadOnly', 'logicalModelReadOnly']);
+      expect(items[0].description).toBe('(also in logical-models — ignored)');
+      expect(items[0].tooltip).toContain('Keep one of the two files');
+    });
+
     it('renders a folder unknown to layers.json with its folder name and an uncoloured icon', () => {
       const p = build([entry('a', 'scratch')]);
       const [scratch] = folders(p.getChildren());

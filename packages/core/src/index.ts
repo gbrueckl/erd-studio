@@ -2,7 +2,7 @@
  * @erd-studio/core — the ERD Studio domain model.
  *
  * Types, plus the pure pipeline from raw domain files (domain JSON,
- * `layers.json`, `logical-models/*.yml`) to the DisplaySubjectArea the canvas
+ * `layers.json`, `logical-models/*.yml` or v6's `tables/*.yml`) to the DisplaySubjectArea the canvas
  * renders. Shared by the VS Code extension host, its webview and
  * `@erd-studio/renderer`. Nothing here may import Node built-ins, `vscode`,
  * React or React Flow.
@@ -21,6 +21,8 @@ export * from './keyEvidence.js';
 export * from './orientLink.js';
 export {
   LOGICAL_MODELS_DIR,
+  TABLES_DIR,
+  TABLE_LIBRARY_DIRS,
   RATIONALE_KEYS,
   YamlNodeLimitError,
   YamlCharLimitError,

@@ -17,7 +17,7 @@
 import * as path from 'path';
 
 import { canonicalRelationship, linkKey } from '@erd-studio/core';
-import { CURRENT_SCHEMA_VERSION } from '../types/semantic';
+import { WRITTEN_SCHEMA_VERSION } from '../types/semantic';
 import type { ColumnDef, Relationship, SemanticTable } from '../types/semantic';
 import type { YmlData } from '../types/ymlData';
 import type { ManifestData } from '../types/manifest';
@@ -675,7 +675,7 @@ export function buildDraftSubjectAreaDocument(input: {
   modelFolder?: string;
 }): DraftSubjectAreaDocument {
   return {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
+    schemaVersion: WRITTEN_SCHEMA_VERSION,
     domain: input.domain,
     layer: input.layer,
     description: (input.description ?? '').trim(),

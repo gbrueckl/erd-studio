@@ -2,6 +2,16 @@
 
 All notable changes to `@erd-studio/core`. While `0.x`, a breaking change bumps the minor version.
 
+## 0.3.0
+
+### Added
+- **Reads schema v6, the table naming** ([#181](https://github.com/liam-machine/erd-studio/issues/181), part 3 of [#162](https://github.com/liam-machine/erd-studio/issues/162)): `.erd-studio/tables/`, `logical.tables`, `subjectArea`, `fromTable` / `toTable`, `tableRole` and `linkedTable`. `validateSubjectAreaDocument` returns a v6 document under the v5 keys (`normaliseSubjectAreaDocument`, exported, does the renaming), so `buildUnifiedSubjectArea` and everything after it is unchanged and a v6 file builds the same `DisplaySubjectArea` as its v5 twin, apart from `schemaVersion`. `parseTableText` reads `tableRole` and `toTable` as `modelRole` and `toModel` (the v6 key wins when both are written). `loadDisplaySubjectArea` probes `tables/` after `logical-models/`, in the same order, so a v6 library costs one extra read per folder probed first; a v5 library costs what it did.
+- `detectProjectNaming(evidence)` → `'v5' | 'v6' | 'mixed'`, from what a host found on disk; `usesTableLibrary(format)`; `mixesTableNaming(raw)`; `TABLES_DIR` and `TABLE_LIBRARY_DIRS`; `LIBRARY_SCHEMA_VERSION` (5), `TABLE_NAMING_SCHEMA_VERSION` (6) and `WRITTEN_SCHEMA_VERSION` (5, what a writer stamps).
+
+### Changed (breaking)
+- `SubjectAreaFormat` gains `'v6'`: an exhaustive `switch` needs a case for it. `detectSubjectAreaFormat` calls a file `hybrid` when it mixes the v5 and v6 names, uses the v6 names under `schemaVersion` 5 (which 0.2.0 drew as an empty diagram), or the v5 names under `schemaVersion` 6, and `describeUnsupportedSubjectAreaFormat` takes the raw document as an optional third argument to say which.
+- `CURRENT_SCHEMA_VERSION` is 6: the newest version read. A file declaring 7 or more is refused with "Please update the extension". Code that stamped `CURRENT_SCHEMA_VERSION` on a file it writes should use `WRITTEN_SCHEMA_VERSION`.
+
 ## 0.2.0
 
 ### Changed (breaking)

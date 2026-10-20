@@ -532,6 +532,7 @@ export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean):
     domain: unified.domain,
     layer: unified.layer,
     modelFolder: (name) => ctx.tableLibraryService.tableFolder(name),
+    tableLibraryFile: (name) => ctx.tableLibraryService.tableLibraryFile(name),
   });
   const unreadableModelFiles = unreadableTables(ctx, unified);
   // The entry each link is drawn from (core's read winner), keyed by link.
