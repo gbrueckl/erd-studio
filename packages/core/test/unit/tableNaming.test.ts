@@ -18,7 +18,7 @@ import {
   detectProjectNaming,
   detectSubjectAreaFormat,
   getRawSubjectAreaTableNames,
-  hasTableNamingKeys,
+  mixesTableNaming,
   usesTableLibrary,
 } from '../../src/types/semantic';
 import { SubjectAreaValidationError, normaliseSubjectAreaDocument, validateSubjectAreaDocument } from '../../src/domain';
@@ -84,8 +84,10 @@ describe('detectSubjectAreaFormat with the v6 naming', () => {
 
   it('names a v5 / v6 mix rather than sending it to the inline-table migration', () => {
     const mix = { schemaVersion: 5, logical: { tables: ['a'] } };
-    expect(hasTableNamingKeys(mix)).toBe(true);
-    expect(hasTableNamingKeys({ schemaVersion: 5, logical: { models: [{ name: 'a' }] } })).toBe(false);
+    expect(mixesTableNaming(mix)).toBe(true);
+    expect(mixesTableNaming({ schemaVersion: 5, logical: { models: [{ name: 'a' }] } })).toBe(false);
+    // v5 names under 6 too: its fix is the number, not the inline-table migration.
+    expect(mixesTableNaming({ schemaVersion: 6, domain: 'x', logical: { models: ['a'] } })).toBe(true);
     const message = describeUnsupportedSubjectAreaFormat('hybrid', FILE, mix)!;
     expect(message).toContain('uses the v6 names');
     expect(message).toContain('Set "schemaVersion" to 6');
@@ -143,6 +145,24 @@ describe('normaliseSubjectAreaDocument', () => {
 
   it('leaves a v5 file as it is', () => {
     expect(validateSubjectAreaDocument(v5, FILE).obj).toBe(v5);
+  });
+});
+
+describe('a malformed v6 key never hides a valid v5 one', () => {
+  it('in a table yml', () => {
+    const yml = 'name: f\nmodelRole: transaction-fact\ntableRole:\nrelationships:\n  - fromColumn: a\n    toModel: d\n    toTable: {}\n    toColumn: id\n';
+    const model = parseTableText(yml, 'f')!;
+    expect(model.modelRole).toBe('transaction-fact');
+    expect(model.relationships).toEqual([{ fromColumn: 'a', toModel: 'd', toColumn: 'id', cardinality: 'many-to-one' }]);
+  });
+
+  it('in a v6 relationship entry', () => {
+    const { obj } = validateSubjectAreaDocument({
+      schemaVersion: 6, logical: { tables: [], relationships: [{ fromTable: 1, fromModel: 'f', fromColumn: 'a', toTable: 'd', toColumn: 'id', cardinality: 'many-to-one' }] },
+    }, FILE);
+    expect((obj.logical as { relationships: unknown[] }).relationships).toEqual([
+      { fromModel: 'f', fromColumn: 'a', toModel: 'd', toColumn: 'id', cardinality: 'many-to-one' },
+    ]);
   });
 });
 

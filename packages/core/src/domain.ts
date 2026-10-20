@@ -196,7 +196,14 @@ function normaliseRelationshipEntries(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
   return value.map((entry) => {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
-    return renamedKey(renamedKey(entry as Record<string, unknown>, 'fromTable', 'fromModel'), 'toTable', 'toModel');
+    // A v6 end wins only when it holds text, as `parseTableText` reads `toTable`;
+    // a stray non-string one beside a v5 end is dropped rather than hiding it.
+    const end = (o: Record<string, unknown>, from: string, to: string): Record<string, unknown> => {
+      if (typeof o[from] === 'string' || !(to in o)) return renamedKey(o, from, to);
+      const { [from]: _stray, ...rest } = o;
+      return rest;
+    };
+    return end(end(entry as Record<string, unknown>, 'fromTable', 'fromModel'), 'toTable', 'toModel');
   });
 }
 

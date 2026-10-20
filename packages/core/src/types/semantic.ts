@@ -490,13 +490,18 @@ function namingKeys(obj: Record<string, unknown>): { v5: boolean; v6: boolean } 
 }
 
 /**
- * Whether a raw domain document uses any v6 name (`logical.tables`,
- * `subjectArea`), whatever its `schemaVersion`. A `hybrid` file that does is
- * a v5 / v6 naming mix, not an inline-table file the v5 migration repairs.
+ * Whether a raw domain document mixes the v5 and v6 namings: it uses a v6
+ * name (`logical.tables`, `subjectArea`) at all, or the v5 names under
+ * `schemaVersion` 6 or more. A `hybrid` file that does is a hand-edit to undo
+ * (its error says which key or number to change), not an inline-table file
+ * the v5 migration repairs.
  */
-export function hasTableNamingKeys(raw: unknown): boolean {
+export function mixesTableNaming(raw: unknown): boolean {
   const obj = plainObject(raw);
-  return obj !== undefined && namingKeys(obj).v6;
+  if (obj === undefined) return false;
+  const naming = namingKeys(obj);
+  const version = typeof obj.schemaVersion === 'number' ? obj.schemaVersion : undefined;
+  return naming.v6 || (naming.v5 && version !== undefined && version >= TABLE_NAMING_SCHEMA_VERSION);
 }
 
 /**

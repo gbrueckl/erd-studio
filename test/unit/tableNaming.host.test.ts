@@ -27,6 +27,7 @@ import { moveRelationshipsToLibrary } from '../../src/commands/moveRelationships
 import { redactPaths } from '../../src/types/feedback';
 import { runDoctor } from '../../src/cli/doctor';
 import { formatDoctor, makePaint } from '../../src/cli/format';
+import { allSelections } from '../../src/services/syncPlanBuilder';
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const FIXTURE_ROOT = path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project');
@@ -373,6 +374,59 @@ describe('the Breaker\'s cases (#181)', () => {
     await vi.waitFor(() => expect(posted(panel).some((m) => m.type === 'stageData')).toBe(true), { timeout: 4000, interval: 20 });
     // And back on the logical stage it is still read-only.
     expect(posted(panel).find((m) => m.type === 'stageData')!.payload.readOnly).toBe(true);
+  });
+});
+
+describe('code review follow-ups (#191)', () => {
+  it('a sync plan from a v6 diagram is named after its subjectArea, as the CLI names it', async () => {
+    toTableNaming();
+    const { panel } = await open('silver/showcase.json');
+    await panel._simulateMessage({ type: 'switchStage', payload: { stage: 'physical', requestId: 1 } });
+    await panel._simulateMessage({ type: 'toggleDiscrepancy', payload: { enabled: true, compareAgainst: 'logical' } });
+    const report = posted(panel).filter((m) => m.type === 'discrepancyReport').at(-1)?.payload;
+    expect(report).toBeTruthy();
+    await panel._simulateMessage({ type: 'generateSyncPlan', payload: { selections: allSelections(report, 'logical') } });
+    const plan = JSON.parse(fs.readFileSync(path.join(erd, '.sync-plan.json'), 'utf-8'));
+    expect(plan.domain).toBe('showcase');
+    expect(plan.modelContext.dim_task.logicalModelPath).toBe('.erd-studio/tables/dim_task.yml');
+  });
+
+  it('a table lookup never lists the whole library', () => {
+    tablesToV6(['dim_task']);
+    const lib = new TableLibraryService(root, '.erd-studio');
+    const list = vi.spyOn(lib, 'listTableFiles');
+    expect(lib.findTableFile('dim_task')).toBe(path.join(erd, 'tables', 'dim_task.yml'));
+    expect(lib.findTableFile('no_such_table')).toBeNull();
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it('an empty tables/ layer folder stays a layer when layers come from the folders', () => {
+    fs.rmSync(path.join(erd, 'layers.json'));
+    fs.mkdirSync(path.join(erd, 'tables'));
+    expect(new LayerService(root, '.erd-studio').detectLayersFromFilesystem().map((l) => l.id)).toContain('tables');
+  });
+
+  it('doctor sends v5 names under schemaVersion 6 to the naming step, and the migration leaves the file alone', async () => {
+    fs.writeFileSync(path.join(erd, 'silver', 'six.json'), JSON.stringify({ schemaVersion: 6, domain: 'six', layer: 'silver', logical: { models: ['dim_task'] } }));
+    const r = await runDoctor({ project: root, semanticDir: '.erd-studio', noDbt: true, env: { PATH: '' }, homeDir: path.join(root, 'home') });
+    expect(r.erd.domainFormatIssues.find((i) => i.file.endsWith('six.json'))?.namingMix).toBe(true);
+    const migration = new MigrationService(root, new LayerService(root, '.erd-studio'), new TableLibraryService(root, '.erd-studio'), '.erd-studio');
+    expect(migration.findV4SubjectAreas().map((p) => path.basename(p))).not.toContain('six.json');
+  });
+
+  it('an empty leftover logical-models/ does not make a v6 project mixed', async () => {
+    toTableNaming();
+    fs.mkdirSync(path.join(erd, 'logical-models'));
+    const r = await runDoctor({ project: root, semanticDir: '.erd-studio', noDbt: true, env: { PATH: '' }, homeDir: path.join(root, 'home') });
+    expect(r.erd.naming).toBe('v6');
+  });
+
+  it('a stray fromTable in a logical-models/ relationship does not block edits (nothing reads it)', () => {
+    const file = path.join(erd, 'logical-models', 'fct_task_event.yml');
+    fs.appendFileSync(file, 'relationships:\n  - fromTable: fct_task_event\n    fromColumn: task_key\n    toModel: dim_task\n    toColumn: task_key\n    cardinality: many-to-one\n');
+    const lib = new TableLibraryService(root, '.erd-studio');
+    const model = lib.getTable('fct_task_event')!;
+    expect(() => lib.serializeTable({ ...model, description: 'changed' })).not.toThrow();
   });
 });
 

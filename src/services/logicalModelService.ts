@@ -291,16 +291,15 @@ export class TableNamingWriteRefused extends Error {
   }
 }
 
-/** The first v6 key (#162) a table file's root map uses — `tableRole`, or a relationship's `toTable` / `fromTable` — or null. */
+/** The first v6 key (#162) a table file's root map uses — `tableRole`, or a relationship's `toTable` — or null. */
 function tableNamingKeyIn(root: YAMLMap): string | null {
   if (root.items.some((pair) => keyIs(pair, 'tableRole'))) return 'tableRole';
   const relationships = root.items.find((pair) => keyIs(pair, 'relationships'))?.value;
   if (isSeq(relationships)) {
     for (const item of relationships.items) {
       if (!isMap(item)) continue;
-      for (const key of ['toTable', 'fromTable']) {
-        if (item.items.some((pair) => keyIs(pair, key))) return key;
-      }
+      // Only `toTable` is read (the from end is the file's own table), so only it can win over what this writes.
+      if (item.items.some((pair) => keyIs(pair, 'toTable'))) return 'toTable';
     }
   }
   return null;
@@ -1008,20 +1007,37 @@ export class TableLibraryService {
       }
     }
     // Then v6's `tables/` (#162), in the same order. Only ever read: new
-    // files still go to `logical-models/` (newTablePath). A `logical-models/`
-    // file whose name differs only in case wins first, as `listTableFiles`
-    // reports it, so the file read is the one `doctor` says is kept on every
-    // file system.
-    if (this.hasTablesLibrary()) {
-      const v5 = this.listTableFiles().find((e) => !e.library && !e.shadowedBy && sameName(e.name, name));
-      if (v5) return v5.filePath;
-      const v6Dir = path.resolve(this.v6TablesDir);
-      for (const folder of ['', ...this.listFoldersOf(v6Dir)]) {
-        const candidate = path.join(v6Dir, folder, `${name}.yml`);
-        if (fs.existsSync(candidate)) {
-          return candidate;
-        }
+    // files still go to `logical-models/` (newTablePath). Checked file by
+    // file, so a lookup costs a few stats, never a scan of the library.
+    const v6Dir = path.resolve(this.v6TablesDir);
+    if (!fs.existsSync(v6Dir)) {
+      return null;
+    }
+    for (const folder of ['', ...this.listFoldersOf(v6Dir)]) {
+      const candidate = path.join(v6Dir, folder, `${name}.yml`);
+      if (fs.existsSync(candidate)) {
+        if (tablesDirIsLayer(this.semanticRoot)) return null;
+        // A `logical-models/` file whose name differs only in case is the
+        // copy `listTableFiles` keeps and `doctor` reports as used, on every
+        // file system. Only a name that is in `tables/` pays for this.
+        return this.v5FileIgnoringCase(name) ?? candidate;
       }
+    }
+    return null;
+  }
+
+  /** A `logical-models/` file (top level, then folders) whose name matches `name` ignoring case. */
+  private v5FileIgnoringCase(name: string): string | null {
+    const root = path.resolve(this.tablesDir);
+    for (const folder of ['', ...this.listFolders()]) {
+      let files: string[];
+      try {
+        files = fs.readdirSync(path.join(root, folder));
+      } catch {
+        continue;
+      }
+      const file = files.sort((a, b) => a.localeCompare(b)).find((f) => f.endsWith('.yml') && sameName(f.slice(0, -'.yml'.length), name));
+      if (file) return path.join(root, folder, file);
     }
     return null;
   }

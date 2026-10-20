@@ -442,7 +442,8 @@ function yamlToTable(raw: YamlTable, fallbackName: string): SemanticTable {
   const alias = str(raw.alias)?.trim();
   const description = str(raw.description);
   const grain = str(raw.grain);
-  const modelRole = str(raw.tableRole ?? raw.modelRole);
+  // The v6 name wins only when it holds text: a stray non-string never hides a valid `modelRole`.
+  const modelRole = str(typeof raw.tableRole === 'string' ? raw.tableRole : raw.modelRole);
   if (schema) model.schema = schema;
   if (alias) model.alias = alias;
   if (description) model.description = description;
@@ -505,7 +506,7 @@ function readRelationships(value: unknown): TableRelationship[] {
     if (!r || typeof r !== 'object' || Array.isArray(r)) continue;
     // `toTable` is the v6 name of `toModel` (#162), and wins when both are written.
     const { fromColumn, toColumn, cardinality } = r;
-    const toModel = r.toTable ?? r.toModel;
+    const toModel = typeof r.toTable === 'string' ? r.toTable : r.toModel;
     if (typeof fromColumn !== 'string' || typeof toModel !== 'string' || typeof toColumn !== 'string') continue;
     if (!fromColumn || !toModel || !toColumn) continue;
     const role = normaliseRelationshipRole(r.role);

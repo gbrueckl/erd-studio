@@ -36,6 +36,8 @@ export interface TableLibraryTableNode {
   readonly folder?: string;
   /** Path of the file that wins the lookup when this one is a duplicate. */
   readonly shadowedBy?: string;
+  /** In v6's `tables/` library (#181): read, never changed here, so it offers no actions. */
+  readonly library?: 'tables';
   /** What is wrong in the file, so the problem stays visible after its one warning (#164). */
   readonly fileError?: Pick<TableFileError, 'kind' | 'line' | 'mergeConflict' | 'readable' | 'key'>;
 }
@@ -81,6 +83,19 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
       return this.folderItem(element);
     }
 
+    // A `tables/` copy of a name `logical-models/` also has (#181): reported, with no fix to offer.
+    if (element.shadowedBy && element.library) {
+      const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+      item.contextValue = 'logicalModelReadOnly';
+      item.iconPath = new vscode.ThemeIcon('error');
+      item.description = '(also in logical-models — ignored)';
+      item.tooltip = `"${element.name}" has a file in both the old and the new table folder. Subject areas use:\n${element.shadowedBy}\n\n` +
+        'This copy in tables/ is ignored. Keep one of the two files.';
+      item.resourceUri = vscode.Uri.file(element.filePath);
+      item.command = { command: 'vscode.open', title: 'Open Table', arguments: [item.resourceUri] };
+      return item;
+    }
+
     if (element.shadowedBy) {
       const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
       // Not `logicalModel`: Delete Model acts by name and would remove the
@@ -99,7 +114,8 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
     const isOrphan = element.referencingDomains.length === 0;
     const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
 
-    item.contextValue = 'logicalModel';
+    // Delete acts on the file, and a `tables/` file is not changed by this version (#181).
+    item.contextValue = element.library ? 'logicalModelReadOnly' : 'logicalModel';
     item.iconPath = new vscode.ThemeIcon(isOrphan ? 'warning' : 'symbol-class');
 
     if (element.fileError) {
@@ -144,6 +160,7 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
         filePath: entry.filePath,
         referencingDomains: entry.shadowedBy ? [] : usageMap.get(entry.name) ?? [],
         folder: entry.folder,
+        ...(entry.library ? { library: entry.library } : {}),
         ...(entry.shadowedBy ? { shadowedBy: entry.shadowedBy } : {}),
         ...(error ? {
           fileError: {

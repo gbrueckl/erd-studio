@@ -13,9 +13,9 @@ import * as path from 'path';
 
 import type { FileState } from '../types/harness';
 import { redactPaths } from '../types/feedback';
-import { detectProjectNaming, detectSubjectAreaFormat, hasTableNamingKeys, usesTableLibrary } from '../types/semantic';
+import { detectProjectNaming, detectSubjectAreaFormat, mixesTableNaming, usesTableLibrary } from '../types/semantic';
 import type { ProjectNaming, SubjectAreaFormat } from '../types/semantic';
-import { LOGICAL_MODELS_DIR, tablesDirIsLayer, TABLES_DIR } from '../services/logicalModelService';
+import { tablesDirIsLayer, TABLES_DIR } from '../services/logicalModelService';
 import { normaliseName } from '../services/nameUtils';
 import { SubjectAreaFileError } from '../services/domainService';
 import { keysContradictedRelationships, linkKey, parseSubjectAreaJson } from '@erd-studio/core';
@@ -250,7 +250,7 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
       const format = detectSubjectAreaFormat(raw);
       formats.push(format);
       // A file mixing the v5 and v6 names (#162) is a hand-edit to undo, not one the migration repairs.
-      const namingMix = format === 'hybrid' && hasTableNamingKeys(raw);
+      const namingMix = format === 'hybrid' && mixesTableNaming(raw);
       if (!usesTableLibrary(format)) { issues.push({ file: relPath(ctx.root, d.filePath), format, ...(namingMix ? { namingMix: true as const } : {}) }); }
     } catch (err) {
       // A conflicted diagram cannot load at all, and git's own wording is the
@@ -279,7 +279,8 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
     domains: domains.length,
     logicalModels: ctx.tableLibraryService.listTableNames().length,
     naming: detectProjectNaming({
-      hasLogicalModelsDir: fs.existsSync(path.join(semanticRoot, LOGICAL_MODELS_DIR)),
+      // A folder counts once it holds a table file, as `tables/` does (an empty leftover says nothing).
+      hasLogicalModelsDir: ctx.tableLibraryService.listTableFiles().some((e) => !e.library),
       hasTablesLibrary: ctx.tableLibraryService.hasTablesLibrary(),
       subjectAreaFormats: formats,
     }),

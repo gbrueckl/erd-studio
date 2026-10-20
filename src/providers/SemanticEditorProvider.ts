@@ -5031,8 +5031,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       const ymlData = await this.ymlParserService.loadYmlData(this.workspaceRoot, undefined);
       const semanticDir = getErdStudioSetting('semanticDir', '.erd-studio');
 
-      // Parse domain info from the document
-      const parsed = this.parseSubjectAreaDocument(document);
+      // Parse domain info from the document (a v6 file names it `subjectArea`, #162)
+      const raw = this.parseSubjectAreaDocument(document);
+      const parsed = detectSubjectAreaFormat(raw) === 'v6' ? normaliseSubjectAreaDocument(raw) : raw;
 
       const syncPlan = buildSyncPlan(report, selections, {
         manifest,

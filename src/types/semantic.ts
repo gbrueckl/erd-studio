@@ -43,7 +43,7 @@ export {
   TABLE_NAMING_SCHEMA_VERSION,
   WRITTEN_SCHEMA_VERSION,
   detectProjectNaming,
-  hasTableNamingKeys,
+  mixesTableNaming,
   usesTableLibrary,
   detectSubjectAreaFormat,
   describeUnsupportedSubjectAreaFormat,
