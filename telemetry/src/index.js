@@ -338,6 +338,8 @@ const ERROR_CODES = [
   'relInvKeyNotMarked',
   'relInvCheckFailed',
   'exportFailed',
+  'domainLoadEmpty',
+  'domainLoadConflict',
 ];
 
 /**

@@ -208,6 +208,8 @@ export function classifySubjectAreaLoadFailure(err: unknown): SubjectAreaLoadFai
   if (err instanceof SubjectAreaFileError) {
     if (err.reason === 'missing') return 'missing';
     if (err.reason === 'unreadable') return 'unreadable';
+    if (err.reason === 'empty') return 'empty';
+    if (err.mergeConflict) return 'conflict';
     return 'json';
   }
   if (err instanceof SubjectAreaValidationError) return 'invalid';
