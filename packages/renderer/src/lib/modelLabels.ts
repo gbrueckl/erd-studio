@@ -9,7 +9,7 @@
  */
 
 /** The fields a label is computed from. */
-export interface LabelledModel {
+export interface LabelledTable {
   name: string;
   schema?: string;
   alias?: string;
@@ -20,8 +20,8 @@ export interface LabelledModel {
  * name. A model absent from the map is labelled with its name, exactly as
  * before aliases existed.
  */
-export function computeModelLabels(models: readonly LabelledModel[]): Map<string, string> {
-  const baseOf = (m: LabelledModel): string => m.alias?.trim() || m.name;
+export function computeTableLabels(models: readonly LabelledTable[]): Map<string, string> {
+  const baseOf = (m: LabelledTable): string => m.alias?.trim() || m.name;
   const counts = new Map<string, number>();
   for (const m of models) {
     const key = baseOf(m).toLowerCase();
@@ -40,7 +40,7 @@ export function computeModelLabels(models: readonly LabelledModel[]): Map<string
 }
 
 /** Whether a search query (already lower-cased) matches a model by name or label. */
-export function matchesModelSearch(data: { modelName: string; label?: string }, query: string): boolean {
+export function matchesTableSearch(data: { modelName: string; label?: string }, query: string): boolean {
   return data.modelName.toLowerCase().includes(query)
     || (data.label !== undefined && data.label.toLowerCase().includes(query));
 }

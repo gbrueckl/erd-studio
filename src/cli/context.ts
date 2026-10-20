@@ -17,9 +17,9 @@ import type { YmlData } from '../types/ymlData';
 import { CatalogService } from '../services/catalogService';
 import { findDbtProjectDir } from '../services/dbtEnv';
 import { readDbtProjectConfig, resolveCatalogPath, resolveManifestPath, type DbtProjectConfig } from '../services/dbtProjectConfig';
-import { DomainService } from '../services/domainService';
+import { SubjectAreaService } from '../services/domainService';
 import { LayerService } from '../services/layerService';
-import { LogicalModelService } from '../services/logicalModelService';
+import { TableLibraryService } from '../services/logicalModelService';
 import { checkManifestStalenessFs } from '../services/manifestStaleness';
 import { ManifestService } from '../services/manifestService';
 import { YmlParserService } from '../services/ymlParserService';
@@ -71,8 +71,8 @@ export interface CliContext {
   semanticDir: string;
   dbtConfig: DbtProjectConfig;
   layerService: LayerService;
-  logicalModelService: LogicalModelService;
-  domainService: DomainService;
+  tableLibraryService: TableLibraryService;
+  subjectAreaService: SubjectAreaService;
   manifest: ManifestData;
   manifestInfo: ManifestInputInfo;
   ymlData: YmlData;
@@ -188,7 +188,7 @@ function iso(ms: number | null): string | null {
 
 /**
  * Build the services and load every input. Wiring follows extension.ts —
- * `LayerService` + `LogicalModelService` feed `DomainService` — with the
+ * `LayerService` + `TableLibraryService` feed `SubjectAreaService` — with the
  * manifest parsed in-process (spec D6).
  */
 export async function buildCliContext(opts: { project?: string; semanticDir: string; cwd?: string }): Promise<CliContext> {
@@ -197,9 +197,9 @@ export async function buildCliContext(opts: { project?: string; semanticDir: str
   const dbtConfig = readDbtProjectConfig(root);
 
   const layerService = new LayerService(root, semanticDir);
-  const logicalModelService = new LogicalModelService(root, semanticDir);
-  const domainService = new DomainService(layerService);
-  domainService.setLogicalModelService(logicalModelService);
+  const tableLibraryService = new TableLibraryService(root, semanticDir);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  subjectAreaService.setTableLibraryService(tableLibraryService);
 
   const manifestService = new ManifestService({ dbtConfig, parseInProcess: true });
   const catalogService = new CatalogService({ dbtConfig });
@@ -244,8 +244,8 @@ export async function buildCliContext(opts: { project?: string; semanticDir: str
     semanticDir,
     dbtConfig,
     layerService,
-    logicalModelService,
-    domainService,
+    tableLibraryService,
+    subjectAreaService,
     manifest,
     manifestInfo: {
       status: manifestStatus,

@@ -2,7 +2,14 @@
 
 Read this when the prompt says **Pi mode**. The run was started by `~/issue-bot/run.sh` on a
 Raspberry Pi 5 (arm64, 8 GB), because a maintainer put the **`issue-to-pr`** label on the
-issue. It runs on Liam's Claude subscription, with no person watching.
+issue. The label works in **liam-machine/erd-studio** and **liam-machine/erd-studio-pro**. One
+Pi serves both, so it takes one issue at a time. For an erd-studio-pro issue, read
+`cross-repo.md` next, and then that repo's `.claude/issue-to-pr.md`; its repo facts (base branch
+`main`, its gates, how to film it) replace SKILL.md's. It runs on Liam's Claude subscription, with no person watching. The runner swaps that
+label for **`pi-working`** when it takes the issue and removes it when the run ends. A run that
+ends without a `RESULT: pr`, `question` or `existing` line (a failed result, a non-zero exit,
+or no RESULT line at all) also gets **`pi-failed`**, which the next run of that issue clears.
+Leave all three labels alone.
 
 Everything in SKILL.md still applies, except where this file changes it. Pi mode is
 interactive mode **without a person**: unlike routine mode, `gh` (GraphQL included), git
@@ -12,19 +19,33 @@ push and a logged-in browser all work here.
 
 | Step | Interactive | Pi mode |
 |---|---|---|
-| 0 Preflight | as written | As written. `SCRATCH=~/issue-bot/work/issue-<n>` (the runner creates it). |
+| 0 Preflight | as written | As written. `SCRATCH` and `S` are in the prompt; the runner creates `SCRATCH` (`~/issue-bot/work/<repo>-<n>`). |
 | 1 Pick | list, then AskUserQuestion | The number is in the prompt. Never pick a different issue. |
 | 2 Brief | stop on existing work | Stop on existing work as well. Post one issue comment linking the existing PR or branch, then end the run. |
 | 3 Stop cases | ask the user | **Comment on the issue** with the question (no mechanism found, already fixed, several issues, needs a product decision), then end the run. Make no PR. |
 | 4 Council split on product direction | ask the user | Pick the council's recommendation. Open the PR as a **draft**, and put the question at the top of the body: "**Decision needed:** A or B? I went with A because…". |
-| 5 Branch | `fix/<n>-<slug>` | Same: `fix/<n>-<slug>` or `feat/<n>-<slug>`, cut from `origin/develop` in a worktree under `$SCRATCH`. Never touch the runner's checkout at `~/issue-bot/erd-studio` beyond `git worktree add`. |
-| 5 Gates | must pass | The Pi is slow. A **timing** test that fails here (a vitest timeout, or "expected N to be less than M" in a perf test) also fails on a clean `origin/develop` on the Pi. Check that it does, note it in the PR body, and let CI decide. Every other failure is real. |
+| 5 Branch | `fix/<n>-<slug>` | Same: `fix/<n>-<slug>` or `feat/<n>-<slug>`, cut from the base branch the prompt names (`origin/develop` for erd-studio, `origin/main` for erd-studio-pro) in a worktree under `$SCRATCH`. Never touch the runner's checkouts under `~/issue-bot/` beyond `git fetch` and `git worktree add`. |
+| 5 Gates | must pass | The Pi is slow. A **timing** test that fails here (a vitest timeout, or "expected N to be less than M" in a perf test) also fails on a clean base branch on the Pi. Check that it does, note it in the PR body, and let CI decide. Every other failure is real. |
 | 6 Video | always | Always, with the Pi recipe below. |
 | 7.2 Upload | claude-in-chrome | `scripts/gh_upload.mjs`, below. |
-| 8 Merge | on Liam's say-so | **Never.** Pi mode never merges, closes issues, or pushes to `develop`/`main`. |
+| 8 Merge | on Liam's say-so | **Never.** Pi mode never merges, closes issues, or pushes to `develop`/`main`. Liam merges from his phone once the review pass marks the PR `ready-to-merge`. |
 
 Report to Liam in the final message of the run (it lands in the run log) and in the PR body.
-Nobody reads the transcript live.
+Nobody reads the transcript live. The runner sends him a Telegram message for each outcome, so
+don't send one yourself. His replies go to the ERD Studio session on the Pi
+(`scripts/pi/steward.md`), which reads your run log and PR to act on them.
+
+**Confluence follow-up.** If the fix changes anything the Confluence app consumes (see
+`cross-repo.md`), raise or update the follow-up issue in erd-studio-pro after the PR opens, and
+link it in the PR body. If an erd-studio-pro fix needs a change to `@erd-studio/*`, raise the
+issue in erd-studio instead, as that file says.
+
+### Private repo
+
+On an **erd-studio** issue, never read `~/issue-bot/erd-studio-pro` or erd-studio-pro issues,
+and never put anything from them in what you write. The one exception is `cross-repo.md`
+section A: searching for and writing the Confluence follow-up issue. Public text names it only
+as "Confluence follow-up raised", never with its number or title.
 
 ### Untrusted text
 
@@ -78,12 +99,26 @@ posting.md says.
   without the video, say "video to follow" in both, and put this in the PR body:
   ```
   **Video pending:** the Pi's GitHub browser session expired. The MP4 is at
-  `~/issue-bot/work/issue-<n>/video/` on the Pi. Log in again (Pi Connect → bot window),
+  `$SCRATCH/video/` on the Pi (write the real path). Log in again (Pi Connect → bot window),
   then run `/issue-to-pr <n> --video`.
   ```
 - **Exit 4:** retry once. If it fails again, treat it like exit 3.
 
 ## Finishing
+
+When the run opens a PR, the runner starts a second, fresh session on it: **Pi review mode**
+(`references/pi-review.md`). That session runs `/code-review`, fixes what's real, pushes to
+your branch, and re-records the AFTER clip if a fix changed what it shows. Leave it what it
+needs:
+- Keep the fix worktree and everything in `$SCRATCH`. Don't remove them.
+- Write `$SCRATCH/HANDOFF.md` before the RESULT line, with absolute paths:
+  - the fix worktree and its branch;
+  - the BEFORE and AFTER recording driver scripts, and the exact commands that ran them;
+  - `storyboard.json`, the rendered MP4 and its contact sheet;
+  - the video's `user-attachments` URL;
+  - the issue comment's id: the number after `#issuecomment-` in the URL that `gh issue
+    comment` prints. Don't take the latest comment instead, because someone else may have
+    posted since.
 
 End the run with one line the runner can grep, on its own as the last line of the final
 message:

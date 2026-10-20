@@ -8,7 +8,7 @@ import { CliUsageError, parseArgs, USAGE } from '../../src/cli/args';
 import { buildCliContext } from '../../src/cli/context';
 import { runExport, type ExportResult } from '../../src/cli/export';
 import { main } from '../../src/cli/index';
-import { exportDomainFile } from '../../src/services/diagramExport';
+import { exportSubjectAreaFile } from '../../src/services/diagramExport';
 import { dbtKeyIndexOf } from '../../src/services/stageDisplay';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -101,7 +101,7 @@ describe('parseArgs — export', () => {
 describe('export', () => {
   it.each(DIAGRAM_EXPORT_FORMATS)('prints exactly the %s text exportDomainFile builds, and nothing else', async (format) => {
     const ctx = await buildCliContext({ project: PROJECT, semanticDir: '.erd-studio' });
-    const expected = await exportDomainFile(ctx.domainService, path.join(PROJECT, SHOWCASE), format, {
+    const expected = await exportSubjectAreaFile(ctx.subjectAreaService, path.join(PROJECT, SHOWCASE), format, {
       dbtKeyIndex: dbtKeyIndexOf(ctx.ymlData, ctx.manifest),
     });
 
@@ -182,7 +182,7 @@ describe('export — errors (the same codes as diff --domain)', () => {
   it('a missing domain file is exit 3 domain-missing', async () => {
     const { exportJson, diffJson } = await both(['--project', PROJECT, '--domain', 'nope.json']);
     expect(exportJson.code).toBe(3);
-    expect(exportJson.json.error).toEqual({ code: 'domain-missing', message: 'Domain file not found: nope.json' });
+    expect(exportJson.json.error).toEqual({ code: 'domain-missing', message: 'Subject area file not found: nope.json' });
     expect(exportJson.json.error).toEqual(diffJson.error);
     expect(Object.keys(exportJson.json)).toEqual(['cliVersion', 'error']);
   });

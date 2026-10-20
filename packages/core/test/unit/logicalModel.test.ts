@@ -7,9 +7,9 @@ import {
   RATIONALE_KEYS,
   YamlCharLimitError,
   YamlNodeLimitError,
-  isSafeModelName,
-  parseLogicalModelText,
-  parseLogicalModelTextWithUsage,
+  isSafeTableName,
+  parseTableText,
+  parseTableTextWithUsage,
 } from '../../src/logicalModel';
 import * as core from '../../src/index';
 
@@ -52,7 +52,7 @@ describe('constants', () => {
   });
 });
 
-describe('parseLogicalModelText', () => {
+describe('parseTableText', () => {
   it('reads a model with its columns and rationale', () => {
     const text = [
       'name: dim_customer',
@@ -76,7 +76,7 @@ describe('parseLogicalModelText', () => {
       '  - just a string',
       '',
     ].join('\n');
-    expect(parseLogicalModelText(text, 'fallback')).toEqual({
+    expect(parseTableText(text, 'fallback')).toEqual({
       name: 'dim_customer',
       schema: 'silver',
       description: 'Customers',
@@ -91,22 +91,22 @@ describe('parseLogicalModelText', () => {
   });
 
   it('returns null for an empty file, a non-mapping root and a model without a name', () => {
-    expect(parseLogicalModelText('', 'x')).toBeNull();
-    expect(parseLogicalModelText('# only a comment\n', 'x')).toBeNull();
-    expect(parseLogicalModelText('- a\n- b\n', 'x')).toBeNull();
-    expect(parseLogicalModelText('just text\n', 'x')).toBeNull();
-    expect(parseLogicalModelText('description: no name\n', 'x')).toBeNull();
-    expect(parseLogicalModelText('name:\n', 'x')).toBeNull();
-    expect(parseLogicalModelText("name: ''\n", 'x')).toBeNull();
+    expect(parseTableText('', 'x')).toBeNull();
+    expect(parseTableText('# only a comment\n', 'x')).toBeNull();
+    expect(parseTableText('- a\n- b\n', 'x')).toBeNull();
+    expect(parseTableText('just text\n', 'x')).toBeNull();
+    expect(parseTableText('description: no name\n', 'x')).toBeNull();
+    expect(parseTableText('name:\n', 'x')).toBeNull();
+    expect(parseTableText("name: ''\n", 'x')).toBeNull();
   });
 
   it('throws the first YAML syntax error', () => {
     const text = 'name: broken\ncolumns:\n  - name: a\n    dataType: [INT\n  - name: b\n';
-    expect(() => parseLogicalModelText(text, 'broken')).toThrow(/Flow sequence in block collection/);
+    expect(() => parseTableText(text, 'broken')).toThrow(/Flow sequence in block collection/);
   });
 
   it('keeps numeric-looking scalars as their source text (schema: 007)', () => {
-    const model = parseLogicalModelText(
+    const model = parseTableText(
       'name: 1e3\nschema: 007\ncolumns:\n  - name: balance\n    dataType: 12.50\n    description: 0x1F\n    scdType: "1"\n',
       'fallback',
     );
@@ -139,7 +139,7 @@ describe('parseLogicalModelText', () => {
       rationale: Record<string, string>;
       columns: Array<{ name: string; dataType: string; description: string }>;
     };
-    expect(parseLogicalModelText(text, 'x')).toEqual({
+    expect(parseTableText(text, 'x')).toEqual({
       name: expected.name,
       rationale: expected.rationale,
       columns: expected.columns,
@@ -149,7 +149,7 @@ describe('parseLogicalModelText', () => {
   it('uses the last anchor defined before an alias, as yaml does', () => {
     const text = 'name: x\ndescription: &d first\ngrain: *d\nschema: &d second\nmodelRole: *d\n';
     const expected = parseDocument(text).toJS() as Record<string, string>;
-    const model = parseLogicalModelText(text, 'x');
+    const model = parseTableText(text, 'x');
     expect(model?.grain).toBe(expected.grain);
     expect(model?.modelRole).toBe(expected.modelRole);
     expect(model?.grain).toBe('first');
@@ -173,8 +173,8 @@ describe('parseLogicalModelText', () => {
       const doc = parseDocument(text);
       expect(doc.errors).toEqual([]);
       const reference = referencePlain(doc, doc.contents) as Record<string, unknown>;
-      const model = parseLogicalModelText(text, 'fallback');
-      const again = parseLogicalModelText(text, 'fallback', { maxNodes: 1_000 });
+      const model = parseTableText(text, 'fallback');
+      const again = parseTableText(text, 'fallback', { maxNodes: 1_000 });
       expect(model).toEqual(again);
       // The model keeps only the fields ERD Studio reads, so compare those.
       expect(model?.name).toBe(reference.name);
@@ -190,14 +190,14 @@ describe('parseLogicalModelText', () => {
   });
 
   it('stops a self-referencing alias at maxNodes', () => {
-    expect(() => parseLogicalModelText('name: x\ncolumns: &c [*c]\n', 'x', { maxNodes: 1_000 })).toThrow(YamlNodeLimitError);
+    expect(() => parseTableText('name: x\ncolumns: &c [*c]\n', 'x', { maxNodes: 1_000 })).toThrow(YamlNodeLimitError);
   });
 
   it('stops a billion-laughs document at maxNodes, quickly', () => {
     const started = Date.now();
     let caught: unknown;
     try {
-      parseLogicalModelText(billionLaughs(), 'bomb', { maxNodes: 50_000 });
+      parseTableText(billionLaughs(), 'bomb', { maxNodes: 50_000 });
     } catch (err) {
       caught = err;
     }
@@ -208,20 +208,20 @@ describe('parseLogicalModelText', () => {
 
   it('counts keys, values and followed aliases against maxNodes', () => {
     // root map (1) + 2 pairs x (key + value) = 5 nodes
-    expect(parseLogicalModelText('name: a\nschema: b\n', 'x', { maxNodes: 5 })).toEqual({ name: 'a', schema: 'b' });
-    expect(() => parseLogicalModelText('name: a\nschema: b\n', 'x', { maxNodes: 4 })).toThrow(YamlNodeLimitError);
+    expect(parseTableText('name: a\nschema: b\n', 'x', { maxNodes: 5 })).toEqual({ name: 'a', schema: 'b' });
+    expect(() => parseTableText('name: a\nschema: b\n', 'x', { maxNodes: 4 })).toThrow(YamlNodeLimitError);
     // the alias itself and the node it resolves to both count
-    expect(() => parseLogicalModelText('name: &n a\nschema: *n\n', 'x', { maxNodes: 5 })).toThrow(YamlNodeLimitError);
-    expect(parseLogicalModelText('name: &n a\nschema: *n\n', 'x', { maxNodes: 6 })).toEqual({ name: 'a', schema: 'a' });
+    expect(() => parseTableText('name: &n a\nschema: *n\n', 'x', { maxNodes: 5 })).toThrow(YamlNodeLimitError);
+    expect(parseTableText('name: &n a\nschema: *n\n', 'x', { maxNodes: 6 })).toEqual({ name: 'a', schema: 'a' });
   });
 
   it('counts scalar text, keys included and repeats through aliases, against maxChars', () => {
     // 'name' + 'a' + 'schema' + 'b' = 12 characters
-    expect(parseLogicalModelText('name: a\nschema: b\n', 'x', { maxChars: 12 })).toEqual({ name: 'a', schema: 'b' });
-    expect(() => parseLogicalModelText('name: a\nschema: b\n', 'x', { maxChars: 11 })).toThrow(YamlCharLimitError);
+    expect(parseTableText('name: a\nschema: b\n', 'x', { maxChars: 12 })).toEqual({ name: 'a', schema: 'b' });
+    expect(() => parseTableText('name: a\nschema: b\n', 'x', { maxChars: 11 })).toThrow(YamlCharLimitError);
     // the alias repeats 'abc': 'name' + 'abc' + 'schema' + 'abc' = 16
-    expect(parseLogicalModelText('name: &n abc\nschema: *n\n', 'x', { maxChars: 16 })).toEqual({ name: 'abc', schema: 'abc' });
-    expect(() => parseLogicalModelText('name: &n abc\nschema: *n\n', 'x', { maxChars: 15 })).toThrow(YamlCharLimitError);
+    expect(parseTableText('name: &n abc\nschema: *n\n', 'x', { maxChars: 16 })).toEqual({ name: 'abc', schema: 'abc' });
+    expect(() => parseTableText('name: &n abc\nschema: *n\n', 'x', { maxChars: 15 })).toThrow(YamlCharLimitError);
   });
 
   it('never needs a maxChars larger than the file when there are no aliases', () => {
@@ -242,7 +242,7 @@ describe('parseLogicalModelText', () => {
       '    dataType: !!str 12',
       '',
     ].join('\n');
-    expect(parseLogicalModelText(text, 'x', { maxChars: text.length })).toEqual(parseLogicalModelText(text, 'x'));
+    expect(parseTableText(text, 'x', { maxChars: text.length })).toEqual(parseTableText(text, 'x'));
   });
 
   it('stops one long scalar repeated through aliases at maxChars, quickly', () => {
@@ -253,7 +253,7 @@ describe('parseLogicalModelText', () => {
     const started = Date.now();
     let caught: unknown;
     try {
-      parseLogicalModelText(text, 'm', { maxNodes: 50_000, maxChars: 1_048_576 });
+      parseTableText(text, 'm', { maxNodes: 50_000, maxChars: 1_048_576 });
     } catch (err) {
       caught = err;
     }
@@ -274,14 +274,14 @@ describe('parseLogicalModelText', () => {
       '  - name: c',
       '',
     ].join('\n');
-    const unlimited = parseLogicalModelText(text, 'm');
+    const unlimited = parseTableText(text, 'm');
     expect(unlimited).toEqual({
       name: 'm',
       description: '{"a":1},{"b":"two"}',
       grain: '{"k":"v"}',
       columns: [{ name: 'c', dataType: 'unknown', description: '' }],
     });
-    expect(parseLogicalModelText(text, 'm', { maxNodes: 50_000, maxChars: 1_048_576 })).toEqual(unlimited);
+    expect(parseTableText(text, 'm', { maxNodes: 50_000, maxChars: 1_048_576 })).toEqual(unlimited);
   });
 
   it('charges a !!pairs subtree to maxChars each time an alias reaches it, quickly', () => {
@@ -293,7 +293,7 @@ describe('parseLogicalModelText', () => {
     const started = Date.now();
     let caught: unknown;
     try {
-      parseLogicalModelText(text, 'm', { maxChars: 1_048_576 });
+      parseTableText(text, 'm', { maxChars: 1_048_576 });
     } catch (err) {
       caught = err;
     }
@@ -308,68 +308,68 @@ describe('parseLogicalModelText', () => {
     const lines = ['name: m', `v: &${anchor} x`, 'x: &a !!pairs', `  - k: *${anchor}`, 'columns:'];
     for (let i = 0; i < 200; i++) lines.push(`  - {name: c${i}, description: *a}`);
     const text = lines.join('\n');
-    expect(() => parseLogicalModelText(text, 'm', { maxChars: 1_000_000 })).toThrow(YamlCharLimitError);
+    expect(() => parseTableText(text, 'm', { maxChars: 1_000_000 })).toThrow(YamlCharLimitError);
   });
 
   it('counts every node under a !!omap entry against maxNodes each time an alias reaches it', () => {
     const lines = ['name: m', 'x: &a !!omap', '  - k:', ...Array.from({ length: 100 }, (_, i) => `      - ${i}`), 'columns:'];
     for (let i = 0; i < 1_000; i++) lines.push(`  - {name: c${i}, description: *a}`);
     const text = lines.join('\n');
-    expect(() => parseLogicalModelText(text, 'm', { maxNodes: 50_000 })).toThrow(YamlNodeLimitError);
-    expect(parseLogicalModelText(text, 'm', { maxNodes: 200_000 })).toEqual(parseLogicalModelText(text, 'm'));
+    expect(() => parseTableText(text, 'm', { maxNodes: 50_000 })).toThrow(YamlNodeLimitError);
+    expect(parseTableText(text, 'm', { maxNodes: 200_000 })).toEqual(parseTableText(text, 'm'));
   });
 
   it('rejects limits that are not numbers of at least 0 with a TypeError', () => {
     for (const bad of [NaN, -1, -Infinity, '4', null]) {
-      expect(() => parseLogicalModelText('name: a\n', 'x', { maxNodes: bad as number })).toThrow(TypeError);
-      expect(() => parseLogicalModelText('name: a\n', 'x', { maxChars: bad as number })).toThrow(TypeError);
+      expect(() => parseTableText('name: a\n', 'x', { maxNodes: bad as number })).toThrow(TypeError);
+      expect(() => parseTableText('name: a\n', 'x', { maxChars: bad as number })).toThrow(TypeError);
     }
-    expect(parseLogicalModelText('name: a\n', 'x', { maxNodes: Infinity, maxChars: Infinity })).toEqual({ name: 'a' });
+    expect(parseTableText('name: a\n', 'x', { maxNodes: Infinity, maxChars: Infinity })).toEqual({ name: 'a' });
   });
 
   it('parses 20,000 aliases in under 2s', () => {
     const tags = ['  - &a INT', ...Array.from({ length: 20_000 }, () => '  - *a')].join('\n');
     const text = `name: wide\nz: &z BIGINT\ncolumns:\n  - name: c\n    dataType: *z\ntags:\n${tags}\n`;
     const started = Date.now();
-    const model = parseLogicalModelText(text, 'wide');
+    const model = parseTableText(text, 'wide');
     expect(Date.now() - started).toBeLessThan(2_000);
     expect(model).toEqual({ name: 'wide', columns: [{ name: 'c', dataType: 'BIGINT', description: '' }] });
   });
 
   it('reads a non-string name as its text, and falls back to the given name when that is empty', () => {
-    expect(parseLogicalModelText('name: 42\n', 'x')?.name).toBe('42');
-    expect(parseLogicalModelText('name: true\n', 'x')?.name).toBe('true');
-    expect(parseLogicalModelText('name: []\n', 'fallback')?.name).toBe('fallback');
+    expect(parseTableText('name: 42\n', 'x')?.name).toBe('42');
+    expect(parseTableText('name: true\n', 'x')?.name).toBe('true');
+    expect(parseTableText('name: []\n', 'fallback')?.name).toBe('fallback');
   });
 });
 
-describe('isSafeModelName', () => {
+describe('isSafeTableName', () => {
   it('accepts plain names, including dots, dashes and spaces', () => {
     for (const name of ['dim_customer', 'fct.order-v2', 'with space', '.hidden', '-lead']) {
-      expect(isSafeModelName(name)).toBe(true);
+      expect(isSafeTableName(name)).toBe(true);
     }
   });
 
   it('rejects blanks, path separators, .. and non-strings', () => {
     for (const name of ['', '   ', 'a/b', '/abs', 'a\\b', '..', 'a..b', '../up', 7, null, undefined, {}]) {
-      expect(isSafeModelName(name)).toBe(false);
+      expect(isSafeTableName(name)).toBe(false);
     }
   });
 
   it('rejects control characters, NUL included', () => {
     for (const name of ['evil\u0000name', 'a\nb', 'tab\tname', 'bell\u0007', 'del\u007f', '\u001f']) {
-      expect(isSafeModelName(name)).toBe(false);
+      expect(isSafeTableName(name)).toBe(false);
     }
-    expect(isSafeModelName('caf\u00e9')).toBe(true);
+    expect(isSafeTableName('caf\u00e9')).toBe(true);
   });
 });
 
-describe('parseLogicalModelTextWithUsage', () => {
+describe('parseTableTextWithUsage', () => {
   const yml = 'name: a\ndescription: &d hello\nnote: *d\ncolumns:\n  - {name: id, dataType: INT}\n';
 
   it('reports the nodes and scalar characters counted against finite budgets', () => {
-    const { model, nodes, chars } = parseLogicalModelTextWithUsage(yml, 'x', { maxNodes: 1_000, maxChars: 1_000 });
-    expect(model).toEqual(parseLogicalModelText(yml, 'x'));
+    const { model, nodes, chars } = parseTableTextWithUsage(yml, 'x', { maxNodes: 1_000, maxChars: 1_000 });
+    expect(model).toEqual(parseTableText(yml, 'x'));
     // Root map; 4 keys and 4 values (the alias counted as it is followed, and
     // again as its target); the column map with 2 keys and 2 values.
     expect(nodes).toBe(15);
@@ -379,37 +379,37 @@ describe('parseLogicalModelTextWithUsage', () => {
   });
 
   it('reports 0 for a budget left unlimited, and the usage of a document that is not a model', () => {
-    expect(parseLogicalModelTextWithUsage(yml, 'x')).toMatchObject({ nodes: 0, chars: 0 });
-    expect(parseLogicalModelTextWithUsage('description: no name\n', 'x', { maxNodes: 100 }))
+    expect(parseTableTextWithUsage(yml, 'x')).toMatchObject({ nodes: 0, chars: 0 });
+    expect(parseTableTextWithUsage('description: no name\n', 'x', { maxNodes: 100 }))
       .toEqual({ model: null, nodes: 3, chars: 0 });
   });
 
   it('is not part of the package API', () => {
-    expect(core).not.toHaveProperty('parseLogicalModelTextWithUsage');
-    expect(core).toHaveProperty('parseLogicalModelText');
+    expect(core).not.toHaveProperty('parseTableTextWithUsage');
+    expect(core).toHaveProperty('parseTableText');
     expect(core).toHaveProperty('YamlCharLimitError');
   });
 });
 
 describe('alias (the warehouse table name)', () => {
   it('reads alias as a trimmed string, keeping its case', () => {
-    expect(parseLogicalModelText('name: gold_date\nalias: " Date "\n', 'x')!.alias).toBe('Date');
+    expect(parseTableText('name: gold_date\nalias: " Date "\n', 'x')!.alias).toBe('Date');
   });
 
   it('leaves alias unset when absent or blank', () => {
-    expect(parseLogicalModelText('name: gold_date\n', 'x')).not.toHaveProperty('alias');
-    expect(parseLogicalModelText('name: gold_date\nalias: ""\n', 'x')).not.toHaveProperty('alias');
+    expect(parseTableText('name: gold_date\n', 'x')).not.toHaveProperty('alias');
+    expect(parseTableText('name: gold_date\nalias: ""\n', 'x')).not.toHaveProperty('alias');
   });
 
   it('validates a table name', () => {
-    expect(core.isValidModelAlias('Date')).toBe(true);
-    expect(core.isValidModelAlias('gold.date')).toBe(false);
-    expect(core.isValidModelAlias('a'.repeat(core.MODEL_ALIAS_MAX_LENGTH + 1))).toBe(false);
-    expect(core.isValidModelAlias(undefined)).toBe(false);
+    expect(core.isValidTableAlias('Date')).toBe(true);
+    expect(core.isValidTableAlias('gold.date')).toBe(false);
+    expect(core.isValidTableAlias('a'.repeat(core.TABLE_ALIAS_MAX_LENGTH + 1))).toBe(false);
+    expect(core.isValidTableAlias(undefined)).toBe(false);
   });
 
   it('is carried onto the display model only when set', () => {
-    const display = core.toDisplayDomain(
+    const display = core.toDisplaySubjectArea(
       {
         schemaVersion: 5, domain: 'finance', layer: 'gold', stage: 'logical', description: '',
         models: [{ name: 'gold_date', alias: 'date' }, { name: 'fct_sale' }], relationships: [],
@@ -430,13 +430,13 @@ describe('compositeKey on a relationship entry (#133 L2)', () => {
       '  - { fromColumn: c, toModel: sat, toColumn: c, compositeKey: [fk_sat] }',
       `  - { fromColumn: d, toModel: sat, toColumn: d, compositeKey: ${'x'.repeat(65)} }`,
     ].join('\n');
-    expect(parseLogicalModelText(text, 'pit')!.relationships!.map((r) => r.compositeKey ?? null)).toEqual(['fk_sat', null, null, null]);
+    expect(parseTableText(text, 'pit')!.relationships!.map((r) => r.compositeKey ?? null)).toEqual(['fk_sat', null, null, null]);
   });
 });
 
 describe("dbt's data_type spelling of a column type (#144)", () => {
   const typeOf = (column: string): string | undefined =>
-    parseLogicalModelText(`name: fct_order\ncolumns:\n  - name: amount\n${column}`, 'x')?.columns?.[0].dataType;
+    parseTableText(`name: fct_order\ncolumns:\n  - name: amount\n${column}`, 'x')?.columns?.[0].dataType;
 
   it('reads data_type exactly as it reads dataType', () => {
     for (const value of ['INT', 'DECIMAL(18,2)', '007', 'true', '"varchar(255)"']) {

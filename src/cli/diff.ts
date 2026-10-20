@@ -1,7 +1,7 @@
 /**
  * `erd-studio diff` — the canvas's "Compare to Physical", headless.
  *
- * Each domain goes through `computeDomainDiff(…, 'logical')` — the one
+ * Each domain goes through `computeSubjectAreaDiff(…, 'logical')` — the one
  * orchestration the canvas's toggle also calls — and then through
  * `buildSyncPlan` with physical as the ground truth for every item, exactly
  * as "All Physical → Generate sync plan" would. The `fixes` below are a
@@ -14,15 +14,15 @@ import * as path from 'path';
 
 import type { DiscrepancyReport } from '../types/discrepancy';
 import { redactPaths } from '../types/feedback';
-import type { Cardinality, Relationship, UnifiedDomain } from '../types/semantic';
-import { detectDomainFormat } from '../types/semantic';
+import type { Cardinality, Relationship, UnifiedSubjectArea } from '../types/semantic';
+import { detectSubjectAreaFormat } from '../types/semantic';
 import type { SyncPlan } from '../types/syncPlan';
-import { DomainFileError } from '../services/domainService';
-import type { ModelFileError, ModelFileErrorKind } from '../services/logicalModelService';
+import { SubjectAreaFileError } from '../services/domainService';
+import type { TableFileError, TableFileErrorKind } from '../services/logicalModelService';
 import { usesLibraryRelationships } from '../services/libraryRelationships';
 import { canonicalRelationship, linkKey, mergeLibraryRelationships, reverseRelationship } from '@erd-studio/core';
 import type { ColumnPair } from '@erd-studio/core';
-import { computeDomainDiff } from '../services/stageDiff';
+import { computeSubjectAreaDiff } from '../services/stageDiff';
 import { allSelections, buildSyncPlan } from '../services/syncPlanBuilder';
 import { CliEnvError, inputsOf, relPath, type ArtifactStatus, type CliContext, type Envelope } from './context';
 
@@ -64,11 +64,11 @@ export interface Fix {
  * an empty placeholder, so every column difference reported against it would
  * be noise — the file has to be fixed first.
  */
-export interface UnreadableModelFile {
+export interface UnreadableTableFile {
   name: string;
   /** Project-relative, forward slashes. */
   file: string;
-  kind: ModelFileErrorKind;
+  kind: TableFileErrorKind;
   line?: number;
   column?: number;
   /** The `yaml` library's error code, e.g. `BLOCK_AS_IMPLICIT_KEY`. */
@@ -87,7 +87,7 @@ export interface UnreadableModelFile {
 }
 
 /** One-line advice per failure kind, for the fix text and the human output. */
-export const MODEL_YAML_HINTS: Record<ModelFileErrorKind, string> = {
+export const TABLE_YAML_HINTS: Record<TableFileErrorKind, string> = {
   yamlScalar: 'wrap the value in double quotes',
   yamlIndent: 'indent with spaces, never tabs',
   yamlDuplicateKey: 'a key appears twice — keep one',
@@ -102,7 +102,7 @@ export const MODEL_YAML_HINTS: Record<ModelFileErrorKind, string> = {
  * of a conflict to keep is the user's call — it is usually a teammate's work —
  * so the conflict advice asks the assistant to show it, not to resolve it.
  */
-export function unreadableHint(u: Pick<UnreadableModelFile, 'kind' | 'mergeConflict' | 'readable' | 'key'>): string {
+export function unreadableHint(u: Pick<UnreadableTableFile, 'kind' | 'mergeConflict' | 'readable' | 'key'>): string {
   if (u.readable) {
     return `${u.key ? `\`${u.key}\`` : 'a key'} is written twice in one block — the last copy is what loads; `
       + 'delete the other copy (ERD Studio will not change this file until you do)';
@@ -110,7 +110,7 @@ export function unreadableHint(u: Pick<UnreadableModelFile, 'kind' | 'mergeConfl
   return u.mergeConflict
     ? 'unresolved git merge conflict — git left two versions there: show the user the file and line and ask which side '
       + "to keep (don't pick a side or run git commands yourself)"
-    : MODEL_YAML_HINTS[u.kind];
+    : TABLE_YAML_HINTS[u.kind];
 }
 
 /** The terminal line's advice for a conflicted file: short, and it picks no side. */
@@ -118,8 +118,8 @@ export function mergeConflictHumanHint(rerun: 'doctor' | 'diff'): string {
   return `unresolved git merge conflict — resolve it (keep one side), save, then re-run ${rerun}`;
 }
 
-/** A {@link ModelFileError} as the CLI reports it: project-relative, redacted. */
-export function toUnreadableModelFile(root: string, err: ModelFileError): UnreadableModelFile {
+/** A {@link TableFileError} as the CLI reports it: project-relative, redacted. */
+export function toUnreadableTableFile(root: string, err: TableFileError): UnreadableTableFile {
   const file = relPath(root, err.filePath);
   return {
     name: err.name,
@@ -139,15 +139,15 @@ export function toUnreadableModelFile(root: string, err: ModelFileError): Unread
  * `fct_order.yml line 4: YAML error (BLOCK_AS_IMPLICIT_KEY) — wrap the value in double quotes`,
  * for the terminal; `rerun` names the command to run again once a conflict is resolved.
  */
-export function describeUnreadable(u: UnreadableModelFile, rerun: 'doctor' | 'diff'): string {
+export function describeUnreadable(u: UnreadableTableFile, rerun: 'doctor' | 'diff'): string {
   const where = `${path.posix.basename(u.file)}${u.line !== undefined ? ` line ${u.line}` : ''}`;
   if (u.mergeConflict) { return `${where}: ${mergeConflictHumanHint(rerun)}`; }
   if (u.readable) { return `${where}: ${unreadableHint(u)}`; }
   const what = u.kind === 'read' ? 'could not be read' : `YAML error${u.code ? ` (${u.code})` : ''}`;
-  return u.kind === 'read' ? `${where}: ${MODEL_YAML_HINTS.read}` : `${where}: ${what} — ${MODEL_YAML_HINTS[u.kind]}`;
+  return u.kind === 'read' ? `${where}: ${TABLE_YAML_HINTS.read}` : `${where}: ${what} — ${TABLE_YAML_HINTS[u.kind]}`;
 }
 
-export interface DomainDiff {
+export interface SubjectAreaDiff {
   file: string;
   domain: string;
   layer: string;
@@ -168,7 +168,7 @@ export interface DomainDiff {
    * `fix-model-yaml` fix in place of its column fixes, so the domain is never
    * clean until they read.
    */
-  unreadableModelFiles: UnreadableModelFile[];
+  unreadableModelFiles: UnreadableTableFile[];
   /**
    * Models dbt has but lists no columns for (only the source file proves they
    * exist). `compare()` calls them matched with no column rows, so a clean
@@ -189,7 +189,7 @@ export interface DiffResult extends Envelope {
   inputs: { manifest: ArtifactStatus; catalog: ArtifactStatus };
   /** Every domain clean (and none errored or needing migration). */
   clean: boolean;
-  domains: DomainDiff[];
+  domains: SubjectAreaDiff[];
 }
 
 export interface DiffOptions {
@@ -200,11 +200,11 @@ export interface DiffOptions {
 }
 
 /** Resolve a `--domain` argument: as given (from the cwd), else relative to the project root. */
-export function resolveDomainPath(ctx: CliContext, arg: string, cwd: string = process.cwd()): string {
+export function resolveSubjectAreaPath(ctx: CliContext, arg: string, cwd: string = process.cwd()): string {
   const candidates = path.isAbsolute(arg) ? [arg] : [path.resolve(cwd, arg), path.resolve(ctx.root, arg)];
   const hit = candidates.find((c) => fs.existsSync(c));
   if (!hit) {
-    throw new CliEnvError('domain-missing', `Domain file not found: ${redactPaths(arg)}`);
+    throw new CliEnvError('domain-missing', `Subject area file not found: ${redactPaths(arg)}`);
   }
   return hit;
 }
@@ -216,7 +216,7 @@ export function resolveDomainPath(ctx: CliContext, arg: string, cwd: string = pr
  * take — the assistant reading `diff` / `export` shows the user the file and
  * line and leaves the choice of side to them.
  */
-export function conflictedDomainMessage(file: string, line: number | undefined): string {
+export function conflictedSubjectAreaMessage(file: string, line: number | undefined): string {
   return `${file} has unresolved git merge conflicts${line !== undefined ? ` (first at line ${line})` : ''}: `
     + 'git left two versions there. Show the user the file and line; if only positions differ either side is safe to keep, '
     + "otherwise ask the user which side to keep. Don't pick a side or run git commands yourself.";
@@ -227,16 +227,16 @@ export function conflictedDomainMessage(file: string, line: number | undefined):
  * the project-relative path. Shared with `export --domain`, so one broken file
  * reads the same from both subcommands.
  */
-export function describeDomainError(ctx: CliContext, file: string, err: unknown): { code: string; message: string } {
+export function describeSubjectAreaError(ctx: CliContext, file: string, err: unknown): { code: string; message: string } {
   const rel = relPath(ctx.root, file);
   const raw = err instanceof Error ? err.message : String(err);
   const message = redactPaths(raw.split(file).join(rel));
-  if (err instanceof DomainFileError) {
-    if (err.mergeConflict) { return { code: 'merge-conflict', message: conflictedDomainMessage(rel, err.line) }; }
+  if (err instanceof SubjectAreaFileError) {
+    if (err.mergeConflict) { return { code: 'merge-conflict', message: conflictedSubjectAreaMessage(rel, err.line) }; }
     return { code: err.reason === 'missing' ? 'domain-missing' : 'domain-invalid', message };
   }
   if (/invalid layer/.test(raw)) { return { code: 'unknown-layer', message }; }
-  if (/pre-v\d|mixes inline model|schemaVersion/.test(raw)) { return { code: 'unsupported-format', message }; }
+  if (/pre-v\d|mixes inline (?:model|table)|schemaVersion/.test(raw)) { return { code: 'unsupported-format', message }; }
   return { code: 'domain-invalid', message };
 }
 
@@ -278,8 +278,8 @@ export function fixesFromPlan(
   plan: SyncPlan,
   domainFile: string,
   semanticDir: string,
-  phantoms: DomainDiff['phantoms'],
-  unreadable: UnreadableModelFile[] = [],
+  phantoms: SubjectAreaDiff['phantoms'],
+  unreadable: UnreadableTableFile[] = [],
   relationshipHome: RelationshipHome = { inLibrary: new Map(), addToLibrary: false },
 ): Fix[] {
   const ymlFile = (model: string): string =>
@@ -313,14 +313,14 @@ export function fixesFromPlan(
           severity: 'blocking', kind: 'add-column', model: c.modelName, column: c.columnName, file: ymlFile(c.modelName),
           to: physicalType,
           explain: physicalType
-            ? `dbt has a column ${where} (${physicalType}) that the logical model is missing — add it.`
-            : `dbt has a column ${where} that the logical model is missing — add it (dbt has no type for it yet, so use your best guess).`,
+            ? `dbt has a column ${where} (${physicalType}) that the logical table is missing — add it.`
+            : `dbt has a column ${where} that the logical table is missing — add it (dbt has no type for it yet, so use your best guess).`,
         });
         break;
       case 'remove-column-from-logical':
         fixes.push({
           severity: 'blocking', kind: 'remove-column', model: c.modelName, column: c.columnName, file: ymlFile(c.modelName),
-          explain: `The logical model has a column ${where} that dbt does not have — remove it (and any relationship that uses it).`,
+          explain: `The logical table has a column ${where} that dbt does not have — remove it (and any relationship that uses it).`,
         });
         break;
       case 'update-type-in-logical': {
@@ -331,7 +331,7 @@ export function fixesFromPlan(
           from: logicalType, to: physicalType,
           explain: advisory
             ? `dbt has no type for ${where} yet — keep the logical type (${logicalType}); generating the catalog will fill it in.`
-            : `${where} is ${logicalType || 'untyped'} in the logical model but ${physicalType} in dbt — change the logical type to ${physicalType}.`,
+            : `${where} is ${logicalType || 'untyped'} in the logical table but ${physicalType} in dbt — change the logical type to ${physicalType}.`,
         });
         break;
       }
@@ -360,8 +360,8 @@ export function fixesFromPlan(
           fromModel: c.fromModel, fromColumn: c.pairs[0].fromColumn, toModel: c.toModel, toColumn: c.pairs[0].toColumn,
           ...(cardinality ? { cardinality } : {}), pairs: c.pairs, ...(r.compositeKey ? { compositeKey: r.compositeKey } : {}),
         },
-        explain: `The logical model draws the composite foreign key ${describeComposite(c.fromModel, c.toModel, c.pairs)}, and dbt declares none. `
-          + `Nothing to change in the logical model. To make dbt check it, add a model-level \`foreign_key\` constraint to ${c.fromModel} `
+        explain: `The logical stage draws the composite foreign key ${describeComposite(c.fromModel, c.toModel, c.pairs)}, and dbt declares none. `
+          + `Nothing to change in the logical stage. To make dbt check it, add a model-level \`foreign_key\` constraint to ${c.fromModel} `
           + `(\`columns: [${c.pairs.map((p) => p.fromColumn).join(', ')}]\`, \`to: ref('${c.toModel}')\`, \`to_columns: [${c.pairs.map((p) => p.toColumn).join(', ')}]\`, `
           + 'dbt 1.9+ with an enforced contract) or a `dbt_constraints.foreign_key` test.',
       });
@@ -377,8 +377,8 @@ export function fixesFromPlan(
           fixes.push({
             severity: 'blocking', kind: 'add-relationship', model: c.fromModel, column: c.pairs[0].fromColumn, file: relationshipFile(stored, true),
             relationship: { ...stored, cardinality, pairs: c.pairs, compositeKey: name },
-            explain: `dbt declares the composite foreign key ${describeComposite(c.fromModel, c.toModel, c.pairs)}, but the logical model `
-              + `does not draw it — add it to the logical model as ${c.pairs.length} entries sharing \`compositeKey: ${name}\`.`,
+            explain: `dbt declares the composite foreign key ${describeComposite(c.fromModel, c.toModel, c.pairs)}, but the logical stage `
+              + `does not draw it — add it to the logical stage as ${c.pairs.length} entries sharing \`compositeKey: ${name}\`.`,
           });
           break;
         }
@@ -388,7 +388,7 @@ export function fixesFromPlan(
         fixes.push({
           severity: 'blocking', kind: 'add-relationship', model: stored.fromModel, column: stored.fromColumn, file: relationshipFile(stored, true),
           relationship: stored,
-          explain: `dbt tests the link ${link}, but the logical model does not draw it — add the relationship.`,
+          explain: `dbt tests the link ${link}, but the logical stage does not draw it — add the relationship.`,
         });
         break;
       }
@@ -399,7 +399,7 @@ export function fixesFromPlan(
         fixes.push({
           severity: 'blocking', kind: 'remove-relationship', model: entry.fromModel, column: entry.fromColumn, file: relationshipFile(entry, false),
           relationship: pickRelationship(entry),
-          explain: `The logical model draws ${link}, but dbt has no relationships test for it — remove it, or add the test to dbt.`,
+          explain: `The logical stage draws ${link}, but dbt has no relationships test for it — remove it, or add the test to dbt.`,
         });
         break;
       }
@@ -426,7 +426,7 @@ export function fixesFromPlan(
           relationship: { ...pickRelationship(entry), ...(entryPairs ? { pairs: entryPairs, ...(r.compositeKey ? { compositeKey: r.compositeKey } : {}) } : {}) },
           ...(movesFrom ? { movesFrom } : {}),
           explain: (entryPairs ? `The composite foreign key ${describeComposite(entry.fromModel, entry.toModel, entryPairs)}` : link) +
-            ` is ${r.sourceCardinality} in the logical model but ${r.targetCardinality} according to dbt's tests — ` +
+            ` is ${r.sourceCardinality} in the logical stage but ${r.targetCardinality} according to dbt's tests — ` +
             (movesFrom
               ? `store it as ${entry.fromModel}.${entry.fromColumn} → ${entry.toModel}.${entry.toColumn} ${entry.cardinality} in ${file}, and take it out of ${movesFrom}`
               : `change it to ${entry.cardinality}${stored && entry.cardinality !== r.targetCardinality ? ` (stored from ${entry.fromModel})` : ''}`) +
@@ -443,8 +443,8 @@ export function fixesFromPlan(
     fixes.push({
       severity: 'blocking', kind: 'resolve-phantom', model: p.name, file: domainFile,
       explain: p.reason === 'disabled'
-        ? `${p.name} is disabled in dbt — ask whether to remove it from this domain or re-enable it in dbt.`
-        : `dbt has no model called ${p.name} — ask whether it is a typo for a real model, or should be removed from this domain.`,
+        ? `${p.name} is disabled in dbt — ask whether to remove it from this subject area or re-enable it in dbt.`
+        : `dbt has no model called ${p.name} — ask whether it is a typo for a real model, or should be removed from this subject area.`,
     });
   }
   for (const u of unreadable) {
@@ -453,9 +453,9 @@ export function fixesFromPlan(
       ...(u.line !== undefined ? { line: u.line } : {}),
       explain: u.mergeConflict
         ? `${u.file}${u.line !== undefined ? ` line ${u.line}` : ''}: ${unreadableHint(u)}. Raise this before anything `
-          + 'else — until it is resolved, ERD Studio sees the model as empty and every other difference for it is meaningless.'
+          + 'else — until it is resolved, ERD Studio sees the table as empty and every other difference for it is meaningless.'
         : `${describeUnreadable(u, 'diff')}. Fix this file before anything else — until it parses, `
-          + 'ERD Studio sees the model as empty and every other difference for it is meaningless.',
+          + 'ERD Studio sees the table as empty and every other difference for it is meaningless.',
     });
   }
   // A model-level resolution would only arise for a model compare() did not
@@ -464,7 +464,7 @@ export function fixesFromPlan(
     if (phantomNames.has(m.modelName)) { continue; }
     fixes.push({
       severity: 'blocking', kind: 'resolve-phantom', model: m.modelName, file: domainFile,
-      explain: `${m.modelName} is in only one of the two views — ask the user whether to keep it in this domain.`,
+      explain: `${m.modelName} is in only one of the two views — ask the user whether to keep it in this subject area.`,
     });
   }
 
@@ -472,22 +472,22 @@ export function fixesFromPlan(
 }
 
 /** Compare one domain file. Load errors are thrown (the caller decides between exit 3 and `domains[i].error`). */
-export function diffDomain(ctx: CliContext, file: string, strict: boolean): DomainDiff {
+export function diffSubjectArea(ctx: CliContext, file: string, strict: boolean): SubjectAreaDiff {
   const rel = relPath(ctx.root, file);
 
   let raw: unknown;
   try {
     raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
   } catch {
-    raw = undefined; // getDomain below produces the precise error
+    raw = undefined; // getSubjectArea below produces the precise error
   }
-  const format = raw === undefined ? null : detectDomainFormat(raw);
+  const format = raw === undefined ? null : detectSubjectAreaFormat(raw);
 
   // A v4 (inline-model) file gets the migration answer before anything tries
   // the v5 load path — the migration command is what fixes it, whatever else
   // that load might have tripped over (an unknown layer, say). A file with no
   // numeric schemaVersion also detects as v4, but it is not a v4 domain —
-  // getDomain reports that one precisely.
+  // getSubjectArea reports that one precisely.
   const obj = (raw ?? {}) as { domain?: unknown; layer?: unknown; schemaVersion?: unknown };
   if (format === 'v4' && typeof obj.schemaVersion === 'number') {
     return {
@@ -505,8 +505,8 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
     };
   }
 
-  const { unified, target, report } = computeDomainDiff(
-    { domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog },
+  const { unified, target, report } = computeSubjectAreaDiff(
+    { subjectAreaService: ctx.subjectAreaService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog },
     file,
     'logical',
   );
@@ -531,17 +531,19 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
     semanticDir: ctx.semanticDir,
     domain: unified.domain,
     layer: unified.layer,
-    modelFolder: (name) => ctx.logicalModelService.modelFolder(name),
+    modelFolder: (name) => ctx.tableLibraryService.tableFolder(name),
+    tableLibraryFile: (name) => ctx.tableLibraryService.tableLibraryFile(name),
+    newTableLibraryDir: ctx.tableLibraryService.newTableLibraryDirName(),
   });
-  const unreadableModelFiles = unreadableModels(ctx, unified);
+  const unreadableModelFiles = unreadableTables(ctx, unified);
   // The entry each link is drawn from (core's read winner), keyed by link.
   const libraryLines = mergeLibraryRelationships(unified.logical.models, []);
   const relationshipHome: RelationshipHome = {
     inLibrary: new Map(libraryLines.map((line) => [linkKey(line), line])),
     addToLibrary: usesLibraryRelationships(
-      ctx.logicalModelService.listModels(),
-      ctx.domainService.countDomainFileRelationships(ctx.root, ctx.semanticDir),
-      ctx.logicalModelService.hasUnreadableRelationships(),
+      ctx.tableLibraryService.listTables(),
+      ctx.subjectAreaService.countSubjectAreaFileRelationships(ctx.root, ctx.semanticDir),
+      ctx.tableLibraryService.hasUnreadableRelationships(),
     ),
   };
   const fixes = fixesFromPlan(plan, rel, ctx.semanticDir, phantoms, unreadableModelFiles, relationshipHome);
@@ -559,7 +561,7 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
       matchedRelationships: report.relationships.filter((r) => r.status === 'matched').length,
     },
     phantoms,
-    missingModelFiles: missingModelFiles(ctx, unified),
+    missingModelFiles: missingTableFiles(ctx, unified),
     unreadableModelFiles,
     modelsWithoutColumns,
     fixes,
@@ -568,17 +570,17 @@ export function diffDomain(ctx: CliContext, file: string, strict: boolean): Doma
   };
 }
 
-function missingModelFiles(ctx: CliContext, unified: UnifiedDomain): string[] {
+function missingTableFiles(ctx: CliContext, unified: UnifiedSubjectArea): string[] {
   return unified.logical.models
     .map((m) => m.name)
-    .filter((name) => !ctx.logicalModelService.modelExists(name));
+    .filter((name) => !ctx.tableLibraryService.tableExists(name));
 }
 
-function unreadableModels(ctx: CliContext, unified: UnifiedDomain): UnreadableModelFile[] {
-  const out: UnreadableModelFile[] = [];
+function unreadableTables(ctx: CliContext, unified: UnifiedSubjectArea): UnreadableTableFile[] {
+  const out: UnreadableTableFile[] = [];
   for (const m of unified.logical.models) {
-    const err = ctx.logicalModelService.getModelFileError(m.name);
-    if (err) { out.push(toUnreadableModelFile(ctx.root, err)); }
+    const err = ctx.tableLibraryService.getTableFileError(m.name);
+    if (err) { out.push(toUnreadableTableFile(ctx.root, err)); }
   }
   return out;
 }
@@ -589,7 +591,7 @@ function unreadableModels(ctx: CliContext, unified: UnifiedDomain): UnreadableMo
  * one broken file does not hide the rest.
  */
 export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResult; exitCode: 0 | 1 } {
-  const domains: DomainDiff[] = [];
+  const domains: SubjectAreaDiff[] = [];
 
   if (opts.all) {
     // `--all` over nothing must never read as "clean": a wrong or omitted
@@ -602,16 +604,16 @@ export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResul
         `No ${ctx.semanticDir}/ folder in this project — check --semantic-dir (it must match the erdStudio.semanticDir setting).`,
       );
     }
-    const summaries = ctx.domainService.listDomains(ctx.root, ctx.semanticDir);
+    const summaries = ctx.subjectAreaService.listSubjectAreas(ctx.root, ctx.semanticDir);
     if (summaries.length === 0) {
       throw new CliEnvError(
         'no-domains',
-        `No domain files under ${ctx.semanticDir}/ — check --semantic-dir (it must match the erdStudio.semanticDir setting).`,
+        `No subject area files under ${ctx.semanticDir}/ — check --semantic-dir (it must match the erdStudio.semanticDir setting).`,
       );
     }
     for (const summary of summaries) {
       try {
-        domains.push(diffDomain(ctx, summary.filePath, opts.strict === true));
+        domains.push(diffSubjectArea(ctx, summary.filePath, opts.strict === true));
       } catch (err) {
         domains.push({
           file: relPath(ctx.root, summary.filePath),
@@ -624,17 +626,17 @@ export function runDiff(ctx: CliContext, opts: DiffOptions): { result: DiffResul
           unreadableModelFiles: [],
           modelsWithoutColumns: [],
           fixes: [],
-          error: describeDomainError(ctx, summary.filePath, err),
+          error: describeSubjectAreaError(ctx, summary.filePath, err),
         });
       }
     }
   } else {
     for (const arg of opts.domains ?? []) {
-      const file = resolveDomainPath(ctx, arg, opts.cwd);
+      const file = resolveSubjectAreaPath(ctx, arg, opts.cwd);
       try {
-        domains.push(diffDomain(ctx, file, opts.strict === true));
+        domains.push(diffSubjectArea(ctx, file, opts.strict === true));
       } catch (err) {
-        const { code, message } = describeDomainError(ctx, file, err);
+        const { code, message } = describeSubjectAreaError(ctx, file, err);
         throw new CliEnvError(code, message);
       }
     }

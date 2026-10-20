@@ -17,7 +17,7 @@ Table silver.dim_customer {
 
 // Table dim_missing is not exported: it has no columns, and a DBML table needs at least one.
 
-// Table broken is not exported: its model file could not be read (yamlIndent, line 5).
+// Table broken is not exported: its table file could not be read (yamlIndent, line 5).
 
 // Table nameless is not exported: it has no columns, and a DBML table needs at least one.
 

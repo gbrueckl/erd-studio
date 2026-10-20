@@ -36,12 +36,12 @@ import {
   MAX_COUNTER,
   buildHeartbeat,
   daysBetween,
-  domainCountBucket,
+  subjectAreaCountBucket,
   emptyCounters,
   extVersion,
   heartbeatDue,
-  modelCountBucket,
-  modelFileErrorCode,
+  tableCountBucket,
+  tableFileErrorCode,
   nextDay,
   osBucket,
   recordActivation,
@@ -82,11 +82,11 @@ describe('buckets', () => {
   });
 
   it('buckets domain counts', () => {
-    expect([0, 1, 3, 4, 10, 11, 500].map(domainCountBucket)).toEqual(['0', '1-3', '1-3', '4-10', '4-10', '10+', '10+']);
+    expect([0, 1, 3, 4, 10, 11, 500].map(subjectAreaCountBucket)).toEqual(['0', '1-3', '1-3', '4-10', '4-10', '10+', '10+']);
   });
 
   it('buckets model counts', () => {
-    expect([0, 1, 10, 11, 50, 51, 900].map(modelCountBucket)).toEqual(['none', '1-10', '1-10', '11-50', '11-50', '51+', '51+']);
+    expect([0, 1, 10, 11, 50, 51, 900].map(tableCountBucket)).toEqual(['none', '1-10', '1-10', '11-50', '11-50', '51+', '51+']);
   });
 
   it('reduces versions and platforms to the allowed shapes', () => {
@@ -413,7 +413,7 @@ describe('allowlists agree with the Worker', () => {
 
   it('appends the Export Diagram keys at the very end: completions, the cancel and the empty project as features, a failure as an error', () => {
     expect(FEATURES.slice(-4)).toEqual(['exportMermaid', 'exportDbml', 'exportCancelled', 'exportNoDiagrams']);
-    expect(ERROR_CODES[ERROR_CODES.length - 1]).toBe('exportFailed');
+    expect(ERROR_CODES.indexOf('domainLoadEmpty')).toBe(ERROR_CODES.indexOf('exportFailed') + 1);
     let s = emptyCounters('2026-10-09');
     s = recordFeature(s, 'exportMermaid');
     s = recordFeature(s, 'exportDbml');
@@ -423,6 +423,16 @@ describe('allowlists agree with the Worker', () => {
     const body = buildHeartbeat(s, ENV);
     expect(body.features).toEqual({ exportMermaid: 1, exportDbml: 1, exportCancelled: 1, exportNoDiagrams: 1 });
     expect(body.errors).toEqual({ exportFailed: 1 });
+  });
+
+  it('appends the domain-file split at the very end, as errors beside domainLoad', () => {
+    expect(ERROR_CODES.slice(-2)).toEqual(['domainLoadEmpty', 'domainLoadConflict']);
+    let s = emptyCounters('2026-10-19');
+    s = recordError(s, 'domainLoad');
+    s = recordError(s, 'domainLoadEmpty');
+    s = recordError(s, 'domainLoad');
+    s = recordError(s, 'domainLoadConflict');
+    expect(buildHeartbeat(s, ENV).errors).toEqual({ domainLoad: 2, domainLoadEmpty: 1, domainLoadConflict: 1 });
   });
 
   it('telemetry.json documents every feature key', () => {
@@ -437,9 +447,9 @@ describe('allowlists agree with the Worker', () => {
 });
 
 describe('model file failure sub-codes (#110)', () => {
-  it('maps every ModelFileErrorKind to its own listed error code', () => {
+  it('maps every TableFileErrorKind to its own listed error code', () => {
     const kinds = ['read', 'yamlIndent', 'yamlScalar', 'yamlStructure', 'yamlDuplicateKey', 'yamlOther'] as const;
-    const codes = kinds.map(modelFileErrorCode);
+    const codes = kinds.map(tableFileErrorCode);
     expect(codes).toEqual([
       'modelFileRead',
       'modelFileYamlIndent',
@@ -467,7 +477,7 @@ describe('model file failure sub-codes (#110)', () => {
     let s = emptyCounters('2026-09-24');
     for (const kind of ['yamlScalar', 'yamlScalar', 'yamlIndent'] as const) {
       s = recordError(s, 'modelFileParse');
-      s = recordError(s, modelFileErrorCode(kind));
+      s = recordError(s, tableFileErrorCode(kind));
     }
     expect(buildHeartbeat(s, ENV).errors).toEqual({ modelFileParse: 3, modelFileYamlScalar: 2, modelFileYamlIndent: 1 });
   });

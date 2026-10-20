@@ -573,7 +573,7 @@ export async function runSetupAiHelper(deps: SetupAiHelperDeps): Promise<SetupOu
         ok: false,
         filesWritten,
         message: `The setup guide is installed, but the checking tool couldn't be (${launched.error ?? 'unknown error'}). ` +
-          'Your assistant can still check your model through the canvas, just less exactly.',
+          'Your assistant can still check your data model through the canvas, just less exactly.',
       };
     }
     telemetry.feature('setupAiHelper');

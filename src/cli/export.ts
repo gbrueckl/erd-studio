@@ -1,10 +1,10 @@
 /**
  * `erd-studio export` — a domain's logical (design) diagram as Mermaid or DBML.
  *
- * The text comes from `exportDomainFile` (`src/services/diagramExport.ts`),
+ * The text comes from `exportSubjectAreaFile` (`src/services/diagramExport.ts`),
  * the one host entry point the palette command and the canvas also call, so
  * the CLI, the extension and the Confluence app print the same bytes. The
- * dbt key evidence is passed the way `computeDomainDiff` passes it, so a link
+ * dbt key evidence is passed the way `computeSubjectAreaDiff` passes it, so a link
  * stored twice is exported from the copy the canvas draws.
  *
  * Read-only like every subcommand: the text goes to stdout and nothing is
@@ -13,10 +13,10 @@
 
 import type { DiagramExportFormat } from '@erd-studio/core';
 
-import { exportDomainFile } from '../services/diagramExport';
+import { exportSubjectAreaFile } from '../services/diagramExport';
 import { dbtKeyIndexOf } from '../services/stageDisplay';
 import { CliEnvError, relPath, type CliContext } from './context';
-import { describeDomainError, resolveDomainPath } from './diff';
+import { describeSubjectAreaError, resolveSubjectAreaPath } from './diff';
 
 export interface ExportOptions {
   /** The `--domain` argument, resolved like `diff --domain`. */
@@ -42,9 +42,9 @@ export interface ExportResult {
  * same codes and messages `diff --domain` uses (exit 3).
  */
 export async function runExport(ctx: CliContext, opts: ExportOptions): Promise<ExportResult> {
-  const file = resolveDomainPath(ctx, opts.domain, opts.cwd);
+  const file = resolveSubjectAreaPath(ctx, opts.domain, opts.cwd);
   try {
-    const exported = await exportDomainFile(ctx.domainService, file, opts.format, {
+    const exported = await exportSubjectAreaFile(ctx.subjectAreaService, file, opts.format, {
       dbtKeyIndex: dbtKeyIndexOf(ctx.ymlData, ctx.manifest),
     });
     return {
@@ -55,7 +55,7 @@ export async function runExport(ctx: CliContext, opts: ExportOptions): Promise<E
       content: exported.content,
     };
   } catch (err) {
-    const { code, message } = describeDomainError(ctx, file, err);
+    const { code, message } = describeSubjectAreaError(ctx, file, err);
     throw new CliEnvError(code, message);
   }
 }

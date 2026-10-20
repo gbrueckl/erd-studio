@@ -1,5 +1,5 @@
 // Entry point `@erd-studio/renderer`: the viewer API — rendering a
-// `DisplayDomain` as an entity-relationship diagram, and the graph types.
+// `DisplaySubjectArea` as an entity-relationship diagram, and the graph types.
 //
 //   import { ErdCanvas } from '@erd-studio/renderer';
 //   import '@erd-studio/renderer/styles.css';
@@ -7,7 +7,7 @@
 export { ErdCanvas, type ErdCanvasProps, type ErdCanvasHandle } from './ErdCanvas';
 
 export {
-  transformDomain,
+  transformSubjectArea,
   pickHandleSides,
   type TransformResult,
   type TransformOptions,
@@ -17,8 +17,8 @@ export {
 export { repickHandleSides, nodeRect } from './lib/dragHandleSides';
 
 export type {
-  DisplayDomain,
-  DisplayModel,
+  DisplaySubjectArea,
+  DisplayTable,
   DisplayColumn,
   DisplayRelationship,
   PhysicalColumnSource,
@@ -27,7 +27,7 @@ export type {
   AnnotationColor,
   Cardinality,
   Layer,
-  ModelRole,
+  TableRole,
   NodePosition,
   Rationale,
   Stage,
@@ -49,8 +49,8 @@ export {
 } from '@erd-studio/core';
 
 export type {
-  ModelFlowNode,
-  ModelNodeData,
+  TableFlowNode,
+  TableNodeData,
   FkFlowEdge,
   FkEdgeData,
   AnnotationFlowNode,

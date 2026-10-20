@@ -9,9 +9,9 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
-const domain: DisplayDomain = {
+const subjectArea: DisplaySubjectArea = {
   schemaVersion: 4,
   domain: 'orders',
   layer: 'silver',
@@ -22,7 +22,7 @@ const domain: DisplayDomain = {
   viewConfig: {},
   readOnly: false,
   positionDraggable: true,
-} as DisplayDomain;
+} as DisplaySubjectArea;
 
 beforeEach(() => {
   useEditorStore.setState({ domain: null, error: null, errorKind: null, errorMergeConflict: false });
@@ -31,26 +31,26 @@ beforeEach(() => {
 describe('editorStore error lifecycle', () => {
   it('keeps the domain when an error is set (canvas stays mounted)', () => {
     const s = useEditorStore.getState();
-    s.setDomain(domain);
+    s.setDomain(subjectArea);
     s.setError('Failed to rename model: EACCES');
-    expect(useEditorStore.getState().domain).toBe(domain);
+    expect(useEditorStore.getState().domain).toBe(subjectArea);
     expect(useEditorStore.getState().error).toBe('Failed to rename model: EACCES');
   });
 
   it('setError(null) clears the error (toast dismiss)', () => {
     const s = useEditorStore.getState();
-    s.setDomain(domain);
+    s.setDomain(subjectArea);
     s.setError('boom');
     s.setError(null);
     expect(useEditorStore.getState().error).toBeNull();
-    expect(useEditorStore.getState().domain).toBe(domain);
+    expect(useEditorStore.getState().domain).toBe(subjectArea);
   });
 
   it('a subsequent domain payload clears the error', () => {
     const s = useEditorStore.getState();
-    s.setDomain(domain);
+    s.setDomain(subjectArea);
     s.setError('boom');
-    s.setDomain({ ...domain, description: 'reloaded' });
+    s.setDomain({ ...subjectArea, description: 'reloaded' });
     expect(useEditorStore.getState().error).toBeNull();
     expect(useEditorStore.getState().domain?.description).toBe('reloaded');
   });
@@ -79,7 +79,7 @@ describe('editorStore error lifecycle', () => {
     expect(useEditorStore.getState().errorMergeConflict).toBe(false);
 
     s.setError('conflict', 'domain-file', true);
-    s.setDomain(domain);
+    s.setDomain(subjectArea);
     expect(useEditorStore.getState().errorMergeConflict).toBe(false);
   });
 
@@ -93,13 +93,13 @@ describe('editorStore error lifecycle', () => {
   it('a domain payload clears the kind along with the error', () => {
     const s = useEditorStore.getState();
     s.setError('Domain file is empty', 'domain-file');
-    s.setDomain(domain);
+    s.setDomain(subjectArea);
     expect(useEditorStore.getState().errorKind).toBeNull();
   });
 
   it('unrelated selection changes do not clear the error', () => {
     const s = useEditorStore.getState();
-    s.setDomain(domain);
+    s.setDomain(subjectArea);
     s.setError('boom');
     s.selectNode('x');
     s.setDetailPanelOpen(true);
@@ -109,14 +109,14 @@ describe('editorStore error lifecycle', () => {
 
   it('keeps the deleted-or-renamed state until a fresh domain arrives (#161)', () => {
     const s = useEditorStore.getState();
-    s.setDomain(domain);
+    s.setDomain(subjectArea);
     s.setError('x.json was deleted or renamed outside ERD Studio.', 'domain-missing');
     // A refused edit or a failed refresh must not turn it back into a toast over the stale canvas.
     s.setError('Physical stage is read-only');
     expect(useEditorStore.getState().errorKind).toBe('domain-missing');
     expect(useEditorStore.getState().error).toBe('x.json was deleted or renamed outside ERD Studio.');
 
-    s.setDomain(domain);
+    s.setDomain(subjectArea);
     expect(useEditorStore.getState().error).toBeNull();
     expect(useEditorStore.getState().errorKind).toBeNull();
   });

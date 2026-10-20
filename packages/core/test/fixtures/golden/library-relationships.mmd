@@ -5,29 +5,29 @@ erDiagram
 %% Diagram: sales (layer gold, logical stage)
 %% Description: Relationships in the model library in the shapes released extensions wrote, plus a domain-file copy that disagrees
 
-  %% Model fct_order
+  %% Table fct_order
   %%   schema: gold
   %%   alias: orders
   %%   role: fact
   %%   description: One row per order line
   "fct_order" {
     BIGINT order_line_id PK
-    INT customer_key
+    INT customer_key FK
     INT order_date_key FK
     INT product_key
     DECIMAL_18_2 amount "type DECIMAL(18,2); additive"
   }
 
-  %% Model dim_customer
+  %% Table dim_customer
   %%   schema: gold
   %%   alias: customer
   %%   role: dimension
   "dim_customer" {
-    INT customer_key PK, FK
+    INT customer_key PK
     VARCHAR customer_name
   }
 
-  %% Model dim_date
+  %% Table dim_date
   %%   schema: gold
   %%   role: dimension
   "dim_date" {
@@ -35,7 +35,7 @@ erDiagram
     DATE calendar_date
   }
 
-  %% Model dim_product
+  %% Table dim_product
   %%   schema: gold
   %%   role: dimension
   "dim_product" {
@@ -48,4 +48,5 @@ erDiagram
   %% fct_order.order_date_key -> dim_date.date_key, many-to-one
   "fct_order" }o--|| "dim_date" : "order_date_key"
   %% dim_product.product_key -> fct_order.product_key, many-to-one
+  %% This starts at dim_product's key (product_key), so it was probably drawn backwards.
   "dim_product" }o--|| "fct_order" : "product_key"

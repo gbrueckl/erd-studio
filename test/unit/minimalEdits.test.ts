@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { parseLogicalModelText } from '@erd-studio/core';
+import { parseTableText } from '@erd-studio/core';
 
-import { relationshipsRewriteLoses, rewriteJsonScalars, setDomainRelationships, setYamlRelationships } from '../../src/services/minimalEdits';
-import type { ModelRelationship, Relationship } from '../../src/types/semantic';
+import { relationshipsRewriteLoses, rewriteJsonScalars, setSubjectAreaRelationships, setYamlRelationships } from '../../src/services/minimalEdits';
+import type { TableRelationship, Relationship } from '../../src/types/semantic';
 
 // ---------------------------------------------------------------------------
 // YAML
@@ -34,8 +34,8 @@ columns:
 # trailing comment stays
 `;
 
-const REL_A: ModelRelationship = { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' };
-const REL_B: ModelRelationship = { fromColumn: 'product_key', toModel: 'dim_product', toColumn: 'product_key', cardinality: 'one-to-one' };
+const REL_A: TableRelationship = { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' };
+const REL_B: TableRelationship = { fromColumn: 'product_key', toModel: 'dim_product', toColumn: 'product_key', cardinality: 'one-to-one' };
 
 const BLOCK_2 = `relationships:
   - fromColumn: customer_key
@@ -59,11 +59,11 @@ function withoutBlock(text: string): string {
 }
 
 function parse(text: string) {
-  return parseLogicalModelText(text.replace(/^﻿/, ''), 'fallback');
+  return parseTableText(text.replace(/^﻿/, ''), 'fallback');
 }
 
 /** The output parses to the input's model with exactly `relationships`. */
-function expectSameModel(input: string, output: string, relationships: readonly ModelRelationship[]): void {
+function expectSameTable(input: string, output: string, relationships: readonly TableRelationship[]): void {
   const before = parse(input)!;
   const after = parse(output)!;
   expect(after.relationships ?? []).toEqual(relationships);
@@ -77,26 +77,26 @@ describe('setYamlRelationships', () => {
   it('appends a block to a messy file and changes nothing else', () => {
     const out = setYamlRelationships(MESSY_BODY, [REL_A]);
     expect(out).toBe(MESSY_BODY + BLOCK_2);
-    expectSameModel(MESSY_BODY, out, [REL_A]);
+    expectSameTable(MESSY_BODY, out, [REL_A]);
   });
 
   it('uses the indentation of the file\'s other sequences', () => {
     const four = MESSY_BODY.replace(/^  - /gm, '    - ').replace(/^    (\w|<)/gm, '      $1');
     const out = setYamlRelationships(four, [REL_A]);
     expect(out).toBe(four + BLOCK_2.replace(/^  - /m, '    - ').replace(/^    (?=\w)/gm, '      '));
-    expectSameModel(four, out, [REL_A]);
+    expectSameTable(four, out, [REL_A]);
 
     const zero = 'name: m\ncolumns:\n- name: a\n  dataType: int\n';
     const out0 = setYamlRelationships(zero, [REL_A]);
     expect(out0).toBe(zero + 'relationships:\n- fromColumn: customer_key\n  toModel: dim_customer\n  toColumn: customer_key\n  cardinality: many-to-one\n');
-    expectSameModel(zero, out0, [REL_A]);
+    expectSameTable(zero, out0, [REL_A]);
   });
 
   it('keeps a file without a trailing newline that way', () => {
     const input = 'name: m\ncolumns:\n  - name: a';
     const out = setYamlRelationships(input, [REL_A]);
     expect(out).toBe(input + '\n' + BLOCK_2.slice(0, -1));
-    expectSameModel(input, out, [REL_A]);
+    expectSameTable(input, out, [REL_A]);
     // and removal drops the line break it added
     expect(setYamlRelationships(out, [])).toBe(input);
   });
@@ -107,14 +107,14 @@ describe('setYamlRelationships', () => {
     expect(out.startsWith(crlf)).toBe(true);
     expect(out.slice(crlf.length)).not.toMatch(/(?<!\r)\n/);
     expect(out.slice(crlf.length).endsWith('\r\n')).toBe(true);
-    expectSameModel(crlf, out, [REL_A, REL_B]);
+    expectSameTable(crlf, out, [REL_A, REL_B]);
   });
 
   it('keeps a leading BOM', () => {
     const input = '﻿' + MESSY_BODY;
     const out = setYamlRelationships(input, [REL_A]);
     expect(out).toBe(input + BLOCK_2);
-    expectSameModel(input, out, [REL_A]);
+    expectSameTable(input, out, [REL_A]);
   });
 
   it('replaces a block-style relationships list in place', () => {
@@ -123,14 +123,14 @@ describe('setYamlRelationships', () => {
     expect(withoutBlock(out)).toBe(withoutBlock(middle));
     expect(withoutBlock(middle)).toBe(MESSY_BODY);
     expect(out).toContain(BLOCK_2 + '  - fromColumn: product_key\n');
-    expectSameModel(middle, out, [REL_A, REL_B]);
+    expectSameTable(middle, out, [REL_A, REL_B]);
   });
 
   it('replaces a flow-style relationships list in place', () => {
     const flow = MESSY_BODY.replace('schema: gold\n', 'schema: gold\nrelationships: [{fromColumn: a, toModel: b, toColumn: c}]  # old\n');
     const out = setYamlRelationships(flow, [REL_A]);
     expect(out).toBe(MESSY_BODY.replace('schema: gold\n', 'schema: gold\n' + BLOCK_2));
-    expectSameModel(flow, out, [REL_A]);
+    expectSameTable(flow, out, [REL_A]);
   });
 
   it('replaces a block at the end of a file without a final newline', () => {
@@ -146,7 +146,7 @@ describe('setYamlRelationships', () => {
     const middle = MESSY_BODY.replace('schema: gold\n', 'schema: gold\n' + BLOCK_2);
     const out = setYamlRelationships(middle, []);
     expect(out).toBe(MESSY_BODY);
-    expectSameModel(middle, out, []);
+    expectSameTable(middle, out, []);
 
     const empty = MESSY_BODY.replace('schema: gold\n', 'schema: gold\nrelationships: []\n');
     expect(setYamlRelationships(empty, [])).toBe(MESSY_BODY);
@@ -185,7 +185,7 @@ describe('setYamlRelationships', () => {
 const R1: Relationship = { fromModel: 'fct_order', fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' };
 const R2: Relationship = { fromModel: 'fct_order', fromColumn: 'product_key', toModel: 'dim_product', toColumn: 'product_key', cardinality: 'many-to-one' };
 
-function domainText(indent: string, rels: string): string {
+function subjectAreaText(indent: string, rels: string): string {
   const i = (n: number) => indent.repeat(n);
   return `{
 ${i(1)}"schemaVersion": 5,
@@ -226,10 +226,10 @@ function splitAroundRelationships(text: string): [string, string] {
 
 describe('setYamlRelationships — role (#133)', () => {
   it('writes a role after the cardinality, and the parser reads it back', () => {
-    const rel: ModelRelationship = { fromColumn: 'ship_date_key', toModel: 'dim_date', toColumn: 'date_key', cardinality: 'many-to-one', role: 'ship: date' };
+    const rel: TableRelationship = { fromColumn: 'ship_date_key', toModel: 'dim_date', toColumn: 'date_key', cardinality: 'many-to-one', role: 'ship: date' };
     const text = setYamlRelationships('name: fct_order\n', [rel]);
     expect(text).toContain('    cardinality: many-to-one\n    role: "ship: date"\n');
-    expect(parseLogicalModelText(text, 'fct_order')?.relationships).toEqual([rel]);
+    expect(parseTableText(text, 'fct_order')?.relationships).toEqual([rel]);
   });
 });
 
@@ -255,14 +255,14 @@ describe('relationshipsRewriteLoses — files the move leaves alone (#133)', () 
   });
 });
 
-describe('setDomainRelationships', () => {
+describe('setSubjectAreaRelationships', () => {
   it.each([
     ['2-space', '  '],
     ['4-space', '    '],
     ['tab', '\t'],
   ])('replaces only the array with %s indentation', (_label, indent) => {
-    const input = domainText(indent, '[{"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}]');
-    const out = setDomainRelationships(input, [R1, R2]);
+    const input = subjectAreaText(indent, '[{"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}]');
+    const out = setSubjectAreaRelationships(input, [R1, R2]);
     expect(splitAroundRelationships(out)).toEqual(splitAroundRelationships(input));
     expectOnlyRelationshipsChanged(input, out, [R1, R2]);
     const i2 = indent.repeat(2);
@@ -275,19 +275,19 @@ describe('setDomainRelationships', () => {
   });
 
   it('renders an empty list as []', () => {
-    const input = domainText('  ', '[\n      {"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}\n    ]');
-    const out = setDomainRelationships(input, []);
-    expect(out).toBe(domainText('  ', '[]'));
+    const input = subjectAreaText('  ', '[\n      {"fromModel":"a","fromColumn":"b","toModel":"c","toColumn":"d","cardinality":"one-to-one"}\n    ]');
+    const out = setSubjectAreaRelationships(input, []);
+    expect(out).toBe(subjectAreaText('  ', '[]'));
   });
 
   it('is idempotent', () => {
-    const once = setDomainRelationships(domainText('  ', '[]'), [R1]);
-    expect(setDomainRelationships(once, [R1])).toBe(once);
+    const once = setSubjectAreaRelationships(subjectAreaText('  ', '[]'), [R1]);
+    expect(setSubjectAreaRelationships(once, [R1])).toBe(once);
   });
 
   it('keeps CRLF and a BOM', () => {
-    const input = '﻿' + domainText('  ', '[]').replace(/\n/g, '\r\n');
-    const out = setDomainRelationships(input, [R1]);
+    const input = '﻿' + subjectAreaText('  ', '[]').replace(/\n/g, '\r\n');
+    const out = setSubjectAreaRelationships(input, [R1]);
     expect(out.startsWith('﻿{\r\n')).toBe(true);
     expect(out).not.toMatch(/(?<!\r)\n/);
     expect(splitAroundRelationships(out)).toEqual(splitAroundRelationships(input));
@@ -300,7 +300,7 @@ describe('setDomainRelationships', () => {
   "other": {"relationships": [1, 2]},
   "logical": {"models": [], "relationships": []}
 }`;
-    const out = setDomainRelationships(input, [R1]);
+    const out = setSubjectAreaRelationships(input, [R1]);
     expect(out.slice(0, out.indexOf('"logical"'))).toBe(input.slice(0, input.indexOf('"logical"')));
     expectOnlyRelationshipsChanged(input, out, [R1]);
     // logical is on one line: the array is compact too
@@ -315,7 +315,7 @@ describe('setDomainRelationships', () => {
     }
 }
 `;
-    const out = setDomainRelationships(input, [R1]);
+    const out = setSubjectAreaRelationships(input, [R1]);
     expect(out).toBe(`{
     "logical": {
         "models": ["a", "b"],
@@ -337,17 +337,17 @@ describe('setDomainRelationships', () => {
 
   it('inserts as the last key when there is no models key, and into an empty logical object', () => {
     const noModels = '{\n  "logical": {\n    "notes": "x"\n  }\n}';
-    expect(setDomainRelationships(noModels, [])).toBe('{\n  "logical": {\n    "notes": "x",\n    "relationships": []\n  }\n}');
+    expect(setSubjectAreaRelationships(noModels, [])).toBe('{\n  "logical": {\n    "notes": "x",\n    "relationships": []\n  }\n}');
 
     const empty = '{\n  "logical": {}\n}\n';
-    expect(setDomainRelationships(empty, [])).toBe('{\n  "logical": {\n    "relationships": []\n  }\n}\n');
+    expect(setSubjectAreaRelationships(empty, [])).toBe('{\n  "logical": {\n    "relationships": []\n  }\n}\n');
   });
 
   it('throws when there is no logical object', () => {
-    expect(() => setDomainRelationships('[]', [])).toThrow(/not a JSON object/);
-    expect(() => setDomainRelationships('{"logical": []}', [])).toThrow(/no "logical" object/);
-    expect(() => setDomainRelationships('{}', [])).toThrow(/no "logical" object/);
-    expect(() => setDomainRelationships('{', [])).toThrow();
+    expect(() => setSubjectAreaRelationships('[]', [])).toThrow(/not a JSON object/);
+    expect(() => setSubjectAreaRelationships('{"logical": []}', [])).toThrow(/no "logical" object/);
+    expect(() => setSubjectAreaRelationships('{}', [])).toThrow(/no "logical" object/);
+    expect(() => setSubjectAreaRelationships('{', [])).toThrow();
   });
 });
 

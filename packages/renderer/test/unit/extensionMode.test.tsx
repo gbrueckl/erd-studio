@@ -8,11 +8,11 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
-import type { DisplayDomain } from '@erd-studio/core';
+import type { DisplaySubjectArea } from '@erd-studio/core';
 import { createCanvasStore, CanvasStoreProvider } from '../../src/store/editorStore';
 import { DetailPanel } from '../../src/components/DetailPanel/DetailPanel';
 
-function domain(readOnly: boolean): DisplayDomain {
+function subjectArea(readOnly: boolean): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',
@@ -48,7 +48,7 @@ function domain(readOnly: boolean): DisplayDomain {
 }
 
 function renderPanel(readOnly: boolean) {
-  const store = createCanvasStore({ domain: domain(readOnly), selectedNode: 'orders', detailPanelOpen: true });
+  const store = createCanvasStore({ domain: subjectArea(readOnly), selectedNode: 'orders', detailPanelOpen: true });
   return render(
     <CanvasStoreProvider store={store}>
       <ReactFlowProvider>

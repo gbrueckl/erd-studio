@@ -195,17 +195,17 @@ describe('buildDiagnosticsChips', () => {
       domain: { stage: 'logical', modelCount: 4, relationshipCount: 3 },
     });
     expect(chips[3]).toEqual({
-      label: 'logical \u00b7 4 models \u00b7 3 relationships',
+      label: 'logical \u00b7 4 tables \u00b7 3 relationships',
       tone: 'normal',
     });
   });
 
-  it('says "1 model" rather than "1 models"', () => {
+  it('says "1 table" rather than "1 tables"', () => {
     const chips = buildDiagnosticsChips({
       ...diagnostics,
       domain: { stage: 'physical', modelCount: 1, relationshipCount: 1 },
     });
-    expect(chips[3].label).toBe('physical \u00b7 1 model \u00b7 1 relationship');
+    expect(chips[3].label).toBe('physical \u00b7 1 table \u00b7 1 relationship');
   });
 
   it('adds an error-tone chip counting host and webview errors together', () => {

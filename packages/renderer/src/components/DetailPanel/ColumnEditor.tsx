@@ -15,7 +15,7 @@ import { useIsViewer, useSend } from '../../host/canvasEnvironment';
 import { useColumnReorder } from '../../hooks/useColumnReorder';
 import { useEditorStore } from '../../store/editorStore';
 import type { DisplayColumn } from '@erd-studio/core';
-import type { ColumnDef, ModelRole } from '@erd-studio/core';
+import type { ColumnDef, TableRole } from '@erd-studio/core';
 import type { ColumnKeyType, UpdateColumnPayloadColumn } from '@erd-studio/core';
 import './ColumnEditor.css';
 
@@ -29,7 +29,7 @@ export interface ColumnEditorProps {
   /** Whether this model/stage is read-only. */
   readOnly?: boolean;
   /** Parent model's role — passed to column rows for conditional SCD/additive dropdowns. */
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
 }
 
 // ---------------------------------------------------------------------------

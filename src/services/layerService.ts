@@ -22,7 +22,7 @@ import {
   LAYERS_SCHEMA_VERSION,
 } from '../types/layer';
 import { LAYERS_CONFIG_FILE, validateLayersConfig } from '@erd-studio/core';
-import { LOGICAL_MODELS_DIR } from './logicalModelService';
+import { LOGICAL_MODELS_DIR, TABLES_DIR, hasTablesLibrary } from './logicalModelService';
 import { OwnWriteTracker, ownWrites } from './ownWriteTracker';
 
 // Validation of layers.json lives in @erd-studio/core; the file name is
@@ -35,8 +35,12 @@ const STAGE_DIR_NAMES = new Set(['logical', 'physical']);
 /**
  * Directories under the semantic dir that are never layers:
  * templates/ (domain templates) and logical-models/ (v5 YAML model files).
+ * v6's `tables/` (#162) is reserved too, except while it is not the table
+ * library (`hasTablesLibrary`): a project made before v6 that already has a
+ * layer folder called `tables` — with subject areas in it, or still empty —
+ * keeps it, and the project stays on the v5 naming.
  */
-const RESERVED_DIR_NAMES = new Set(['templates', LOGICAL_MODELS_DIR]);
+const RESERVED_DIR_NAMES = new Set(['templates', LOGICAL_MODELS_DIR, TABLES_DIR]);
 
 /** Sentinel signature used when layers.json is absent. */
 const NO_FILE_SIGNATURE = 'missing';
@@ -213,7 +217,7 @@ export class LayerService {
       .filter(entry =>
         entry.isDirectory() &&
         !entry.name.startsWith('.') &&
-        !RESERVED_DIR_NAMES.has(entry.name) &&
+        (!RESERVED_DIR_NAMES.has(entry.name) || (entry.name === TABLES_DIR && !hasTablesLibrary(this.semanticPath))) &&
         !STAGE_DIR_NAMES.has(entry.name),
       )
       .map(entry => entry.name)

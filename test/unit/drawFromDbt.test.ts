@@ -22,7 +22,7 @@ describe('describeDraftNotice', () => {
       modelNames: Array.from({ length: 15 }, (_, i) => `m${i}`),
       skipped: [{ name: 'x', reason: 'over-limit' }, { name: 'y', reason: 'over-limit' }],
       truncated: true,
-    })).toBe('Drew the 15 best-connected models and left 2 out to keep the diagram readable. Add more from the canvas.');
+    })).toBe('Drew the 15 best-connected tables and left 2 out to keep the diagram readable. Add more from the canvas.');
   });
 
   it('lists up to three skipped models by name', () => {

@@ -38,13 +38,20 @@ as the video renders and passes your own check.
 - **Pi mode**: the prompt says so. It was started on Liam's Raspberry Pi by the
   `issue-to-pr` label. **Read `references/pi.md` first.** Nobody is watching, but `gh`, push
   and a logged-in browser all work.
+- **Pi mode in erd-studio-pro**: the Pi takes `issue-to-pr` issues from the private
+  Confluence app repo too. **Read `references/cross-repo.md` after pi.md.** That repo's
+  `.claude/issue-to-pr.md` replaces the "Repo facts" below.
+- **Pi review mode**: the prompt says so. The Pi runner starts it after a Pi-mode run opens a
+  PR. **Read `references/pi-review.md` and follow only that**: review the PR with
+  `/code-review`, fix, push, and re-record the video if it's now wrong.
 - **`--video <n>`**: an open PR for #n already exists (usually from a routine) and lacks
   its video. Check out its branch, then do steps 0, 6 and 7.2–7.3 only. Swap the video
   into the PR body and post the issue comment, or edit the existing one with `gh api -X
   PATCH repos/{o}/{r}/issues/comments/<id>`. If `origin/claude/issue-media-<n>` exists,
   reuse its MP4 rather than re-recording, after checking its contact sheet.
 
-Paths: `S="$(git rev-parse --show-toplevel)/.claude/skills/issue-to-pr/scripts"`. Work
+Paths: `S="$(git rev-parse --show-toplevel)/.claude/skills/issue-to-pr/scripts"`, unless the
+prompt sets `S` and `SCRATCH` (the Pi modes do; use those). Work
 files go in `SCRATCH=<your scratchpad directory>/issue-to-pr`: attachments, frames, the
 storyboard, the video. Fall back to `$TMPDIR`. They **never** go in the repo. Shell state
 doesn't persist, so set `S` and `SCRATCH` at the top of each call.
@@ -213,6 +220,9 @@ Then:
    it in the PR body.
 3. Post the issue comment, short and in the reporter's language. Ask whether it solves it
    for them.
+   **Confluence follow-up:** if the diff touches what the Confluence app consumes (shipped
+   `packages/` code, or the on-disk format), raise or update the follow-up issue in
+   liam-machine/erd-studio-pro. **Read `references/cross-repo.md`.**
 4. Watch CI (`gh pr checks <pr> --watch`). **Read any failure before changing code.**
 5. Report to Liam:
    - the PR and comment links, and the local video path;
@@ -231,8 +241,9 @@ Only an explicit "merge it", "ship it" or "go ahead" counts. A 👍 from the rep
 green CI is not that instruction. When he does say it:
 1. Run `gh pr merge <pr> --merge`. This repo merges with merge commits.
 2. Confirm the issue closed. Merging into `develop` doesn't auto-close it, because the
-   default branch is `main`. Close it with a comment naming the PR, and say it ships with
-   the next release.
+   default branch is `main`, so `.github/workflows/close-on-develop-merge.yml` closes every
+   `Closes #n` issue with a comment naming the PR. If it didn't, close it yourself the same
+   way, and say it ships with the next release.
 
 If the reporter asks for changes: make them on the same branch, re-record the AFTER clip
 if what they'd see has changed, and reply with the new video.
@@ -267,3 +278,8 @@ if what they'd see has changed, and reply with the new video.
   routine mode.**
 - `references/pi.md`: unattended mode on the Raspberry Pi, including the Xvfb recording
   setup and `scripts/gh_upload.mjs`. **Read first in Pi mode.**
+- `references/cross-repo.md`: erd-studio and erd-studio-pro, the Confluence follow-up issue,
+  and running on an erd-studio-pro issue. **Read at step 7 when `packages/` or the file format
+  changed, and first in Pi mode on erd-studio-pro.**
+- `references/pi-review.md`: the Pi's follow-up session, which reviews the PR it opened with
+  `/code-review`, pushes fixes and updates the video. **Read first in Pi review mode.**

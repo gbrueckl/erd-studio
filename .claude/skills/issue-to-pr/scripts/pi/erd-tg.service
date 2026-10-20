@@ -1,0 +1,19 @@
+[Unit]
+# The ERD Studio Telegram session (erd-tg.sh). Install:
+#   cp erd-tg.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+#   systemctl --user enable --now erd-tg.service
+# tmux, because claude switches to --print mode without a TTY.
+Description=ERD Studio Telegram session (Claude Code, @erd-studio bot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/tmux new-session -ds erd-tg %h/erd-bot/erd-tg.sh
+ExecStartPost=/usr/bin/tmux set-option -t erd-tg remain-on-exit on
+ExecStop=/usr/bin/tmux kill-session -t erd-tg
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

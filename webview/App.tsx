@@ -33,7 +33,7 @@ import {
   CanvasEnvironmentProvider,
   DetailPanel,
   Legend,
-  type ModelFlowNode,
+  type TableFlowNode,
   type FkFlowEdge,
   type AnnotationFlowNode,
   type AnnotationFlowEdge,
@@ -44,9 +44,9 @@ import { vscodeCanvasHost } from './host/vscodeCanvasHost';
 import { DragLine } from './components/Graph/DragLine';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { StatusBar } from './components/Toolbar/StatusBar';
-import { NewModelDialog } from './components/NewModelDialog/NewModelDialog';
+import { NewTableDialog } from './components/NewModelDialog/NewModelDialog';
 import { NewFkDialog } from './components/NewFkDialog/NewFkDialog';
-import { AddExistingModelDialog } from './components/AddExistingModelDialog/AddExistingModelDialog';
+import { AddExistingTableDialog } from './components/AddExistingModelDialog/AddExistingModelDialog';
 import { Toast } from './components/Toast/Toast';
 import { ContextMenu } from './components/ContextMenu/ContextMenu';
 import { PhysicalSourceNotice } from './components/Canvas/PhysicalSourceNotice';
@@ -59,7 +59,7 @@ import { SyncMergeModal } from './components/SyncMergeModal/SyncMergeModal';
 import { ReconnectOverlay } from './components/ReconnectOverlay/ReconnectOverlay';
 import { useReconnectWatchdog } from './hooks/useReconnectWatchdog';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts';
-import type { DisplayDomain } from '../src/types/display';
+import type { DisplaySubjectArea } from '../src/types/display';
 import { redactPaths } from '../src/types/feedback';
 import { orientDraggedRelationship } from './lib/relationshipDirection';
 
@@ -71,7 +71,7 @@ import { orientDraggedRelationship } from './lib/relationshipDirection';
  * Load a display-domain payload into the store. Shared by `domainLoaded`
  * (initial load / host refresh) and `stageData` (stage switch reply).
  */
-function applyDomainPayload(payload: DisplayDomain): void {
+function applySubjectAreaPayload(payload: DisplaySubjectArea): void {
   const s = useEditorStore.getState();
   s.setDomain(payload);
   if (payload.templates) {
@@ -94,6 +94,7 @@ function EditorCanvas() {
   const error = useEditorStore((s) => s.error);
   const errorKind = useEditorStore((s) => s.errorKind);
   const errorMergeConflict = useEditorStore((s) => s.errorMergeConflict);
+  const errorFileProblem = useEditorStore((s) => s.errorFileProblem);
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
   const setError = useEditorStore((s) => s.setError);
@@ -158,7 +159,7 @@ function EditorCanvas() {
   useEffect(() => {
     if (invalidSelectedNode) {
       setToastMessage(
-        `Previously selected model "${invalidSelectedNode}" no longer exists.`,
+        `Previously selected table "${invalidSelectedNode}" no longer exists.`,
       );
     }
   }, [invalidSelectedNode]);
@@ -202,7 +203,7 @@ function EditorCanvas() {
     (msg: ExtensionMessage) => {
       switch (msg.type) {
         case 'domainLoaded':
-          applyDomainPayload(msg.payload);
+          applySubjectAreaPayload(msg.payload);
           // Set on a fresh domain (no stored positions), cleared by every other
           // payload — a later load without the flag cancels a pending layout.
           useEditorStore.getState().setPendingAutoLayout(msg.autoLayout === true);
@@ -217,7 +218,7 @@ function EditorCanvas() {
           // A reply for a stage the user has since switched away from — drop it
           // so the canvas never flips back to the wrong stage.
           if (isStaleStageReply(msg.requestId)) break;
-          applyDomainPayload(msg.payload);
+          applySubjectAreaPayload(msg.payload);
           // Stage replies never ask for the first-open layout.
           useEditorStore.getState().setPendingAutoLayout(false);
           useEditorStore.getState().setManifestMissing(msg.manifestMissing === true);
@@ -233,7 +234,14 @@ function EditorCanvas() {
           break;
         case 'error':
           useEditorStore.getState().recordError('extension', msg.payload.message);
-          setError(msg.payload.message, msg.payload.kind, msg.payload.mergeConflict === true);
+          setError(
+            msg.payload.message,
+            msg.payload.kind,
+            msg.payload.mergeConflict === true,
+            msg.payload.fileProblem
+              ? { problem: msg.payload.fileProblem, line: msg.payload.line, column: msg.payload.column }
+              : null,
+          );
           break;
         case 'openFeedback':
           useEditorStore.getState().setFeedbackDialogOpen(true, msg.payload ?? null);
@@ -271,6 +279,11 @@ function EditorCanvas() {
   // a domain file the canvas cannot parse, and the right home for a template.
   const handleOpenFile = useCallback(() => {
     vscode.postMessage({ type: 'viewFile' });
+  }, [vscode]);
+
+  // Open it with the cursor on the JSON mistake the error screen names (#186).
+  const handleOpenFileAt = useCallback((line: number, column?: number) => {
+    vscode.postMessage({ type: 'viewFile', payload: { line, ...(column !== undefined ? { column } : {}) } });
   }, [vscode]);
 
   // The "deleted or renamed" screen's two ways on (#161): close this tab, or
@@ -317,7 +330,7 @@ function EditorCanvas() {
   );
 
   // Handle long-press column drag to create relationships.
-  // Listens for custom events dispatched by ColumnRow in ModelNode.
+  // Listens for custom events dispatched by ColumnRow in TableNode.
   // Disabled in read-only mode (physical stage).
   useEffect(() => {
     if (domain?.readOnly) return;
@@ -331,7 +344,7 @@ function EditorCanvas() {
     };
 
     const handleColumnRelationshipSelfDrop = () => {
-      setToastMessage("A column can't point at itself — drop it on another column of the same model to draw a self-reference.");
+      setToastMessage("A column can't point at itself — drop it on another column of the same table to draw a self-reference.");
     };
 
     window.addEventListener('column-relationship-drop', handleColumnRelationshipDrop);
@@ -407,13 +420,13 @@ function EditorCanvas() {
 
   // Handle right-click on nodes (model or annotation) to show context menu
   const onNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: ModelFlowNode | AnnotationFlowNode) => {
+    (event: React.MouseEvent, node: TableFlowNode | AnnotationFlowNode) => {
       event.preventDefault();
       if (node.type === 'annotation') {
         const annData = (node as AnnotationFlowNode).data;
         openAnnotationContextMenu(event.clientX, event.clientY, annData.annotationId);
       } else {
-        const modelData = (node as ModelFlowNode).data;
+        const modelData = (node as TableFlowNode).data;
         openNodeContextMenu(event.clientX, event.clientY, modelData.modelName);
       }
     },
@@ -465,6 +478,50 @@ function EditorCanvas() {
         </button>
         <button type="button" className="editor-message__button" onClick={handleCloseEditor}>
           Close
+        </button>
+      </div>
+    );
+  }
+
+  // A domain file that is empty or not valid JSON (#186) is the user's file
+  // to fix, not an ERD Studio fault: say so, say where, and offer the way to
+  // the mistake — never Report a Bug. Like the conflict screen, the host
+  // reloads the canvas by itself on the save that fixes it.
+  if (error && !domain && errorKind === 'domain-file' && errorFileProblem) {
+    const { problem, line, column } = errorFileProblem;
+    return (
+      <div className="editor-message editor-message--error" role="alert">
+        {problem === 'syntax' ? (
+          <>
+            <p className="editor-message__title">This diagram&apos;s file isn&apos;t valid JSON</p>
+            <p className="editor-message__detail">{error}</p>
+            <p className="editor-message__detail">
+              This is a problem in the file, not in ERD Studio — it is often left by a hand edit or an AI
+              assistant. Fix it and save, and the diagram reloads by itself.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="editor-message__title">This diagram&apos;s file is empty</p>
+            <p className="editor-message__detail">{error}</p>
+            <p className="editor-message__detail">
+              If a tool or a git operation just emptied it, restore it (for example with{' '}
+              <code>git checkout -- &lt;file&gt;</code>), or delete the file if you no longer need the diagram.
+              Once it has content again, the diagram reloads by itself.
+            </p>
+          </>
+        )}
+        {problem === 'syntax' && line !== undefined ? (
+          <button type="button" className="editor-message__button" onClick={() => handleOpenFileAt(line, column)}>
+            Open at Line {line}
+          </button>
+        ) : (
+          <button type="button" className="editor-message__button" onClick={handleOpenFile}>
+            Open as Text
+          </button>
+        )}
+        <button type="button" className="editor-message__button" onClick={handleRetryLoad}>
+          Retry
         </button>
       </div>
     );
@@ -536,7 +593,7 @@ function EditorCanvas() {
     return (
       <>
         <div className="editor-message">
-          <p>Loading domain&hellip;</p>
+          <p>Loading subject area&hellip;</p>
         </div>
         {showReconnectOverlay && <ReconnectOverlay onReload={handleReconnect} />}
       </>
@@ -601,9 +658,9 @@ function EditorCanvas() {
         />
         <StatusBar />
         <DetailPanel />
-        <NewModelDialog />
+        <NewTableDialog />
         <NewFkDialog />
-        <AddExistingModelDialog />
+        <AddExistingTableDialog />
       </ReactFlow>
 
       {activeToastMessage && (

@@ -17,8 +17,8 @@ describe('renderer entry re-exports the diagram export API', () => {
     },
   );
 
-  it('exports a DisplayDomain the viewer renders', () => {
-    const domain: core.DisplayDomain = {
+  it('exports a DisplaySubjectArea the viewer renders', () => {
+    const domain: core.DisplaySubjectArea = {
       schemaVersion: 5,
       domain: 'viewer',
       layer: 'gold',

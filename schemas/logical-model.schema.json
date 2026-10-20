@@ -38,6 +38,14 @@
     "modelRole": {
       "$ref": "#/definitions/modelRole"
     },
+    "tableRole": {
+      "description": "The table naming's name for \"modelRole\", in .erd-studio/tables/ (#162). Write one of the two, as the project's naming says.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/modelRole"
+        }
+      ]
+    },
     "rationale": {
       "$ref": "#/definitions/rationale"
     },
@@ -185,7 +193,6 @@
       "type": "object",
       "required": [
         "fromColumn",
-        "toModel",
         "toColumn",
         "cardinality"
       ],
@@ -200,6 +207,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Referenced model (PK side). A relationship whose toModel has no model file is not drawn."
+        },
+        "toTable": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The table naming's name for \"toModel\", in .erd-studio/tables/ (#162)."
         },
         "toColumn": {
           "type": "string",
@@ -234,7 +246,19 @@
           "maxLength": 64,
           "description": "Entries of this file that share this value form one composite foreign key: one relationship over several column pairs, drawn as one line. Each entry is one column pair; all must point at the same toModel with the same cardinality (many-to-one or one-to-one). ERD Studio 1.6.7 and earlier read the entries as separate relationships and drop this key when they save the file."
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "toModel"
+          ]
+        },
+        {
+          "required": [
+            "toTable"
+          ]
+        }
+      ]
     }
   }
 }

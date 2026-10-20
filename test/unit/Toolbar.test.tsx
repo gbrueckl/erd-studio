@@ -60,7 +60,7 @@ vi.mock('../../webview/lib/elkLayout', async (importOriginal) => {
 
 const noop = vi.fn();
 
-const mockDomain = {
+const mockSubjectArea = {
   domain: 'test',
   layer: 'silver',
   stage: 'logical' as const,
@@ -71,7 +71,7 @@ const mockDomain = {
 };
 
 const mockStoreState: Record<string, unknown> = {
-  domain: mockDomain,
+  domain: mockSubjectArea,
   setDomain: vi.fn(),
   setNewModelDialogOpen: noop,
   setNewFkDialogOpen: noop,
@@ -102,9 +102,9 @@ vi.mock('../../webview/store/editorStore', () => ({
 // ---------------------------------------------------------------------------
 
 import { Toolbar } from '../../webview/components/Toolbar/Toolbar';
-import type { ModelFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
 
-function makeNode(id: string): ModelFlowNode {
+function makeNode(id: string): TableFlowNode {
   return {
     id,
     type: 'model',
@@ -382,7 +382,7 @@ describe('the top-right corner actions', () => {
 
   it('shows Export on the physical stage too, saying it exports the logical design', () => {
     const saved = mockStoreState.domain;
-    mockStoreState.domain = { ...mockDomain, stage: 'physical' as const, readOnly: true };
+    mockStoreState.domain = { ...mockSubjectArea, stage: 'physical' as const, readOnly: true };
     try {
       layout({ toolbarRight: 900, cornerRight: 1400 });
       render(<Toolbar {...defaultProps} />);

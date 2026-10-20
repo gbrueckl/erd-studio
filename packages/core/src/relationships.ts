@@ -5,7 +5,7 @@
 
 import type { Relationship } from './types/semantic.js';
 import { keyEvidenceOf } from './keyEvidence.js';
-import type { DbtKeyIndex, KeyedModel } from './keyEvidence.js';
+import type { DbtKeyIndex, KeyedTable } from './keyEvidence.js';
 
 type Ends = Pick<Relationship, 'fromModel' | 'fromColumn' | 'toModel' | 'toColumn'>;
 
@@ -27,7 +27,7 @@ export function sameLink(a: Ends, b: Ends): boolean {
 }
 
 /** The parts of a model `respellRelationship` reads. */
-interface SpelledModel {
+interface SpelledTable {
   name: string;
   columns?: ReadonlyArray<{ name?: unknown }>;
 }
@@ -39,7 +39,7 @@ interface SpelledModel {
  * match first, then without case. An end that matches nothing keeps its
  * written spelling. Returns `rel` itself when nothing changes.
  */
-export function respellRelationship<T extends Ends>(rel: T, models: readonly SpelledModel[]): T {
+export function respellRelationship<T extends Ends>(rel: T, models: readonly SpelledTable[]): T {
   const lower = (s: string): string => s.toLowerCase();
   const spell = (modelName: string, column: string): [string, string] => {
     const model = models.find((m) => m.name === modelName) ?? models.find((m) => lower(m.name) === lower(modelName));
@@ -68,6 +68,24 @@ export function canonicalRelationship<T extends Relationship>(rel: T): T {
   return rel.cardinality === 'one-to-many' ? reverseRelationship(rel) : rel;
 }
 
+/**
+ * The end of a relationship that holds the foreign key: the `to` end of a
+ * `one-to-many` (its "many" side), else the `from` end. The one rule the
+ * canvas's FK badge and the exports share (#163); a `one-to-many` saved by
+ * 1.6.6 / 1.6.7 starts at the "one" side, so its `from` column is the key it
+ * points at, not a foreign key.
+ */
+export function foreignKeyEnd(rel: Ends & { cardinality: string }): { model: string; column: string } {
+  return foreignKeyAtTo(rel.cardinality)
+    ? { model: rel.toModel, column: rel.toColumn }
+    : { model: rel.fromModel, column: rel.fromColumn };
+}
+
+/** Whether a relationship of this cardinality holds its foreign key at its `to` end ({@link foreignKeyEnd}). */
+export function foreignKeyAtTo(cardinality: string): boolean {
+  return cardinality === 'one-to-many';
+}
+
 /** The same relationship read from its other end: ends swapped, many-to-one ↔ one-to-many. */
 export function reverseRelationship<T extends Relationship>(rel: T): T {
   const flipped = { 'many-to-one': 'one-to-many', 'one-to-many': 'many-to-one' } as const;
@@ -85,13 +103,14 @@ export function reverseRelationship<T extends Relationship>(rel: T): T {
  * Whether the keys contradict a stored many-to-one: its many side is its
  * model's whole key (each value appears once) and the one side is certainly
  * not the target's key (`keyEvidence`: the model's flags, else dbt's tests).
- * "Keys win": such an entry is read the other way round. Without that
- * certainty — nothing flagged or tested on the target — nothing is turned
- * round.
+ * "Keys win": such an entry belongs the other way round — Move and ⇄ store
+ * it so, and a read only flags it (`keysContradictedRelationships`, #163).
+ * Without that certainty — nothing flagged or tested on the target —
+ * nothing is turned round or flagged.
  */
 export function contradictsKeys(
   rel: Relationship,
-  modelOf: (name: string) => KeyedModel | null | undefined,
+  modelOf: (name: string) => KeyedTable | null | undefined,
   dbt?: DbtKeyIndex,
 ): boolean {
   return contradictsKeysOf([rel], modelOf, dbt);
@@ -105,7 +124,7 @@ export function contradictsKeys(
  */
 export function contradictsKeysOf(
   members: readonly Relationship[],
-  modelOf: (name: string) => KeyedModel | null | undefined,
+  modelOf: (name: string) => KeyedTable | null | undefined,
   dbt?: DbtKeyIndex,
 ): boolean {
   if (members.length === 0 || members.some((m) => m.cardinality !== 'many-to-one')) return false;
@@ -114,8 +133,54 @@ export function contradictsKeysOf(
     && keyEvidenceOf(named(modelOf(toModel), toModel), members.map((m) => m.toColumn), dbt) === 'not-key';
 }
 
+/**
+ * The relationships stored the way round their keys contradict (#163): read
+ * as their `canonicalRelationship`, they start at a model's whole key and
+ * point at columns that are certainly not the other model's key
+ * (`contradictsKeysOf`). A composite foreign key's members (entries sharing a
+ * `compositeKey` between the same two models) are judged together and flagged
+ * together. Nothing is flagged when the keys do not decide, and nothing is
+ * turned round: since 1.6.8 a user can keep one on purpose (Create anyway).
+ */
+export function keysContradictedRelationships<T extends Relationship>(
+  relationships: readonly T[],
+  modelOf: (name: string) => KeyedTable | null | undefined,
+  dbt?: DbtKeyIndex,
+): Set<T> {
+  const lower = (s: string): string => s.toLowerCase();
+  const groups = new Map<string, T[]>();
+  for (const rel of relationships) {
+    const id = rel.compositeKey ? [rel.fromModel, rel.toModel, rel.compositeKey].map(lower).join('\u0000') : null;
+    if (id === null) groups.set(`\u0001${groups.size}`, [rel]);
+    else groups.set(id, [...(groups.get(id) ?? []), rel]);
+  }
+  const out = new Set<T>();
+  for (const members of groups.values()) {
+    if (contradictsKeysOf(members.map(canonicalRelationship), modelOf, dbt)) members.forEach((m) => out.add(m));
+  }
+  return out;
+}
+
+/**
+ * The sentence every surface shows for a relationship
+ * `keysContradictedRelationships` flags — the canvas's ⚠, the details panel
+ * and the DBML / Mermaid comment — so they never disagree (#163). It names
+ * the link's "many" end (`foreignKeyAtTo`: the `to` end of a `one-to-many`),
+ * which is its model's whole key; `pairs` are its column pairs as stored.
+ */
+export function backwardsRelationshipNote(
+  link: { fromModel: string; toModel: string; cardinality: string },
+  pairs: ReadonlyArray<{ fromColumn: string; toColumn: string }>,
+): string {
+  const atTo = foreignKeyAtTo(link.cardinality);
+  const model = atTo ? link.toModel : link.fromModel;
+  const cols = pairs.map((p) => (atTo ? p.toColumn : p.fromColumn));
+  const columns = cols.length === 1 ? cols[0] : `(${cols.join(', ')})`;
+  return `This starts at ${model}'s key (${columns}), so it was probably drawn backwards.`;
+}
+
 /** A model as key evidence reads it, named so dbt evidence can be looked up for it. */
-const named = (model: KeyedModel | null | undefined, name: string): KeyedModel => (model ? { ...model, name: model.name ?? name } : { name });
+const named = (model: KeyedTable | null | undefined, name: string): KeyedTable => (model ? { ...model, name: model.name ?? name } : { name });
 
 /**
  * Where a relationship belongs, by its cardinality and its keys: the
@@ -124,7 +189,7 @@ const named = (model: KeyedModel | null | undefined, name: string): KeyedModel =
  */
 export function keyedRelationship<T extends Relationship>(
   rel: T,
-  modelOf: (name: string) => KeyedModel | null | undefined,
+  modelOf: (name: string) => KeyedTable | null | undefined,
   dbt?: DbtKeyIndex,
 ): T {
   const canonical = canonicalRelationship(rel);

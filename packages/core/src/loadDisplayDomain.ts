@@ -1,5 +1,5 @@
 /**
- * Raw files -> DisplayDomain in one call, for hosts that read a domain folder
+ * Raw files -> DisplaySubjectArea in one call, for hosts that read a domain folder
  * through an async `readFile` (a git provider, an HTTP API, a zip) and render
  * it without the extension's editing extras.
  *
@@ -8,39 +8,43 @@
  *   {semanticDir}/layers.json
  *   {semanticDir}/logical-models/{model}.yml           <- a flat library, or
  *   {semanticDir}/logical-models/{layer}/{model}.yml   <- grouped by layer
+ *   {semanticDir}/tables/…                             <- the same, under v6's name
  *   {semanticDir}/{layer}/{domain}.json                <- domainPath
  *
  * A model file may sit at the top of `logical-models/` or one folder down;
  * the folder is organisational only and names are unique across the library.
- * With no directory listing to go on, a v5 model is found by probing, in
- * order: `logical-models/{model}.yml`, then the folder of every layer in
- * `layers.json` (and the domain's own), alphabetically — the extension's
- * order — and the first file that exists is used. A flat library therefore costs exactly one
- * read per model, as before. Folders not named after a layer are invisible
- * here: only hosts that can list directories (the extension) see them.
+ * With no directory listing to go on, a v5 or v6 model is found by probing,
+ * in order: `logical-models/{model}.yml`, then the folder of every layer in
+ * `layers.json` (and the domain's own), alphabetically, then the same under
+ * `tables/` — the extension's order — and the first file that exists is
+ * used. A flat v5 library therefore costs exactly one read per model, as
+ * before; a v6 one costs one more per folder probed first. Folders not named
+ * after a layer are invisible here: only hosts that can list directories (the
+ * extension) see them, and only they report a name found in both libraries.
  *
  * Everything the files say is validated and repaired by the same functions
  * the extension host uses. The limits in the options exist for hosts that
  * read files they do not control; all of them are off by default.
  */
 
-import type { DisplayDomain } from './types/display.js';
-import type { DomainFormat, ModelLoadError, NodePosition, SemanticModel } from './types/semantic.js';
+import type { DisplaySubjectArea } from './types/display.js';
+import type { SubjectAreaFormat, TableLoadError, NodePosition, SemanticTable } from './types/semantic.js';
+import { usesTableLibrary } from './types/semantic.js';
 import type { LayerConfig } from './types/layer.js';
 import {
-  DomainFileError,
-  DomainValidationError,
-  buildUnifiedDomain,
-  classifyModelLoadError,
-  parseDomainJson,
-  resolveDomainLayer,
+  SubjectAreaFileError,
+  SubjectAreaValidationError,
+  buildUnifiedSubjectArea,
+  classifyTableLoadError,
+  parseSubjectAreaJson,
+  resolveSubjectAreaLayer,
   toLogicalStage,
-  validateDomainDocument,
+  validateSubjectAreaDocument,
   type LayerLookup,
 } from './domain.js';
 import { LAYERS_CONFIG_FILE, parseLayersText } from './layers.js';
-import { LOGICAL_MODELS_DIR, YamlCharLimitError, YamlNodeLimitError, isSafeModelName, parseLogicalModelTextWithUsage } from './logicalModel.js';
-import { computeMissingPositions, toDisplayDomain } from './displayDomain.js';
+import { TABLE_LIBRARY_DIRS, YamlCharLimitError, YamlNodeLimitError, isSafeTableName, parseTableTextWithUsage } from './logicalModel.js';
+import { computeMissingPositions, toDisplaySubjectArea } from './displayDomain.js';
 import { checkLimit } from './limits.js';
 
 /**
@@ -78,10 +82,10 @@ export async function mapWithLimit<T, R>(
 }
 
 /** A domain lists more models than the host allows. Thrown before any model file is read. */
-export class TooManyModelsError extends Error {
+export class TooManyTablesError extends Error {
   constructor(readonly count: number, readonly max: number) {
-    super(`The domain lists ${count} models; at most ${max} are allowed`);
-    this.name = 'TooManyModelsError';
+    super(`The subject area lists ${count} tables; at most ${max} are allowed`);
+    this.name = 'TooManyTablesError';
   }
 }
 
@@ -94,12 +98,12 @@ export class FileTooLargeError extends Error {
 }
 
 /**
- * Options for {@link loadDisplayDomain}. Each numeric limit must be a number
+ * Options for {@link loadDisplaySubjectArea}. Each numeric limit must be a number
  * of at least 0, or `Infinity` for none (`maxParallelReads`: a whole number of
  * at least 1, or `Infinity`); any other value, NaN included, makes
- * `loadDisplayDomain` reject with a TypeError before it reads anything.
+ * `loadDisplaySubjectArea` reject with a TypeError before it reads anything.
  */
-export interface LoadDisplayDomainOptions {
+export interface LoadDisplaySubjectAreaOptions {
   /** Path of the domain file, `{semanticDir}/{layer}/{domain}.json`; `/` or `\` separated. */
   domainPath: string;
   /**
@@ -107,16 +111,16 @@ export interface LoadDisplayDomainOptions {
    * a rejection is passed through to the caller unchanged.
    */
   readFile(path: string): Promise<string | null | undefined>;
-  /** The DisplayDomain's `readOnly` flag. */
+  /** The DisplaySubjectArea's `readOnly` flag. */
   readOnly: boolean;
   /** Most files read at once. Default 8. */
   maxParallelReads?: number;
   /**
-   * Which v5 model names may be read. A rejected name is never read and
-   * renders as a placeholder. Default: `isSafeModelName`.
+   * Which v5 / v6 model names may be read. A rejected name is never read and
+   * renders as a placeholder. Default: `isSafeTableName`.
    */
   modelNameFilter?: (name: string) => boolean;
-  /** Most entries `logical.models` may have (v4 and v5, counted before any filtering). Default unlimited. */
+  /** Most entries `logical.models` (v6: `logical.tables`) may have (counted before any filtering). Default unlimited. */
   maxModels?: number;
   /**
    * Most YAML nodes one model file may expand to; a file over it renders as a
@@ -157,7 +161,7 @@ export interface LoadDisplayDomainOptions {
 }
 
 /** Split a domain path into its semantic-dir prefix (with trailing separator), parent dir and file name. */
-function splitDomainPath(domainPath: string): { prefix: string; parentDirName: string; fileName: string } {
+function splitSubjectAreaPath(domainPath: string): { prefix: string; parentDirName: string; fileName: string } {
   const lastSep = (s: string, end: number): number =>
     Math.max(s.lastIndexOf('/', end), s.lastIndexOf('\\', end));
   const fileSep = lastSep(domainPath, domainPath.length);
@@ -180,12 +184,12 @@ function stripJsonExtension(fileName: string): string {
 
 /**
  * Read a domain, its layers and its logical models through `readFile`, and
- * build the DisplayDomain of its logical stage.
+ * build the DisplaySubjectArea of its logical stage.
  *
- * Bad input rejects with one of four classes: `DomainFileError` (missing,
- * empty or non-JSON domain file), `DomainValidationError` (not a loadable
+ * Bad input rejects with one of four classes: `SubjectAreaFileError` (missing,
+ * empty or non-JSON domain file), `SubjectAreaValidationError` (not a loadable
  * domain, an unconfigured layer, or a malformed v4 inline model),
- * `TooManyModelsError` and `FileTooLargeError`. A model that is missing,
+ * `TooManyTablesError` and `FileTooLargeError`. A model that is missing,
  * unreadable, unsafe, too large or over the node budget renders as a
  * placeholder instead. A `readFile` rejection, and anything the caller's
  * `warn` throws, is passed through unchanged.
@@ -202,13 +206,13 @@ function stripJsonExtension(fileName: string): string {
  * The result is a fresh object; `undefined` values are left in place (a JSON
  * round-trip drops them, as `postMessage` does).
  */
-export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Promise<DisplayDomain> {
+export async function loadDisplaySubjectArea(options: LoadDisplaySubjectAreaOptions): Promise<DisplaySubjectArea> {
   const {
     domainPath,
     readFile,
     readOnly,
     maxParallelReads = 8,
-    modelNameFilter = isSafeModelName,
+    modelNameFilter = isSafeTableName,
     maxModels = Infinity,
     maxYamlNodes = Infinity,
     maxDomainChars = Infinity,
@@ -217,11 +221,11 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
   const warn = options.warn ?? ((message: string) => console.warn(message));
 
   // 0. Limits that are not numbers would silently switch themselves off.
-  checkLimit('loadDisplayDomain', 'maxParallelReads', maxParallelReads, { min: 1, integer: true });
-  checkLimit('loadDisplayDomain', 'maxModels', maxModels);
-  checkLimit('loadDisplayDomain', 'maxYamlNodes', maxYamlNodes);
-  checkLimit('loadDisplayDomain', 'maxDomainChars', maxDomainChars);
-  checkLimit('loadDisplayDomain', 'maxYamlChars', maxYamlChars);
+  checkLimit('loadDisplaySubjectArea', 'maxParallelReads', maxParallelReads, { min: 1, integer: true });
+  checkLimit('loadDisplaySubjectArea', 'maxModels', maxModels);
+  checkLimit('loadDisplaySubjectArea', 'maxYamlNodes', maxYamlNodes);
+  checkLimit('loadDisplaySubjectArea', 'maxDomainChars', maxDomainChars);
+  checkLimit('loadDisplaySubjectArea', 'maxYamlChars', maxYamlChars);
   const ignoreStrayPositions =
     options.ignoreStrayPositions ??
     [maxModels, maxYamlNodes, maxDomainChars, maxYamlChars].some((limit) => limit !== Infinity);
@@ -229,15 +233,15 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
   // 1-3. The domain file itself.
   const domainText = await readFile(domainPath);
   if (domainText === null || domainText === undefined) {
-    throw new DomainFileError('missing', domainPath, `Domain file not found: ${domainPath}`);
+    throw new SubjectAreaFileError('missing', domainPath, `Subject area file not found: ${domainPath}`);
   }
   if (domainText.length > maxDomainChars) {
     throw new FileTooLargeError(domainPath, domainText.length, maxDomainChars);
   }
-  const { obj, format } = validateDomainDocument(parseDomainJson(domainText, domainPath), domainPath);
+  const { obj, format } = validateSubjectAreaDocument(parseSubjectAreaJson(domainText, domainPath), domainPath);
 
   // 4-5. Layers, from the semantic dir the domain sits in.
-  const { prefix, parentDirName, fileName } = splitDomainPath(domainPath);
+  const { prefix, parentDirName, fileName } = splitSubjectAreaPath(domainPath);
   const layersPath = `${prefix}${LAYERS_CONFIG_FILE}`;
   let layersText = await readFile(layersPath);
   if (layersText !== null && layersText !== undefined && layersText.length > maxDomainChars) {
@@ -249,7 +253,7 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
     hasLayer: (id) => layers.some((l) => l.id === id),
     getValidLayerIds: () => layers.map((l) => l.id),
   };
-  const domainLayer = resolveDomainLayer(obj.layer, domainPath, parentDirName, layerLookup);
+  const domainLayer = resolveSubjectAreaLayer(obj.layer, domainPath, parentDirName, layerLookup);
 
   // 6. The model cap, on the raw list, before anything is read.
   const logical = obj.logical;
@@ -259,25 +263,26 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
       ? ((logical as Record<string, unknown>).models as unknown[])
       : undefined;
   if (rawModels && rawModels.length > maxModels) {
-    throw new TooManyModelsError(rawModels.length, maxModels);
+    throw new TooManyTablesError(rawModels.length, maxModels);
   }
 
   // 7. v5 model files: each unique, allowed name read and parsed once.
-  const parsed = new Map<string, ParsedModel>();
-  if (format === 'v5' && rawModels) {
+  const parsed = new Map<string, ParsedTable>();
+  if (usesTableLibrary(format) && rawModels) {
     const names = [...new Set(rawModels.filter((m): m is string => typeof m === 'string'))]
       .filter((name) => modelNameFilter(name));
-    const modelsDir = `${prefix}${LOGICAL_MODELS_DIR}/`;
-    // Alphabetical, like the extension's LogicalModelService, so a name that
+    // Alphabetical, like the extension's TableLibraryService, so a name that
     // (wrongly) exists in two folders resolves to the same file in both hosts.
     const folders = [...new Set([domainLayer, ...layers.map((l) => l.id)])].sort((a, b) => a.localeCompare(b));
+    // `logical-models/` then `tables/` (#162), each top level first.
+    const candidates = TABLE_LIBRARY_DIRS.flatMap((dir) => ['', ...folders.map((f) => `${f}/`)].map((sub) => `${prefix}${dir}/${sub}`));
     await mapWithLimit(names, maxParallelReads, async (name) => {
       // One lane probes one candidate at a time, so maxParallelReads holds.
-      let text = await readFile(`${modelsDir}${name}.yml`);
-      for (let i = 0; (text === null || text === undefined) && i < folders.length; i++) {
-        text = await readFile(`${modelsDir}${folders[i]}/${name}.yml`);
+      let text: string | null | undefined;
+      for (let i = 0; (text === null || text === undefined) && i < candidates.length; i++) {
+        text = await readFile(`${candidates[i]}${name}.yml`);
       }
-      parsed.set(name, parseModel(name, text, maxYamlChars, maxYamlNodes, warn));
+      parsed.set(name, parseTable(name, text, maxYamlChars, maxYamlNodes, warn));
     });
   }
 
@@ -298,7 +303,7 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
     }
   };
   try {
-    return buildDisplayDomain(obj, format, {
+    return buildDisplaySubjectArea(obj, format, {
       domainPath,
       fileName,
       parentDirName,
@@ -311,7 +316,7 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
     });
   } catch (err) {
     if (err instanceof TypeError && !callerErrors.has(err)) {
-      const invalid = new DomainValidationError(`${domainPath} is not a loadable domain: ${err.message}`);
+      const invalid = new SubjectAreaValidationError(`${domainPath} is not a loadable subject area: ${err.message}`);
       // As `new Error(message, { cause })` sets it (that form needs ES2022 lib typings).
       Object.defineProperty(invalid, 'cause', { value: err, writable: true, configurable: true });
       throw invalid;
@@ -320,30 +325,30 @@ export async function loadDisplayDomain(options: LoadDisplayDomainOptions): Prom
   }
 }
 
-/** Steps 8-10 of {@link loadDisplayDomain}: the parsed files -> the DisplayDomain. */
-function buildDisplayDomain(
+/** Steps 8-10 of {@link loadDisplaySubjectArea}: the parsed files -> the DisplaySubjectArea. */
+function buildDisplaySubjectArea(
   obj: Record<string, unknown>,
-  format: DomainFormat,
+  format: SubjectAreaFormat,
   ctx: {
     domainPath: string;
     fileName: string;
     parentDirName: string;
     layers: LayerConfig[];
     layerLookup: LayerLookup;
-    parsed: ReadonlyMap<string, ParsedModel>;
+    parsed: ReadonlyMap<string, ParsedTable>;
     readOnly: boolean;
     ignoreStrayPositions: boolean;
     warn: (message: string) => void;
   },
-): DisplayDomain {
+): DisplaySubjectArea {
   const { domainPath, fileName, parentDirName, layers, layerLookup, parsed, readOnly, ignoreStrayPositions, warn } = ctx;
 
-  // 8. The UnifiedDomain, each occurrence of a model its own copy (sharing
+  // 8. The UnifiedSubjectArea, each occurrence of a model its own copy (sharing
   // the parsed strings, which are immutable, so repeats cost no text). Each
   // copy is charged to the file's budgets, so listing one model many times
   // cannot expand the result past what the budgets allow one file.
   const listed = new Map<string, number>();
-  const unified = buildUnifiedDomain(obj, format, {
+  const unified = buildUnifiedSubjectArea(obj, format, {
     filePath: domainPath,
     domainNameFallback: stripJsonExtension(fileName),
     parentDirName,
@@ -370,7 +375,7 @@ function buildDisplayDomain(
   // 9. Positions for models that have none.
   const computed = computeMissingPositions(
     ignoreStrayPositions
-      ? { ...unified, viewConfig: { positions: modelPositions(unified.viewConfig.positions, unified.logical.models) } }
+      ? { ...unified, viewConfig: { positions: tablePositions(unified.viewConfig.positions, unified.logical.models) } }
       : unified,
   );
   if (computed) {
@@ -378,7 +383,7 @@ function buildDisplayDomain(
   }
 
   // 10. The logical stage, as the canvas renders it.
-  return toDisplayDomain(toLogicalStage(unified), {
+  return toDisplaySubjectArea(toLogicalStage(unified), {
     viewConfig: unified.viewConfig,
     stubColumns: unified.stubColumns,
     layerConfig: layers.find((l) => l.id === unified.layer),
@@ -387,7 +392,7 @@ function buildDisplayDomain(
 }
 
 /** The entries of `positions` that name one of `models`. */
-function modelPositions(
+function tablePositions(
   positions: Record<string, NodePosition> | undefined,
   models: ReadonlyArray<{ name: string }>,
 ): Record<string, NodePosition> | undefined {
@@ -423,43 +428,43 @@ function copyPlain<T>(value: T): T {
 }
 
 /** A parsed model file, and how many times the domain may list it within the file's budgets. */
-interface ParsedModel {
+interface ParsedTable {
   /** The model, or null (a placeholder) when the file is absent, too large or unusable. */
-  model: SemanticModel | null;
+  model: SemanticTable | null;
   /** How many listings of the model get a copy; the rest are placeholders. */
   copies: number;
   /** Set when the file exists but fails to parse (never for a budget refusal). */
-  loadError?: ModelLoadError;
+  loadError?: TableLoadError;
 }
 
-const NO_MODEL: ParsedModel = { model: null, copies: 0 };
+const NO_TABLE: ParsedTable = { model: null, copies: 0 };
 
 /** Parse one model file's text, charging it to the budgets. */
-function parseModel(
+function parseTable(
   name: string,
   text: string | null | undefined,
   maxChars: number,
   maxNodes: number,
   warn: (message: string) => void,
-): ParsedModel {
+): ParsedTable {
   if (text === null || text === undefined) {
-    return NO_MODEL;
+    return NO_TABLE;
   }
   if (text.length > maxChars) {
     warn(`Model "${name}" is ${text.length} characters long; at most ${maxChars} are read`);
-    return NO_MODEL;
+    return NO_TABLE;
   }
   try {
-    const { model, nodes, chars } = parseLogicalModelTextWithUsage(text, name, { maxNodes, maxChars, duplicateKeys: 'last' });
+    const { model, nodes, chars } = parseTableTextWithUsage(text, name, { maxNodes, maxChars, duplicateKeys: 'last' });
     // A budget that was not counted (unlimited) or not used allows any number of copies.
     const fits = (max: number, used: number): number => (used > 0 ? Math.floor(max / used) : Infinity);
     return { model, copies: Math.min(fits(maxNodes, nodes), fits(maxChars, chars)) };
   } catch (err) {
     warn(`Failed to read model "${name}": ${err instanceof Error ? err.message : String(err)}`);
     if (err instanceof YamlNodeLimitError || err instanceof YamlCharLimitError) {
-      return NO_MODEL;
+      return NO_TABLE;
     }
-    const { kind, line, mergeConflict } = classifyModelLoadError(err);
-    return { ...NO_MODEL, loadError: { kind, ...(line !== undefined ? { line } : {}), ...(mergeConflict ? { mergeConflict } : {}) } };
+    const { kind, line, mergeConflict } = classifyTableLoadError(err);
+    return { ...NO_TABLE, loadError: { kind, ...(line !== undefined ? { line } : {}), ...(mergeConflict ? { mergeConflict } : {}) } };
   }
 }

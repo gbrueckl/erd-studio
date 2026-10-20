@@ -2,7 +2,7 @@
  * **Export Diagram…** (`erdStudio.exportDiagram`) — a domain's logical
  * (design) stage as Mermaid or DBML text, one way out. Nothing about how ERD
  * Studio stores a diagram changes: the text comes from `@erd-studio/core`'s
- * `exportDiagram` through `exportDomainFile` (`src/services/diagramExport.ts`),
+ * `exportDiagram` through `exportSubjectAreaFile` (`src/services/diagramExport.ts`),
  * the same read the `erd-studio export` CLI and the canvas's logical stage
  * make, so every host produces the same bytes.
  *
@@ -16,7 +16,7 @@
  *
  * Writes no ERD Studio file. Save As… writes only the file the user named in
  * the save dialog, through `workspace.fs` — an export, not a domain write, so
- * it is not an `applyDomainEdit` and records no own write.
+ * it is not an `applySubjectAreaEdit` and records no own write.
  *
  * Every vscode call goes through `ExportDiagramUi`, so the flow is unit-tested
  * with plain fakes; `vscodeExportUi()` is the real one `activate()` uses.
@@ -28,8 +28,21 @@ import * as vscode from 'vscode';
 import { DIAGRAM_EXPORT_FILE_EXTENSIONS } from '@erd-studio/core';
 import type { DiagramExportFormat } from '@erd-studio/core';
 
+import {
+  OPEN_FILE_BUTTON,
+  SEND_FEEDBACK_BUTTON,
+  classifyWriteFailure,
+  describeDiagramFileProblem,
+  feedbackPrefill,
+  oursMessage,
+  projectRelative,
+  showErrorWithActions,
+  type ErrorActions,
+  type FeedbackPrefill,
+} from '../services/commandErrors';
 import { telemetry } from '../services/telemetryService';
-import type { DomainExport } from '../services/diagramExport';
+import { openTableFileAt } from './openModelFile';
+import type { SubjectAreaExport } from '../services/diagramExport';
 
 export const EXPORT_DIAGRAM_COMMAND = 'erdStudio.exportDiagram';
 
@@ -71,6 +84,12 @@ export const DBML_COPIED_MESSAGE =
   'Copied the diagram as DBML. Paste it into dbdiagram.io or any other DBML tool.';
 export const NO_DIAGRAMS_MESSAGE = 'There are no diagrams to export yet.';
 
+export { OPEN_FILE_BUTTON };
+export const CHOOSE_ANOTHER_LOCATION_BUTTON = 'Choose Another Location';
+
+/** The name the "ours" message gives the command. */
+const COMMAND_NAME = 'Export Diagram';
+
 /** Every vscode call the flow makes, injectable for tests. */
 export interface ExportDiagramUi {
   showQuickPick<T extends vscode.QuickPickItem>(items: readonly T[], options: vscode.QuickPickOptions): Promise<T | undefined>;
@@ -82,13 +101,18 @@ export interface ExportDiagramUi {
   writeFile(uri: vscode.Uri, content: string): Promise<void>;
   /** Show a saved export in an editor. */
   openFile(uri: vscode.Uri): Promise<void>;
+  /** Open a diagram file as text, the cursor at the 1-based line and column when given. */
+  openFileAt(filePath: string, line?: number, column?: number): Promise<void>;
+  /** Open Send Feedback (`erdStudio.reportBug`) with this prefill. */
+  sendFeedback(prefill: FeedbackPrefill): Promise<void>;
   showInformationMessage(message: string, ...items: string[]): Promise<string | undefined>;
-  showErrorMessage(message: string): void;
+  /** Resolves the button picked; the flow never awaits it. */
+  showErrorMessage(message: string, ...items: string[]): Promise<string | undefined>;
 }
 
 export interface ExportDiagramDeps {
-  /** `exportDomainFile` bound to this window's services. Throws what `getDomain` throws. */
-  exportDomain: (domainPath: string, format: DiagramExportFormat) => Promise<DomainExport>;
+  /** `exportSubjectAreaFile` bound to this window's services. Throws what `getSubjectArea` throws. */
+  exportDomain: (domainPath: string, format: DiagramExportFormat) => Promise<SubjectAreaExport>;
   /** The domain file of the focused ERD canvas, if one is focused. */
   activeDomainPath: () => string | undefined;
   /** Whether the project has any diagram; asked only before the picker. */
@@ -97,6 +121,8 @@ export interface ExportDiagramDeps {
   pickDomain: () => Promise<string | undefined>;
   /** Where Save As… starts (the project root); the domain's own folder without it. */
   defaultSaveFolder?: string;
+  /** The dbt project root, which messages name files relative to; just the file name without it. */
+  projectRoot?: string;
   ui?: ExportDiagramUi;
 }
 
@@ -114,7 +140,7 @@ export interface ExportDiagramResult {
  * string, or the domain tree's node (`{ type: 'domain', summary: { filePath } }`).
  * Anything else — including the arguments a keybinding passes — is no argument.
  */
-export function domainPathFromArg(arg: unknown): string | undefined {
+export function subjectAreaPathFromArg(arg: unknown): string | undefined {
   if (typeof arg === 'string') return arg.length > 0 ? arg : undefined;
   if (!arg || typeof arg !== 'object') return undefined;
   const candidate = arg as { fsPath?: unknown; scheme?: unknown; type?: unknown; summary?: { filePath?: unknown } };
@@ -135,9 +161,66 @@ export async function exportDiagramCommand(deps: ExportDiagramDeps, arg?: unknow
     return await runExportDiagram(deps, ui, arg);
   } catch (err) {
     telemetry.error('exportFailed');
-    ui.showErrorMessage(`Could not export the diagram: ${err instanceof Error ? err.message : String(err)}`);
+    showFailure(ui, err instanceof ExportFailure ? err.shown : oursFailure(err, ui));
     return undefined;
   }
+}
+
+/** A failure already put in words: the message and its buttons. */
+interface ShownFailure {
+  message: string;
+  actions: ErrorActions;
+}
+
+/** Thrown inside the flow for a failure that is already in words, so the one catch shows them. */
+class ExportFailure extends Error {
+  constructor(readonly shown: ShownFailure) {
+    super(shown.message);
+  }
+}
+
+/** Any failure that is not the user's to fix: ERD Studio's, with Send Feedback carrying the redacted error. */
+function oursFailure(err: unknown, ui: ExportDiagramUi, doing = 'while exporting the diagram'): ShownFailure {
+  return {
+    message: oursMessage(COMMAND_NAME, doing, 'nothing was exported'),
+    actions: { [SEND_FEEDBACK_BUTTON]: () => ui.sendFeedback(feedbackPrefill(COMMAND_NAME, doing, err)) },
+  };
+}
+
+/** Show the failure, and run the button the user picks; never awaited. */
+function showFailure(ui: ExportDiagramUi, failure: ShownFailure): void {
+  // A button that fails (Open File on a file deleted since) still says so, rather than seeming to do nothing.
+  showErrorWithActions((m, ...items) => ui.showErrorMessage(m, ...items), failure.message, failure.actions, (choice, err) => {
+    console.error(`[ERD Studio] ${COMMAND_NAME}: "${choice}" failed:`, err);
+    showFailure(ui, oursFailure(err, ui, `while running ${choice}`));
+  });
+}
+
+/**
+ * The diagram file could not be read: in words, with Open File, when the
+ * file is the user's to fix (#186's reasons); else the failure is ours.
+ */
+function readFailure(deps: ExportDiagramDeps, ui: ExportDiagramUi, domainPath: string, err: unknown): ShownFailure {
+  const shown = deps.projectRoot ? projectRelative(deps.projectRoot, domainPath) : path.basename(domainPath);
+  const problem = describeDiagramFileProblem(err, domainPath, shown);
+  if (!problem) return oursFailure(err, ui);
+  return {
+    message: `${shown} can't be exported because the diagram file has a problem: ${problem.reason}.`,
+    actions: problem.openable
+      ? { [OPEN_FILE_BUTTON]: () => ui.openFileAt(domainPath, problem.line, problem.column) }
+      : {},
+  };
+}
+
+/** Save As… failed: a folder the user may not write or a full disk, with another try; else ours. */
+function saveFailure(ui: ExportDiagramUi, target: vscode.Uri, err: unknown, chooseAgain: () => unknown): ShownFailure {
+  const failure = classifyWriteFailure(err);
+  if (failure === 'other') return oursFailure(err, ui);
+  const why = failure === 'permission' ? "ERD Studio isn't allowed to write to that folder" : 'the disk is full';
+  return {
+    message: `Couldn't save ${path.basename(target.fsPath)}: ${why}.`,
+    actions: { [CHOOSE_ANOTHER_LOCATION_BUTTON]: chooseAgain },
+  };
 }
 
 async function runExportDiagram(
@@ -145,7 +228,7 @@ async function runExportDiagram(
   ui: ExportDiagramUi,
   arg: unknown,
 ): Promise<ExportDiagramResult | undefined> {
-  let domainPath = domainPathFromArg(arg) ?? deps.activeDomainPath();
+  let domainPath = subjectAreaPathFromArg(arg) ?? deps.activeDomainPath();
   if (!domainPath) {
     // Nothing to pick is a project state, counted apart from a cancel.
     if (!deps.hasDiagrams()) {
@@ -168,7 +251,10 @@ async function runExportDiagram(
 
   // Read before asking what to do with it, so a broken file is reported
   // before another question rather than after.
-  const exported = await deps.exportDomain(domainPath, format);
+  const readPath = domainPath;
+  const exported = await deps.exportDomain(readPath, format).catch((err: unknown) => {
+    throw new ExportFailure(readFailure(deps, ui, readPath, err));
+  });
 
   const actionPick = await ui.showQuickPick(ACTION_ITEMS, {
     title: `${EXPORT_TITLE}: ${FORMAT_LABELS[format]}`,
@@ -192,26 +278,59 @@ async function runExportDiagram(
       break;
     }
     case 'save': {
-      const ext = DIAGRAM_EXPORT_FILE_EXTENSIONS[format];
       const folder = deps.defaultSaveFolder ?? path.dirname(domainPath);
-      const target = await ui.showSaveDialog({
-        title: `${EXPORT_TITLE}: Save ${FORMAT_LABELS[format]}`,
-        defaultUri: vscode.Uri.file(path.join(folder, exported.fileName)),
-        filters: { [FORMAT_LABELS[format]]: [ext] },
-        saveLabel: 'Export',
-      });
-      if (!target) { return cancelled(); }
-      await ui.writeFile(target, exported.content);
-      result.savedTo = target.fsPath;
-      void ui.showInformationMessage(`Exported ${path.basename(target.fsPath)}.`, 'Open').then((choice) => {
-        if (choice === 'Open') { void ui.openFile(target); }
-      });
+      const savedTo = await saveAs(ui, format, exported, vscode.Uri.file(path.join(folder, exported.fileName)));
+      if (!savedTo) { return cancelled(); }
+      result.savedTo = savedTo;
       break;
     }
   }
 
   telemetry.feature(format === 'mermaid' ? 'exportMermaid' : 'exportDbml');
   return result;
+}
+
+/**
+ * Save As…, starting at `startAt`: the saved path, or undefined when
+ * cancelled. A failed write throws its words, with Choose Another Location
+ * reopening the dialog where the user last tried.
+ */
+async function saveAs(
+  ui: ExportDiagramUi,
+  format: DiagramExportFormat,
+  exported: SubjectAreaExport,
+  startAt: vscode.Uri,
+): Promise<string | undefined> {
+  const target = await ui.showSaveDialog({
+    title: `${EXPORT_TITLE}: Save ${FORMAT_LABELS[format]}`,
+    defaultUri: startAt,
+    filters: { [FORMAT_LABELS[format]]: [DIAGRAM_EXPORT_FILE_EXTENSIONS[format]] },
+    saveLabel: 'Export',
+  });
+  if (!target) { return undefined; }
+  try {
+    await ui.writeFile(target, exported.content);
+  } catch (err) {
+    throw new ExportFailure(saveFailure(ui, target, err, () => retrySave(ui, format, exported, target)));
+  }
+  void ui.showInformationMessage(`Exported ${path.basename(target.fsPath)}.`, 'Open').then((choice) => {
+    if (choice === 'Open') { void ui.openFile(target); }
+  });
+  return target.fsPath;
+}
+
+/** Choose Another Location: the save step again, counted and shown as the first one was. */
+async function retrySave(ui: ExportDiagramUi, format: DiagramExportFormat, exported: SubjectAreaExport, previous: vscode.Uri): Promise<void> {
+  try {
+    if (await saveAs(ui, format, exported, previous)) {
+      telemetry.feature(format === 'mermaid' ? 'exportMermaid' : 'exportDbml');
+    } else {
+      cancelled();
+    }
+  } catch (err) {
+    telemetry.error('exportFailed');
+    showFailure(ui, err instanceof ExportFailure ? err.shown : oursFailure(err, ui));
+  }
 }
 
 function cancelled(): undefined {
@@ -232,7 +351,9 @@ export function vscodeExportUi(): ExportDiagramUi {
     showSaveDialog: async (options) => vscode.window.showSaveDialog(options),
     writeFile: async (uri, content) => { await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content)); },
     openFile: async (uri) => { await vscode.window.showTextDocument(uri, { preview: false }); },
+    openFileAt: (filePath, line, column) => openTableFileAt(filePath, line, column),
+    sendFeedback: async (prefill) => { await vscode.commands.executeCommand('erdStudio.reportBug', prefill); },
     showInformationMessage: async (message, ...items) => vscode.window.showInformationMessage(message, ...items),
-    showErrorMessage: (message) => { void vscode.window.showErrorMessage(message); },
+    showErrorMessage: async (message, ...items) => vscode.window.showErrorMessage(message, ...items),
   };
 }

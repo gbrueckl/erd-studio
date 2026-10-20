@@ -17,12 +17,13 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { DomainValidationError } from '@erd-studio/core';
-import { classifyDomainLoadFailure, SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainFileError, DomainService } from '../../src/services/domainService';
+import { SubjectAreaValidationError } from '@erd-studio/core';
+import { classifySubjectAreaLoadFailure, SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
+import { SubjectAreaFileError, SubjectAreaService } from '../../src/services/domainService';
 import { telemetry } from '../../src/services/telemetryService';
+import { subjectAreaLoadErrorCode } from '../../src/services/telemetryPayload';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
@@ -45,6 +46,7 @@ function makeDoc(fsPath: string) {
     isDirty: false,
     isClosed: false,
     getText: () => text,
+    get lineCount() { return text.split('\n').length; },
     positionAt: (offset: number) => ({ offset }),
     save: vi.fn(async () => true),
     _setText: (t: string) => { text = t; },
@@ -53,10 +55,10 @@ function makeDoc(fsPath: string) {
 
 function buildProvider(rootDir: string) {
   const layerService = new LayerService(rootDir, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(rootDir, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, rootDir, '.erd-studio');
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(rootDir, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, rootDir, '.erd-studio');
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
     globalStorageUri: vscode.Uri.file(path.join(rootDir, '.global-storage')),
@@ -68,14 +70,14 @@ function buildProvider(rootDir: string) {
 
   return new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     new ManifestService(),
     new YmlParserService(),
     new TemplateService(),
     layerService,
     rootDir,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
 }
 
@@ -155,11 +157,12 @@ describe('a domain file caught mid-write', () => {
 
     await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 20 });
     const payload = errors(panel)[0].payload;
-    expect(payload.message).toContain('Domain file is empty');
-    // Not the parser's "Unexpected end of JSON input", which reads as
-    // corruption when the file is simply blank.
-    expect(payload.message).not.toContain('Unexpected end of JSON input');
+    // Plain words and a project-relative path (#186), not the parser's
+    // "Unexpected end of JSON input", which reads as corruption when the
+    // file is simply blank.
+    expect(payload.message).toBe('.erd-studio/silver/showcase.json has no content.');
     expect(payload.kind).toBe('domain-file');
+    expect(payload.fileProblem).toBe('empty');
     expect(types(panel)).not.toContain('domainLoaded');
   });
 
@@ -167,11 +170,11 @@ describe('a domain file caught mid-write', () => {
     const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
     // What a Windows sharing violation looks like by the time it reaches the
     // provider: the file exists, but this read of it failed.
-    const real = DomainService.prototype.getDomain;
+    const real = SubjectAreaService.prototype.getSubjectArea;
     let locked = 2;
-    vi.spyOn(DomainService.prototype, 'getDomain').mockImplementation(function (this: DomainService, p: string) {
+    vi.spyOn(SubjectAreaService.prototype, 'getSubjectArea').mockImplementation(function (this: SubjectAreaService, p: string) {
       if (p === file && locked-- > 0) {
-        throw new DomainFileError('unreadable', p, `Failed to read domain file: EBUSY: resource busy or locked, open '${p}'`);
+        throw new SubjectAreaFileError('unreadable', p, `Failed to read domain file: EBUSY: resource busy or locked, open '${p}'`);
       }
       return real.call(this, p);
     });
@@ -189,8 +192,8 @@ describe('a domain file caught mid-write', () => {
 
   it('reports a file that stays unreadable once the retries run out', async () => {
     const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
-    vi.spyOn(DomainService.prototype, 'getDomain').mockImplementation((p: string) => {
-      throw new DomainFileError('unreadable', p, 'Failed to read domain file: EACCES: permission denied');
+    vi.spyOn(SubjectAreaService.prototype, 'getSubjectArea').mockImplementation((p: string) => {
+      throw new SubjectAreaFileError('unreadable', p, 'Failed to read domain file: EACCES: permission denied');
     });
 
     const { panel } = await open(root, file);
@@ -198,7 +201,7 @@ describe('a domain file caught mid-write', () => {
 
     await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 20 });
     expect(errors(panel)[0].payload.message).toContain('EACCES');
-    expect(DomainService.prototype.getDomain).toHaveBeenCalledTimes(4);
+    expect(SubjectAreaService.prototype.getSubjectArea).toHaveBeenCalledTimes(4);
   });
 
   it('does not stall on a structurally invalid file — no retry, one error', async () => {
@@ -239,7 +242,7 @@ describe('a domain file with unresolved git merge conflicts (#145)', () => {
     const text = conflicted(fs.readFileSync(file, 'utf-8'));
     const line = text.split('\n').indexOf('<<<<<<< HEAD') + 1;
     fs.writeFileSync(file, text);
-    const getDomain = vi.spyOn(DomainService.prototype, 'getDomain');
+    const getSubjectArea = vi.spyOn(SubjectAreaService.prototype, 'getSubjectArea');
 
     const { panel } = await open(root, file);
     const startedAt = Date.now();
@@ -248,7 +251,7 @@ describe('a domain file with unresolved git merge conflicts (#145)', () => {
     await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 10 });
     // The ~1.2s backoff is for a file caught mid-write; a conflict reads the same every time.
     expect(Date.now() - startedAt).toBeLessThan(1000);
-    expect(getDomain).toHaveBeenCalledTimes(1);
+    expect(getSubjectArea).toHaveBeenCalledTimes(1);
     const payload = errors(panel)[0].payload;
     expect(payload).toEqual({
       message: expect.stringContaining(`has unresolved git merge conflicts (first at line ${line})`),
@@ -278,10 +281,105 @@ describe('a domain file with unresolved git merge conflicts (#145)', () => {
     expect(errors(panel)).toHaveLength(1);
   });
 
-  it('is still a json failure to telemetry', () => {
-    const err = new DomainFileError('invalid-json', '/x.json', 'conflict', { mergeConflict: true, line: 3 });
+  it('is a conflict failure to telemetry, not a json one', () => {
+    const err = new SubjectAreaFileError('invalid-json', '/x.json', 'conflict', { mergeConflict: true, line: 3 });
     expect(err.transient).toBe(false);
-    expect(classifyDomainLoadFailure(err)).toBe('json');
+    expect(classifySubjectAreaLoadFailure(err)).toBe('conflict');
+    expect(subjectAreaLoadErrorCode('conflict')).toBe('domainLoadConflict');
+  });
+});
+
+describe('a domain file with a JSON mistake (#186)', () => {
+  /** showcase.json with a trailing comma after its last top-level property. */
+  function withTrailingComma(file: string): { line: number; column: number } {
+    const lines = JSON.stringify(JSON.parse(fs.readFileSync(file, 'utf-8')), null, 2).split('\n');
+    const last = lines.length - 2;
+    lines[last] += ',';
+    fs.writeFileSync(file, lines.join('\n'));
+    return { line: last + 1, column: lines[last].length };
+  }
+
+  it('says where the mistake is, project-relative, and never the absolute path or the parser', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    const at = withTrailingComma(file);
+
+    const { panel } = await open(root, file);
+    panel._simulateMessage({ type: 'ready' });
+
+    await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 20 });
+    const payload = errors(panel)[0].payload;
+    expect(payload).toEqual({
+      message: `.erd-studio/silver/showcase.json has a mistake at line ${at.line}, column ${at.column}: `
+        + 'there is a comma after the last item, before a closing } or ].',
+      kind: 'domain-file',
+      fileProblem: 'syntax',
+      line: at.line,
+      column: at.column,
+    });
+    expect(JSON.stringify(payload)).not.toContain(root);
+    expect(payload.message).not.toMatch(/position|JSON at|Expected/);
+  });
+
+  it('posts a second mistake elsewhere in the file, so Open at Line follows it', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    const real = fs.readFileSync(file, 'utf-8');
+    withTrailingComma(file);
+
+    const { doc, panel } = await open(root, file);
+    panel._simulateMessage({ type: 'ready' });
+    await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 20 });
+
+    // The user fixes that one and leaves another: a missing comma on line 3.
+    const lines = JSON.stringify(JSON.parse(real), null, 2).split('\n');
+    lines[2] = lines[2].replace(/,$/, '');
+    fs.writeFileSync(file, lines.join('\n'));
+    doc._setText(lines.join('\n'));
+    await vscode._fireDidChangeTextDocument(doc);
+
+    await vi.waitFor(() => expect(errors(panel)).toHaveLength(2), { timeout: 4000, interval: 20 });
+    expect(errors(panel)[1].payload).toMatchObject({ fileProblem: 'syntax', line: 3, column: lines[2].length + 1 });
+  });
+
+  it('refuses a canvas edit to the broken file with the same plain sentence', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    const real = fs.readFileSync(file, 'utf-8');
+    const { doc, panel } = await open(root, file);
+    panel._simulateMessage({ type: 'ready' });
+    await vi.waitFor(() => expect(types(panel)).toContain('domainLoaded'), { timeout: 4000, interval: 20 });
+
+    const at = withTrailingComma(file);
+    doc._setText(fs.readFileSync(file, 'utf-8'));
+    panel._simulateMessage({ type: 'updatePositions', payload: { positions: { fct_task_event: { x: 1, y: 2 } } } });
+
+    await vi.waitFor(() => expect(errors(panel).length).toBeGreaterThan(0), { timeout: 4000, interval: 20 });
+    const text = errors(panel).map((e) => e.payload.message).join('\n');
+    expect(text).toContain(`.erd-studio/silver/showcase.json has a mistake at line ${at.line}, column ${at.column}`);
+    expect(text).not.toContain(root);
+    expect(real).not.toBe(fs.readFileSync(file, 'utf-8'));
+  });
+
+  it('opens the file at the mistake for `viewFile` with a position, and as before without one', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    const { panel } = await open(root, file);
+
+    panel._simulateMessage({ type: 'viewFile', payload: { line: 4, column: 7 } });
+    await vi.waitFor(() => expect(executeCommand).toHaveBeenCalledWith(
+      'vscode.openWith', expect.anything(), 'default', { selection: new vscode.Range(new vscode.Position(3, 6), new vscode.Position(3, 6)) },
+    ), { timeout: 4000, interval: 10 });
+
+    // The toolbar's View JSON, and a payload that does not validate, open it as they always did.
+    executeCommand.mockClear();
+    panel._simulateMessage({ type: 'viewFile' });
+    panel._simulateMessage({ type: 'viewFile', payload: { line: 0 } });
+    await vi.waitFor(() => expect(executeCommand).toHaveBeenCalledTimes(2), { timeout: 4000, interval: 10 });
+    for (const call of executeCommand.mock.calls) expect(call).toEqual(['vscode.openWith', expect.anything(), 'default']);
+  });
+
+  it('names a file outside the project by its name only, but keeps a folder that merely starts with two dots', () => {
+    const shown = (fsPath: string) => (buildProvider(root) as any).shownSubjectAreaPath(fsPath) as string;
+    expect(shown(path.join(root, '..', 'elsewhere', 'showcase.json'))).toBe('showcase.json');
+    expect(shown(path.join(root, '..erd', 'silver', 'showcase.json'))).toBe('..erd/silver/showcase.json');
   });
 });
 
@@ -295,7 +393,7 @@ describe('a JSON file under the semantic dir that is not a domain', () => {
     const payload = errors(panel)[0].payload;
     expect(payload.kind).toBe('not-a-domain');
     expect(payload.message).toContain('fact.json');
-    expect(payload.message).toContain('not an ERD domain file');
+    expect(payload.message).toContain('not an ERD Studio subject area file');
     expect(types(panel)).not.toContain('domainLoaded');
   });
 
@@ -325,7 +423,7 @@ describe('an error the user is already looking at', () => {
     // What issue #64 recorded: an external writer touching several model files
     // in a burst, each one refreshing every domain that references it.
     for (let i = 0; i < 3; i++) {
-      await provider.refreshAllOpenDomains();
+      await provider.refreshAllOpenSubjectAreas();
     }
 
     expect(errors(panel)).toHaveLength(1);
@@ -352,13 +450,13 @@ describe('an error the user is already looking at', () => {
 
 describe('domainLoad telemetry carries a fixed reason', () => {
   it('classifies each kind of failure without reading its message', () => {
-    expect(classifyDomainLoadFailure(new DomainFileError('missing', '/x.json', 'gone'))).toBe('missing');
-    expect(classifyDomainLoadFailure(new DomainFileError('unreadable', '/x.json', 'EBUSY'))).toBe('unreadable');
-    expect(classifyDomainLoadFailure(new DomainFileError('empty', '/x.json', 'empty'))).toBe('json');
-    expect(classifyDomainLoadFailure(new DomainFileError('invalid-json', '/x.json', 'bad'))).toBe('json');
-    expect(classifyDomainLoadFailure(new DomainValidationError('no schemaVersion'))).toBe('invalid');
-    expect(classifyDomainLoadFailure(new TypeError("Cannot read properties of undefined (reading 'x')"))).toBe('internal');
-    expect(classifyDomainLoadFailure('a string')).toBe('internal');
+    expect(classifySubjectAreaLoadFailure(new SubjectAreaFileError('missing', '/x.json', 'gone'))).toBe('missing');
+    expect(classifySubjectAreaLoadFailure(new SubjectAreaFileError('unreadable', '/x.json', 'EBUSY'))).toBe('unreadable');
+    expect(classifySubjectAreaLoadFailure(new SubjectAreaFileError('empty', '/x.json', 'empty'))).toBe('empty');
+    expect(classifySubjectAreaLoadFailure(new SubjectAreaFileError('invalid-json', '/x.json', 'bad'))).toBe('json');
+    expect(classifySubjectAreaLoadFailure(new SubjectAreaValidationError('no schemaVersion'))).toBe('invalid');
+    expect(classifySubjectAreaLoadFailure(new TypeError("Cannot read properties of undefined (reading 'x')"))).toBe('internal');
+    expect(classifySubjectAreaLoadFailure('a string')).toBe('internal');
   });
 
   it('records domainLoad and its reason once per distinct error', async () => {
@@ -371,6 +469,24 @@ describe('domainLoad telemetry carries a fixed reason', () => {
 
     await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 10 });
     expect(error.mock.calls.map((c) => c[0])).toEqual(['domainLoad', 'domainLoadInvalid']);
+  });
+
+  it('maps each reason to its own error code', () => {
+    expect(subjectAreaLoadErrorCode('json')).toBe('domainLoadJson');
+    expect(subjectAreaLoadErrorCode('empty')).toBe('domainLoadEmpty');
+    expect(subjectAreaLoadErrorCode('conflict')).toBe('domainLoadConflict');
+  });
+
+  it('records a file that stays empty as domainLoadEmpty, not domainLoadJson', async () => {
+    const error = vi.spyOn(telemetry, 'error');
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    fs.writeFileSync(file, '');
+
+    const { panel } = await open(root, file);
+    panel._simulateMessage({ type: 'ready' });
+
+    await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 10 });
+    expect(error.mock.calls.map((c) => c[0])).toEqual(['domainLoad', 'domainLoadEmpty']);
   });
 
   it('records a template opened as a canvas as notDomain', async () => {

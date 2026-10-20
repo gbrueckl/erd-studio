@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TreeItemCollapsibleState, ThemeIcon, ThemeColor, MarkdownString } from 'vscode';
-import type { ModelLibraryFolderNode, ModelLibraryModelNode } from '../../src/providers/ModelLibraryTreeProvider';
-import { ModelLibraryTreeProvider, type ModelLibraryNode } from '../../src/providers/ModelLibraryTreeProvider';
-import type { LogicalModelService, ModelFileEntry } from '../../src/services/logicalModelService';
+import type { TableLibraryFolderNode, TableLibraryTableNode } from '../../src/providers/ModelLibraryTreeProvider';
+import { TableLibraryTreeProvider, type TableLibraryNode } from '../../src/providers/ModelLibraryTreeProvider';
+import type { TableLibraryService, TableFileEntry } from '../../src/services/logicalModelService';
 import type { LayerConfig } from '../../src/types/layer';
-import type { DomainService } from '../../src/services/domainService';
-import type { DomainSummary } from '../../src/types/semantic';
+import type { SubjectAreaService } from '../../src/services/domainService';
+import type { SubjectAreaSummary } from '../../src/types/semantic';
 
 // Mock fs — readFileSync returns domain JSON for cross-referencing
 const mockReadFileSync = vi.fn();
@@ -21,34 +21,34 @@ vi.mock('fs', async () => {
 // Mock helpers
 // ---------------------------------------------------------------------------
 
-function createMockLogicalModelService(
+function createMockTableLibraryService(
   modelNames: string[] = [],
   modelsDir = '/project/.erd-studio/logical-models',
-): LogicalModelService {
-  return createMockLogicalModelServiceFromEntries(
+): TableLibraryService {
+  return createMockTableLibraryServiceFromEntries(
     modelNames.map(name => ({ name, folder: '', filePath: `${modelsDir}/${name}.yml` })),
     modelsDir,
   );
 }
 
 /** A mock backed by explicit file entries (top level and folders). */
-function createMockLogicalModelServiceFromEntries(
-  entries: ModelFileEntry[],
+function createMockTableLibraryServiceFromEntries(
+  entries: TableFileEntry[],
   modelsDir = '/project/.erd-studio/logical-models',
-): LogicalModelService {
+): TableLibraryService {
   return {
     dirExists: vi.fn(() => entries.length > 0),
-    getModelsDir: vi.fn(() => modelsDir),
-    listModelFiles: vi.fn(() => entries),
-    listModelNames: vi.fn(() => entries.filter(e => !e.shadowedBy).map(e => e.name)),
-    modelPath: vi.fn((name: string) => entries.find(e => e.name === name && !e.shadowedBy)?.filePath ?? `${modelsDir}/${name}.yml`),
-    deleteModel: vi.fn(),
-    getModelFileError: vi.fn(() => null),
-  } as unknown as LogicalModelService;
+    getTablesDir: vi.fn(() => modelsDir),
+    listTableFiles: vi.fn(() => entries),
+    listTableNames: vi.fn(() => entries.filter(e => !e.shadowedBy).map(e => e.name)),
+    tablePath: vi.fn((name: string) => entries.find(e => e.name === name && !e.shadowedBy)?.filePath ?? `${modelsDir}/${name}.yml`),
+    deleteTable: vi.fn(),
+    getTableFileError: vi.fn(() => null),
+  } as unknown as TableLibraryService;
 }
 
 const DIR = '/project/.erd-studio/logical-models';
-const entry = (name: string, folder = '', shadowedBy?: string): ModelFileEntry => ({
+const entry = (name: string, folder = '', shadowedBy?: string): TableFileEntry => ({
   name,
   folder,
   filePath: folder ? `${DIR}/${folder}/${name}.yml` : `${DIR}/${name}.yml`,
@@ -62,14 +62,14 @@ const LAYERS: LayerConfig[] = [
   { id: 'marts', label: 'Data Marts', abbreviation: 'M' },
 ] as LayerConfig[];
 
-function createMockDomainService(summaries: DomainSummary[] = []): DomainService {
+function createMockSubjectAreaService(summaries: SubjectAreaSummary[] = []): SubjectAreaService {
   return {
-    listDomains: vi.fn().mockReturnValue(summaries),
-  } as unknown as DomainService;
+    listSubjectAreas: vi.fn().mockReturnValue(summaries),
+  } as unknown as SubjectAreaService;
 }
 
 /** Helper to build a raw v5 domain JSON string. */
-function v5DomainJson(modelNames: string[]): string {
+function v5SubjectAreaJson(modelNames: string[]): string {
   return JSON.stringify({
     schemaVersion: 5,
     domain: 'test',
@@ -80,7 +80,7 @@ function v5DomainJson(modelNames: string[]): string {
 }
 
 /** Helper to build a raw v4 domain JSON string with inline model objects. */
-function v4DomainJson(modelNames: string[]): string {
+function v4SubjectAreaJson(modelNames: string[]): string {
   return JSON.stringify({
     schemaVersion: 4,
     domain: 'legacy',
@@ -97,7 +97,7 @@ function v4DomainJson(modelNames: string[]): string {
 // Test data
 // ---------------------------------------------------------------------------
 
-const SUMMARIES: DomainSummary[] = [
+const SUMMARIES: SubjectAreaSummary[] = [
   { domain: 'customer-360', layer: 'silver', filePath: '/project/.erd-studio/silver/customer-360.json' },
   { domain: 'reporting', layer: 'gold', filePath: '/project/.erd-studio/gold/reporting.json' },
 ];
@@ -106,33 +106,33 @@ const SUMMARIES: DomainSummary[] = [
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ModelLibraryTreeProvider', () => {
-  let provider: ModelLibraryTreeProvider;
-  let mockLogicalModelService: LogicalModelService;
-  let mockDomainService: DomainService;
+describe('TableLibraryTreeProvider', () => {
+  let provider: TableLibraryTreeProvider;
+  let mockTableLibraryService: TableLibraryService;
+  let mockSubjectAreaService: SubjectAreaService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLogicalModelService = createMockLogicalModelService(
+    mockTableLibraryService = createMockTableLibraryService(
       ['dim_customer', 'dim_date', 'fct_orders'],
     );
-    mockDomainService = createMockDomainService(SUMMARIES);
+    mockSubjectAreaService = createMockSubjectAreaService(SUMMARIES);
 
     // Default: customer-360 references dim_customer and fct_orders,
     // reporting references dim_customer only
     mockReadFileSync.mockImplementation((filePath: string) => {
       if (filePath.includes('customer-360')) {
-        return v5DomainJson(['dim_customer', 'fct_orders']);
+        return v5SubjectAreaJson(['dim_customer', 'fct_orders']);
       }
       if (filePath.includes('reporting')) {
-        return v5DomainJson(['dim_customer']);
+        return v5SubjectAreaJson(['dim_customer']);
       }
       throw new Error(`Unexpected file: ${filePath}`);
     });
 
-    provider = new ModelLibraryTreeProvider(
-      mockLogicalModelService,
-      mockDomainService,
+    provider = new TableLibraryTreeProvider(
+      mockTableLibraryService,
+      mockSubjectAreaService,
       '/project',
       '.erd-studio',
     );
@@ -155,10 +155,10 @@ describe('ModelLibraryTreeProvider', () => {
     });
 
     it('returns empty array when logical-models dir does not exist', () => {
-      mockLogicalModelService = createMockLogicalModelService([]);
-      provider = new ModelLibraryTreeProvider(
-        mockLogicalModelService,
-        mockDomainService,
+      mockTableLibraryService = createMockTableLibraryService([]);
+      provider = new TableLibraryTreeProvider(
+        mockTableLibraryService,
+        mockSubjectAreaService,
         '/project',
         '.erd-studio',
       );
@@ -179,10 +179,10 @@ describe('ModelLibraryTreeProvider', () => {
     it('handles v4 domain files with inline model objects', () => {
       mockReadFileSync.mockImplementation((filePath: string) => {
         if (filePath.includes('customer-360')) {
-          return v4DomainJson(['dim_customer', 'fct_orders']);
+          return v4SubjectAreaJson(['dim_customer', 'fct_orders']);
         }
         if (filePath.includes('reporting')) {
-          return v4DomainJson(['dim_customer']);
+          return v4SubjectAreaJson(['dim_customer']);
         }
         throw new Error(`Unexpected file: ${filePath}`);
       });
@@ -216,7 +216,7 @@ describe('ModelLibraryTreeProvider', () => {
 
   describe('getTreeItem', () => {
     it('renders orphan model with warning icon and (unused) description', () => {
-      const node: ModelLibraryNode = {
+      const node: TableLibraryNode = {
         type: 'model',
         name: 'dim_date',
         filePath: '/project/.erd-studio/logical-models/dim_date.yml',
@@ -226,14 +226,14 @@ describe('ModelLibraryTreeProvider', () => {
       const item = provider.getTreeItem(node);
       expect(item.label).toBe('dim_date');
       expect(item.description).toBe('(unused)');
-      expect(item.tooltip).toBe('Not referenced by any domain');
+      expect(item.tooltip).toBe('Not referenced by any subject area');
       expect((item.iconPath as ThemeIcon).id).toBe('warning');
       expect(item.collapsibleState).toBe(TreeItemCollapsibleState.None);
       expect(item.contextValue).toBe('logicalModel');
     });
 
     it('renders referenced model with domain count and tooltip', () => {
-      const node: ModelLibraryNode = {
+      const node: TableLibraryNode = {
         type: 'model',
         name: 'dim_customer',
         filePath: '/project/.erd-studio/logical-models/dim_customer.yml',
@@ -242,7 +242,7 @@ describe('ModelLibraryTreeProvider', () => {
 
       const item = provider.getTreeItem(node);
       expect(item.label).toBe('dim_customer');
-      expect(item.description).toBe('2 domains');
+      expect(item.description).toBe('2 subject areas');
       expect((item.iconPath as ThemeIcon).id).toBe('symbol-class');
       expect(item.tooltip).toBeInstanceOf(MarkdownString);
       expect((item.tooltip as MarkdownString).value).toContain('customer-360');
@@ -250,7 +250,7 @@ describe('ModelLibraryTreeProvider', () => {
     });
 
     it('renders singular "domain" for single reference', () => {
-      const node: ModelLibraryNode = {
+      const node: TableLibraryNode = {
         type: 'model',
         name: 'fct_orders',
         filePath: '/project/.erd-studio/logical-models/fct_orders.yml',
@@ -258,11 +258,11 @@ describe('ModelLibraryTreeProvider', () => {
       };
 
       const item = provider.getTreeItem(node);
-      expect(item.description).toBe('1 domain');
+      expect(item.description).toBe('1 subject area');
     });
 
     it('sets click command to open the .yml file', () => {
-      const node: ModelLibraryNode = {
+      const node: TableLibraryNode = {
         type: 'model',
         name: 'dim_customer',
         filePath: '/project/.erd-studio/logical-models/dim_customer.yml',
@@ -280,21 +280,21 @@ describe('ModelLibraryTreeProvider', () => {
   // -------------------------------------------------------------------------
 
   describe('layer folders', () => {
-    const build = (entries: ModelFileEntry[], layers: LayerConfig[] = LAYERS) => new ModelLibraryTreeProvider(
-      createMockLogicalModelServiceFromEntries(entries),
-      mockDomainService,
+    const build = (entries: TableFileEntry[], layers: LayerConfig[] = LAYERS) => new TableLibraryTreeProvider(
+      createMockTableLibraryServiceFromEntries(entries),
+      mockSubjectAreaService,
       '/project',
       '.erd-studio',
       () => layers,
     );
-    const folders = (nodes: ModelLibraryNode[] | undefined) =>
-      (nodes ?? []).filter((n): n is ModelLibraryFolderNode => n.type === 'folder');
+    const folders = (nodes: TableLibraryNode[] | undefined) =>
+      (nodes ?? []).filter((n): n is TableLibraryFolderNode => n.type === 'folder');
 
     it('stays a flat list when no folder holds models, even with layers configured', () => {
       const p = build([entry('fct_orders'), entry('dim_customer')]);
       const children = p.getChildren()!;
       expect(children.every(c => c.type === 'model')).toBe(true);
-      expect(children.map(c => (c as ModelLibraryModelNode).name)).toEqual(['dim_customer', 'fct_orders']);
+      expect(children.map(c => (c as TableLibraryTableNode).name)).toEqual(['dim_customer', 'fct_orders']);
     });
 
     it('groups models by folder, folders first then top-level models', () => {
@@ -335,9 +335,9 @@ describe('ModelLibraryTreeProvider', () => {
     });
 
     it('sorts folders alphabetically when no layers are supplied (default getLayers)', () => {
-      const p = new ModelLibraryTreeProvider(
-        createMockLogicalModelServiceFromEntries([entry('a', 'silver'), entry('b', 'gold')]),
-        mockDomainService,
+      const p = new TableLibraryTreeProvider(
+        createMockTableLibraryServiceFromEntries([entry('a', 'silver'), entry('b', 'gold')]),
+        mockSubjectAreaService,
         '/project',
         '.erd-studio',
       );
@@ -352,7 +352,7 @@ describe('ModelLibraryTreeProvider', () => {
       ]);
       const silver = folders(p.getChildren()).find(f => f.folder === 'silver')!;
       expect(silver.filePath).toBe(`${DIR}/silver`);
-      const kids = p.getChildren(silver)! as ModelLibraryModelNode[];
+      const kids = p.getChildren(silver)! as TableLibraryTableNode[];
       expect(kids.map(k => k.name)).toEqual(['dim_customer', 'fct_orders']);
       expect(kids[0].filePath).toBe(`${DIR}/silver/dim_customer.yml`);
       expect(kids[0].folder).toBe('silver');
@@ -369,7 +369,7 @@ describe('ModelLibraryTreeProvider', () => {
       const item = p.getTreeItem(silver);
       expect(item.label).toBe('Silver');
       expect(item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
-      expect(item.description).toBe('2 models');
+      expect(item.description).toBe('2 tables');
       expect(item.contextValue).toBe('logicalModelFolder');
       const icon = item.iconPath as ThemeIcon;
       expect(icon.id).toBe('folder');
@@ -380,8 +380,53 @@ describe('ModelLibraryTreeProvider', () => {
       // and "1 model" is singular.
       const martsItem = p.getTreeItem(marts);
       expect(martsItem.label).toBe('Data Marts');
-      expect(martsItem.description).toBe('1 model');
+      expect(martsItem.description).toBe('1 table');
       expect(((martsItem.iconPath as ThemeIcon).color as ThemeColor).id).toBe('erdStudio.layer.custom');
+    });
+
+    it('keeps v6\'s tables/ folders apart from logical-models/ folders, after them (#181)', () => {
+      const TDIR = '/project/.erd-studio/tables';
+      const v6 = (name: string, folder = ''): TableFileEntry => ({
+        name, folder, library: 'tables', filePath: folder ? `${TDIR}/${folder}/${name}.yml` : `${TDIR}/${name}.yml`,
+      });
+      const provider = build([entry('fct_a', 'gold'), entry('dim_top'), v6('fct_b', 'gold'), v6('dim_c')]);
+      const roots = provider.getChildren() as TableLibraryNode[];
+      expect(roots.map((n) => (n.type === 'folder' ? `${n.library ?? ''}:${n.folder}` : n.name))).toEqual([':gold', 'tables:', 'tables:gold', 'dim_top']);
+      const [v5Gold, v6Top, v6Gold] = roots as TableLibraryFolderNode[];
+      expect(v5Gold.children.map((c) => c.name)).toEqual(['fct_a']);
+      expect(v6Gold.filePath).toBe(`${TDIR}/gold`);
+      expect(v6Gold.children.map((c) => c.name)).toEqual(['fct_b']);
+      const top = provider.getTreeItem(v6Top);
+      expect(top.label).toBe('tables/');
+      expect(top.tooltip).toBe('tables/');
+      const gold = provider.getTreeItem(v6Gold);
+      expect(gold.label).toBe('Gold');
+      expect(gold.description).toBe('1 table · tables/');
+      expect(gold.id).not.toBe(provider.getTreeItem(v5Gold).id);
+    });
+
+    it('offers Delete on a tables/ file (#182), and no fix on a copy in both libraries, which it names (#181)', () => {
+      const t = (name: string, shadowedBy?: string): TableFileEntry => ({
+        name, folder: '', library: 'tables', filePath: `/project/.erd-studio/tables/${name}.yml`, ...(shadowedBy ? { shadowedBy } : {}),
+      });
+      const p = build([entry('dim_a'), t('dim_b'), t('dim_a', `${DIR}/dim_a.yml`)]);
+      const [v6Folder] = folders(p.getChildren() as TableLibraryNode[]);
+      const items = v6Folder.children.map((c) => p.getTreeItem(c));
+      expect(items.map((i) => i.contextValue)).toEqual(['logicalModelReadOnly', 'logicalModel']);
+      expect(items[0].description).toBe('(also in logical-models — ignored)');
+      expect(items[0].tooltip).toContain('Keep one of the two files');
+    });
+
+    it('treats a duplicate within tables/ as an ordinary duplicate, with the fix offered (#182)', () => {
+      const V6 = '/project/.erd-studio/tables';
+      const p = build([
+        { name: 'dim_a', folder: '', library: 'tables', filePath: `${V6}/dim_a.yml` },
+        { name: 'dim_a', folder: 'gold', library: 'tables', filePath: `${V6}/gold/dim_a.yml`, shadowedBy: `${V6}/dim_a.yml` },
+      ]);
+      const gold = folders(p.getChildren() as TableLibraryNode[]).find((f) => f.folder === 'gold')!;
+      const item = p.getTreeItem(gold.children[0]);
+      expect(item.contextValue).toBe('logicalModelDuplicate');
+      expect(item.description).toBe('(duplicate — ignored)');
     });
 
     it('renders a folder unknown to layers.json with its folder name and an uncoloured icon', () => {
@@ -409,7 +454,7 @@ describe('ModelLibraryTreeProvider', () => {
         entry('fct_orders', 'silver'),
       ]);
       const silver = folders(p.getChildren()).find(f => f.folder === 'silver')!;
-      const dupe = (p.getChildren(silver) as ModelLibraryModelNode[]).find(k => k.name === 'dim_customer')!;
+      const dupe = (p.getChildren(silver) as TableLibraryTableNode[]).find(k => k.name === 'dim_customer')!;
       expect(dupe.shadowedBy).toBe(winner);
       expect(dupe.referencingDomains).toEqual([]);
 
@@ -423,7 +468,7 @@ describe('ModelLibraryTreeProvider', () => {
       expect(item.command?.arguments?.[0]?.fsPath).toBe(`${DIR}/silver/dim_customer.yml`);
 
       // The winning top-level copy keeps its usage and normal rendering.
-      const top = (p.getChildren()!).find(c => c.type === 'model' && c.name === 'dim_customer') as ModelLibraryModelNode;
+      const top = (p.getChildren()!).find(c => c.type === 'model' && c.name === 'dim_customer') as TableLibraryTableNode;
       expect(top.shadowedBy).toBeUndefined();
       expect(top.referencingDomains).toEqual(['customer-360', 'reporting']);
       expect(p.getTreeItem(top).contextValue).toBe('logicalModel');
@@ -444,21 +489,21 @@ describe('ModelLibraryTreeProvider', () => {
   });
 });
 
-describe('ModelLibraryTreeProvider: a model file that needs fixing (#164)', () => {
+describe('TableLibraryTreeProvider: a model file that needs fixing (#164)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockReadFileSync.mockImplementation(() => v5DomainJson(['dim_customer', 'fct_orders']));
+    mockReadFileSync.mockImplementation(() => v5SubjectAreaJson(['dim_customer', 'fct_orders']));
   });
 
-  function providerWith(errors: Record<string, Partial<import('../../src/services/logicalModelService').ModelFileError>>) {
-    const service = createMockLogicalModelService(['dim_customer', 'fct_orders']);
-    (service.getModelFileError as ReturnType<typeof vi.fn>).mockImplementation((name: string) =>
+  function providerWith(errors: Record<string, Partial<import('../../src/services/logicalModelService').TableFileError>>) {
+    const service = createMockTableLibraryService(['dim_customer', 'fct_orders']);
+    (service.getTableFileError as ReturnType<typeof vi.fn>).mockImplementation((name: string) =>
       errors[name] ? { name, filePath: `${DIR}/${name}.yml`, message: '', ...errors[name] } : null);
-    return new ModelLibraryTreeProvider(service, createMockDomainService(SUMMARIES), '/project', '.erd-studio');
+    return new TableLibraryTreeProvider(service, createMockSubjectAreaService(SUMMARIES), '/project', '.erd-studio');
   }
 
-  function itemFor(provider: ModelLibraryTreeProvider, name: string) {
-    const node = (provider.getChildren() as ModelLibraryModelNode[]).find((n) => n.name === name)!;
+  function itemFor(provider: TableLibraryTreeProvider, name: string) {
+    const node = (provider.getChildren() as TableLibraryTableNode[]).find((n) => n.name === name)!;
     return provider.getTreeItem(node);
   }
 
@@ -484,7 +529,7 @@ describe('ModelLibraryTreeProvider: a model file that needs fixing (#164)', () =
     const provider = providerWith({ dim_customer: { kind: 'yamlScalar', line: 4 } });
     const item = itemFor(provider, 'fct_orders');
     expect((item.iconPath as ThemeIcon).id).toBe('symbol-class');
-    expect(item.description).toBe('2 domains');
+    expect(item.description).toBe('2 subject areas');
   });
 });
 

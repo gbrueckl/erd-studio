@@ -6,7 +6,7 @@
  */
 
 import { keyEvidenceDetail } from './keyEvidence.js';
-import type { DbtKeyHint, DbtKeyIndex, KeyColumn, KeyEvidence, KeyedModel } from './keyEvidence.js';
+import type { DbtKeyHint, DbtKeyIndex, KeyColumn, KeyEvidence, KeyedTable } from './keyEvidence.js';
 
 /** One end of a link: a model and one or more of its columns, with what is known about them. */
 export interface LinkEnd {
@@ -38,7 +38,7 @@ export interface Orientation {
  */
 export function linkEnd(
   model: string,
-  modelDef: KeyedModel | null | undefined,
+  modelDef: KeyedTable | null | undefined,
   columns: readonly string[],
   options: { dbt?: DbtKeyIndex; declaredFk?: (column: KeyColumn) => boolean } = {},
 ): LinkEnd {

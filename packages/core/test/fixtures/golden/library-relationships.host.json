@@ -26,7 +26,7 @@
             "dataType": "INT",
             "description": "",
             "isPrimaryKey": false,
-            "isForeignKey": false,
+            "isForeignKey": true,
             "isNaturalKey": false
           },
           {
@@ -69,7 +69,7 @@
             "dataType": "INT",
             "description": "",
             "isPrimaryKey": true,
-            "isForeignKey": true,
+            "isForeignKey": false,
             "isNaturalKey": false
           },
           {
@@ -153,7 +153,8 @@
         "fromColumn": "product_key",
         "toModel": "fct_order",
         "toColumn": "product_key",
-        "cardinality": "many-to-one"
+        "cardinality": "many-to-one",
+        "keysContradict": true
       }
     ],
     "viewConfig": {

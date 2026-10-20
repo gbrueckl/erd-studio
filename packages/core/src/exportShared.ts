@@ -1,11 +1,11 @@
 /**
  * The traversal both diagram exporters share (`exportDbml.ts`,
- * `exportMermaid.ts`): one tolerant pass over a `DisplayDomain` that settles
+ * `exportMermaid.ts`): one tolerant pass over a `DisplaySubjectArea` that settles
  * which models, columns and relationships an export describes, in what order,
  * and why anything was left out. The two formats differ only in syntax, so
  * they always describe the same relationships.
  *
- * The input may come from an older core (a cached `DisplayDomain`), so every
+ * The input may come from an older core (a cached `DisplaySubjectArea`), so every
  * optional field may be absent and the required ones may still be malformed:
  * a column without a text name, a model listed twice, a relationship to a
  * model that is not in the diagram. Nothing here throws on such input; what
@@ -15,9 +15,9 @@
  * Internal to core — not re-exported from the package entry.
  */
 
-import type { DisplayDomain } from './types/display.js';
+import type { DisplaySubjectArea } from './types/display.js';
 import type { Rationale } from './types/semantic.js';
-import { compositeGroupProblem, linkKey } from './relationships.js';
+import { backwardsRelationshipNote, compositeGroupProblem, foreignKeyAtTo, linkKey } from './relationships.js';
 
 /** Rationale keys in display order, with the label an export prints. */
 export const RATIONALE_LABELS: ReadonlyArray<readonly [keyof Rationale, string]> = [
@@ -53,7 +53,7 @@ export interface ExportColumn {
   meta: ExportMeta;
 }
 
-export interface ExportModel {
+export interface ExportTable {
   name: string;
   /** Empty when the model names no schema. */
   schema: string;
@@ -71,16 +71,18 @@ export interface ExportModel {
 }
 
 /** A model to export, or one left out (listed twice, or without a name). */
-export type ModelItem = { kind: 'model'; model: ExportModel } | { kind: 'skipped'; text: string };
+export type TableItem = { kind: 'model'; model: ExportTable } | { kind: 'skipped'; text: string };
 
 export interface ExportLink {
-  from: ExportModel;
+  from: ExportTable;
   /** The from end's columns, spelled as the model spells them. Two or more for a composite. */
   fromColumns: string[];
-  to: ExportModel;
+  to: ExportTable;
   toColumns: string[];
   cardinality: ExportCardinality;
   role?: string;
+  /** The keys contradict its direction (`DisplayRelationship.keysContradict`, #163): written with a comment. */
+  keysContradict?: true;
 }
 
 /** A relationship to export, or one left out with its reason. */
@@ -91,12 +93,12 @@ export interface ExportSticky {
   linkedModel?: string;
 }
 
-export interface PreparedDomain {
+export interface PreparedSubjectArea {
   name: string;
   layer: string;
   stage: string;
   description: string;
-  models: ModelItem[];
+  models: TableItem[];
   links: LinkItem[];
   stickies: ExportSticky[];
 }
@@ -145,8 +147,8 @@ function readColumn(raw: Record<string, unknown>, name: string): ExportColumn {
   return column;
 }
 
-function readModel(raw: Record<string, unknown>, name: string): ExportModel {
-  const model: ExportModel = {
+function readTable(raw: Record<string, unknown>, name: string): ExportTable {
+  const model: ExportTable = {
     name,
     schema: text(raw.schema).trim(),
     description: text(raw.description),
@@ -206,6 +208,7 @@ interface RawLink {
   cardinality: string;
   role?: string;
   compositeKey?: string;
+  keysContradict?: true;
 }
 
 function readRawLink(entry: unknown): RawLink {
@@ -221,6 +224,7 @@ function readRawLink(entry: unknown): RawLink {
   if (role) link.role = role;
   const compositeKey = text(raw.compositeKey).trim();
   if (compositeKey) link.compositeKey = compositeKey;
+  if (raw.keysContradict === true) link.keysContradict = true;
   return link;
 }
 
@@ -261,7 +265,7 @@ function findByName<T extends { name: string }>(items: readonly T[], name: strin
   return items.find((i) => i.name === name) ?? items.find((i) => lower(i.name) === lower(name));
 }
 
-function resolveLinks(raw: RawLink[], models: ExportModel[]): LinkItem[] {
+function resolveLinks(raw: RawLink[], models: ExportTable[]): LinkItem[] {
   const items: LinkItem[] = [];
   const exported = new Set<string>();
   for (const members of groupLinks(raw)) {
@@ -276,7 +280,7 @@ function resolveLinks(raw: RawLink[], models: ExportModel[]): LinkItem[] {
       items.push({ kind: 'skipped', text: description, reason });
     };
     if (!first.fromModel.trim() || !first.toModel.trim()) {
-      skip('it does not name both of its models');
+      skip('it does not name both of its tables');
       continue;
     }
     const from = findByName(models, first.fromModel);
@@ -337,24 +341,33 @@ function resolveLinks(raw: RawLink[], models: ExportModel[]): LinkItem[] {
         toColumns,
         cardinality: first.cardinality as ExportCardinality,
         ...(role ? { role } : {}),
+        ...(members.some((m) => m.keysContradict) ? { keysContradict: true as const } : {}),
       },
     });
   }
   return items;
 }
 
-/** Read a `DisplayDomain` into what an export describes. Never throws. */
-export function prepareDomain(domain: DisplayDomain): PreparedDomain {
+/** The canvas's ⚠ sentence for a link drawn backwards (#163), on one line. */
+export function backwardsNoteOf(link: ExportLink): string {
+  return backwardsRelationshipNote(
+    { fromModel: oneLine(link.from.name), toModel: oneLine(link.to.name), cardinality: link.cardinality },
+    link.fromColumns.map((c, i) => ({ fromColumn: oneLine(c), toColumn: oneLine(link.toColumns[i]) })),
+  );
+}
+
+/** Read a `DisplaySubjectArea` into what an export describes. Never throws. */
+export function prepareSubjectArea(domain: DisplaySubjectArea): PreparedSubjectArea {
   const input = (domain && typeof domain === 'object' ? domain : {}) as unknown as Record<string, unknown>;
-  const modelItems: ModelItem[] = [];
-  const models: ExportModel[] = [];
+  const modelItems: TableItem[] = [];
+  const models: ExportTable[] = [];
   const seen = new Set<string>();
   const rawModels = Array.isArray(input.models) ? input.models : [];
   rawModels.forEach((entry, index) => {
     const raw = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {};
     const name = text(raw.name);
     if (!name.trim()) {
-      modelItems.push({ kind: 'skipped', text: `model ${index + 1} has no name` });
+      modelItems.push({ kind: 'skipped', text: `table ${index + 1} has no name` });
       return;
     }
     if (seen.has(lower(name))) {
@@ -362,7 +375,7 @@ export function prepareDomain(domain: DisplayDomain): PreparedDomain {
       return;
     }
     seen.add(lower(name));
-    const model = readModel(raw, name);
+    const model = readTable(raw, name);
     models.push(model);
     modelItems.push({ kind: 'model', model });
   });
@@ -391,8 +404,8 @@ export function prepareDomain(domain: DisplayDomain): PreparedDomain {
 }
 
 /** The columns a link leaves from — the foreign key: the to end for a one-to-many, else the from end. */
-export function foreignKeyColumns(link: ExportLink): { model: ExportModel; columns: string[] } {
-  return link.cardinality === 'one-to-many'
+export function foreignKeyColumns(link: ExportLink): { model: ExportTable; columns: string[] } {
+  return foreignKeyAtTo(link.cardinality)
     ? { model: link.to, columns: link.toColumns }
     : { model: link.from, columns: link.fromColumns };
 }

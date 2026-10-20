@@ -7,8 +7,9 @@ export const list_models = {
   config: {
     title: 'List logical models',
     description:
-      'List all logical model definitions in .erd-studio/logical-models/ — files at the top level ' +
-      'and one folder down (per-layer folders such as logical-models/gold/). Names are unique across folders. ' +
+      'List all logical model definitions in the table library — .erd-studio/logical-models/, or .erd-studio/tables/ ' +
+      'in a project on the new file naming — files at the top level and one folder down (per-layer folders such as gold/). ' +
+      'Names are unique across folders. ' +
       'Each model is one table (dimension, fact, bridge, etc.) reusable across domains. ' +
       'Returns model names + light metadata. Call read_model for full column-level detail.',
     inputSchema: {
@@ -22,7 +23,7 @@ export const list_models = {
     },
   },
   async handler({ project_path }: { project_path: string }) {
-    const { logicalModelService, projectPath, semanticDir } = buildServices(project_path);
+    const { tableLibraryService, projectPath, semanticDir } = buildServices(project_path);
 
     if (!isInitialized(projectPath, semanticDir)) {
       return {
@@ -39,7 +40,7 @@ export const list_models = {
       };
     }
 
-    const models = logicalModelService.listModels();
+    const models = tableLibraryService.listTables();
     return {
       content: [
         {

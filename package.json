@@ -1,7 +1,7 @@
 {
   "name": "erd-studio",
   "displayName": "ERD Studio",
-  "description": "Visual ERD designer for dbt: draw your models on a canvas, keep the design as YAML in your repo, compare it with dbt.",
+  "description": "Visual ERD designer for dbt: draw your tables on a canvas, keep the design as YAML in your repo, compare it with dbt.",
   "version": "1.6.9",
   "publisher": "liamwynne",
   "license": "SEE LICENSE IN LICENSE",
@@ -80,7 +80,9 @@
       {
         "fileMatch": [
           "**/.erd-studio/logical-models/*.yml",
-          "**/.erd-studio/logical-models/*/*.yml"
+          "**/.erd-studio/logical-models/*/*.yml",
+          "**/.erd-studio/tables/*.yml",
+          "**/.erd-studio/tables/*/*.yml"
         ],
         "url": "./schemas/logical-model.schema.json"
       }
@@ -100,22 +102,22 @@
       },
       {
         "command": "erdStudio.createDomain",
-        "title": "Create Semantic Domain",
+        "title": "New Subject Area",
         "category": "ERD Studio"
       },
       {
         "command": "erdStudio.setupSemanticDirectory",
-        "title": "Set Up Semantic Domains Directory",
+        "title": "Set Up Subject Areas Directory",
         "category": "ERD Studio"
       },
       {
         "command": "erdStudio.openDomain",
-        "title": "Open Semantic Domain",
+        "title": "Open Subject Area",
         "category": "ERD Studio"
       },
       {
         "command": "erdStudio.deleteDomain",
-        "title": "Delete Semantic Domain",
+        "title": "Delete Subject Area",
         "category": "ERD Studio"
       },
       {
@@ -125,7 +127,7 @@
       },
       {
         "command": "erdStudio.renameDomain",
-        "title": "Rename Semantic Domain",
+        "title": "Rename Subject Area",
         "category": "ERD Studio"
       },
       {
@@ -161,17 +163,22 @@
       },
       {
         "command": "erdStudio.stripLegacyDomainTags",
-        "title": "Strip Legacy Domain Tags from Model YAMLs",
+        "title": "Strip Legacy Domain Tags from dbt Model YAMLs",
         "category": "ERD Studio"
       },
       {
         "command": "erdStudio.migrateToV5",
-        "title": "Migrate Domains to Central Model Store",
+        "title": "Migrate Subject Areas to the Central Table Library",
+        "category": "ERD Studio"
+      },
+      {
+        "command": "erdStudio.migrateToTableNaming",
+        "title": "Migrate to the New File Naming",
         "category": "ERD Studio"
       },
       {
         "command": "erdStudio.deleteLogicalModel",
-        "title": "Delete Model",
+        "title": "Delete Table",
         "category": "ERD Studio"
       },
       {
@@ -181,18 +188,18 @@
       },
       {
         "command": "erdStudio.organizeModelLibrary",
-        "title": "Organise Model Library by Layer",
+        "title": "Organise Table Library by Layer",
         "category": "ERD Studio",
         "icon": "$(list-tree)"
       },
       {
         "command": "erdStudio.moveRelationshipsToLibrary",
-        "title": "Move Relationships to Model Library",
+        "title": "Move Relationships to Table Library",
         "category": "ERD Studio"
       },
       {
         "command": "erdStudio.resolveDuplicateModel",
-        "title": "Give Duplicate Model Its Own Name…",
+        "title": "Give Duplicate Table Its Own Name…",
         "category": "ERD Studio",
         "icon": "$(wand)"
       },
@@ -260,7 +267,7 @@
         },
         {
           "id": "erdStudio.modelLibrary",
-          "name": "Model Library",
+          "name": "Table Library",
           "when": "erdStudio.hasLogicalModelsDir"
         },
         {
@@ -335,7 +342,7 @@
       },
       {
         "view": "erdStudio.modelLibrary",
-        "contents": "No logical models found.\n\nModels are stored as YAML files in .erd-studio/logical-models/, grouped into one folder per layer.\n\nAdd models to a domain using the ERD editor to create them here."
+        "contents": "No tables found.\n\nTables are stored as YAML files in .erd-studio/logical-models/, grouped into one folder per layer.\n\nAdd tables to a subject area using the ERD editor to create them here."
       }
     ],
     "walkthroughs": [
@@ -398,7 +405,7 @@
             "description": "Add grain, keys, rationale and your team's modelling style. This installs a guide for Claude Code, GitHub Copilot, Codex, Gemini CLI or Cursor; then type /erd-studio-setup in your assistant.\n[Set Up My AI Helper](command:erdStudio.setupAiHelper)",
             "media": {
               "svg": "media/walkthrough/enrich.svg",
-              "altText": "A model with key badges, typed columns and a grain note."
+              "altText": "A table with key badges, typed columns and a grain note."
             },
             "completionEvents": [
               "onCommand:erdStudio.setupAiHelper"
@@ -410,7 +417,7 @@
     "customEditors": [
       {
         "viewType": "erdStudio.domainEditor",
-        "displayName": "Semantic Domain Editor",
+        "displayName": "Subject Area Editor",
         "selector": [
           {
             "filenamePattern": "**/.erd-studio/*/*.json"
@@ -482,6 +489,11 @@
           "group": "1_organise@1"
         },
         {
+          "command": "erdStudio.migrateToTableNaming",
+          "when": "view == erdStudio.modelLibrary",
+          "group": "1_organise@2"
+        },
+        {
           "command": "erdStudio.drawFromDbt",
           "when": "view == erdStudio.domainTree && erdStudio.hasDbtProject",
           "group": "navigation@0"
@@ -529,7 +541,7 @@
         "erdStudio.semanticDir": {
           "type": "string",
           "default": ".erd-studio",
-          "description": "Relative path to ERD domain files within the project. Changing this requires a window reload."
+          "description": "Relative path to ERD Studio subject area files within the project. Changing this requires a window reload."
         },
         "erdStudio.claudeSync.skipPermissions": {
           "type": "boolean",
@@ -616,7 +628,7 @@
         "dbtSemantic.semanticDir": {
           "type": "string",
           "markdownDeprecationMessage": "Deprecated: use `#erdStudio.semanticDir#` instead. Legacy values are still honoured.",
-          "description": "Relative path to ERD domain files within the project"
+          "description": "Relative path to ERD Studio subject area files within the project"
         }
       }
     }
@@ -646,8 +658,8 @@
     "vitest": "^2.1.0"
   },
   "dependencies": {
-    "@erd-studio/core": "0.1.4",
-    "@erd-studio/renderer": "0.1.4",
+    "@erd-studio/core": "0.3.0",
+    "@erd-studio/renderer": "0.3.0",
     "@xyflow/react": "^12.4.0",
     "elkjs": "^0.9.3",
     "react": "^18.3.0",

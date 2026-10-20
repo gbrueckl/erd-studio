@@ -15,12 +15,12 @@ import ts from 'typescript';
 import { parse as parseYaml } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-import { CURRENT_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION, detectDomainFormat } from '../../packages/core/src/types/semantic';
+import { LIBRARY_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION, TABLE_NAMING_SCHEMA_VERSION, detectSubjectAreaFormat } from '../../packages/core/src/types/semantic';
 import { LAYERS_SCHEMA_VERSION } from '../../packages/core/src/types/layer';
 import { RATIONALE_KEYS } from '../../packages/core/src/logicalModel';
 import { VALID_CARDINALITIES } from '../../packages/core/src/domain';
 import { ANNOTATION_COLORS } from '../../packages/renderer/src/lib/annotationColors';
-import { CARDINALITIES, MODEL_ROLES } from '../../src/providers/payloadValidation';
+import { CARDINALITIES, TABLE_ROLES } from '../../src/providers/payloadValidation';
 
 const ROOT = path.resolve(__dirname, '../..');
 const FIXTURE_DIR = path.join(ROOT, 'test/fixtures/dbt-project/.erd-studio');
@@ -30,8 +30,8 @@ type Schema = Record<string, any>;
 const loadSchema = (file: string): Schema =>
   JSON.parse(fs.readFileSync(path.join(ROOT, 'schemas', file), 'utf-8'));
 
-const domainSchema = loadSchema('domain.schema.json');
-const modelSchema = loadSchema('logical-model.schema.json');
+const subjectAreaSchema = loadSchema('domain.schema.json');
+const tableSchema = loadSchema('logical-model.schema.json');
 const layersSchema = loadSchema('layers.schema.json');
 const templateSchema = loadSchema('template.schema.json');
 
@@ -39,8 +39,8 @@ const ajv = new Ajv({ allErrors: true });
 // VS Code's own keyword for per-value hover text in completion lists.
 ajv.addKeyword('enumDescriptions');
 const validators: Record<string, ValidateFunction> = {
-  'domain.schema.json': ajv.compile(domainSchema),
-  'logical-model.schema.json': ajv.compile(modelSchema),
+  'domain.schema.json': ajv.compile(subjectAreaSchema),
+  'logical-model.schema.json': ajv.compile(tableSchema),
   'layers.schema.json': ajv.compile(layersSchema),
   'template.schema.json': ajv.compile(templateSchema),
 };
@@ -61,6 +61,14 @@ function interfaceKeys(relFile: string, name: string): string[] {
   return decl.members.map((m) => (m.name as ts.Identifier).text).sort();
 }
 
+/** The schema v6 name of each key the table naming renames (#162, written since #182). */
+const V6_NAMES: Readonly<Record<string, string>> = {
+  domain: 'subjectArea', models: 'tables', fromModel: 'fromTable', toModel: 'toTable', modelRole: 'tableRole', linkedModel: 'linkedTable',
+};
+
+/** An interface's keys plus the v6 name of each one the naming renames: what a schema describing both namings declares. */
+const withV6Names = (keys: string[]): string[] => [...keys, ...keys.flatMap((k) => (V6_NAMES[k] ? [V6_NAMES[k]] : []))].sort();
+
 /** Schema property names, minus the `$schema` pointer every root accepts. */
 const schemaKeys = (node: Schema): string[] =>
   Object.keys(node.properties).filter((k) => k !== '$schema').sort();
@@ -70,31 +78,31 @@ const LAYER = 'packages/core/src/types/layer.ts';
 
 describe('schemas match the TypeScript types', () => {
   it.each([
-    ['logical model', 'SemanticModel', SEMANTIC, () => modelSchema],
-    ['model column', 'ColumnDef', SEMANTIC, () => modelSchema.definitions.column],
-    ['rationale', 'Rationale', SEMANTIC, () => modelSchema.definitions.rationale],
-    ['template', 'ModelTemplate', SEMANTIC, () => templateSchema],
+    ['logical model', 'SemanticTable', SEMANTIC, () => tableSchema],
+    ['model column', 'ColumnDef', SEMANTIC, () => tableSchema.definitions.column],
+    ['rationale', 'Rationale', SEMANTIC, () => tableSchema.definitions.rationale],
+    ['template', 'TableTemplate', SEMANTIC, () => templateSchema],
     ['template column', 'ColumnDef', SEMANTIC, () => templateSchema.definitions.column],
-    ['domain', 'UnifiedDomainV5', SEMANTIC, () => domainSchema],
-    ['relationship', 'Relationship', SEMANTIC, () => domainSchema.definitions.relationship],
-    ['viewConfig', 'ViewConfig', SEMANTIC, () => domainSchema.definitions.viewConfig],
-    ['position', 'NodePosition', SEMANTIC, () => domainSchema.definitions.position],
-    ['annotation', 'Annotation', SEMANTIC, () => domainSchema.definitions.annotation],
+    ['domain', 'UnifiedSubjectAreaV5', SEMANTIC, () => subjectAreaSchema],
+    ['relationship', 'Relationship', SEMANTIC, () => subjectAreaSchema.definitions.relationship],
+    ['viewConfig', 'ViewConfig', SEMANTIC, () => subjectAreaSchema.definitions.viewConfig],
+    ['position', 'NodePosition', SEMANTIC, () => subjectAreaSchema.definitions.position],
+    ['annotation', 'Annotation', SEMANTIC, () => subjectAreaSchema.definitions.annotation],
     ['layers file', 'LayersConfigFile', LAYER, () => layersSchema],
     ['layer', 'LayerConfig', LAYER, () => layersSchema.definitions.layer],
   ] as const)('%s declares exactly the fields of %s', (_label, iface, file, node) => {
-    expect(schemaKeys(node())).toEqual(interfaceKeys(file, iface));
+    expect(schemaKeys(node())).toEqual(withV6Names(interfaceKeys(file, iface)));
   });
 
-  it('a model file relationship declares the fields of Relationship without fromModel (ModelRelationship)', () => {
-    expect(schemaKeys(modelSchema.definitions.relationship)).toEqual(
-      interfaceKeys(SEMANTIC, 'Relationship').filter((key) => key !== 'fromModel'),
+  it('a model file relationship declares the fields of Relationship without fromModel (TableRelationship)', () => {
+    expect(schemaKeys(tableSchema.definitions.relationship)).toEqual(
+      withV6Names(interfaceKeys(SEMANTIC, 'Relationship').filter((key) => key !== 'fromModel')),
     );
   });
 
   it('logical stage declares StageDataV5 plus the deprecated stage-level viewConfig the reader still honours', () => {
-    expect(schemaKeys(domainSchema.properties.logical)).toEqual(
-      [...interfaceKeys(SEMANTIC, 'StageDataV5'), 'viewConfig'].sort(),
+    expect(schemaKeys(subjectAreaSchema.properties.logical)).toEqual(
+      withV6Names([...interfaceKeys(SEMANTIC, 'StageDataV5'), 'viewConfig']),
     );
   });
 
@@ -107,16 +115,16 @@ describe('schemas match the TypeScript types', () => {
         for (const [k, v] of Object.entries(node)) walk(v, `${at}/${k}`);
       }
     };
-    for (const [file, schema] of Object.entries({ domainSchema, modelSchema, layersSchema, templateSchema })) walk(schema, file);
+    for (const [file, schema] of Object.entries({ domainSchema: subjectAreaSchema, modelSchema: tableSchema, layersSchema, templateSchema })) walk(schema, file);
     expect(offenders).toEqual([]);
   });
 
   it('every schema rejects properties it does not declare', () => {
     const closed = [
-      modelSchema, modelSchema.definitions.column, modelSchema.definitions.rationale,
+      tableSchema, tableSchema.definitions.column, tableSchema.definitions.rationale,
       templateSchema, templateSchema.definitions.column,
-      domainSchema, domainSchema.properties.logical, domainSchema.definitions.relationship,
-      domainSchema.definitions.viewConfig, domainSchema.definitions.position, domainSchema.definitions.annotation,
+      subjectAreaSchema, subjectAreaSchema.properties.logical, subjectAreaSchema.definitions.relationship,
+      subjectAreaSchema.definitions.viewConfig, subjectAreaSchema.definitions.position, subjectAreaSchema.definitions.annotation,
       layersSchema, layersSchema.definitions.layer,
     ];
     for (const node of closed) expect(node.additionalProperties).toBe(false);
@@ -125,37 +133,37 @@ describe('schemas match the TypeScript types', () => {
 
 describe('schema enums match the runtime', () => {
   it('modelRole is the role list the host validates against', () => {
-    expect(modelSchema.definitions.modelRole.enum).toEqual([...MODEL_ROLES]);
-    expect(modelSchema.definitions.modelRole.enumDescriptions).toHaveLength(MODEL_ROLES.length);
+    expect(tableSchema.definitions.modelRole.enum).toEqual([...TABLE_ROLES]);
+    expect(tableSchema.definitions.modelRole.enumDescriptions).toHaveLength(TABLE_ROLES.length);
   });
 
   it('cardinality is the set the domain parser keeps', () => {
-    const cardinality = domainSchema.definitions.relationship.properties.cardinality.enum;
+    const cardinality = subjectAreaSchema.definitions.relationship.properties.cardinality.enum;
     expect(cardinality).toEqual([...CARDINALITIES]);
     expect(new Set(cardinality)).toEqual(VALID_CARDINALITIES);
   });
 
   it('a model file still reads one-to-many but marks it deprecated (#133)', () => {
-    const cardinality = modelSchema.definitions.relationship.properties.cardinality;
+    const cardinality = tableSchema.definitions.relationship.properties.cardinality;
     expect(cardinality.enum).toEqual([...CARDINALITIES]);
     expect(cardinality.enumDescriptions[cardinality.enum.indexOf('one-to-many')]).toMatch(/^Deprecated in model files/);
   });
 
   it('rationale keys are the ones the model reader keeps', () => {
-    expect(schemaKeys(modelSchema.definitions.rationale)).toEqual([...RATIONALE_KEYS].sort());
+    expect(schemaKeys(tableSchema.definitions.rationale)).toEqual([...RATIONALE_KEYS].sort());
   });
 
   it('annotation colours are the canvas palette', () => {
-    expect(domainSchema.definitions.annotation.properties.color.enum).toEqual(ANNOTATION_COLORS.map((c) => c.value));
+    expect(subjectAreaSchema.definitions.annotation.properties.color.enum).toEqual(ANNOTATION_COLORS.map((c) => c.value));
   });
 
-  it('schema versions are the ones the readers accept', () => {
-    expect(domainSchema.properties.schemaVersion.enum).toEqual([CURRENT_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION]);
+  it('schema versions are the v6, v5 and v4 shapes the schema describes', () => {
+    expect(subjectAreaSchema.properties.schemaVersion.enum).toEqual([TABLE_NAMING_SCHEMA_VERSION, LIBRARY_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION]);
     expect(layersSchema.properties.schemaVersion.maximum).toBe(LAYERS_SCHEMA_VERSION);
   });
 
   it('model and template columns are the same shape', () => {
-    const { name: _m, ...modelCol } = modelSchema.definitions.column.properties;
+    const { name: _m, ...modelCol } = tableSchema.definitions.column.properties;
     const { name: _t, ...templateCol } = templateSchema.definitions.column.properties;
     const shape = (props: Schema) =>
       Object.fromEntries(Object.entries(props).map(([k, v]) => [k, { type: v.type, enum: v.enum }]));
@@ -245,6 +253,34 @@ describe('the fixture project validates', () => {
   });
 });
 
+describe('the v6 naming validates (#182)', () => {
+  // The showcase in the v6 naming: what migrating the fixture project writes (the other v6 fixtures carry core-test roles).
+  const V6_DIR = path.join(ROOT, 'packages/core/test/fixtures/naming-v6/showcase');
+  const v6Files = listFiles(V6_DIR).filter((abs) => /\.erd-studio\/((silver|gold)\/[^/]+\.json|tables\/.*\.yml)$/.test(abs.split(path.sep).join('/')));
+
+  it.each(v6Files.map((abs) => [path.relative(V6_DIR, abs), abs]))('%s', (rel, abs) => {
+    const text = fs.readFileSync(abs, 'utf-8');
+    const schema = abs.endsWith('.yml') ? 'logical-model.schema.json' : 'domain.schema.json';
+    expect(schemaFor(`dbt-project/.erd-studio/${rel.split(path.sep).join('/').replace(/^.*?\.erd-studio\//, '')}`)).toBe(schema);
+    expect(validate(schema, abs.endsWith('.yml') ? parseYaml(text) : JSON.parse(text))).toEqual([]);
+  });
+
+  it('flags a v5 key in a v6 file and a v6 key in a v5 one', () => {
+    const v6 = { schemaVersion: 6, subjectArea: 'd', layer: 'silver', logical: { tables: ['a'], relationships: [] }, viewConfig: {} };
+    expect(validate('domain.schema.json', v6)).toEqual([]);
+    expect(validate('domain.schema.json', { ...v6, domain: 'd' })).not.toEqual([]);
+    expect(validate('domain.schema.json', { ...v6, logical: { models: ['a'], relationships: [] } })).not.toEqual([]);
+    const v5 = { schemaVersion: 5, domain: 'd', layer: 'silver', logical: { models: ['a'], relationships: [] }, viewConfig: {} };
+    expect(validate('domain.schema.json', v5)).toEqual([]);
+    expect(validate('domain.schema.json', { ...v5, subjectArea: 'd' })).not.toEqual([]);
+    const rel = { fromColumn: 'x', toColumn: 'y', cardinality: 'many-to-one' };
+    expect(validate('domain.schema.json', { ...v6, logical: { tables: ['a'], relationships: [{ ...rel, fromTable: 'a', toTable: 'b' }] } })).toEqual([]);
+    expect(validate('domain.schema.json', { ...v6, logical: { tables: ['a'], relationships: [{ ...rel, fromTable: 'a', toModel: 'b' }] } })).not.toEqual([]);
+    expect(validate('logical-model.schema.json', { name: 'a', tableRole: 'transaction-fact', relationships: [{ ...rel, toTable: 'b' }] })).toEqual([]);
+    expect(validate('logical-model.schema.json', { name: 'a', relationships: [{ ...rel, toTable: 'b', toModel: 'b' }] })).not.toEqual([]);
+  });
+});
+
 describe('what a hand-editor is told', () => {
   const column = { name: 'customer_id', dataType: 'INTEGER', description: 'Surrogate key', isPrimaryKey: true };
 
@@ -287,7 +323,7 @@ describe('what a hand-editor is told', () => {
     })).toEqual([]);
   });
 
-  it('flags the hybrid domains detectDomainFormat refuses to open', () => {
+  it('flags the hybrid domains detectSubjectAreaFormat refuses to open', () => {
     const domain = (schemaVersion: number, models: unknown[]) => ({
       schemaVersion, domain: 'd', layer: 'silver', logical: { models, relationships: [] }, viewConfig: {},
     });
@@ -298,12 +334,12 @@ describe('what a hand-editor is told', () => {
     ];
     for (const [version, models] of cases) {
       const raw = domain(version, models);
-      expect(detectDomainFormat(raw)).toBe('hybrid');
+      expect(detectSubjectAreaFormat(raw)).toBe('hybrid');
       expect(validate('domain.schema.json', raw)).not.toEqual([]);
     }
     for (const [version, models, format] of [[5, ['dim_a'], 'v5'], [5, [], 'v5'], [4, [{ name: 'dim_a' }], 'v4']] as const) {
       const raw = domain(version, [...models]);
-      expect(detectDomainFormat(raw)).toBe(format);
+      expect(detectSubjectAreaFormat(raw)).toBe(format);
       expect(validate('domain.schema.json', raw)).toEqual([]);
     }
   });

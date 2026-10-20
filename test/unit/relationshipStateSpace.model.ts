@@ -18,7 +18,7 @@
  * (no silent default from drag order).
  *
  * The provider's handlers decide every write with `planRelationshipWrite`
- * and the Move applies its plan with `applyMoveToModel`; the `host*` and
+ * and the Move applies its plan with `applyMoveToTable`; the `host*` and
  * `move*` functions here call those same functions on in-memory files, and
  * `relationshipStateSpace.real.test.ts` drives the real provider and Move
  * command over a sample to check the plumbing around them.
@@ -27,20 +27,20 @@
 import { buildDbtKeyIndex, linkEnd, mergeLibraryRelationships, orientLink } from '@erd-studio/core';
 import type { DbtKeyIndex } from '@erd-studio/core';
 import {
-  applyMoveToModel,
+  applyMoveToTable,
   diagramsStillDrawing,
   drawnDiagramCopies,
   moveTargets,
   planMoveToLibrary,
   planRelationshipWrite,
-  renameColumnInDomainRelationships,
+  renameColumnInSubjectAreaRelationships,
   renameColumnInRelationships,
   resolveConflict,
   routeToLibrary,
   usesLibraryRelationships,
 } from '../../src/services/libraryRelationships';
 import type { ConflictDefinition, MoveToLibraryPlan, RelationshipWriteOp } from '../../src/services/libraryRelationships';
-import type { Cardinality, ColumnDef, ModelRelationship, Relationship, SemanticModel } from '../../src/types/semantic';
+import type { Cardinality, ColumnDef, TableRelationship, Relationship, SemanticTable } from '../../src/types/semantic';
 import type { LinkEnd } from '@erd-studio/core';
 import { orientDraggedRelationship } from '../../webview/lib/relationshipDirection';
 
@@ -70,14 +70,14 @@ export function canonicalRelationship<T extends Relationship>(rel: T): T {
 // The universe
 // ---------------------------------------------------------------------------
 
-export type ModelName = 'dim' | 'fct';
-export type DomainName = 'D1' | 'D2' | 'D3';
+export type TableName = 'dim' | 'fct';
+export type SubjectAreaName = 'D1' | 'D2' | 'D3';
 export const CARDS: Cardinality[] = ['many-to-one', 'one-to-many', 'one-to-one', 'many-to-many'];
 export const SHORT: Record<Cardinality, string> = { 'many-to-one': 'm:1', 'one-to-many': '1:m', 'one-to-one': '1:1', 'many-to-many': 'm:m' };
 export const SWAP: Record<Cardinality, Cardinality> = { 'many-to-one': 'one-to-many', 'one-to-many': 'many-to-one', 'one-to-one': 'one-to-one', 'many-to-many': 'many-to-many' };
 
 export type Key = 'pk' | 'nk' | '';
-export const PROFILES: Record<string, Record<ModelName, Array<[string, Key]>>> = {
+export const PROFILES: Record<string, Record<TableName, Array<[string, Key]>>> = {
   star: { dim: [['k', 'pk']], fct: [['id', 'pk'], ['k', ''], ['k2', '']] },
   noKeys: { dim: [['k', '']], fct: [['id', ''], ['k', ''], ['k2', '']] },
   composite: { dim: [['k', 'pk'], ['k_x', 'pk']], fct: [['id', 'pk'], ['k', ''], ['k2', '']] },
@@ -121,18 +121,18 @@ export function dbtIndexOf(spec: DbtSpec | undefined): DbtKeyIndex | undefined {
 export const dbtIndex = (w: World): DbtKeyIndex | undefined => dbtIndexOf(DBT[w.profile]);
 
 export const L_KEY = linkKey({ fromModel: 'fct', fromColumn: 'k', toModel: 'dim', toColumn: 'k' });
-export const BYSTANDER: ModelRelationship = { fromColumn: 'k2', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one', role: 'ship' };
+export const BYSTANDER: TableRelationship = { fromColumn: 'k2', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one', role: 'ship' };
 
 export interface World {
   profile: Profile;
-  lib: Record<ModelName, ModelRelationship[]>;
-  dom: Record<DomainName, Relationship[]>;
+  lib: Record<TableName, TableRelationship[]>;
+  dom: Record<SubjectAreaName, Relationship[]>;
   /** Which models each diagram holds, in file order. */
-  domModels: Record<DomainName, ModelName[]>;
+  domModels: Record<SubjectAreaName, TableName[]>;
 }
 
 /** One stored copy of L, as enumerated. `upperModel` spells the other end's model in another case (#133 L4). */
-export interface Copy { where: ModelName | 'D1' | 'D2'; dir: 'fd' | 'df'; card: Cardinality; role?: string; upper: boolean; upperModel?: boolean }
+export interface Copy { where: TableName | 'D1' | 'D2'; dir: 'fd' | 'df'; card: Cardinality; role?: string; upper: boolean; upperModel?: boolean }
 
 export function relOf(c: Copy): Relationship {
   const col = c.upper ? 'K' : 'k';
@@ -162,7 +162,7 @@ export function worldOf(profile: Profile, copies: Copy[], bystander: boolean): W
 
 export const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-export function columnsOf(profile: Profile, model: ModelName): ColumnDef[] {
+export function columnsOf(profile: Profile, model: TableName): ColumnDef[] {
   return PROFILES[profile][model].map(([name, key]) => ({
     name, dataType: 'string', description: '',
     ...(key === 'pk' ? { isPrimaryKey: true } : {}),
@@ -170,8 +170,8 @@ export function columnsOf(profile: Profile, model: ModelName): ColumnDef[] {
   }));
 }
 
-/** Fresh library models (what `listModels()` / `getModel()` hand out), in `order`. */
-export function libModels(w: World, order: ModelName[] = ['dim', 'fct']): SemanticModel[] {
+/** Fresh library models (what `listTables()` / `getModel()` hand out), in `order`. */
+export function libTables(w: World, order: TableName[] = ['dim', 'fct']): SemanticTable[] {
   return order.map((name) => ({
     name,
     columns: columnsOf(w.profile, name),
@@ -180,19 +180,19 @@ export function libModels(w: World, order: ModelName[] = ['dim', 'fct']): Semant
 }
 
 /** Write library models back into a world. */
-export function withLib(w: World, models: readonly SemanticModel[]): World {
+export function withLib(w: World, models: readonly SemanticTable[]): World {
   const next = clone(w);
-  for (const m of models) next.lib[m.name as ModelName] = clone(m.relationships ?? []);
+  for (const m of models) next.lib[m.name as TableName] = clone(m.relationships ?? []);
   return next;
 }
 
-export const domainRelCount = (w: World): number => w.dom.D1.length + w.dom.D2.length + w.dom.D3.length;
-export const libraryMode = (w: World): boolean => usesLibraryRelationships(libModels(w), domainRelCount(w));
+export const subjectAreaRelCount = (w: World): number => w.dom.D1.length + w.dom.D2.length + w.dom.D3.length;
+export const libraryMode = (w: World): boolean => usesLibraryRelationships(libTables(w), subjectAreaRelCount(w));
 
-/** What diagram `d` draws: core's read path, as `DomainService.getDomain` calls it. */
-export function draw(w: World, d: DomainName, modelOrder?: ModelName[], reverseEntries = false, dbt?: DbtKeyIndex): Relationship[] {
+/** What diagram `d` draws: core's read path, as `SubjectAreaService.getSubjectArea` calls it. */
+export function draw(w: World, d: SubjectAreaName, modelOrder?: TableName[], reverseEntries = false, dbt?: DbtKeyIndex): Relationship[] {
   const order = modelOrder ?? w.domModels[d];
-  const models = libModels(w, order);
+  const models = libTables(w, order);
   if (reverseEntries) for (const m of models) if (m.relationships) m.relationships.reverse();
   const own = reverseEntries ? [...w.dom[d]].reverse() : w.dom[d];
   return mergeLibraryRelationships(models, clone(own), '', undefined, dbt ?? dbtIndex(w));
@@ -241,9 +241,9 @@ export interface Outcome { world: World; error?: string; report?: string[]; noti
 export type Ends = Pick<Relationship, 'fromModel' | 'fromColumn' | 'toModel' | 'toColumn'>;
 
 /** One canvas edit from diagram `d`, decided by the provider's own planner. */
-export function hostWrite(w: World, op: RelationshipWriteOp, d: DomainName = 'D1'): Outcome {
+export function hostWrite(w: World, op: RelationshipWriteOp, d: SubjectAreaName = 'D1'): Outcome {
   const plan = planRelationshipWrite(op, {
-    home: libraryMode(w) ? 'library' : 'domain', models: libModels(w), domainRelationships: clone(w.dom[d]), dbt: dbtIndex(w),
+    home: libraryMode(w) ? 'library' : 'domain', models: libTables(w), domainRelationships: clone(w.dom[d]), dbt: dbtIndex(w),
   });
   if (!plan.ok) return { world: w, error: plan.error };
   const out = withLib(w, plan.changed);
@@ -255,24 +255,24 @@ export function hostWrite(w: World, op: RelationshipWriteOp, d: DomainName = 'D1
   return { world: out, notice: diagramsStillDrawing(op.keys, others) };
 }
 
-export const hostAdd = (w: World, p: Relationship, d: DomainName = 'D1'): Outcome => hostWrite(w, { kind: 'add', drawn: p }, d);
-export const hostUpdate = (w: World, p: Relationship, d: DomainName = 'D1'): Outcome =>
+export const hostAdd = (w: World, p: Relationship, d: SubjectAreaName = 'D1'): Outcome => hostWrite(w, { kind: 'add', drawn: p }, d);
+export const hostUpdate = (w: World, p: Relationship, d: SubjectAreaName = 'D1'): Outcome =>
   hostWrite(w, { kind: 'update', ends: p, cardinality: p.cardinality }, d);
-export const hostEdit = (w: World, original: Ends, p: Relationship, d: DomainName = 'D1'): Outcome =>
+export const hostEdit = (w: World, original: Ends, p: Relationship, d: SubjectAreaName = 'D1'): Outcome =>
   hostWrite(w, { kind: 'edit', original, drawn: p }, d);
-export const hostRemove = (w: World, keys: Ends[], d: DomainName = 'D1'): Outcome => hostWrite(w, { kind: 'remove', keys }, d);
+export const hostRemove = (w: World, keys: Ends[], d: SubjectAreaName = 'D1'): Outcome => hostWrite(w, { kind: 'remove', keys }, d);
 
 /** Add Existing Model / Draw from dbt: `fct` joins D3 (which holds `dim`) with dbt's relationship. */
 export function hostRoute(w: World, dbt: Relationship): Outcome {
   const out = clone(w);
   out.domModels.D3 = ['dim', 'fct'];
-  // relationshipsForAddedModels filters D3's own relationships by linkKey.
+  // relationshipsForAddedTables filters D3's own relationships by linkKey.
   const added = w.dom.D3.some((r) => sameLink(r, dbt)) ? [] : [dbt];
   if (added.length === 0 || !libraryMode(w)) {
     out.dom.D3.push(...added);
     return { world: out };
   }
-  const library = libModels(w);
+  const library = libTables(w);
   const others = drawnDiagramCopies((['D1', 'D2'] as const).map((d) => ({ label: d, models: w.domModels[d], relationships: w.dom[d] })));
   const { kept, changed } = routeToLibrary(added, [], (name) => library.find((m) => m.name === name) ?? null, others);
   const res = withLib(out, changed);
@@ -281,34 +281,34 @@ export function hostRoute(w: World, dbt: Relationship): Outcome {
 }
 
 /** Column rename in `model` from D1 (handleUpdateColumn, v5): the library, D1 and the other diagrams' own copies. */
-export function hostRenameColumn(w: World, model: ModelName, oldName: string, newName: string): Outcome {
-  const models = libModels(w);
+export function hostRenameColumn(w: World, model: TableName, oldName: string, newName: string): Outcome {
+  const models = libTables(w);
   const own = models.find((m) => m.name === model)!;
   renameColumnInRelationships([own], model, oldName, newName);
   renameColumnInRelationships(models.filter((m) => m.name !== model), model, oldName, newName);
   const out = withLib(w, models);
   // The open diagram, and every other diagram's own copies, in the same edit (#133 L5).
   for (const d of ['D1', 'D2', 'D3'] as const) {
-    renameColumnInDomainRelationships(out.dom[d] as unknown as Array<Record<string, unknown>>, model, oldName, newName);
+    renameColumnInSubjectAreaRelationships(out.dom[d] as unknown as Array<Record<string, unknown>>, model, oldName, newName);
   }
   return { world: out };
 }
 
 /** The Move command's plan, as `runMove` builds it. */
 export function movePlan(
-  w: World, domainOrder: DomainName[] = ['D1', 'D2', 'D3'], modelOrder: ModelName[] = ['dim', 'fct'], dbt: DbtKeyIndex | undefined = dbtIndex(w),
+  w: World, domainOrder: SubjectAreaName[] = ['D1', 'D2', 'D3'], modelOrder: TableName[] = ['dim', 'fct'], dbt: DbtKeyIndex | undefined = dbtIndex(w),
 ): MoveToLibraryPlan {
   const domains = domainOrder
     .map((d) => ({ label: d, relationships: clone(w.dom[d]) }))
     .filter((d) => d.relationships.length > 0);
   // As the command looks a model up: by its real name, one object per model whatever the spelling (L4).
-  const cache = new Map<string, SemanticModel | null>();
-  const libraryModel = (name: string): SemanticModel | null => {
+  const cache = new Map<string, SemanticTable | null>();
+  const libraryModel = (name: string): SemanticTable | null => {
     const key = name.toLowerCase();
-    if (!cache.has(key)) cache.set(key, libModels(w).find((m) => m.name === key) ?? null);
+    if (!cache.has(key)) cache.set(key, libTables(w).find((m) => m.name === key) ?? null);
     return cache.get(key) ?? null;
   };
-  return planMoveToLibrary(domains, libraryModel, libModels(w, modelOrder), () => false, { dbt });
+  return planMoveToLibrary(domains, libraryModel, libTables(w, modelOrder), () => false, { dbt });
 }
 
 /** A conflict pick: a definition, or undefined to leave it. */
@@ -334,8 +334,8 @@ export function moveApply(w: World, plan0: MoveToLibraryPlan, picks: MovePick[])
   if (plan.removeFromDomains.size === 0 && plan.rehome.length === 0) return { world: w, report: ['nothing changed'] };
   let out = clone(w);
   for (const name of moveTargets(plan)) {
-    const copy = libModels(out).find((m) => m.name === name.toLowerCase())!;
-    if (applyMoveToModel(plan, copy)) out = withLib(out, [copy]);
+    const copy = libTables(out).find((m) => m.name === name.toLowerCase())!;
+    if (applyMoveToTable(plan, copy)) out = withLib(out, [copy]);
   }
   for (const d of ['D1', 'D2', 'D3'] as const) {
     const keys = plan.removeFromDomains.get(d);
@@ -426,7 +426,7 @@ export function weight(s: State): number {
 // ---------------------------------------------------------------------------
 
 /** A canvas message, as the webview sends it. */
-export type HostCall = { d?: DomainName } & (
+export type HostCall = { d?: SubjectAreaName } & (
   | { kind: 'add'; p: Relationship }
   | { kind: 'update'; p: Relationship }
   | { kind: 'edit'; original: Ends; p: Relationship }
@@ -457,7 +457,7 @@ export function messageOf(c: HostCall): { type: string; payload: unknown } {
   }
 }
 
-const host = (d: DomainName, call: HostCall): { call: HostCall; run: (w: World) => Outcome } => {
+const host = (d: SubjectAreaName, call: HostCall): { call: HostCall; run: (w: World) => Outcome } => {
   const c = { ...call, d } as HostCall;
   return { call: c, run: (w) => runHost(w, c) };
 };
@@ -478,8 +478,8 @@ export const fd = (card: Cardinality, role?: string): Relationship =>
 export const reverseEnds = (r: Relationship): Relationship =>
   ({ ...r, fromModel: r.toModel, fromColumn: r.toColumn, toModel: r.fromModel, toColumn: r.fromColumn, cardinality: SWAP[r.cardinality] });
 
-export function opsFor(w: World, d: DomainName = 'D1', opts: { renames?: boolean } = { renames: true }): Op[] {
-  const other: DomainName = d === 'D1' ? 'D2' : 'D1';
+export function opsFor(w: World, d: SubjectAreaName = 'D1', opts: { renames?: boolean } = { renames: true }): Op[] {
+  const other: SubjectAreaName = d === 'D1' ? 'D2' : 'D1';
   const at = d === 'D1' ? '' : ` @${d}`;
   const ops: Op[] = [];
   const lines = draw(w, d);
@@ -700,7 +700,7 @@ export function orientationInvariants(profile: Profile): Violation[] {
   const v: Violation[] = [];
   const w = worldOf(profile, [], false);
   const dbt = dbtIndex(w);
-  const models = libModels(w);
+  const models = libTables(w);
   const ends = models.flatMap((m) => (m.columns ?? []).map((c) => linkEnd(m.name, m, [c.name], { dbt })));
   for (const a of ends) for (const b of ends) {
     if (a === b) continue;
@@ -740,7 +740,7 @@ export function noDuplicates(before: World, after: World): Violation[] {
 }
 
 /** I4: L as written by add / swap / edit — one canonical library copy in its home, none in D1. */
-export function canonicalAfterWrite(after: World, d: DomainName = 'D1'): Violation[] {
+export function canonicalAfterWrite(after: World, d: SubjectAreaName = 'D1'): Violation[] {
   const v: Violation[] = [];
   const copies = storedCopies(after).filter((c) => linkKey(c.rel) === L_KEY && (c.file.endsWith('.yml') || c.file === d));
   const lib = copies.filter((c) => c.file.endsWith('.yml'));
@@ -764,7 +764,7 @@ export function noSilentLoss(before: World, after: World, targets: string[]): Vi
 }
 
 /** I1b: what each diagram draws for untargeted links is unchanged. */
-export function sameDrawing(before: World, after: World, targets: string[], allow: (d: DomainName, key: string) => boolean = () => false): Violation[] {
+export function sameDrawing(before: World, after: World, targets: string[], allow: (d: SubjectAreaName, key: string) => boolean = () => false): Violation[] {
   const v: Violation[] = [];
   for (const d of ['D1', 'D2'] as const) {
     const b = draw(before, d).filter((r) => !targets.includes(linkKey(r)));
@@ -819,7 +819,7 @@ export function checkOp(w: World, op: Op, a: World, outcome: Outcome = { world: 
       if (op.targets.includes(L_KEY)) vs.push(...respellTouchedOnly(w, a, op.targets));
       if (!op.name.startsWith('add') || op.targets.length === 0) vs.push(...sameDrawing(w, a, op.targets));
       vs.push(...(op.post?.(w, a, outcome) ?? []));
-      const opDomain: DomainName = op.call?.d ?? 'D1';
+      const opDomain: SubjectAreaName = op.call?.d ?? 'D1';
     const writesL = op.targets.includes(L_KEY) && /^(add|swap|set|edit)/.test(op.name) && libraryMode(w) && drawnAs(draw(a, opDomain), L_KEY);
       if (writesL && !op.name.includes('re-key')) vs.push(...canonicalAfterWrite(a, opDomain));
     }

@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { transformDomain, pickHandleSides } from '../../src/lib/graphTransformer';
-import type { DisplayDomain, DisplayModel } from '@erd-studio/core';
+import { transformSubjectArea, pickHandleSides } from '../../src/lib/graphTransformer';
+import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 import type { FkFlowEdge } from '../../src/types/graph';
 
 function col(name: string, isPrimaryKey = false) {
   return { name, dataType: 'string', isPrimaryKey, isForeignKey: false, isNaturalKey: false };
 }
 
-function model(name: string, columnCount: number): DisplayModel {
+function table(name: string, columnCount: number): DisplayTable {
   return {
     name,
     columns: Array.from({ length: columnCount }, (_, i) => col(i === 0 ? `${name}_id` : `c${i}`, i === 0)),
-  } as DisplayModel;
+  } as DisplayTable;
 }
 
-function domain(models: DisplayModel[], positions: Record<string, { x: number; y: number }>, rels: Array<[string, string]>): DisplayDomain {
+function subjectArea(models: DisplayTable[], positions: Record<string, { x: number; y: number }>, rels: Array<[string, string]>): DisplaySubjectArea {
   return {
     domain: 'test',
     layer: 'silver',
@@ -29,7 +29,7 @@ function domain(models: DisplayModel[], positions: Record<string, { x: number; y
     })),
     viewConfig: { positions },
     readOnly: false,
-  } as unknown as DisplayDomain;
+  } as unknown as DisplaySubjectArea;
 }
 
 describe('pickHandleSides', () => {
@@ -57,20 +57,20 @@ describe('pickHandleSides', () => {
   });
 });
 
-describe('transformDomain handle sides', () => {
+describe('transformSubjectArea handle sides', () => {
   it('uses measured dimensions from options.nodeDimensions when available', () => {
-    const d = domain(
-      [model('fct_wide', 2), model('dim_small', 2)],
+    const d = subjectArea(
+      [table('fct_wide', 2), table('dim_small', 2)],
       { fct_wide: { x: 0, y: 0 }, dim_small: { x: 300, y: 0 } },
       [['fct_wide', 'dim_small']],
     );
     // Without measurements both are ~equal height → horizontal
-    const plain = transformDomain(d);
+    const plain = transformSubjectArea(d);
     const plainEdge = plain.edges[0] as FkFlowEdge;
     expect(plainEdge.sourceHandle).toBe('node-right-src');
 
     // With a measured very tall source → centre is far below → vertical
-    const measured = transformDomain(d, {
+    const measured = transformSubjectArea(d, {
       nodeDimensions: new Map([
         ['fct_wide', { width: 280, height: 1400 }],
         ['dim_small', { width: 280, height: 100 }],
@@ -84,16 +84,16 @@ describe('transformDomain handle sides', () => {
   it('falls back to a collapse-aware estimate when a node is unmeasured', () => {
     // 60-column fact, collapsed: estimate is ~6 rows tall, so it should still
     // route horizontally to a neighbour on the right.
-    const d = domain(
-      [model('fct_wide', 60), model('dim_small', 2)],
+    const d = subjectArea(
+      [table('fct_wide', 60), table('dim_small', 2)],
       { fct_wide: { x: 0, y: 0 }, dim_small: { x: 400, y: 0 } },
       [['fct_wide', 'dim_small']],
     );
-    const collapsed = transformDomain(d, { isExpanded: () => false });
+    const collapsed = transformSubjectArea(d, { isExpanded: () => false });
     expect((collapsed.edges[0] as FkFlowEdge).sourceHandle).toBe('node-right-src');
 
     // Expanded: 60 rows (~1500px) → centre far below → vertical
-    const expanded = transformDomain(d, { isExpanded: () => true });
+    const expanded = transformSubjectArea(d, { isExpanded: () => true });
     expect((expanded.edges[0] as FkFlowEdge).sourceHandle).toBe('node-top-src');
   });
 });

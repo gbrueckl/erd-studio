@@ -589,7 +589,7 @@ describe('FileWatcherService', () => {
 
     it('swallows a logical-model change recorded as an own write', () => {
       const listener = vi.fn();
-      service.onLogicalModelChanged(listener);
+      service.onTableChanged(listener);
 
       const modelPath = '/test/workspace/.erd-studio/logical-models/dim_customer.yml';
       // File does not exist on disk in this test, so both the record and the
@@ -605,7 +605,7 @@ describe('FileWatcherService', () => {
 
     it('still reports a logical-model change that was not recorded', () => {
       const listener = vi.fn();
-      service.onLogicalModelChanged(listener);
+      service.onTableChanged(listener);
 
       const modelWatcher = _mockFileWatchers[3];
       modelWatcher._simulateChange(vscode.Uri.file('/test/workspace/.erd-studio/logical-models/dim_x.yml'));
@@ -617,12 +617,13 @@ describe('FileWatcherService', () => {
 
     it('watches the logical-models/ top level and its layer folders (issue #76)', () => {
       const pattern = _mockFileWatchers[3]._pattern as vscode.RelativePattern;
-      expect(pattern.pattern).toBe('.erd-studio/logical-models/**/*.yml');
+      // …and v6's tables/ library (#162), in the same glob.
+      expect(pattern.pattern).toBe('.erd-studio/{logical-models,tables}/**/*.yml');
     });
 
     it('reports a change to a model file in a layer folder by model name', () => {
       const listener = vi.fn();
-      service.onLogicalModelChanged(listener);
+      service.onTableChanged(listener);
 
       const modelWatcher = _mockFileWatchers[3];
       const uri = vscode.Uri.file('/test/workspace/.erd-studio/logical-models/gold/rpt_sales.yml');
@@ -635,7 +636,7 @@ describe('FileWatcherService', () => {
 
     it('folds a move between folders (delete + create of the same name) into one event', () => {
       const listener = vi.fn();
-      service.onLogicalModelChanged(listener);
+      service.onTableChanged(listener);
 
       const modelWatcher = _mockFileWatchers[3];
       modelWatcher._simulateDelete(vscode.Uri.file('/test/workspace/.erd-studio/logical-models/dim_customer.yml'));
@@ -648,7 +649,7 @@ describe('FileWatcherService', () => {
 
     it('swallows an own write to a model file in a layer folder', () => {
       const listener = vi.fn();
-      service.onLogicalModelChanged(listener);
+      service.onTableChanged(listener);
 
       const modelPath = '/test/workspace/.erd-studio/logical-models/silver/dim_customer.yml';
       tracker.recordWrite(modelPath);
@@ -660,7 +661,7 @@ describe('FileWatcherService', () => {
 
     it('consumes the record so the next event for the same file is reported', () => {
       const listener = vi.fn();
-      service.onLogicalModelChanged(listener);
+      service.onTableChanged(listener);
 
       const modelPath = '/test/workspace/.erd-studio/logical-models/dim_customer.yml';
       tracker.recordWrite(modelPath);

@@ -1,23 +1,25 @@
 /**
- * Tests for LogicalModelService — YAML model file I/O for .erd-studio/logical-models/.
+ * Tests for TableLibraryService — YAML model file I/O for .erd-studio/logical-models/.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { parseLogicalModelText } from '@erd-studio/core';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { parseTableText } from '@erd-studio/core';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { OwnWriteTracker } from '../../src/services/ownWriteTracker';
 import type { ManifestData, ManifestModelInfo } from '../../src/types/manifest';
-import type { SemanticModel } from '../../src/types/semantic';
+import type { SemanticTable } from '../../src/types/semantic';
 
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
+/** A v5 project: its `logical-models/` folder exists, so new tables go there (a project with no library folder writes v6, #182). */
 function createTempWorkspace(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-test-'));
+  fs.mkdirSync(path.join(dir, '.erd-studio', 'logical-models'), { recursive: true });
   return dir;
 }
 
@@ -36,13 +38,13 @@ function createManifestData(models: ManifestModelInfo[]): ManifestData {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('LogicalModelService', () => {
+describe('TableLibraryService', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
 
   beforeEach(() => {
     tempDir = createTempWorkspace();
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
   });
 
   afterEach(() => {
@@ -51,6 +53,7 @@ describe('LogicalModelService', () => {
 
   describe('directory management', () => {
     it('reports dirExists as false when logical-models/ does not exist', () => {
+      fs.rmSync(path.join(tempDir, '.erd-studio', 'logical-models'), { recursive: true });
       expect(service.dirExists()).toBe(false);
     });
 
@@ -74,10 +77,10 @@ describe('LogicalModelService', () => {
         ],
       };
 
-      service.saveModel(model);
-      expect(service.modelExists('dim_customer')).toBe(true);
+      service.saveTable(model);
+      expect(service.tableExists('dim_customer')).toBe(true);
 
-      const loaded = service.getModel('dim_customer');
+      const loaded = service.getTable('dim_customer');
       expect(loaded).not.toBeNull();
       expect(loaded!.name).toBe('dim_customer');
       expect(loaded!.schema).toBe('silver');
@@ -89,24 +92,24 @@ describe('LogicalModelService', () => {
     });
 
     it('returns null for non-existent model', () => {
-      expect(service.getModel('nonexistent')).toBeNull();
+      expect(service.getTable('nonexistent')).toBeNull();
     });
 
     it('lists all model names', () => {
-      service.saveModel({ name: 'model_a', columns: [] });
-      service.saveModel({ name: 'model_b', columns: [] });
+      service.saveTable({ name: 'model_a', columns: [] });
+      service.saveTable({ name: 'model_b', columns: [] });
 
-      const names = service.listModelNames();
+      const names = service.listTableNames();
       expect(names).toContain('model_a');
       expect(names).toContain('model_b');
       expect(names).toHaveLength(2);
     });
 
     it('lists all models with full data', () => {
-      service.saveModel({ name: 'dim_x', description: 'X', columns: [{ name: 'id', dataType: 'INT', description: '' }] });
-      service.saveModel({ name: 'dim_y', description: 'Y', columns: [] });
+      service.saveTable({ name: 'dim_x', description: 'X', columns: [{ name: 'id', dataType: 'INT', description: '' }] });
+      service.saveTable({ name: 'dim_y', description: 'Y', columns: [] });
 
-      const models = service.listModels();
+      const models = service.listTables();
       expect(models).toHaveLength(2);
       expect(models.find(m => m.name === 'dim_x')?.description).toBe('X');
     });
@@ -115,14 +118,14 @@ describe('LogicalModelService', () => {
   describe('own-write tracking and parse cache (H11)', () => {
     it('records saves and deletes with the own-write tracker', () => {
       const tracker = new OwnWriteTracker();
-      const tracked = new LogicalModelService(tempDir, '.erd-studio', tracker);
+      const tracked = new TableLibraryService(tempDir, '.erd-studio', tracker);
 
-      tracked.saveModel({ name: 'dim_a', columns: [] });
-      const filePath = tracked.modelPath('dim_a');
+      tracked.saveTable({ name: 'dim_a', columns: [] });
+      const filePath = tracked.tablePath('dim_a');
       expect(tracker.has(filePath)).toBe(true);
       expect(tracker.consume(filePath)).toBe(true);
 
-      tracked.deleteModel('dim_a');
+      tracked.deleteTable('dim_a');
       expect(tracker.consume(filePath)).toBe(true);
     });
 
@@ -148,122 +151,122 @@ describe('LogicalModelService', () => {
     }
 
     it('serves repeated reads from the cache while the stat signature is unchanged', () => {
-      service.saveModel({ name: 'dim_cached', description: 'v1', columns: [] });
-      pinMtime(service.modelPath('dim_cached'));
-      expect(service.getModel('dim_cached')!.description).toBe('v1');
+      service.saveTable({ name: 'dim_cached', description: 'v1', columns: [] });
+      pinMtime(service.tablePath('dim_cached'));
+      expect(service.getTable('dim_cached')!.description).toBe('v1');
 
-      const filePath = service.modelPath('dim_cached');
+      const filePath = service.tablePath('dim_cached');
       rewriteKeepingSignature(filePath, fs.readFileSync(filePath, 'utf-8').replace('v1', 'v2'));
 
-      expect(service.getModel('dim_cached')!.description).toBe('v1');
-      expect(service.listModels().find(m => m.name === 'dim_cached')!.description).toBe('v1');
+      expect(service.getTable('dim_cached')!.description).toBe('v1');
+      expect(service.listTables().find(m => m.name === 'dim_cached')!.description).toBe('v1');
     });
 
     it('returns independent copies so callers cannot corrupt the cache', () => {
-      service.saveModel({ name: 'dim_copy', description: 'orig', columns: [{ name: 'id', dataType: 'INT', description: '' }] });
-      const a = service.getModel('dim_copy')!;
+      service.saveTable({ name: 'dim_copy', description: 'orig', columns: [{ name: 'id', dataType: 'INT', description: '' }] });
+      const a = service.getTable('dim_copy')!;
       a.description = 'mutated';
       a.columns!.push({ name: 'x', dataType: 'INT', description: '' });
 
-      const b = service.getModel('dim_copy')!;
+      const b = service.getTable('dim_copy')!;
       expect(b.description).toBe('orig');
       expect(b.columns).toHaveLength(1);
     });
 
     it('re-reads when the file changes on disk', () => {
-      service.saveModel({ name: 'dim_ext', description: 'v1', columns: [] });
-      expect(service.getModel('dim_ext')!.description).toBe('v1');
+      service.saveTable({ name: 'dim_ext', description: 'v1', columns: [] });
+      expect(service.getTable('dim_ext')!.description).toBe('v1');
 
-      const filePath = service.modelPath('dim_ext');
+      const filePath = service.tablePath('dim_ext');
       fs.writeFileSync(filePath, 'name: dim_ext\ndescription: edited externally by an agent\n');
       const t = new Date(Date.now() + 5000);
       fs.utimesSync(filePath, t, t);
 
-      expect(service.getModel('dim_ext')!.description).toBe('edited externally by an agent');
+      expect(service.getTable('dim_ext')!.description).toBe('edited externally by an agent');
     });
 
     it('re-reads after invalidateCache(name) and invalidateCache()', () => {
-      service.saveModel({ name: 'dim_inv', description: 'v1', columns: [] });
-      const filePath = service.modelPath('dim_inv');
+      service.saveTable({ name: 'dim_inv', description: 'v1', columns: [] });
+      const filePath = service.tablePath('dim_inv');
       pinMtime(filePath);
-      expect(service.getModel('dim_inv')!.description).toBe('v1');
+      expect(service.getTable('dim_inv')!.description).toBe('v1');
 
       rewriteKeepingSignature(filePath, fs.readFileSync(filePath, 'utf-8').replace('v1', 'v2'));
-      expect(service.getModel('dim_inv')!.description).toBe('v1'); // cached
+      expect(service.getTable('dim_inv')!.description).toBe('v1'); // cached
       service.invalidateCache('dim_inv');
-      expect(service.getModel('dim_inv')!.description).toBe('v2');
+      expect(service.getTable('dim_inv')!.description).toBe('v2');
 
       rewriteKeepingSignature(filePath, fs.readFileSync(filePath, 'utf-8').replace('v2', 'v3'));
-      expect(service.getModel('dim_inv')!.description).toBe('v2'); // cached
+      expect(service.getTable('dim_inv')!.description).toBe('v2'); // cached
       service.invalidateCache();
-      expect(service.getModel('dim_inv')!.description).toBe('v3');
+      expect(service.getTable('dim_inv')!.description).toBe('v3');
     });
 
     it('reflects a save immediately in the next read', () => {
-      service.saveModel({ name: 'dim_save', description: 'v1', columns: [] });
-      service.getModel('dim_save');
-      service.saveModel({ name: 'dim_save', description: 'v2', columns: [] });
-      expect(service.getModel('dim_save')!.description).toBe('v2');
+      service.saveTable({ name: 'dim_save', description: 'v1', columns: [] });
+      service.getTable('dim_save');
+      service.saveTable({ name: 'dim_save', description: 'v2', columns: [] });
+      expect(service.getTable('dim_save')!.description).toBe('v2');
     });
   });
 
   describe('delete', () => {
     it('deletes a model file', () => {
-      service.saveModel({ name: 'to_delete', columns: [] });
-      expect(service.modelExists('to_delete')).toBe(true);
+      service.saveTable({ name: 'to_delete', columns: [] });
+      expect(service.tableExists('to_delete')).toBe(true);
 
-      service.deleteModel('to_delete');
-      expect(service.modelExists('to_delete')).toBe(false);
+      service.deleteTable('to_delete');
+      expect(service.tableExists('to_delete')).toBe(false);
     });
 
     it('does not throw when deleting a non-existent model', () => {
-      expect(() => service.deleteModel('nonexistent')).not.toThrow();
+      expect(() => service.deleteTable('nonexistent')).not.toThrow();
     });
   });
 
   describe('rename', () => {
     it('renames a model file and updates the name field', () => {
-      service.saveModel({ name: 'old_name', description: 'Test', columns: [] });
-      service.renameModel('old_name', 'new_name');
+      service.saveTable({ name: 'old_name', description: 'Test', columns: [] });
+      service.renameTable('old_name', 'new_name');
 
-      expect(service.modelExists('old_name')).toBe(false);
-      expect(service.modelExists('new_name')).toBe(true);
+      expect(service.tableExists('old_name')).toBe(false);
+      expect(service.tableExists('new_name')).toBe(true);
 
-      const model = service.getModel('new_name');
+      const model = service.getTable('new_name');
       expect(model!.name).toBe('new_name');
       expect(model!.description).toBe('Test');
     });
 
     it('throws when renaming a non-existent model', () => {
-      expect(() => service.renameModel('nonexistent', 'new')).toThrow();
+      expect(() => service.renameTable('nonexistent', 'new')).toThrow();
     });
 
     it('refuses to rename onto an existing model file (shared library must not be overwritten)', () => {
-      service.saveModel({
+      service.saveTable({
         name: 'dim_customer',
         columns: [{ name: 'customer_key', dataType: 'string', description: '', isPrimaryKey: true }],
       });
-      service.saveModel({ name: 'dim_customer_tmp', columns: [{ name: 'x', dataType: 'int', description: '' }] });
+      service.saveTable({ name: 'dim_customer_tmp', columns: [{ name: 'x', dataType: 'int', description: '' }] });
 
-      expect(() => service.renameModel('dim_customer_tmp', 'dim_customer')).toThrow(/already exists/);
+      expect(() => service.renameTable('dim_customer_tmp', 'dim_customer')).toThrow(/already exists/);
 
       // Neither file was touched
-      expect(service.getModel('dim_customer')!.columns!.map((c) => c.name)).toEqual(['customer_key']);
-      expect(service.modelExists('dim_customer_tmp')).toBe(true);
+      expect(service.getTable('dim_customer')!.columns!.map((c) => c.name)).toEqual(['customer_key']);
+      expect(service.tableExists('dim_customer_tmp')).toBe(true);
     });
   });
 
   describe('atomic writes', () => {
     it('saveModel leaves no temp files behind and writes the full content', () => {
-      service.saveModel({ name: 'dim_a', columns: [{ name: 'a_key', dataType: 'string', description: '' }] });
-      service.saveModel({ name: 'dim_a', columns: [{ name: 'a_key', dataType: 'string', description: '' }, { name: 'b', dataType: 'int', description: '' }] });
+      service.saveTable({ name: 'dim_a', columns: [{ name: 'a_key', dataType: 'string', description: '' }] });
+      service.saveTable({ name: 'dim_a', columns: [{ name: 'a_key', dataType: 'string', description: '' }, { name: 'b', dataType: 'int', description: '' }] });
 
-      const files = fs.readdirSync(service.getModelsDir());
+      const files = fs.readdirSync(service.getTablesDir());
       expect(files).toEqual(['dim_a.yml']);
-      expect(service.getModel('dim_a')!.columns!.map((c) => c.name)).toEqual(['a_key', 'b']);
+      expect(service.getTable('dim_a')!.columns!.map((c) => c.name)).toEqual(['a_key', 'b']);
     });
 
-    it('serializeModel returns exactly what saveModel writes', () => {
+    it('serializeTable returns exactly what saveModel writes', () => {
       const model = {
         name: 'fct_sales',
         description: 'Sales facts',
@@ -273,9 +276,9 @@ describe('LogicalModelService', () => {
           { name: 'amount', dataType: 'decimal', description: '', additiveType: 'additive' as const },
         ],
       };
-      service.saveModel(model);
-      const onDisk = fs.readFileSync(service.modelPath('fct_sales'), 'utf-8');
-      expect(service.serializeModel(model)).toBe(onDisk);
+      service.saveTable(model);
+      const onDisk = fs.readFileSync(service.tablePath('fct_sales'), 'utf-8');
+      expect(service.serializeTable(model)).toBe(onDisk);
     });
   });
 
@@ -300,11 +303,11 @@ describe('LogicalModelService', () => {
       expect(result!.schema).toBe('silver');
 
       // Verify it was written to disk
-      expect(service.modelExists('dim_product')).toBe(true);
+      expect(service.tableExists('dim_product')).toBe(true);
     });
 
     it('returns existing model without overwriting if file already exists', () => {
-      service.saveModel({ name: 'dim_existing', description: 'Original', columns: [] });
+      service.saveTable({ name: 'dim_existing', description: 'Original', columns: [] });
 
       const manifest = createManifestData([{
         name: 'dim_existing',
@@ -326,15 +329,15 @@ describe('LogicalModelService', () => {
   });
 
   describe('hand-edited files survive UI edits (comment/ordering preservation)', () => {
-    function writeModelFile(name: string, content: string): string {
+    function writeTableFile(name: string, content: string): string {
       service.ensureDir();
-      const filePath = service.modelPath(name);
+      const filePath = service.tablePath(name);
       fs.writeFileSync(filePath, content, 'utf-8');
       return filePath;
     }
 
     it('keeps comments, key order and unknown keys when a column is edited', () => {
-      const filePath = writeModelFile('dim_customer', [
+      const filePath = writeTableFile('dim_customer', [
         '# Owned by the customer data team',
         'name: dim_customer',
         'description: Customer dimension',
@@ -351,9 +354,9 @@ describe('LogicalModelService', () => {
         '',
       ].join('\n'));
 
-      const model = service.getModel('dim_customer')!;
+      const model = service.getTable('dim_customer')!;
       model.columns![1].dataType = 'TEXT';
-      service.saveModel(model);
+      service.saveTable(model);
 
       const after = fs.readFileSync(filePath, 'utf-8');
       expect(after).toContain('# Owned by the customer data team');
@@ -379,11 +382,11 @@ describe('LogicalModelService', () => {
         '    dataType: INT',
         '',
       ].join('\n');
-      const filePath = writeModelFile('fct_orders', original);
+      const filePath = writeTableFile('fct_orders', original);
 
-      const model = service.getModel('fct_orders')!;
+      const model = service.getTable('fct_orders')!;
       model.columns!.push({ name: 'order_total', dataType: 'DECIMAL', description: '' });
-      service.saveModel(model);
+      service.saveTable(model);
 
       const after = fs.readFileSync(filePath, 'utf-8');
       expect(after.startsWith(original.trimEnd())).toBe(true);
@@ -391,7 +394,7 @@ describe('LogicalModelService', () => {
     });
 
     it('keeps date-like and numeric-looking scalars as strings on read and write', () => {
-      const filePath = writeModelFile('dim_date', [
+      const filePath = writeTableFile('dim_date', [
         'name: dim_date',
         'description: 2024-01-01',
         'columns:',
@@ -403,7 +406,7 @@ describe('LogicalModelService', () => {
         '',
       ].join('\n'));
 
-      const model = service.getModel('dim_date')!;
+      const model = service.getTable('dim_date')!;
       expect(model.description).toBe('2024-01-01');
       expect(model.columns![0].name).toBe('007');
       expect(model.columns![0].scdType).toBe(2);
@@ -413,15 +416,15 @@ describe('LogicalModelService', () => {
       // numeric-looking name stays `007` as written (#157), neither written
       // back as `7` nor quoted, and the file is left byte for byte.
       const before = fs.readFileSync(filePath, 'utf-8');
-      service.saveModel(model);
+      service.saveTable(model);
       const after = fs.readFileSync(filePath, 'utf-8');
       expect(after).toBe(before);
       expect(after).not.toMatch(/name: 7\b/);
-      expect(service.getModel('dim_date')!.columns![0].name).toBe('007');
+      expect(service.getTable('dim_date')!.columns![0].name).toBe('007');
     });
 
     it('removes managed keys the model no longer has and preserves a renamed column\'s comment', () => {
-      const filePath = writeModelFile('dim_product', [
+      const filePath = writeTableFile('dim_product', [
         'name: dim_product',
         'grain: One row per product',
         'columns:',
@@ -434,10 +437,10 @@ describe('LogicalModelService', () => {
         '',
       ].join('\n'));
 
-      const model = service.getModel('dim_product')!;
+      const model = service.getTable('dim_product')!;
       delete model.grain;
       model.columns![1].name = 'product_name';
-      service.saveModel(model);
+      service.saveTable(model);
 
       const after = fs.readFileSync(filePath, 'utf-8');
       expect(after).not.toContain('grain:');
@@ -447,41 +450,41 @@ describe('LogicalModelService', () => {
     });
 
     it('carries the existing document across a rename', () => {
-      writeModelFile('old_model', [
+      writeTableFile('old_model', [
         '# keep me',
         'name: old_model',
         'description: Test',
         '',
       ].join('\n'));
 
-      service.renameModel('old_model', 'new_model');
-      const after = fs.readFileSync(service.modelPath('new_model'), 'utf-8');
+      service.renameTable('old_model', 'new_model');
+      const after = fs.readFileSync(service.tablePath('new_model'), 'utf-8');
       expect(after).toContain('# keep me');
       expect(after).toContain('name: new_model');
-      expect(service.modelExists('old_model')).toBe(false);
+      expect(service.tableExists('old_model')).toBe(false);
     });
 
     it('returns null for a file with YAML syntax errors instead of a partial model', () => {
-      writeModelFile('broken', 'name: broken\ncolumns: [unclosed\n');
-      expect(service.getModel('broken')).toBeNull();
-      expect(service.listModels()).toHaveLength(0);
+      writeTableFile('broken', 'name: broken\ncolumns: [unclosed\n');
+      expect(service.getTable('broken')).toBeNull();
+      expect(service.listTables()).toHaveLength(0);
     });
 
     it('reports a file broken → fixed → broken once per session, while the live error follows the file (#113)', () => {
       const reported: string[] = [];
       service.onParseFailure = (e) => reported.push(e.name);
 
-      writeModelFile('flaky', 'name: flaky\ncolumns: [unclosed\n');
-      expect(service.getModelFileError('flaky')).not.toBeNull();
-      expect(service.getModel('flaky')).toBeNull();
+      writeTableFile('flaky', 'name: flaky\ncolumns: [unclosed\n');
+      expect(service.getTableFileError('flaky')).not.toBeNull();
+      expect(service.getTable('flaky')).toBeNull();
 
-      writeModelFile('flaky', 'name: flaky\ndescription: fixed now, a longer file\n');
-      expect(service.getModelFileError('flaky')).toBeNull();
-      expect(service.getModel('flaky')).not.toBeNull();
+      writeTableFile('flaky', 'name: flaky\ndescription: fixed now, a longer file\n');
+      expect(service.getTableFileError('flaky')).toBeNull();
+      expect(service.getTable('flaky')).not.toBeNull();
 
-      writeModelFile('flaky', 'name: flaky\ncolumns: [still unclosed\n');
-      expect(service.getModelFileError('flaky')).not.toBeNull();
-      expect(service.getModel('flaky')).toBeNull();
+      writeTableFile('flaky', 'name: flaky\ncolumns: [still unclosed\n');
+      expect(service.getTableFileError('flaky')).not.toBeNull();
+      expect(service.getTable('flaky')).toBeNull();
 
       expect(reported).toEqual(['flaky']);
     });
@@ -489,11 +492,11 @@ describe('LogicalModelService', () => {
 
   describe('reads fixture files', () => {
     it('reads dim_project.yml from test fixtures', () => {
-      const fixtureService = new LogicalModelService(
+      const fixtureService = new TableLibraryService(
         path.join(__dirname, '../fixtures/dbt-project'),
       );
 
-      const model = fixtureService.getModel('dim_project');
+      const model = fixtureService.getTable('dim_project');
       expect(model).not.toBeNull();
       expect(model!.name).toBe('dim_project');
       expect(model!.modelRole).toBe('conformed-dim');
@@ -502,11 +505,11 @@ describe('LogicalModelService', () => {
     });
 
     it('lists fixture models', () => {
-      const fixtureService = new LogicalModelService(
+      const fixtureService = new TableLibraryService(
         path.join(__dirname, '../fixtures/dbt-project'),
       );
 
-      const names = fixtureService.listModelNames();
+      const names = fixtureService.listTableNames();
       expect(names).toContain('dim_project');
       expect(names).toContain('fct_sale');
     });
@@ -517,13 +520,13 @@ describe('LogicalModelService', () => {
 // modelPath — path traversal guard (H21)
 // ---------------------------------------------------------------------------
 
-describe('LogicalModelService.modelPath', () => {
+describe('TableLibraryService.tablePath', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
 
   beforeEach(() => {
     tempDir = createTempWorkspace();
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
   });
 
   afterEach(() => {
@@ -531,7 +534,7 @@ describe('LogicalModelService.modelPath', () => {
   });
 
   it('resolves a plain name inside logical-models/', () => {
-    const p = service.modelPath('dim_customer');
+    const p = service.tablePath('dim_customer');
     expect(path.dirname(p)).toBe(path.resolve(tempDir, '.erd-studio', 'logical-models'));
     expect(path.basename(p)).toBe('dim_customer.yml');
   });
@@ -539,12 +542,12 @@ describe('LogicalModelService.modelPath', () => {
   it.each(['../escaped', '../../outside', 'sub/dir', 'a\\b', '..', '', '  '])(
     'rejects %j',
     (name) => {
-      expect(() => service.modelPath(name)).toThrow(/Invalid model name/);
+      expect(() => service.tablePath(name)).toThrow(/Invalid table name/);
     },
   );
 
   it('refuses to write a model whose name escapes the directory', () => {
-    expect(() => service.saveModel({ name: '../escaped', columns: [] })).toThrow(/Invalid model name/);
+    expect(() => service.saveTable({ name: '../escaped', columns: [] })).toThrow(/Invalid table name/);
     expect(fs.existsSync(path.join(tempDir, '.erd-studio', 'escaped.yml'))).toBe(false);
   });
 
@@ -554,16 +557,16 @@ describe('LogicalModelService.modelPath', () => {
   it.each(['../escaped', 'sub/dir', 'a\\b', '..', ''])(
     'getModel returns null for the unsafe name %j instead of throwing',
     (name) => {
-      expect(() => service.getModel(name)).not.toThrow();
-      expect(service.getModel(name)).toBeNull();
+      expect(() => service.getTable(name)).not.toThrow();
+      expect(service.getTable(name)).toBeNull();
     },
   );
 
   it.each(['../escaped', 'sub/dir', '..'])(
     'modelExists returns false for the unsafe name %j instead of throwing',
     (name) => {
-      expect(() => service.modelExists(name)).not.toThrow();
-      expect(service.modelExists(name)).toBe(false);
+      expect(() => service.tableExists(name)).not.toThrow();
+      expect(service.tableExists(name)).toBe(false);
     },
   );
 
@@ -571,9 +574,9 @@ describe('LogicalModelService.modelPath', () => {
     expect(() => service.invalidateCache('../escaped')).not.toThrow();
   });
 
-  it('resolveModelPath returns null for unsafe names and a path for safe ones', () => {
-    expect(service.resolveModelPath('../escaped')).toBeNull();
-    expect(service.resolveModelPath('dim_customer')).toBe(service.modelPath('dim_customer'));
+  it('resolveTablePath returns null for unsafe names and a path for safe ones', () => {
+    expect(service.resolveTablePath('../escaped')).toBeNull();
+    expect(service.resolveTablePath('dim_customer')).toBe(service.tablePath('dim_customer'));
   });
 });
 
@@ -581,9 +584,9 @@ describe('LogicalModelService.modelPath', () => {
 // Layer folders — logical-models/{folder}/{name}.yml (issue #76)
 // ---------------------------------------------------------------------------
 
-describe('LogicalModelService layer folders', () => {
+describe('TableLibraryService layer folders', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
   let modelsDir: string;
 
   /** Write a raw model file at logical-models/[folder/]name.yml. */
@@ -597,7 +600,7 @@ describe('LogicalModelService layer folders', () => {
 
   beforeEach(() => {
     tempDir = fs.realpathSync(createTempWorkspace());
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
     modelsDir = path.join(tempDir, '.erd-studio', 'logical-models');
   });
 
@@ -608,38 +611,38 @@ describe('LogicalModelService layer folders', () => {
   describe('lookup', () => {
     it('finds a model one folder down', () => {
       const filePath = writeRaw('gold', 'rpt_sales', 'name: rpt_sales\ndescription: Sales\ncolumns: []\n');
-      expect(service.findModelFile('rpt_sales')).toBe(filePath);
-      expect(service.modelPath('rpt_sales')).toBe(filePath);
-      expect(service.modelExists('rpt_sales')).toBe(true);
-      expect(service.getModel('rpt_sales')!.description).toBe('Sales');
+      expect(service.findTableFile('rpt_sales')).toBe(filePath);
+      expect(service.tablePath('rpt_sales')).toBe(filePath);
+      expect(service.tableExists('rpt_sales')).toBe(true);
+      expect(service.getTable('rpt_sales')!.description).toBe('Sales');
     });
 
     it('prefers the top level over any folder, then folders alphabetically', () => {
       const silver = writeRaw('silver', 'dim_a', 'name: dim_a\ndescription: silver\n');
       const gold = writeRaw('gold', 'dim_a', 'name: dim_a\ndescription: gold\n');
       // gold < silver alphabetically
-      expect(service.findModelFile('dim_a')).toBe(gold);
-      expect(service.getModel('dim_a')!.description).toBe('gold');
+      expect(service.findTableFile('dim_a')).toBe(gold);
+      expect(service.getTable('dim_a')!.description).toBe('gold');
 
       const top = writeRaw('', 'dim_a', 'name: dim_a\ndescription: top\n');
-      expect(service.findModelFile('dim_a')).toBe(top);
-      expect(service.getModel('dim_a')!.description).toBe('top');
+      expect(service.findTableFile('dim_a')).toBe(top);
+      expect(service.getTable('dim_a')!.description).toBe('top');
       expect(silver).not.toBe(top);
     });
 
-    it('returns null from findModelFile when no file holds the name, and throws on an unsafe name', () => {
-      expect(service.findModelFile('nope')).toBeNull();
+    it('returns null from findTableFile when no file holds the name, and throws on an unsafe name', () => {
+      expect(service.findTableFile('nope')).toBeNull();
       writeRaw('gold', 'other');
-      expect(service.findModelFile('nope')).toBeNull();
-      expect(() => service.findModelFile('../x')).toThrow(/Invalid model name/);
+      expect(service.findTableFile('nope')).toBeNull();
+      expect(() => service.findTableFile('../x')).toThrow(/Invalid table name/);
     });
 
     it('modelFolder reports "" for the top level, the folder name one level down, null when missing', () => {
       writeRaw('', 'top_model');
       writeRaw('gold', 'gold_model');
-      expect(service.modelFolder('top_model')).toBe('');
-      expect(service.modelFolder('gold_model')).toBe('gold');
-      expect(service.modelFolder('missing')).toBeNull();
+      expect(service.tableFolder('top_model')).toBe('');
+      expect(service.tableFolder('gold_model')).toBe('gold');
+      expect(service.tableFolder('missing')).toBeNull();
     });
 
     it('ignores dot-folders and files nested two levels deep', () => {
@@ -648,10 +651,10 @@ describe('LogicalModelService layer folders', () => {
       writeRaw('gold', 'real_model');
 
       expect(service.listFolders()).toEqual(['gold']);
-      expect(service.findModelFile('hidden_model')).toBeNull();
-      expect(service.findModelFile('deep_model')).toBeNull();
-      expect(service.modelExists('deep_model')).toBe(false);
-      expect(service.listModelNames()).toEqual(['real_model']);
+      expect(service.findTableFile('hidden_model')).toBeNull();
+      expect(service.findTableFile('deep_model')).toBeNull();
+      expect(service.tableExists('deep_model')).toBe(false);
+      expect(service.listTableNames()).toEqual(['real_model']);
     });
 
     it('does not scan a symlinked folder', () => {
@@ -661,7 +664,7 @@ describe('LogicalModelService layer folders', () => {
         fs.mkdirSync(modelsDir, { recursive: true });
         fs.symlinkSync(outside, path.join(modelsDir, 'linked'), 'dir');
         expect(service.listFolders()).toEqual([]);
-        expect(service.findModelFile('linked_model')).toBeNull();
+        expect(service.findTableFile('linked_model')).toBeNull();
       } finally {
         fs.rmSync(outside, { recursive: true, force: true });
       }
@@ -669,7 +672,7 @@ describe('LogicalModelService layer folders', () => {
 
     it('lists folders alphabetically and returns [] when the library does not exist', () => {
       expect(service.listFolders()).toEqual([]);
-      expect(service.listModelFiles()).toEqual([]);
+      expect(service.listTableFiles()).toEqual([]);
       writeRaw('silver', 'a');
       writeRaw('gold', 'b');
       writeRaw('bronze', 'c');
@@ -677,7 +680,7 @@ describe('LogicalModelService layer folders', () => {
     });
   });
 
-  describe('listModelFiles / listModelNames / listModels', () => {
+  describe('listTableFiles / listTableNames / listTables', () => {
     it('lists the top level first, then each folder alphabetically, files sorted inside each', () => {
       writeRaw('silver', 'fct_b');
       writeRaw('silver', 'dim_a');
@@ -685,10 +688,10 @@ describe('LogicalModelService layer folders', () => {
       writeRaw('', 'aa_top');
       writeRaw('gold', 'rpt_x');
 
-      expect(service.listModelFiles().map((e) => `${e.folder}/${e.name}`)).toEqual([
+      expect(service.listTableFiles().map((e) => `${e.folder}/${e.name}`)).toEqual([
         '/aa_top', '/zz_top', 'gold/rpt_x', 'silver/dim_a', 'silver/fct_b',
       ]);
-      const entry = service.listModelFiles().find((e) => e.name === 'rpt_x')!;
+      const entry = service.listTableFiles().find((e) => e.name === 'rpt_x')!;
       expect(entry.filePath).toBe(path.join(modelsDir, 'gold', 'rpt_x.yml'));
       expect(entry.shadowedBy).toBeUndefined();
     });
@@ -700,7 +703,7 @@ describe('LogicalModelService layer folders', () => {
       const goldOnly = writeRaw('gold', 'dim_gold');
       writeRaw('silver', 'dim_gold');
 
-      const entries = service.listModelFiles();
+      const entries = service.listTableFiles();
       const dupes = entries.filter((e) => e.name === 'dim_dupe');
       expect(dupes.map((e) => [e.folder, e.shadowedBy])).toEqual([
         ['', undefined],
@@ -712,18 +715,18 @@ describe('LogicalModelService layer folders', () => {
         ['gold', undefined],
         ['silver', goldOnly],
       ]);
-      // The winner of each name is what findModelFile resolves to.
-      expect(service.findModelFile('dim_dupe')).toBe(top);
-      expect(service.findModelFile('dim_gold')).toBe(goldOnly);
+      // The winner of each name is what findTableFile resolves to.
+      expect(service.findTableFile('dim_dupe')).toBe(top);
+      expect(service.findTableFile('dim_gold')).toBe(goldOnly);
     });
 
-    it('listModelNames and listModels return each name once (the winning copy)', () => {
+    it('listTableNames and listTables return each name once (the winning copy)', () => {
       writeRaw('', 'dim_dupe', 'name: dim_dupe\ndescription: top\n');
       writeRaw('gold', 'dim_dupe', 'name: dim_dupe\ndescription: gold\n');
       writeRaw('gold', 'rpt_x');
 
-      expect(service.listModelNames()).toEqual(['dim_dupe', 'rpt_x']);
-      const models = service.listModels();
+      expect(service.listTableNames()).toEqual(['dim_dupe', 'rpt_x']);
+      const models = service.listTables();
       expect(models.map((m) => m.name)).toEqual(['dim_dupe', 'rpt_x']);
       expect(models[0].description).toBe('top');
     });
@@ -731,6 +734,7 @@ describe('LogicalModelService layer folders', () => {
 
   describe('groupsByFolder (layer folders are opt-in)', () => {
     it('is true when logical-models/ does not exist', () => {
+      fs.rmSync(modelsDir, { recursive: true });
       expect(fs.existsSync(modelsDir)).toBe(false);
       expect(service.groupsByFolder()).toBe(true);
     });
@@ -789,44 +793,44 @@ describe('LogicalModelService layer folders', () => {
 
   describe('modelPath for a new file', () => {
     it('uses the top level when no folder is given', () => {
-      expect(service.modelPath('dim_new')).toBe(path.join(modelsDir, 'dim_new.yml'));
+      expect(service.tablePath('dim_new')).toBe(path.join(modelsDir, 'dim_new.yml'));
     });
 
     it('uses logical-models/{folder}/ for a layer-shaped folder', () => {
-      expect(service.modelPath('dim_new', 'gold')).toBe(path.join(modelsDir, 'gold', 'dim_new.yml'));
-      expect(service.modelPath('dim_new', 'raw-data_2')).toBe(path.join(modelsDir, 'raw-data_2', 'dim_new.yml'));
+      expect(service.tablePath('dim_new', 'gold')).toBe(path.join(modelsDir, 'gold', 'dim_new.yml'));
+      expect(service.tablePath('dim_new', 'raw-data_2')).toBe(path.join(modelsDir, 'raw-data_2', 'dim_new.yml'));
     });
 
     it.each(['../x', 'Gold', '.hidden', 'a/b', '..', '_x', '1st', 'gold\\sub', ''])(
       'falls back to the top level for the unsafe folder %j',
       (folder) => {
-        expect(service.modelPath('dim_new', folder)).toBe(path.join(modelsDir, 'dim_new.yml'));
+        expect(service.tablePath('dim_new', folder)).toBe(path.join(modelsDir, 'dim_new.yml'));
       },
     );
 
-    it('isModelFolderName accepts only layer-id shaped names', () => {
-      expect(LogicalModelService.isModelFolderName('silver')).toBe(true);
-      expect(LogicalModelService.isModelFolderName('my-layer_2')).toBe(true);
+    it('isTableFolderName accepts only layer-id shaped names', () => {
+      expect(TableLibraryService.isTableFolderName('silver')).toBe(true);
+      expect(TableLibraryService.isTableFolderName('my-layer_2')).toBe(true);
       for (const bad of ['Gold', '../x', '.hidden', '', 'a/b', '9lives']) {
-        expect(LogicalModelService.isModelFolderName(bad), bad).toBe(false);
+        expect(TableLibraryService.isTableFolderName(bad), bad).toBe(false);
       }
     });
 
     it('returns the existing file wherever it is, whatever folder is asked for', () => {
       const gold = writeRaw('gold', 'dim_existing');
-      expect(service.modelPath('dim_existing', 'silver')).toBe(gold);
-      expect(service.modelPath('dim_existing')).toBe(gold);
+      expect(service.tablePath('dim_existing', 'silver')).toBe(gold);
+      expect(service.tablePath('dim_existing')).toBe(gold);
     });
   });
 
   describe('ensureDir', () => {
     it('creates the folder of a model path inside the library', () => {
-      service.ensureDir(service.modelPath('dim_x', 'gold'));
+      service.ensureDir(service.tablePath('dim_x', 'gold'));
       expect(fs.statSync(path.join(modelsDir, 'gold')).isDirectory()).toBe(true);
     });
 
     it('creates just the library for a top-level path', () => {
-      service.ensureDir(service.modelPath('dim_x'));
+      service.ensureDir(service.tablePath('dim_x'));
       expect(fs.readdirSync(modelsDir)).toEqual([]);
     });
 
@@ -837,23 +841,23 @@ describe('LogicalModelService layer folders', () => {
       ['an unrelated absolute path', () => path.join(os.tmpdir(), 'erd-nowhere', 'x.yml')],
     ])('refuses %s', (_label, make) => {
       const target = make(tempDir);
-      expect(() => service.ensureDir(target)).toThrow(/outside the logical-models directory/);
+      expect(() => service.ensureDir(target)).toThrow(/outside the Table Library/);
       expect(fs.existsSync(path.dirname(target))).toBe(false);
     });
   });
 
   describe('writes', () => {
     it('saveModel(model, "gold") creates the folder and writes the file there', () => {
-      service.saveModel({ name: 'rpt_new', description: 'New', columns: [] }, 'gold');
+      service.saveTable({ name: 'rpt_new', description: 'New', columns: [] }, 'gold');
       const expected = path.join(modelsDir, 'gold', 'rpt_new.yml');
       expect(fs.existsSync(expected)).toBe(true);
       expect(fs.existsSync(path.join(modelsDir, 'rpt_new.yml'))).toBe(false);
-      expect(service.modelFolder('rpt_new')).toBe('gold');
-      expect(service.getModel('rpt_new')!.description).toBe('New');
+      expect(service.tableFolder('rpt_new')).toBe('gold');
+      expect(service.getTable('rpt_new')!.description).toBe('New');
     });
 
     it('saveModel with an unsafe folder writes at the top level', () => {
-      service.saveModel({ name: 'rpt_new', columns: [] }, '../escape');
+      service.saveTable({ name: 'rpt_new', columns: [] }, '../escape');
       expect(fs.existsSync(path.join(modelsDir, 'rpt_new.yml'))).toBe(true);
       expect(fs.existsSync(path.join(tempDir, '.erd-studio', 'escape'))).toBe(false);
     });
@@ -867,10 +871,10 @@ describe('LogicalModelService layer folders', () => {
         '',
       ].join('\n'));
 
-      const model = service.getModel('rpt_sales')!;
+      const model = service.getTable('rpt_sales')!;
       model.description = 'New';
       // Even an explicit different folder does not move an existing file.
-      service.saveModel(model, 'silver');
+      service.saveTable(model, 'silver');
 
       const text = fs.readFileSync(gold, 'utf-8');
       expect(text).toContain('# owned by finance');
@@ -881,24 +885,24 @@ describe('LogicalModelService layer folders', () => {
       expect(fs.readdirSync(path.join(modelsDir, 'gold'))).toEqual(['rpt_sales.yml']);
     });
 
-    it('serializeModel edits the document of a file in a folder', () => {
+    it('serializeTable edits the document of a file in a folder', () => {
       writeRaw('gold', 'rpt_sales', '# keep\nname: rpt_sales\ndescription: Old\n');
-      const text = service.serializeModel({ name: 'rpt_sales', description: 'New', columns: [] });
+      const text = service.serializeTable({ name: 'rpt_sales', description: 'New', columns: [] });
       expect(text).toContain('# keep');
       expect(text).toContain('description: New');
     });
 
     it('records own writes for a file saved into a folder', () => {
       const tracker = new OwnWriteTracker();
-      const tracked = new LogicalModelService(tempDir, '.erd-studio', tracker);
-      tracked.saveModel({ name: 'rpt_tracked', columns: [] }, 'gold');
+      const tracked = new TableLibraryService(tempDir, '.erd-studio', tracker);
+      tracked.saveTable({ name: 'rpt_tracked', columns: [] }, 'gold');
       expect(tracker.consume(path.join(modelsDir, 'gold', 'rpt_tracked.yml'))).toBe(true);
     });
 
     it('renameModel keeps the folder and carries comments across', () => {
       writeRaw('gold', 'rpt_old', '# keep me\nname: rpt_old\ndescription: Test\n');
 
-      service.renameModel('rpt_old', 'rpt_new');
+      service.renameTable('rpt_old', 'rpt_new');
 
       const renamed = path.join(modelsDir, 'gold', 'rpt_new.yml');
       expect(fs.existsSync(renamed)).toBe(true);
@@ -907,7 +911,7 @@ describe('LogicalModelService layer folders', () => {
       const text = fs.readFileSync(renamed, 'utf-8');
       expect(text).toContain('# keep me');
       expect(text).toContain('name: rpt_new');
-      expect(service.modelFolder('rpt_new')).toBe('gold');
+      expect(service.tableFolder('rpt_new')).toBe('gold');
     });
 
     it('renameModel keeps a hand-made folder whose name is not layer-shaped', () => {
@@ -915,17 +919,17 @@ describe('LogicalModelService layer folders', () => {
       // file to the top level just because `Staging` could not be *created*.
       writeRaw('Staging', 'rpt_old', '# mine\nname: rpt_old\n');
 
-      service.renameModel('rpt_old', 'rpt_new');
+      service.renameTable('rpt_old', 'rpt_new');
 
       expect(fs.existsSync(path.join(modelsDir, 'Staging', 'rpt_new.yml'))).toBe(true);
       expect(fs.existsSync(path.join(modelsDir, 'rpt_new.yml'))).toBe(false);
-      expect(service.modelFolder('rpt_new')).toBe('Staging');
+      expect(service.tableFolder('rpt_new')).toBe('Staging');
     });
 
     it('modelPath writes into an existing non-layer-shaped folder but never creates one', () => {
       writeRaw('Staging', 'rpt_any');
-      expect(service.modelPath('rpt_x', 'Staging')).toBe(path.join(modelsDir, 'Staging', 'rpt_x.yml'));
-      expect(service.modelPath('rpt_x', 'Nope')).toBe(path.join(modelsDir, 'rpt_x.yml'));
+      expect(service.tablePath('rpt_x', 'Staging')).toBe(path.join(modelsDir, 'Staging', 'rpt_x.yml'));
+      expect(service.tablePath('rpt_x', 'Nope')).toBe(path.join(modelsDir, 'rpt_x.yml'));
     });
 
     it('renameModel of an unparseable-document file still lands in the same folder', () => {
@@ -935,7 +939,7 @@ describe('LogicalModelService layer folders', () => {
       const original = spy.loadEditableDocument.bind(service);
       spy.loadEditableDocument = () => null;
       try {
-        service.renameModel('rpt_old', 'rpt_new');
+        service.renameTable('rpt_old', 'rpt_new');
       } finally {
         spy.loadEditableDocument = original;
       }
@@ -947,15 +951,15 @@ describe('LogicalModelService layer folders', () => {
     it('renameModel refuses a target name that exists in another folder', () => {
       writeRaw('gold', 'rpt_old');
       writeRaw('silver', 'rpt_taken');
-      expect(() => service.renameModel('rpt_old', 'rpt_taken')).toThrow(/already exists/);
+      expect(() => service.renameTable('rpt_old', 'rpt_taken')).toThrow(/already exists/);
       expect(fs.existsSync(path.join(modelsDir, 'gold', 'rpt_old.yml'))).toBe(true);
     });
 
     it('deleteModel deletes the file in its folder', () => {
       const gold = writeRaw('gold', 'rpt_gone');
-      service.deleteModel('rpt_gone');
+      service.deleteTable('rpt_gone');
       expect(fs.existsSync(gold)).toBe(false);
-      expect(service.modelExists('rpt_gone')).toBe(false);
+      expect(service.tableExists('rpt_gone')).toBe(false);
       // The folder itself is left alone.
       expect(fs.existsSync(path.join(modelsDir, 'gold'))).toBe(true);
     });
@@ -963,11 +967,11 @@ describe('LogicalModelService layer folders', () => {
     it('deleteModel removes only the winning copy of a duplicated name', () => {
       const top = writeRaw('', 'dim_dupe');
       const gold = writeRaw('gold', 'dim_dupe');
-      service.deleteModel('dim_dupe');
+      service.deleteTable('dim_dupe');
       expect(fs.existsSync(top)).toBe(false);
       expect(fs.existsSync(gold)).toBe(true);
       // The gold copy now wins the lookup.
-      expect(service.findModelFile('dim_dupe')).toBe(gold);
+      expect(service.findTableFile('dim_dupe')).toBe(gold);
     });
 
     it('createFromManifest and createFromYml seed into the given folder', () => {
@@ -992,19 +996,19 @@ describe('LogicalModelService layer folders', () => {
       const gold = writeRaw('gold', 'rpt_cache', 'name: rpt_cache\ndescription: aaa\n');
       const pinned = new Date('2024-01-01T00:00:00Z');
       fs.utimesSync(gold, pinned, pinned);
-      expect(service.getModel('rpt_cache')!.description).toBe('aaa');
+      expect(service.getTable('rpt_cache')!.description).toBe('aaa');
       fs.writeFileSync(gold, 'name: rpt_cache\ndescription: bbb\n', 'utf-8');
       fs.utimesSync(gold, pinned, pinned);
-      expect(service.getModel('rpt_cache')!.description).toBe('aaa');
+      expect(service.getTable('rpt_cache')!.description).toBe('aaa');
       service.invalidateCache('rpt_cache');
-      expect(service.getModel('rpt_cache')!.description).toBe('bbb');
+      expect(service.getTable('rpt_cache')!.description).toBe('bbb');
     });
   });
 });
 
-describe('LogicalModelService — a save keeps the relationships: list it did not change', () => {
+describe('TableLibraryService — a save keeps the relationships: list it did not change', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
   let file: string;
 
   const YML = [
@@ -1034,17 +1038,17 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
 
   beforeEach(() => {
     tempDir = createTempWorkspace();
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
     service.ensureDir();
-    file = service.modelPath('fct_order');
+    file = service.tablePath('fct_order');
     fs.writeFileSync(file, YML);
   });
   afterEach(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
   it('leaves the list untouched when the save changes something else', () => {
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     const text = fs.readFileSync(file, 'utf-8');
     expect(text).toMatch(/^description: Orders$/m);
     expect(listText(text)).toBe(listText(YML));
@@ -1053,11 +1057,11 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
   it('a respelled entry keeps its comment and unknown keys, changing only the spelling (#133 L4)', () => {
     fs.writeFileSync(file, YML.replace('    toModel: dim_customer\n    toColumn: customer_key', '    toModel: Dim_Customer # mis-cased\n    toColumn: CUSTOMER_KEY\n    note: kept'));
     service.invalidateCache();
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.relationships = model.relationships!.map((r) => (r.toModel === 'Dim_Customer' ? { ...r, toModel: 'dim_customer', toColumn: 'customer_key' } : r));
     // A second change in the same save, so only a match by ends (not by position) can keep the node.
     model.relationships.push({ fromColumn: 'customer_key', toModel: 'dim_region', toColumn: 'region_key', cardinality: 'many-to-one' });
-    service.saveModel(model);
+    service.saveTable(model);
     const text = fs.readFileSync(file, 'utf-8');
     expect(listText(text)).toBe(listText(YML)
       .replace('    toModel: dim_customer\n', '    toModel: dim_customer # mis-cased\n')
@@ -1066,31 +1070,31 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
   });
 
   it('compositeKey is written, kept on its node, and removed when cleared (#133 L2)', () => {
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.relationships = model.relationships!.map((r) => (r.toModel === 'dim_date' ? { ...r, compositeKey: 'fk_dim_date' } : r));
-    service.saveModel(model);
+    service.saveTable(model);
     let text = fs.readFileSync(file, 'utf-8');
     expect(listText(text)).toBe(listText(YML).replace('    toModel: dim_date\n    toColumn: date_key\n    cardinality: many-to-one\n', '    toModel: dim_date\n    toColumn: date_key\n    cardinality: many-to-one\n    compositeKey: fk_dim_date\n'));
     // A description change leaves it alone.
     service.invalidateCache();
-    const again = service.getModel('fct_order')!;
+    const again = service.getTable('fct_order')!;
     expect(again.relationships!.find((r) => r.toModel === 'dim_date')!.compositeKey).toBe('fk_dim_date');
-    service.saveModel({ ...again, description: 'Orders' });
+    service.saveTable({ ...again, description: 'Orders' });
     expect(listText(fs.readFileSync(file, 'utf-8'))).toBe(listText(text));
     // Cleared: only that key goes.
     service.invalidateCache();
-    const cleared = service.getModel('fct_order')!;
+    const cleared = service.getTable('fct_order')!;
     cleared.relationships = cleared.relationships!.map(({ compositeKey: _k, ...r }) => r);
-    service.saveModel(cleared);
+    service.saveTable(cleared);
     text = fs.readFileSync(file, 'utf-8');
     expect(listText(text)).toBe(listText(YML));
   });
 
   it('edits only the entry that changed, keeping comments, unknown keys and skipped entries', () => {
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.relationships = model.relationships!.filter((r) => r.toModel !== 'dim_date');
     model.relationships.push({ fromColumn: 'date_key', toModel: 'dim_calendar', toColumn: 'date_key', cardinality: 'many-to-one' });
-    service.saveModel(model);
+    service.saveTable(model);
     const text = fs.readFileSync(file, 'utf-8');
     expect(text).toContain('# to the customer');
     expect(text).toContain('cardinality: one_to_many # typo, read as many-to-one');
@@ -1101,26 +1105,26 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
   });
 
   it('saves a role-only change in place, and clearing the role removes the key (#133)', () => {
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.relationships![1] = { ...model.relationships![1], role: 'order date' };
-    service.saveModel(model);
+    service.saveTable(model);
     expect(listText(fs.readFileSync(file, 'utf-8'))).toBe(`${listText(YML)}    role: order date\n`);
 
-    const saved = service.getModel('fct_order')!;
+    const saved = service.getTable('fct_order')!;
     const { role: _role, ...cleared } = saved.relationships![1];
-    service.saveModel({ ...saved, relationships: [saved.relationships![0], cleared] });
+    service.saveTable({ ...saved, relationships: [saved.relationships![0], cleared] });
     expect(listText(fs.readFileSync(file, 'utf-8'))).toBe(listText(YML));
   });
 
   it('keeps a renamed entry\'s node, and a skipped entry when every readable one is removed', () => {
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.relationships![0] = { ...model.relationships![0], fromColumn: 'cust_key' };
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toMatch(/# to the customer\n\s+- fromColumn: cust_key[\s\S]*role: billing/);
 
-    const emptied = service.getModel('fct_order')!;
+    const emptied = service.getTable('fct_order')!;
     delete emptied.relationships;
-    service.saveModel(emptied);
+    service.saveTable(emptied);
     const text = fs.readFileSync(file, 'utf-8');
     expect(text).toMatch(/^relationships:/m);
     expect(text).toContain('fromColumn: date_key # no toModel yet');
@@ -1128,9 +1132,9 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
   });
 
   it('never hands a removed entry\'s comments or unknown keys to another one', () => {
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.relationships = [{ fromColumn: 'date_key', toModel: 'dim_date', toColumn: 'date_key', cardinality: 'one-to-one' }];
-    service.saveModel(model);
+    service.saveTable(model);
     const text = fs.readFileSync(file, 'utf-8');
     expect(text).not.toContain('role: billing');
     expect(listText(text)).toBe([
@@ -1147,17 +1151,17 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
   });
 
   it('gives a new link no comment or unknown key from a removed link that shares neither end', () => {
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.relationships = [
       { fromColumn: 'order_key', toModel: 'dim_store', toColumn: 'store_key', cardinality: 'many-to-one' },
       model.relationships![1],
     ];
-    service.saveModel(model);
+    service.saveTable(model);
     const text = fs.readFileSync(file, 'utf-8');
     expect(text).not.toContain('role: billing');
     expect(text).not.toContain('# typo');
     expect(text).not.toContain('toModel: dim_customer');
-    const saved = service.getModel('fct_order')!.relationships!;
+    const saved = service.getTable('fct_order')!.relationships!;
     expect(saved).toHaveLength(2);
     expect(saved).toEqual(expect.arrayContaining(model.relationships));
   });
@@ -1171,10 +1175,10 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
       '    toColumn: customer_key',
       '',
     ].join('\n'));
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     expect(model.relationships![0].cardinality).toBe('many-to-one');
     model.relationships![0] = { ...model.relationships![0], fromColumn: 'cust_key' };
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe([
       'name: fct_order',
       'relationships:',
@@ -1187,9 +1191,9 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
 
   it('refuses an edit to a relationships: value it cannot read, naming the file and line', () => {
     fs.writeFileSync(file, 'name: fct_order\nrelationships: see the wiki\n');
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.relationships = [{ fromColumn: 'a', toModel: 'b', toColumn: 'c', cardinality: 'many-to-one' }];
-    expect(() => service.saveModel(model)).toThrow(/logical-models\/fct_order\.yml, line 2/);
+    expect(() => service.saveTable(model)).toThrow(/logical-models\/fct_order\.yml, line 2/);
     expect(fs.readFileSync(file, 'utf-8')).toContain('see the wiki');
   });
 
@@ -1202,16 +1206,16 @@ describe('LogicalModelService — a save keeps the relationships: list it did no
   });
 });
 
-describe('LogicalModelService — a save adds nothing the user did not change', () => {
+describe('TableLibraryService — a save adds nothing the user did not change', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
   let file: string;
 
   beforeEach(() => {
     tempDir = createTempWorkspace();
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
     service.ensureDir();
-    file = service.modelPath('dim_customer');
+    file = service.tablePath('dim_customer');
   });
   afterEach(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
@@ -1227,34 +1231,34 @@ describe('LogicalModelService — a save adds nothing the user did not change', 
       '',
     ].join('\n');
     fs.writeFileSync(file, yml);
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     expect(model.columns!.map((c) => c.dataType)).toEqual(['unknown', 'unknown', 'string']);
 
     model.description = 'Customers';
-    service.saveModel(model);
+    service.saveTable(model);
 
     expect(fs.readFileSync(file, 'utf-8')).toBe(`${yml}description: Customers\n`);
   });
 
   it('still writes a type the user gives a column that had none', () => {
     fs.writeFileSync(file, 'name: dim_customer\ncolumns:\n  - name: customer_key\n');
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     model.columns![0].dataType = 'integer';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe('name: dim_customer\ncolumns:\n  - name: customer_key\n    dataType: integer\n');
   });
 });
 
-describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
+describe('TableLibraryService — dbt\'s data_type spelling (#144)', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
   let file: string;
 
   beforeEach(() => {
     tempDir = createTempWorkspace();
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
     service.ensureDir();
-    file = service.modelPath('fct_order');
+    file = service.tablePath('fct_order');
   });
   afterEach(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
@@ -1273,56 +1277,56 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
 
   it('renames every column\'s data_type to dataType in place on the next write, keeping its comment', () => {
     fs.writeFileSync(file, DBT_SPELLED);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     expect(model.columns!.map((c) => c.dataType)).toEqual(['INT', 'DECIMAL(18,2)']);
 
     model.description = 'Orders';
-    expect(service.serializeModel(model)).toBe(`${RENAMED}description: Orders\n`);
-    service.saveModel(model);
+    expect(service.serializeTable(model)).toBe(`${RENAMED}description: Orders\n`);
+    service.saveTable(model);
 
     const after = fs.readFileSync(file, 'utf-8');
     expect(after).toBe(`${RENAMED}description: Orders\n`);
     expect(after).toContain('    dataType: DECIMAL(18,2) # money\n');
     expect(after).not.toContain('data_type');
-    expect(service.getModel('fct_order')!.columns!.map((c) => c.dataType)).toEqual(['INT', 'DECIMAL(18,2)']);
+    expect(service.getTable('fct_order')!.columns!.map((c) => c.dataType)).toEqual(['INT', 'DECIMAL(18,2)']);
   });
 
   it('writes an edited type into the renamed key, not beside it', () => {
     fs.writeFileSync(file, DBT_SPELLED);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.columns![1].dataType = 'NUMERIC(20,4)';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe(RENAMED.replace('DECIMAL(18,2)', 'NUMERIC(20,4)'));
   });
 
   it('renames an empty data_type without filling in a type nobody typed', () => {
     const yml = 'name: fct_order\ncolumns:\n  - name: note\n    data_type: ~\n  - name: memo # later\n    data_type:\n';
     fs.writeFileSync(file, yml);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     expect(model.columns!.map((c) => c.dataType)).toEqual(['unknown', 'unknown']);
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe(`${yml.split('data_type:').join('dataType:')}description: Orders\n`);
   });
 
   it('keeps both keys when a column has dataType and data_type', () => {
     const yml = 'name: fct_order\ncolumns:\n  - name: status\n    data_type: TEXT # from dbt\n    dataType: VARCHAR\n';
     fs.writeFileSync(file, yml);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     expect(model.columns![0].dataType).toBe('VARCHAR');
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe(`${yml}description: Orders\n`);
   });
 
   it('renames a data_type the reader uses when the dataType beside it is empty, dropping the empty key', () => {
     const yml = 'name: fct_order\ncolumns:\n  - name: status\n    # typed by dbt\n    dataType:\n    data_type: TEXT\n';
     fs.writeFileSync(file, yml);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     expect(model.columns![0].dataType).toBe('TEXT');
     expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: ['status'], ignored: [], anchored: [] });
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe(
       'name: fct_order\ncolumns:\n  - name: status\n    # typed by dbt\n    dataType: TEXT\ndescription: Orders\n',
     );
@@ -1342,10 +1346,10 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
       '',
     ].join('\n');
     fs.writeFileSync(file, yml);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     expect(model.columns![0].dataType).toBe('INT');
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe([
       'name: fct_order',
       'columns:',
@@ -1363,9 +1367,9 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
   it('keeps the trailing comment of an empty dataType written after data_type', () => {
     const yml = 'name: fct_order\ncolumns:\n  - name: status\n    data_type: INT # dbt\n    dataType: # empty\n    description: Status\n';
     fs.writeFileSync(file, yml);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe(
       'name: fct_order\ncolumns:\n  - name: status\n    # empty\n    dataType: INT # dbt\n    description: Status\ndescription: Orders\n',
     );
@@ -1374,9 +1378,9 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
   it('moves a lone trailing comment onto the renamed line, and keeps a blank line the file really had', () => {
     const yml = 'name: fct_order\ncolumns:\n  - name: status\n    dataType: # TODO\n\n    data_type: INT\n    description: Status\n';
     fs.writeFileSync(file, yml);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe(
       'name: fct_order\ncolumns:\n  - name: status\n\n    dataType: INT # TODO\n    description: Status\ndescription: Orders\n',
     );
@@ -1394,21 +1398,21 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
       '',
     ].join('\n');
     fs.writeFileSync(file, yml);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     expect(model.columns![0].dataType).toBe('INT');
     // Doctor lists it as one a write renames, not as an ignored key to delete.
     expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: ['status'], ignored: [], anchored: [] });
 
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     const after = fs.readFileSync(file, 'utf-8');
     expect(after).toBe('name: fct_order\nmeta:\n  n: &n ~\ncolumns:\n  - name: status\n    dataType: INT\ndescription: Orders\n');
-    expect(service.getModel('fct_order')!.columns![0].dataType).toBe('INT');
+    expect(service.getTable('fct_order')!.columns![0].dataType).toBe('INT');
     expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: [], ignored: [], anchored: [] });
 
     // An alias of a value still wins, so data_type beside it stays ignored.
     fs.writeFileSync(file, yml.replace('&n ~', '&n VARCHAR'));
-    expect(service.getModel('fct_order')!.columns![0].dataType).toBe('VARCHAR');
+    expect(service.getTable('fct_order')!.columns![0].dataType).toBe('VARCHAR');
     expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: [], ignored: ['status'], anchored: [] });
   });
 
@@ -1424,7 +1428,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
       '',
     ].join('\n');
     fs.writeFileSync(file, yml);
-    const read = (): string[] => parseLogicalModelText(fs.readFileSync(file, 'utf-8'), 'fct_order')!
+    const read = (): string[] => parseTableText(fs.readFileSync(file, 'utf-8'), 'fct_order')!
       .columns!.map((c) => c.dataType);
     // The yaml library writes an anchored empty value as `&x ` (trailing space), which reads the same.
     const text = (): string => fs.readFileSync(file, 'utf-8').replace(/ +$/gm, '');
@@ -1432,18 +1436,18 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
     // Doctor: neither renamed nor ignored — kept as written.
     expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: [], ignored: [], anchored: ['a'] });
 
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     // Both keys stay exactly as written, so *x still has its anchor and b still reads as before.
     expect(text()).toBe(`${yml}description: Orders\n`);
     expect(read()).toEqual(['INT', 'unknown']);
     expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: [], ignored: [], anchored: ['a'] });
 
     // An edited type goes into data_type, where the reader takes it from — never into the anchored node.
-    const edited = service.getModel('fct_order')!;
+    const edited = service.getTable('fct_order')!;
     edited.columns![0].dataType = 'BIGINT';
-    service.saveModel(edited);
+    service.saveTable(edited);
     expect(text()).toBe(`${yml.replace('data_type: INT', 'data_type: BIGINT')}description: Orders\n`);
     expect(read()).toEqual(['BIGINT', 'unknown']);
 
@@ -1454,9 +1458,9 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
     ]) {
       fs.writeFileSync(file, keyed);
       expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: [], ignored: [], anchored: ['a'] });
-      const m = service.getModel('fct_order')!;
+      const m = service.getTable('fct_order')!;
       m.description = 'Orders';
-      service.saveModel(m);
+      service.saveTable(m);
       expect(text()).toBe(`${keyed}description: Orders\n`);
       expect(read()).toEqual(['INT']);
     }
@@ -1464,7 +1468,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
 
   it('leaves a file already spelled dataType byte-identical on a save that changes nothing', () => {
     fs.writeFileSync(file, RENAMED);
-    service.saveModel(service.getModel('fct_order')!);
+    service.saveTable(service.getTable('fct_order')!);
     expect(fs.readFileSync(file, 'utf-8')).toBe(RENAMED);
   });
 
@@ -1484,9 +1488,9 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
     expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: ['amount'], ignored: ['status'], anchored: [] });
 
     // A write renames exactly the listed columns; the ignored one stays listed.
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     model.description = 'Orders';
-    service.saveModel(model);
+    service.saveTable(model);
     expect(service.dataTypeAliasColumns('fct_order')).toEqual({ columns: [], ignored: ['status'], anchored: [] });
 
     const none = { columns: [], ignored: [], anchored: [] };
@@ -1499,12 +1503,12 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
 
   describe('a YAML alias (*x) as the value', () => {
     const DEFS = 'name: fct_order\nx-defs:\n  t: &tv INT\n  b: &tv2 BOOLEAN\n';
-    const save = (yml: string, edit?: (m: SemanticModel) => void): string => {
+    const save = (yml: string, edit?: (m: SemanticTable) => void): string => {
       fs.writeFileSync(file, yml);
-      const model = service.getModel('fct_order')!;
+      const model = service.getTable('fct_order')!;
       model.description = 'Orders';
       edit?.(model);
-      service.saveModel(model);
+      service.saveTable(model);
       return fs.readFileSync(file, 'utf-8');
     };
 
@@ -1554,7 +1558,7 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
         m.columns![0].dataType = 'BIGINT';
       });
       expect(out).toBe(`${DEFS}columns:\n  - name: a\n    # above\n    dataType: BIGINT # c\n  - name: b\n    dataType: *tv\ndescription: Orders\n`);
-      expect(parseLogicalModelText(out, 'fct_order')!.columns!.map((c) => c.dataType)).toEqual(['BIGINT', 'INT']);
+      expect(parseTableText(out, 'fct_order')!.columns!.map((c) => c.dataType)).toEqual(['BIGINT', 'INT']);
 
       // The same for a renamed data_type alias.
       expect(save(`${DEFS}columns:\n  - name: a\n    data_type: *tv2 # ct-dt\n`, (m) => { m.columns![0].dataType = 'TEXT'; }))
@@ -1564,11 +1568,11 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
     it('never lets a kept alias follow an anchor the same save rewrites', () => {
       // Keys are synced in a fixed order, not file order: whichever comes first,
       // an alias of a key the canvas rewrote keeps what it read, and its comments.
-      const edit = (yml: string, change: (m: SemanticModel) => void): string => {
+      const edit = (yml: string, change: (m: SemanticTable) => void): string => {
         fs.writeFileSync(file, yml);
-        const model = service.getModel('fct_order')!;
+        const model = service.getTable('fct_order')!;
         change(model);
-        service.saveModel(model);
+        service.saveTable(model);
         return fs.readFileSync(file, 'utf-8');
       };
       expect(edit('name: fct_order\ngrain: &g foo\ndescription: *g # same\n', (m) => { m.grain = 'bar'; }))
@@ -1584,51 +1588,51 @@ describe('LogicalModelService — dbt\'s data_type spelling (#144)', () => {
         (m) => { m.columns![0].dataType = 'Y'; },
       );
       expect(out).toBe('name: fct_order\ncolumns:\n  - name: a\n    dataType: &t Y # a type\n  - name: b\n    # above b\n    dataType: X # b type\n');
-      expect(parseLogicalModelText(out, 'fct_order')!.columns!.map((c) => c.dataType)).toEqual(['Y', 'X']);
+      expect(parseTableText(out, 'fct_order')!.columns!.map((c) => c.dataType)).toEqual(['Y', 'X']);
     });
 
     it('reads a number changed in place as its new value when settling the aliases kept beside it', () => {
       const edit = (yml: string): string => {
         fs.writeFileSync(file, yml);
-        const model = service.getModel('fct_order')!;
+        const model = service.getTable('fct_order')!;
         model.columns![0].scdType = 1;
-        service.saveModel(model);
+        service.saveTable(model);
         return fs.readFileSync(file, 'utf-8');
       };
       const cols = '  - name: a\n    dataType: INT\n    scdType: &s 2 # a scd\n';
       const other = edit(`name: fct_order\ncolumns:\n${cols}  - name: b\n    dataType: INT\n    scdType: *s # b scd\n`);
       expect(other).toBe(`name: fct_order\ncolumns:\n${cols.replace('&s 2', '&s 1')}  - name: b\n    dataType: INT\n    scdType: 2 # b scd\n`);
-      expect(parseLogicalModelText(other, 'fct_order')!.columns!.map((c) => c.scdType)).toEqual([1, 2]);
+      expect(parseTableText(other, 'fct_order')!.columns!.map((c) => c.scdType)).toEqual([1, 2]);
 
       const later = edit(`name: fct_order\ncolumns:\n${cols}description: *s # why\n`);
       expect(later).toBe(`name: fct_order\ncolumns:\n${cols.replace('&s 2', '&s 1')}description: 2 # why\n`);
-      expect(parseLogicalModelText(later, 'fct_order')!.description).toBe('2');
+      expect(parseTableText(later, 'fct_order')!.description).toBe('2');
     });
   });
 });
 
-describe('LogicalModelService — YAML anchors, aliases and text a save did not change (#157)', () => {
+describe('TableLibraryService — YAML anchors, aliases and text a save did not change (#157)', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
   let file: string;
 
   beforeEach(() => {
     tempDir = createTempWorkspace();
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
     service.ensureDir();
-    file = service.modelPath('fct_order');
+    file = service.tablePath('fct_order');
   });
   afterEach(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
   /** Write `yml`, apply `change` to the model as read, save, and return the file. */
-  const save = (yml: string, change: (m: SemanticModel) => void = () => {}): string => {
+  const save = (yml: string, change: (m: SemanticTable) => void = () => {}): string => {
     fs.writeFileSync(file, yml);
-    const model = service.getModel('fct_order')!;
+    const model = service.getTable('fct_order')!;
     change(model);
-    service.saveModel(model);
+    service.saveTable(model);
     return fs.readFileSync(file, 'utf-8');
   };
-  const read = (yml: string): SemanticModel => parseLogicalModelText(yml, 'fct_order')!;
+  const read = (yml: string): SemanticTable => parseTableText(yml, 'fct_order')!;
 
   describe('an alias inside a relationships: entry', () => {
     const DEFS = 'name: fct_order\nx-defs:\n  r: &r buyer\ncolumns:\n  - name: cust_id\n    dataType: INT\n';
@@ -1767,32 +1771,32 @@ describe('LogicalModelService — YAML anchors, aliases and text a save did not 
   });
 });
 
-describe('LogicalModelService — a direct write keeps the file\'s line endings', () => {
+describe('TableLibraryService — a direct write keeps the file\'s line endings', () => {
   let tempDir: string;
-  let service: LogicalModelService;
+  let service: TableLibraryService;
   const CRLF = ['# kept', 'name: dim_customer', 'columns:', '  - name: customer_key', '    dataType: string', ''].join('\r\n');
   const isCrlfOnly = (text: string): boolean => text.includes('\r\n') && !/(?<!\r)\n/.test(text);
 
   beforeEach(() => {
     tempDir = createTempWorkspace();
-    service = new LogicalModelService(tempDir);
+    service = new TableLibraryService(tempDir);
     service.ensureDir();
-    fs.writeFileSync(service.modelPath('dim_customer'), CRLF);
+    fs.writeFileSync(service.tablePath('dim_customer'), CRLF);
   });
   afterEach(() => fs.rmSync(tempDir, { recursive: true, force: true }));
 
   it('saveModel keeps CRLF', () => {
-    const model = service.getModel('dim_customer')!;
+    const model = service.getTable('dim_customer')!;
     model.description = 'Customers';
-    service.saveModel(model);
-    const text = fs.readFileSync(service.modelPath('dim_customer'), 'utf-8');
+    service.saveTable(model);
+    const text = fs.readFileSync(service.tablePath('dim_customer'), 'utf-8');
     expect(text).toContain('description: Customers\r\n');
     expect(isCrlfOnly(text)).toBe(true);
   });
 
   it('renameModel carries CRLF to the new file', () => {
-    service.renameModel('dim_customer', 'dim_client');
-    const text = fs.readFileSync(service.modelPath('dim_client'), 'utf-8');
+    service.renameTable('dim_customer', 'dim_client');
+    const text = fs.readFileSync(service.tablePath('dim_client'), 'utf-8');
     expect(text).toContain('name: dim_client\r\n');
     expect(isCrlfOnly(text)).toBe(true);
   });
@@ -1802,17 +1806,17 @@ describe('LogicalModelService — a direct write keeps the file\'s line endings'
     const original = spy.loadEditableDocument.bind(service);
     spy.loadEditableDocument = () => null;
     try {
-      service.renameModel('dim_customer', 'dim_client');
+      service.renameTable('dim_customer', 'dim_client');
     } finally {
       spy.loadEditableDocument = original;
     }
-    const text = fs.readFileSync(service.modelPath('dim_client'), 'utf-8');
+    const text = fs.readFileSync(service.tablePath('dim_client'), 'utf-8');
     expect(text).toContain('name: dim_client\r\n');
     expect(isCrlfOnly(text)).toBe(true);
   });
 
-  it('serializeModel renders a CRLF file with CRLF, and a new file with LF', () => {
-    expect(isCrlfOnly(service.serializeModel(service.getModel('dim_customer')!))).toBe(true);
-    expect(service.serializeModel({ name: 'dim_new', columns: [] })).toBe('name: dim_new\n');
+  it('serializeTable renders a CRLF file with CRLF, and a new file with LF', () => {
+    expect(isCrlfOnly(service.serializeTable(service.getTable('dim_customer')!))).toBe(true);
+    expect(service.serializeTable({ name: 'dim_new', columns: [] })).toBe('name: dim_new\n');
   });
 });

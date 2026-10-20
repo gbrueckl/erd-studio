@@ -31,20 +31,20 @@ function tsc(args: string[]): string {
 
 const CONSUMER = `
 import {
-  loadDisplayDomain,
-  parseLogicalModelText,
-  DomainValidationError,
-  TooManyModelsError,
+  loadDisplaySubjectArea,
+  parseTableText,
+  SubjectAreaValidationError,
+  TooManyTablesError,
   FileTooLargeError,
   YamlNodeLimitError,
   YamlCharLimitError,
   toDbml,
-  type DisplayDomain,
-  type LoadDisplayDomainOptions,
+  type DisplaySubjectArea,
+  type LoadDisplaySubjectAreaOptions,
 } from '@erd-studio/core';
 import {
   ErdCanvas,
-  transformDomain,
+  transformSubjectArea,
   repickHandleSides,
   toMermaid,
   exportDiagram,
@@ -57,12 +57,12 @@ import {
 } from '@erd-studio/renderer';
 import { createCanvasStore, CanvasStoreProvider, type CanvasStore } from '@erd-studio/renderer/store';
 import { estimateNodeHeight, NODE_WIDTH } from '@erd-studio/renderer/sizing';
-import { CanvasEnvironmentProvider, ModelNode, useCanvasGraph, type CanvasHost } from '@erd-studio/renderer/editor';
+import { CanvasEnvironmentProvider, TableNode, useCanvasGraph, type CanvasHost } from '@erd-studio/renderer/editor';
 
-const options: LoadDisplayDomainOptions = { domainPath: 'a/b/c.json', readFile: async () => null, readOnly: true };
-export const loaded: Promise<DisplayDomain> = loadDisplayDomain(options);
-export const errors = [DomainValidationError, TooManyModelsError, FileTooLargeError, YamlNodeLimitError, YamlCharLimitError];
-export const model = parseLogicalModelText('name: a', 'a')?.name;
+const options: LoadDisplaySubjectAreaOptions = { domainPath: 'a/b/c.json', readFile: async () => null, readOnly: true };
+export const loaded: Promise<DisplaySubjectArea> = loadDisplaySubjectArea(options);
+export const errors = [SubjectAreaValidationError, TooManyTablesError, FileTooLargeError, YamlNodeLimitError, YamlCharLimitError];
+export const model = parseTableText('name: a', 'a')?.name;
 export const store = createCanvasStore();
 export const selected: CanvasStore['selectedNode'] = store.getState().selectedNode;
 export const host: CanvasHost = { postMessage: (m) => void m.type };
@@ -74,7 +74,7 @@ export async function exported(): Promise<string[]> {
   const domain = await loaded;
   return [toDbml(domain), toMermaid(domain), exportDiagram(domain, exportFormat), diagramExportFileName(domain, 'dbml'), DIAGRAM_EXPORT_FILE_EXTENSIONS.mermaid];
 }
-export { ErdCanvas, transformDomain, repickHandleSides, CanvasStoreProvider, CanvasEnvironmentProvider, ModelNode, useCanvasGraph };
+export { ErdCanvas, transformSubjectArea, repickHandleSides, CanvasStoreProvider, CanvasEnvironmentProvider, TableNode, useCanvasGraph };
 `;
 
 describe('published declarations', () => {

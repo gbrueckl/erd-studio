@@ -17,14 +17,14 @@ import { NewFkDialog } from '../../webview/components/NewFkDialog/NewFkDialog';
 import { useEditorStore } from '../../webview/store/editorStore';
 
 const col = (name: string, isPrimaryKey = false) => ({ name, dataType: 'string', description: '', isPrimaryKey, isForeignKey: false, isNaturalKey: false });
-const MODELS = [
+const TABLES = [
   { name: 'pit_customer', columns: [col('pit_id', true), col('customer_hk'), col('as_of_date'), col('extra')] },
   { name: 'sat_customer', columns: [col('customer_hk', true), col('load_date', true), col('name')] },
 ];
 
-function setDomain(relationships: unknown[] = []) {
+function setSubjectArea(relationships: unknown[] = []) {
   useEditorStore.setState({
-    domain: { schemaVersion: 5, domain: 'd', layer: 'silver', stage: 'logical', description: '', readOnly: false, viewConfig: {}, models: MODELS, relationships } as never,
+    domain: { schemaVersion: 5, domain: 'd', layer: 'silver', stage: 'logical', description: '', readOnly: false, viewConfig: {}, models: TABLES, relationships } as never,
   });
 }
 const openNew = () => {
@@ -40,7 +40,7 @@ afterEach(cleanup);
 
 describe('NewFkDialog — composite foreign keys (#133 L2)', () => {
   it('+ Add another column pair adds a row; the key is oriented on the column sets and sent with extraPairs', () => {
-    setDomain();
+    setSubjectArea();
     openNew();
     expect(screen.getByText('New Relationship')).toBeTruthy();
     fireEvent.click(screen.getByText('+ Add another column pair'));
@@ -61,7 +61,7 @@ describe('NewFkDialog — composite foreign keys (#133 L2)', () => {
   });
 
   it('a dragged pair of two partial keys opens many-to-many; adding the pair that completes the key re-reads it as many-to-one', () => {
-    setDomain();
+    setSubjectArea();
     // What a drag between pit_customer.customer_hk and sat_customer.customer_hk prefills: each is only part of a key.
     useEditorStore.getState().openFkDialogWithPrefill({
       fromModel: 'pit_customer', fromColumn: 'customer_hk', toModel: 'sat_customer', toColumn: 'customer_hk', cardinality: 'many-to-many',
@@ -81,7 +81,7 @@ describe('NewFkDialog — composite foreign keys (#133 L2)', () => {
   });
 
   it('a cardinality the user picked in the dialog is kept when pairs change', () => {
-    setDomain();
+    setSubjectArea();
     openNew();
     fireEvent.change(screen.getByLabelText('Cardinality'), { target: { value: 'one-to-one' } });
     fireEvent.click(screen.getByText('+ Add another column pair'));
@@ -91,7 +91,7 @@ describe('NewFkDialog — composite foreign keys (#133 L2)', () => {
   });
 
   it('with two or more pairs, many-to-many is disabled and refused', () => {
-    setDomain();
+    setSubjectArea();
     openNew();
     fireEvent.change(screen.getByLabelText('Cardinality'), { target: { value: 'many-to-many' } });
     fireEvent.click(screen.getByText('+ Add another column pair'));
@@ -105,7 +105,7 @@ describe('NewFkDialog — composite foreign keys (#133 L2)', () => {
   });
 
   it('a column used twice at one end is an error on its row; removing the row makes it a single link again', () => {
-    setDomain();
+    setSubjectArea();
     openNew();
     fireEvent.click(screen.getByText('+ Add another column pair'));
     pick('Source column 2', 'customer_hk');
@@ -121,7 +121,7 @@ describe('NewFkDialog — composite foreign keys (#133 L2)', () => {
   });
 
   it('a pair already drawn as a single link between the two models is absorbed, not refused', () => {
-    setDomain([{ fromModel: 'pit_customer', fromColumn: 'as_of_date', toModel: 'sat_customer', toColumn: 'load_date', cardinality: 'many-to-one' }]);
+    setSubjectArea([{ fromModel: 'pit_customer', fromColumn: 'as_of_date', toModel: 'sat_customer', toColumn: 'load_date', cardinality: 'many-to-one' }]);
     openNew();
     fireEvent.click(screen.getByText('+ Add another column pair'));
     pick('Source column 2', 'as_of_date');
@@ -134,7 +134,7 @@ describe('NewFkDialog — composite foreign keys (#133 L2)', () => {
   it('edit prefills every pair of the composite, and saves without counting its own members as duplicates', () => {
     const members = [['customer_hk', 'customer_hk'], ['as_of_date', 'load_date']].map(([f, t]) =>
       ({ fromModel: 'pit_customer', fromColumn: f, toModel: 'sat_customer', toColumn: t, cardinality: 'many-to-one', compositeKey: 'fk_sat_customer' }));
-    setDomain(members);
+    setSubjectArea(members);
     useEditorStore.getState().openFkDialogForEdit({
       fromModel: 'pit_customer', fromColumn: 'customer_hk', toModel: 'sat_customer', toColumn: 'customer_hk', cardinality: 'many-to-one', role: 'as of',
       pairs: [{ fromColumn: 'customer_hk', toColumn: 'customer_hk' }, { fromColumn: 'as_of_date', toColumn: 'load_date' }],

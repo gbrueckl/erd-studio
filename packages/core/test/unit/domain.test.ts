@@ -1,22 +1,23 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import {
-  DomainFileError,
-  DomainValidationError,
-  NON_DOMAIN_DIRS,
+  SubjectAreaFileError,
+  SubjectAreaValidationError,
+  NON_SUBJECT_AREA_DIRS,
   VALID_CARDINALITIES,
-  buildUnifiedDomain,
-  classifyModelLoadError,
-  describeModelLoadError,
-  parseDomainJson,
-  resolveDomainLayer,
+  buildUnifiedSubjectArea,
+  classifyTableLoadError,
+  describeTableLoadError,
+  parseSubjectAreaJson,
+  locateJsonSyntaxError,
+  resolveSubjectAreaLayer,
   toLogicalStage,
-  validateDomainDocument,
-  type BuildUnifiedDomainContext,
+  validateSubjectAreaDocument,
+  type BuildUnifiedSubjectAreaContext,
   type LayerLookup,
 } from '../../src/domain';
-import type { SemanticModel, UnifiedDomain } from '../../src/types/semantic';
-import { toDisplayDomain } from '../../src/displayDomain';
+import type { SemanticTable, UnifiedSubjectArea } from '../../src/types/semantic';
+import { toDisplaySubjectArea } from '../../src/displayDomain';
 
 const FILE = '/proj/.erd-studio/silver/sales.json';
 
@@ -27,7 +28,7 @@ function layers(...ids: string[]): LayerLookup {
   };
 }
 
-function ctx(overrides: Partial<BuildUnifiedDomainContext> = {}): BuildUnifiedDomainContext {
+function ctx(overrides: Partial<BuildUnifiedSubjectAreaContext> = {}): BuildUnifiedSubjectAreaContext {
   return {
     filePath: FILE,
     domainNameFallback: 'sales',
@@ -39,14 +40,14 @@ function ctx(overrides: Partial<BuildUnifiedDomainContext> = {}): BuildUnifiedDo
 }
 
 /** Validate then build, the way every host calls the pair. */
-function build(doc: unknown, overrides: Partial<BuildUnifiedDomainContext> = {}): UnifiedDomain {
-  const { obj, format } = validateDomainDocument(doc, FILE);
-  return buildUnifiedDomain(obj, format, ctx(overrides));
+function build(doc: unknown, overrides: Partial<BuildUnifiedSubjectAreaContext> = {}): UnifiedSubjectArea {
+  const { obj, format } = validateSubjectAreaDocument(doc, FILE);
+  return buildUnifiedSubjectArea(obj, format, ctx(overrides));
 }
 
-describe('NON_DOMAIN_DIRS', () => {
+describe('NON_SUBJECT_AREA_DIRS', () => {
   it('lists the directories that never hold domain files', () => {
-    expect([...NON_DOMAIN_DIRS].sort()).toEqual(['logical', 'logical-models', 'physical', 'templates']);
+    expect([...NON_SUBJECT_AREA_DIRS].sort()).toEqual(['logical', 'logical-models', 'physical', 'templates']);
   });
 });
 
@@ -56,123 +57,217 @@ describe('VALID_CARDINALITIES', () => {
   });
 });
 
-describe('DomainFileError', () => {
+describe('SubjectAreaFileError', () => {
   it('is transient only for empty and invalid-json files', () => {
-    expect(new DomainFileError('empty', FILE, 'm').transient).toBe(true);
-    expect(new DomainFileError('invalid-json', FILE, 'm').transient).toBe(true);
-    expect(new DomainFileError('missing', FILE, 'm').transient).toBe(false);
-    expect(new DomainFileError('unreadable', FILE, 'm').transient).toBe(false);
+    expect(new SubjectAreaFileError('empty', FILE, 'm').transient).toBe(true);
+    expect(new SubjectAreaFileError('invalid-json', FILE, 'm').transient).toBe(true);
+    expect(new SubjectAreaFileError('missing', FILE, 'm').transient).toBe(false);
+    expect(new SubjectAreaFileError('unreadable', FILE, 'm').transient).toBe(false);
   });
 
   it('carries its reason, path, message and name', () => {
-    const err = new DomainFileError('missing', FILE, 'gone');
+    const err = new SubjectAreaFileError('missing', FILE, 'gone');
     expect(err).toBeInstanceOf(Error);
     expect(err.reason).toBe('missing');
     expect(err.filePath).toBe(FILE);
     expect(err.message).toBe('gone');
-    expect(err.name).toBe('DomainFileError');
+    expect(err.name).toBe('SubjectAreaFileError');
   });
 });
 
-describe('parseDomainJson', () => {
+describe('parseSubjectAreaJson', () => {
   it('returns the parsed document', () => {
-    expect(parseDomainJson('{"schemaVersion":5}', FILE)).toEqual({ schemaVersion: 5 });
+    expect(parseSubjectAreaJson('{"schemaVersion":5}', FILE)).toEqual({ schemaVersion: 5 });
   });
 
   it('reports an empty or whitespace-only file as a transient "empty" error', () => {
     for (const raw of ['', '  \n\t']) {
       let caught: unknown;
       try {
-        parseDomainJson(raw, FILE);
+        parseSubjectAreaJson(raw, FILE);
       } catch (err) {
         caught = err;
       }
-      expect(caught).toBeInstanceOf(DomainFileError);
-      expect((caught as DomainFileError).reason).toBe('empty');
-      expect((caught as DomainFileError).transient).toBe(true);
-      expect((caught as DomainFileError).message).toBe(`Domain file is empty: ${FILE}`);
+      expect(caught).toBeInstanceOf(SubjectAreaFileError);
+      expect((caught as SubjectAreaFileError).reason).toBe('empty');
+      expect((caught as SubjectAreaFileError).transient).toBe(true);
+      expect((caught as SubjectAreaFileError).message).toBe(`Subject area file is empty: ${FILE}`);
     }
   });
 
   it('reports text that is not JSON as a transient "invalid-json" error naming the file', () => {
     let caught: unknown;
     try {
-      parseDomainJson('{"schemaVersion": 5,', FILE);
+      parseSubjectAreaJson('{"schemaVersion": 5,', FILE);
     } catch (err) {
       caught = err;
     }
-    expect(caught).toBeInstanceOf(DomainFileError);
-    expect((caught as DomainFileError).reason).toBe('invalid-json');
-    expect((caught as DomainFileError).message.startsWith(`Invalid JSON in domain file ${FILE}: `)).toBe(true);
+    expect(caught).toBeInstanceOf(SubjectAreaFileError);
+    expect((caught as SubjectAreaFileError).reason).toBe('invalid-json');
+    expect((caught as SubjectAreaFileError).message.startsWith(`Invalid JSON in subject area file ${FILE}: `)).toBe(true);
   });
 });
 
-describe('validateDomainDocument', () => {
+describe('where an invalid-json domain file goes wrong (#186)', () => {
+  const caught = (raw: string): SubjectAreaFileError => {
+    try {
+      parseSubjectAreaJson(raw, FILE);
+    } catch (err) {
+      return err as SubjectAreaFileError;
+    }
+    throw new Error('did not throw');
+  };
+  const lines = (...l: string[]): string => l.join('\n');
+  const where = (err: SubjectAreaFileError) => ({ line: err.line, column: err.column, problem: err.syntaxProblem });
+
+  it('points at a trailing comma, not at the bracket the parser stopped on', () => {
+    expect(where(caught(lines('{', '  "schemaVersion": 5,', '  "layer": "gold",', '}'))))
+      .toEqual({ line: 3, column: 18, problem: 'trailing-comma' });
+    expect(where(caught('{"models": ["a", "b",]}'))).toEqual({ line: 1, column: 21, problem: 'trailing-comma' });
+    expect(where(caught('{"a": 1,}'))).toEqual({ line: 1, column: 8, problem: 'trailing-comma' });
+  });
+
+  it('points just after the value a comma is missing from, on its own line', () => {
+    expect(where(caught(lines('{', '  "schemaVersion": 5', '  "layer": "gold"', '}'))))
+      .toEqual({ line: 2, column: 21, problem: 'missing-comma' });
+  });
+
+  it('points at the end of a file that stops before the JSON does', () => {
+    expect(where(caught(lines('{', '  "schemaVersion": 5,', '  "layer": "go'))))
+      .toEqual({ line: 3, column: 15, problem: 'truncated' });
+    expect(where(caught(lines('{', '  "models": [', '')))).toEqual({ line: 2, column: 14, problem: 'truncated' });
+  });
+
+  it('counts CRLF line endings as one line break', () => {
+    expect(where(caught('{\r\n  "a": 1,\r\n}'))).toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+  });
+
+  it('reads a file that starts with a byte order mark, which the text editor hides', () => {
+    expect(parseSubjectAreaJson('\ufeff{"schemaVersion": 5}', FILE)).toEqual({ schemaVersion: 5 });
+  });
+
+  it('locates a mistake in a file with a byte order mark as the text editor shows it', () => {
+    expect(where(caught('\ufeff{\n  "a": 1,\n}'))).toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+    expect(where(caught('\ufeff{"a": 1, "b": 2,}'))).toEqual({ line: 1, column: 16, problem: 'trailing-comma' });
+  });
+
+  it('calls a mistake a missing comma only where a comma could go', () => {
+    // A missing colon, in the words an older V8 (Node 18, VS Code 1.85) uses.
+    expect(locateJsonSyntaxError('{"a" "b": 1}', 'Unexpected string in JSON at position 5')?.problem).toBe('unexpected');
+    // An assistant appending a second copy of the document.
+    expect(where(caught('{"a": 1}\n{"a": 1}')).problem).toBe('unexpected');
+    // A bad number, not two values.
+    expect(where(caught('{"a": 01}')).problem).toBe('unexpected');
+  });
+
+  it('points at the start of a misspelt literal', () => {
+    expect(where(caught('{"a": tru}'))).toEqual({ line: 1, column: 7, problem: 'unexpected' });
+  });
+
+  it('keeps the message the CLI and logs print', () => {
+    const err = caught('{"a": 1,}');
+    expect(err.message.startsWith(`Invalid JSON in subject area file ${FILE}: `)).toBe(true);
+    expect(err.mergeConflict).toBe(false);
+    expect(err.transient).toBe(true);
+  });
+});
+
+describe('locateJsonSyntaxError', () => {
+  it('reads the position from older V8, SpiderMonkey and end-of-input messages', () => {
+    const raw = '{\n  "a": 1,\n}';
+    expect(locateJsonSyntaxError(raw, 'Unexpected token } in JSON at position 12'))
+      .toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+    expect(locateJsonSyntaxError(raw, 'JSON.parse: expected double-quoted property name at line 3 column 1 of the JSON data'))
+      .toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+    expect(locateJsonSyntaxError('{"a": [1', 'Unexpected end of JSON input'))
+      .toEqual({ line: 1, column: 9, problem: 'truncated' });
+  });
+
+  it('finds the mistake itself when the parser names no position (V8 "Unexpected token", Safari)', () => {
+    expect(locateJsonSyntaxError('{"a": 1,}', "JSON Parse error: Expected '}'"))
+      .toEqual({ line: 1, column: 8, problem: 'trailing-comma' });
+    expect(locateJsonSyntaxError('{\n  // a comment\n  "a": 1\n}', "Unexpected token '/', ...\"{ // a com\"... is not valid JSON"))
+      .toEqual({ line: 2, column: 3, problem: 'unexpected' });
+  });
+
+  it('says nothing for text that is JSON after all', () => {
+    expect(locateJsonSyntaxError('{"a": [1, -2.5e3, "x\\u00e9", true, null]}', 'no position here')).toBeUndefined();
+  });
+
+  it('does not call a missing colon a missing comma', () => {
+    const raw = '{"a" 1}';
+    let message = '';
+    try { JSON.parse(raw); } catch (err) { message = (err as Error).message; }
+    expect(locateJsonSyntaxError(raw, message)?.problem).toBe('unexpected');
+  });
+});
+
+describe('validateSubjectAreaDocument', () => {
   const rejects = (data: unknown, message: string) => {
-    expect(() => validateDomainDocument(data, FILE)).toThrow(DomainValidationError);
-    expect(() => validateDomainDocument(data, FILE)).toThrow(message);
+    expect(() => validateSubjectAreaDocument(data, FILE)).toThrow(SubjectAreaValidationError);
+    expect(() => validateSubjectAreaDocument(data, FILE)).toThrow(message);
   };
 
   it('rejects anything that is not a JSON object', () => {
     for (const data of [null, [], 'text', 42]) {
-      rejects(data, `Domain file ${FILE} does not contain a JSON object`);
+      rejects(data, `Subject area file ${FILE} does not contain a JSON object`);
     }
   });
 
   it('rejects a document without a numeric schemaVersion', () => {
-    rejects({ logical: { models: [] } }, `Domain file ${FILE} is missing a valid "schemaVersion" field`);
+    rejects({ logical: { models: [] } }, `Subject area file ${FILE} is missing a valid "schemaVersion" field`);
     rejects({ schemaVersion: '5' }, 'is missing a valid "schemaVersion" field');
   });
 
   it('rejects a schemaVersion newer than this version supports', () => {
     rejects(
-      { schemaVersion: 6 },
-      `Domain file ${FILE} has schemaVersion 6 but this extension only supports up to version 5. Please update the extension.`,
+      { schemaVersion: 7 },
+      `Subject area file ${FILE} has schemaVersion 7 but this extension only supports up to version 6. Please update the extension.`,
     );
   });
 
   it('rejects legacy and hybrid layouts with the migration hint', () => {
     rejects({ schemaVersion: 3, logical: { models: [] } }, 'uses a pre-v4 layout');
-    rejects({ schemaVersion: 5, logical: { models: ['a', { name: 'b' }] } }, 'mixes inline model objects');
+    rejects({ schemaVersion: 5, logical: { models: ['a', { name: 'b' }] } }, 'mixes inline table objects');
   });
 
   it('returns the object and its format', () => {
     const v5 = { schemaVersion: 5, logical: { models: ['a'] } };
-    expect(validateDomainDocument(v5, FILE)).toEqual({ obj: v5, format: 'v5' });
+    expect(validateSubjectAreaDocument(v5, FILE)).toEqual({ obj: v5, format: 'v5' });
     const v4 = { schemaVersion: 4, logical: { models: [{ name: 'a' }] } };
-    expect(validateDomainDocument(v4, FILE)).toEqual({ obj: v4, format: 'v4' });
+    expect(validateSubjectAreaDocument(v4, FILE)).toEqual({ obj: v4, format: 'v4' });
   });
 
   it('keeps the plain Error name, so logged errors read as before', () => {
     try {
-      validateDomainDocument([], FILE);
+      validateSubjectAreaDocument([], FILE);
     } catch (err) {
-      expect(err).toBeInstanceOf(DomainValidationError);
+      expect(err).toBeInstanceOf(SubjectAreaValidationError);
       expect(err).toBeInstanceOf(Error);
       expect((err as Error).name).toBe('Error');
     }
   });
 });
 
-describe('resolveDomainLayer', () => {
+describe('resolveSubjectAreaLayer', () => {
   it('uses the layer field when it is configured', () => {
-    expect(resolveDomainLayer('gold', FILE, 'silver', layers('silver', 'gold'))).toBe('gold');
+    expect(resolveSubjectAreaLayer('gold', FILE, 'silver', layers('silver', 'gold'))).toBe('gold');
   });
 
   it('falls back to the parent directory', () => {
-    expect(resolveDomainLayer('platinum', FILE, 'silver', layers('silver', 'gold'))).toBe('silver');
-    expect(resolveDomainLayer(undefined, FILE, 'gold', layers('silver', 'gold'))).toBe('gold');
-    expect(resolveDomainLayer(7, FILE, 'gold', layers('silver', 'gold'))).toBe('gold');
+    expect(resolveSubjectAreaLayer('platinum', FILE, 'silver', layers('silver', 'gold'))).toBe('silver');
+    expect(resolveSubjectAreaLayer(undefined, FILE, 'gold', layers('silver', 'gold'))).toBe('gold');
+    expect(resolveSubjectAreaLayer(7, FILE, 'gold', layers('silver', 'gold'))).toBe('gold');
   });
 
-  it('throws a DomainValidationError listing the configured layers', () => {
-    const call = () => resolveDomainLayer('diamond', FILE, 'platinum', layers('silver', 'gold'));
-    expect(call).toThrow(DomainValidationError);
-    expect(call).toThrow(`Domain file ${FILE} has invalid layer "diamond". Expected one of: silver, gold`);
+  it('throws a SubjectAreaValidationError listing the configured layers', () => {
+    const call = () => resolveSubjectAreaLayer('diamond', FILE, 'platinum', layers('silver', 'gold'));
+    expect(call).toThrow(SubjectAreaValidationError);
+    expect(call).toThrow(`Subject area file ${FILE} has invalid layer "diamond". Expected one of: silver, gold`);
   });
 });
 
-describe('buildUnifiedDomain', () => {
+describe('buildUnifiedSubjectArea', () => {
   it('fills defaults for a minimal v5 document', () => {
     expect(build({ schemaVersion: 5 })).toEqual({
       schemaVersion: 5,
@@ -255,7 +350,7 @@ describe('buildUnifiedDomain', () => {
 
   it('resolves v5 references through getModel, with a warned placeholder for each miss', () => {
     const warn = vi.fn();
-    const dimA: SemanticModel = { name: 'dim_a', columns: [{ name: 'k', dataType: 'INT', description: '' }] };
+    const dimA: SemanticTable = { name: 'dim_a', columns: [{ name: 'k', dataType: 'INT', description: '' }] };
     const getModel = vi.fn((name: string) => (name === 'dim_a' ? structuredClone(dimA) : null));
     const u = build({ schemaVersion: 5, logical: { models: ['dim_a', 'gone', 'dim_a'] } }, { getModel, warn });
     expect(u.logical.models).toEqual([dimA, { name: 'gone', columns: [] }, dimA]);
@@ -280,8 +375,8 @@ describe('buildUnifiedDomain', () => {
     ]);
     expect(warn.mock.calls.map((c) => c[0]).join('\n')).not.toContain('"broken" not found');
 
-    // toDisplayDomain passes it through to the node.
-    const display = toDisplayDomain(toLogicalStage(u), { viewConfig: {}, layerConfig: undefined, readOnly: false });
+    // toDisplaySubjectArea passes it through to the node.
+    const display = toDisplaySubjectArea(toLogicalStage(u), { viewConfig: {}, layerConfig: undefined, readOnly: false });
     expect(display.models.map((m) => m.loadError)).toEqual([{ kind: 'yamlScalar', line: 4 }, undefined]);
   });
 
@@ -295,12 +390,12 @@ describe('buildUnifiedDomain', () => {
   });
 
   it('classifies parser errors by code and position only', () => {
-    expect(classifyModelLoadError(Object.assign(new Error('x'), { code: 'TAB_AS_INDENT', linePos: [{ line: 3, col: 1 }] })))
+    expect(classifyTableLoadError(Object.assign(new Error('x'), { code: 'TAB_AS_INDENT', linePos: [{ line: 3, col: 1 }] })))
       .toEqual({ kind: 'yamlIndent', line: 3, column: 1, code: 'TAB_AS_INDENT' });
-    expect(classifyModelLoadError(Object.assign(new Error('x'), { code: 'EACCES' }))).toEqual({ kind: 'read' });
-    expect(classifyModelLoadError(new Error('no code'))).toEqual({ kind: 'yamlOther' });
-    expect(describeModelLoadError({ kind: 'read' })).toBe('logical-models file could not be read');
-    expect(describeModelLoadError({ kind: 'yamlDuplicateKey' })).toBe('logical-models file has a YAML error');
+    expect(classifyTableLoadError(Object.assign(new Error('x'), { code: 'EACCES' }))).toEqual({ kind: 'read' });
+    expect(classifyTableLoadError(new Error('no code'))).toEqual({ kind: 'yamlOther' });
+    expect(describeTableLoadError({ kind: 'read' })).toBe('logical-models file could not be read');
+    expect(describeTableLoadError({ kind: 'yamlDuplicateKey' })).toBe('logical-models file has a YAML error');
   });
 
   it('makes silent placeholders for every v5 reference when there is no getModel', () => {
@@ -324,14 +419,14 @@ describe('buildUnifiedDomain', () => {
     const getModel = vi.fn(() => null);
     expect(() =>
       build({ schemaVersion: 5, layer: 'diamond', logical: { models: ['a'] } }, { parentDirName: 'platinum', getModel }),
-    ).toThrow(DomainValidationError);
+    ).toThrow(SubjectAreaValidationError);
     expect(getModel).not.toHaveBeenCalled();
   });
 
   it('warns through console.warn when no warn callback is given', () => {
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { obj, format } = validateDomainDocument({ schemaVersion: 5, viewConfig: { positions: { a: null } } }, FILE);
-    buildUnifiedDomain(obj, format, { ...ctx(), warn: undefined });
+    const { obj, format } = validateSubjectAreaDocument({ schemaVersion: 5, viewConfig: { positions: { a: null } } }, FILE);
+    buildUnifiedSubjectArea(obj, format, { ...ctx(), warn: undefined });
     expect(spy).toHaveBeenCalledWith('Ignoring malformed viewConfig.positions entry for "a"');
     spy.mockRestore();
   });
@@ -360,7 +455,7 @@ describe('toLogicalStage', () => {
 });
 
 describe('relationship ends spelled in another case are drawn (#133 L4)', () => {
-  const models: Record<string, SemanticModel> = {
+  const models: Record<string, SemanticTable> = {
     dim_customer: { name: 'dim_customer', columns: [{ name: 'customer_id', dataType: 'int', description: '', isPrimaryKey: true }] },
     fct_order: {
       name: 'fct_order',
@@ -368,13 +463,13 @@ describe('relationship ends spelled in another case are drawn (#133 L4)', () => 
       relationships: [{ fromColumn: 'Customer_ID', toModel: 'Dim_Customer', toColumn: 'CUSTOMER_ID', cardinality: 'many-to-one' }],
     },
   };
-  const getModel = (name: string): SemanticModel | null => models[name] ?? null;
+  const getModel = (name: string): SemanticTable | null => models[name] ?? null;
   const REAL = { fromModel: 'fct_order', fromColumn: 'customer_id', toModel: 'dim_customer', toColumn: 'customer_id' };
 
   it('a library entry with toModel Dim_Customer is drawn as dim_customer, and badges the column', () => {
     const u = build({ schemaVersion: 5, logical: { models: ['dim_customer', 'fct_order'] } }, { getModel });
     expect(u.logical.relationships).toEqual([{ ...REAL, cardinality: 'many-to-one' }]);
-    const display = toDisplayDomain(toLogicalStage(u), { viewConfig: {}, layerConfig: undefined, readOnly: false });
+    const display = toDisplaySubjectArea(toLogicalStage(u), { viewConfig: {}, layerConfig: undefined, readOnly: false });
     expect(display.models.find((m) => m.name === 'fct_order')!.columns[0].isForeignKey).toBe(true);
   });
 
@@ -402,9 +497,9 @@ describe('relationship ends spelled in another case are drawn (#133 L4)', () => 
 describe('the read winner reads dbt evidence when no key is flagged (#133 L1)', () => {
   it('dbt-unique on dim.k makes fct\'s copy win, with no flags anywhere', async () => {
     const { buildDbtKeyIndex } = await import('../../src/keyEvidence');
-    const dim: SemanticModel = { name: 'dim', columns: [{ name: 'k', dataType: 'int', description: '' }], relationships: [{ fromColumn: 'k', toModel: 'fct', toColumn: 'k', cardinality: 'many-to-one' }] };
-    const fct: SemanticModel = { name: 'fct', columns: [{ name: 'k', dataType: 'int', description: '' }], relationships: [{ fromColumn: 'k', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one', role: 'r' }] };
-    const getModel = (name: string): SemanticModel | null => ({ dim, fct } as Record<string, SemanticModel>)[name] ?? null;
+    const dim: SemanticTable = { name: 'dim', columns: [{ name: 'k', dataType: 'int', description: '' }], relationships: [{ fromColumn: 'k', toModel: 'fct', toColumn: 'k', cardinality: 'many-to-one' }] };
+    const fct: SemanticTable = { name: 'fct', columns: [{ name: 'k', dataType: 'int', description: '' }], relationships: [{ fromColumn: 'k', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one', role: 'r' }] };
+    const getModel = (name: string): SemanticTable | null => ({ dim, fct } as Record<string, SemanticTable>)[name] ?? null;
     const doc = { schemaVersion: 5, logical: { models: ['dim', 'fct'] } };
     expect(build(doc, { getModel }).logical.relationships).toEqual([{ fromModel: 'dim', fromColumn: 'k', toModel: 'fct', toColumn: 'k', cardinality: 'many-to-one' }]);
     const dbtKeyIndex = buildDbtKeyIndex([{ uniqueColumns: new Map([['dim', new Set(['k'])]]) }]);
@@ -414,12 +509,12 @@ describe('the read winner reads dbt evidence when no key is flagged (#133 L1)', 
 
 describe('composite foreign keys are drawn when they form one (#133 L2)', () => {
   const col = (name: string) => ({ name, dataType: 'int', description: '' });
-  const sat: SemanticModel = { name: 'sat', columns: [col('hk'), col('load_date')] };
-  const other: SemanticModel = { name: 'hub', columns: [col('hk')] };
+  const sat: SemanticTable = { name: 'sat', columns: [col('hk'), col('load_date')] };
+  const other: SemanticTable = { name: 'hub', columns: [col('hk')] };
   const m = (fromColumn: string, toColumn: string, extra: Record<string, unknown> = {}) =>
     ({ fromColumn, toModel: 'sat', toColumn, cardinality: 'many-to-one' as const, compositeKey: 'FK_Sat', ...extra });
-  const pit = (relationships: SemanticModel['relationships']): SemanticModel => ({ name: 'pit', columns: [col('hk'), col('as_of'), col('x')], relationships });
-  const draw = (models: SemanticModel[], own: unknown[] = [], warn = vi.fn()) => {
+  const pit = (relationships: SemanticTable['relationships']): SemanticTable => ({ name: 'pit', columns: [col('hk'), col('as_of'), col('x')], relationships });
+  const draw = (models: SemanticTable[], own: unknown[] = [], warn = vi.fn()) => {
     const lookup = Object.fromEntries(models.map((x) => [x.name, x]));
     const u = build({ schemaVersion: 5, logical: { models: models.map((x) => x.name), relationships: own } }, { getModel: (n) => lookup[n] ?? null, warn });
     return u.logical.relationships;
@@ -438,14 +533,14 @@ describe('composite foreign keys are drawn when they form one (#133 L2)', () => 
     ['a repeated column', [m('hk', 'hk'), m('hk', 'load_date')]],
   ])('an invalid group (%s) draws as singles, with one warning', (_name, entries) => {
     const warn = vi.fn();
-    const rels = draw([pit(entries as SemanticModel['relationships']), sat, other], [], warn);
+    const rels = draw([pit(entries as SemanticTable['relationships']), sat, other], [], warn);
     expect(rels.length).toBe(entries.length);
     expect(rels.every((r) => r.compositeKey === undefined)).toBe(true);
     expect(warn.mock.calls.filter(([msg]) => /do not form one composite key/.test(msg))).toHaveLength(1);
   });
 
   it('a 1.6.7 single copy elsewhere does not break the group in its home file', () => {
-    const stray: SemanticModel = { ...sat, relationships: [{ fromColumn: 'hk', toModel: 'pit', toColumn: 'hk', cardinality: 'one-to-many' }] };
+    const stray: SemanticTable = { ...sat, relationships: [{ fromColumn: 'hk', toModel: 'pit', toColumn: 'hk', cardinality: 'one-to-many' }] };
     const rels = draw([pit([m('hk', 'hk'), m('as_of', 'load_date')]), stray]);
     expect(rels.map((r) => [r.fromModel, r.fromColumn, r.compositeKey])).toEqual([['pit', 'hk', 'FK_Sat'], ['pit', 'as_of', 'FK_Sat']]);
   });

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DataTypeSelect } from './DataTypeSelect';
 import { KeyBadgeGroup } from './KeyBadgeGroup';
 import { useFocusWithinRow } from '../../hooks/useFocusWithinRow';
-import type { ColumnDef, ModelRole } from '@erd-studio/core';
+import type { ColumnDef, TableRole } from '@erd-studio/core';
 import type { UpdateColumnPayloadColumn } from '@erd-studio/core';
 import './ColumnRowEditor.css';
 
@@ -64,7 +64,7 @@ export interface ColumnRowEditorProps {
   /** Show warning if multiple PKs exist in model. */
   showMultiplePKWarning?: boolean;
   /** Parent model's role — determines whether SCD/additive dropdowns are shown. */
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
   /** Whether the description area is expanded. */
   expanded?: boolean;
   /** Callback when the expand/collapse chevron is clicked. */

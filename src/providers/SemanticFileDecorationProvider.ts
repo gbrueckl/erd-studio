@@ -52,7 +52,7 @@ export class SemanticFileDecorationProvider implements vscode.FileDecorationProv
       return undefined;
     }
 
-    return { tooltip: `${layerConfig.label} domain (opens in visual editor)` };
+    return { tooltip: `${layerConfig.label} subject area (opens in visual editor)` };
   }
 
   /**

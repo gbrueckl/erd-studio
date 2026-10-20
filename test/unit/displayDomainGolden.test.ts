@@ -1,7 +1,7 @@
 /**
- * Golden output of the extension host's domain -> DisplayDomain pipeline.
+ * Golden output of the extension host's domain -> DisplaySubjectArea pipeline.
  *
- * Drives the real DomainService, LayerService and LogicalModelService (and a
+ * Drives the real SubjectAreaService, LayerService and TableLibraryService (and a
  * real SemanticEditorProvider) over the fixture projects in
  * packages/core/test/fixtures, and pins exactly what the host posts to the
  * webview. The same files are the parity target for @erd-studio/core: once the
@@ -9,13 +9,13 @@
  * and core's own golden test compares its output against these files.
  *
  * Outputs (packages/core/test/fixtures/golden):
- *   <case>.host.json                 posted[0] of sendDomainData (logical stage)
- *   <case>.unified.json              domainService.getDomain(), JSON round-tripped
- *   missing-positions.persist.json   sendDomainData with persistPositions: the
+ *   <case>.host.json                 posted[0] of sendSubjectAreaData (logical stage)
+ *   <case>.unified.json              subjectAreaService.getSubjectArea(), JSON round-tripped
+ *   missing-positions.persist.json   sendSubjectAreaData with persistPositions: the
  *                                    posted message plus the WorkspaceEdit applied
  *   showcase.stage-logical.json      the stageData reply of a switch to logical
  *   dbt-project.stage-physical.json  the stageData reply of a switch to physical
- *   dbt-project.physical.host.json   sendDomainData on a panel showing physical
+ *   dbt-project.physical.host.json   sendSubjectAreaData on a panel showing physical
  *   errors.<name>.host.json          the posted `error` message (payload { message, kind? })
  *   logs.json                        console.warn / console.error text per output
  *
@@ -44,9 +44,9 @@ import {
   type MockEditOp,
 } from '../__mocks__/vscode';
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { CatalogService } from '../../src/services/catalogService';
@@ -65,7 +65,7 @@ const DBT_PROJECT = path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project');
 const SEMANTIC_DIR = '.erd-studio';
 
 /** Fixture projects that load successfully: name -> domain file under the project root. */
-const DOMAIN_CASES: Record<string, string> = {
+const SUBJECT_AREA_CASES: Record<string, string> = {
   showcase: 'silver/showcase.json',
   'v4-inline': 'bronze/orders.json',
   'missing-model': 'silver/partial.json',
@@ -80,6 +80,8 @@ const DOMAIN_CASES: Record<string, string> = {
   'composite-and-self': 'gold/vault.json',
   // #144: column types spelled dbt's way (`data_type:`), alone and beside a `dataType`.
   'data-type-alias': 'silver/orders.json',
+  // #163: a domain file's one-to-many from the "one" side badges the to end as the foreign key.
+  'domain-one-to-many': 'gold/sales.json',
   // #164: a key written twice, read with the last copy winning and a loadWarning.
   'duplicate-key': 'silver/orders.json',
 };
@@ -100,7 +102,7 @@ const ERROR_CASES: Record<string, string> = {
 };
 
 const EXPECTED_FILES = [
-  ...Object.keys(DOMAIN_CASES).flatMap((c) => [`${c}.host.json`, `${c}.unified.json`]),
+  ...Object.keys(SUBJECT_AREA_CASES).flatMap((c) => [`${c}.host.json`, `${c}.unified.json`]),
   'missing-positions.persist.json',
   'showcase.stage-logical.json',
   'dbt-project.stage-physical.json',
@@ -108,7 +110,7 @@ const EXPECTED_FILES = [
   ...Object.keys(ERROR_CASES).map((c) => `errors.${c}.host.json`),
   'logs.json',
   // The diagram export goldens, owned by packages/core/test/unit/exportDiagram.golden.test.ts.
-  ...Object.keys(DOMAIN_CASES).flatMap((c) => [`${c}.dbml`, `${c}.mmd`]),
+  ...Object.keys(SUBJECT_AREA_CASES).flatMap((c) => [`${c}.dbml`, `${c}.mmd`]),
 ].sort();
 
 const LINE_COLUMN = / \(line \d+ column \d+\)/g;
@@ -204,7 +206,7 @@ function emptyYml(): YmlData {
 
 interface Host {
   provider: SemanticEditorProvider;
-  domainService: DomainService;
+  subjectAreaService: SubjectAreaService;
 }
 
 /**
@@ -213,10 +215,10 @@ interface Host {
  */
 function buildHost(root: string, options: { dbt?: boolean } = {}): Host {
   const layerService = new LayerService(root, SEMANTIC_DIR);
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, SEMANTIC_DIR);
-  domainService.setLogicalModelService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, root, SEMANTIC_DIR);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, SEMANTIC_DIR);
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, root, SEMANTIC_DIR);
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
     globalStorageUri: vscode.Uri.file(path.join(root, '.global-storage')),
@@ -235,23 +237,23 @@ function buildHost(root: string, options: { dbt?: boolean } = {}): Host {
 
   const provider = new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     manifestService,
     ymlParserService,
     templateService,
     layerService,
     root,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
     new OwnWriteTracker(),
   );
   if (options.dbt) {
     provider.setCatalogService(new CatalogService());
   }
-  return { provider, domainService };
+  return { provider, subjectAreaService };
 }
 
-function domainFile(root: string, relative: string): string {
+function subjectAreaFile(root: string, relative: string): string {
   return path.join(root, SEMANTIC_DIR, relative);
 }
 
@@ -262,8 +264,8 @@ function openDocument(filePath: string, options: { persist?: boolean } = {}) {
 
 type Posted = { type: string; payload?: unknown };
 
-/** Run sendDomainData once and return what was posted, round-tripped through JSON. */
-async function sendDomainData(
+/** Run sendSubjectAreaData once and return what was posted, round-tripped through JSON. */
+async function sendSubjectAreaData(
   host: Host,
   filePath: string,
   options: { stage?: 'logical' | 'physical'; persistPositions?: boolean; persistDocument?: boolean } = {},
@@ -276,7 +278,7 @@ async function sendDomainData(
     panelKey = 'golden-panel';
     internals.openPanels.set(panelKey, { document: doc, webview: panel.webview, activeStage: options.stage });
   }
-  await internals.sendDomainData(doc, panel.webview, panelKey, { persistPositions: options.persistPositions });
+  await internals.sendSubjectAreaData(doc, panel.webview, panelKey, { persistPositions: options.persistPositions });
   return JSON.parse(JSON.stringify(panel._postedMessages)) as Posted[];
 }
 
@@ -323,21 +325,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('DisplayDomain golden output (extension host)', () => {
-  describe.each(Object.entries(DOMAIN_CASES))('%s', (name, relative) => {
+describe('DisplaySubjectArea golden output (extension host)', () => {
+  describe.each(Object.entries(SUBJECT_AREA_CASES))('%s', (name, relative) => {
     const root = path.join(FIXTURES, name);
 
-    it('posts the logical DisplayDomain from sendDomainData', async () => {
-      const posted = await sendDomainData(buildHost(root), domainFile(root, relative));
+    it('posts the logical DisplaySubjectArea from sendSubjectAreaData', async () => {
+      const posted = await sendSubjectAreaData(buildHost(root), subjectAreaFile(root, relative));
       expect(posted).toHaveLength(1);
       expect(posted[0].type).toBe('domainLoaded');
       matchGolden(`${name}.host.json`, normalise(posted[0], root));
       matchLogs(`${name}.host`, root);
     });
 
-    it('reads the UnifiedDomain with getDomain', () => {
-      const { domainService } = buildHost(root);
-      const unified = JSON.parse(JSON.stringify(domainService.getDomain(domainFile(root, relative))));
+    it('reads the UnifiedSubjectArea with getSubjectArea', () => {
+      const { subjectAreaService } = buildHost(root);
+      const unified = JSON.parse(JSON.stringify(subjectAreaService.getSubjectArea(subjectAreaFile(root, relative))));
       matchGolden(`${name}.unified.json`, normalise(unified, root));
       matchLogs(`${name}.unified`, root);
     });
@@ -356,8 +358,8 @@ describe('DisplayDomain golden output (extension host)', () => {
     });
 
     it('posts the domain and writes the computed positions through one WorkspaceEdit', async () => {
-      const file = domainFile(tmpRoot, DOMAIN_CASES['missing-positions']);
-      const posted = await sendDomainData(buildHost(tmpRoot), file, {
+      const file = subjectAreaFile(tmpRoot, SUBJECT_AREA_CASES['missing-positions']);
+      const posted = await sendSubjectAreaData(buildHost(tmpRoot), file, {
         persistPositions: true,
         persistDocument: true,
       });
@@ -382,7 +384,7 @@ describe('DisplayDomain golden output (extension host)', () => {
   describe('stage switching', () => {
     it('replies to a switch to the logical stage with stageData', async () => {
       const root = path.join(FIXTURES, 'showcase');
-      const posted = await switchStage(buildHost(root), domainFile(root, DOMAIN_CASES.showcase), 'logical');
+      const posted = await switchStage(buildHost(root), subjectAreaFile(root, SUBJECT_AREA_CASES.showcase), 'logical');
       expect(posted).toHaveLength(1);
       expect(posted[0].type).toBe('stageData');
       matchGolden('showcase.stage-logical.json', normalise(posted[0], root));
@@ -392,7 +394,7 @@ describe('DisplayDomain golden output (extension host)', () => {
     it('replies to a switch to the physical stage with stageData (real dbt project)', async () => {
       const posted = await switchStage(
         buildHost(DBT_PROJECT, { dbt: true }),
-        domainFile(DBT_PROJECT, 'silver/showcase.json'),
+        subjectAreaFile(DBT_PROJECT, 'silver/showcase.json'),
         'physical',
       );
       expect(posted).toHaveLength(1);
@@ -401,10 +403,10 @@ describe('DisplayDomain golden output (extension host)', () => {
       matchLogs('dbt-project.stage-physical', DBT_PROJECT);
     });
 
-    it('posts the physical domain from sendDomainData on a panel showing physical', async () => {
-      const posted = await sendDomainData(
+    it('posts the physical domain from sendSubjectAreaData on a panel showing physical', async () => {
+      const posted = await sendSubjectAreaData(
         buildHost(DBT_PROJECT, { dbt: true }),
-        domainFile(DBT_PROJECT, 'silver/showcase.json'),
+        subjectAreaFile(DBT_PROJECT, 'silver/showcase.json'),
         { stage: 'physical' },
       );
       expect(posted).toHaveLength(1);
@@ -418,12 +420,71 @@ describe('DisplayDomain golden output (extension host)', () => {
     const root = path.join(FIXTURES, 'errors');
 
     it('posts an error message', async () => {
-      const posted = await sendDomainData(buildHost(root), domainFile(root, relative));
+      const posted = await sendSubjectAreaData(buildHost(root), subjectAreaFile(root, relative));
       expect(posted).toHaveLength(1);
       expect(posted[0].type).toBe('error');
       matchGolden(`errors.${name}.host.json`, normalise(posted[0], root));
       matchLogs(`errors.${name}.host`, root);
     }, 10_000);
+  });
+
+  // #181: the same projects in the v6 file naming (`tables/`, `logical.tables`,
+  // `subjectArea`, `fromTable` / `toTable`, `tableRole`) and half-way between
+  // the two draw exactly what the v5 goldens pin. Only `schemaVersion` (the
+  // file's own) differs; since #182 a v6 canvas is editable like a v5 one.
+  // These fixtures have no goldens of their own: the v5 ones are the expectation.
+  describe.each([
+    ['naming-v6/showcase', 'silver/showcase.json', 'showcase', 6],
+    ['naming-v6/library-relationships', 'gold/sales.json', 'library-relationships', 6],
+    ['naming-mixed/library-relationships', 'gold/sales.json', 'library-relationships', 6],
+    ['naming-mixed/library-relationships', 'gold/sales_v5.json', 'library-relationships', 5],
+  ] as const)('%s %s draws the %s golden', (project, relative, golden, schemaVersion) => {
+    const root = path.join(FIXTURES, project);
+
+    it('posts the v5 DisplaySubjectArea', async () => {
+      const posted = await sendSubjectAreaData(buildHost(root), subjectAreaFile(root, relative));
+      expect(posted).toHaveLength(1);
+      const expected = readGolden(`${golden}.host.json`) as { payload: Record<string, unknown> };
+      expect(normalise(posted[0], root)).toEqual({
+        ...expected,
+        payload: { ...expected.payload, schemaVersion },
+      });
+    });
+
+    it('reads the v5 UnifiedSubjectArea', () => {
+      const unified = JSON.parse(JSON.stringify(buildHost(root).subjectAreaService.getSubjectArea(subjectAreaFile(root, relative))));
+      expect(normalise(unified, root)).toEqual({ ...(readGolden(`${golden}.unified.json`) as object), schemaVersion });
+    });
+  });
+
+  describe('a v6 subject area is written in v6 (#182)', () => {
+    let tmpRoot: string;
+
+    beforeEach(() => {
+      tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-v6-'));
+      fs.cpSync(path.join(FIXTURES, 'naming-v6', 'showcase'), tmpRoot, { recursive: true });
+    });
+
+    afterEach(() => {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    });
+
+    it('opens with a model missing its position, and saves it into the v6 file under the v6 keys', async () => {
+      const file = subjectAreaFile(tmpRoot, 'silver/showcase.json');
+      const doc = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      delete doc.viewConfig.positions.dim_task;
+      fs.writeFileSync(file, JSON.stringify(doc, null, 2) + '\n');
+      const posted = await sendSubjectAreaData(buildHost(tmpRoot), file, { persistPositions: true, persistDocument: true });
+      expect(posted[posted.length - 1].type).toBe('domainLoaded');
+      const payload = posted[posted.length - 1].payload as { readOnly: boolean; viewConfig: { positions: Record<string, unknown> } };
+      expect(payload.readOnly).toBe(false);
+      expect(_appliedEdits).toHaveLength(1);
+      const after = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      // Only the new position: the file keeps the v6 keys, in their order.
+      expect(after.viewConfig.positions.dim_task).toEqual(payload.viewConfig.positions.dim_task);
+      delete after.viewConfig.positions.dim_task;
+      expect(JSON.stringify(after)).toBe(JSON.stringify(doc));
+    });
   });
 
   it('the golden directory holds exactly the expected files', () => {

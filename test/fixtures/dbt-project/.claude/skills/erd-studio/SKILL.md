@@ -17,6 +17,28 @@ description: >-
 
 ERD Studio uses a **central model store** architecture. Model definitions are YAML files in `.erd-studio/logical-models/` (at the top level, or one folder down in a per-layer folder). Domain JSON files reference models by name and hold the layout. Relationships are defined once, in the YAML of the model holding the foreign key (the "many" side), and every domain holding both models draws them — or, in a project that still keeps them per domain, in each domain JSON (see `Where relationships live`).
 
+## File naming: v5 or v6 — use the one `erd-studio doctor` reports
+
+A project's files use one of two namings for the same format. **Before writing any `.erd-studio` file, run `erd-studio doctor --json` and read `erd.naming`**, then write every file in that naming:
+
+| What | v5 naming (`naming: v5`) | v6 naming (`naming: v6` or `mixed`, and a new project) |
+|------|------|------|
+| Table (model) library folder | `.erd-studio/logical-models/` | `.erd-studio/tables/` |
+| Subject area (domain) file `schemaVersion` | `5` | `6` |
+| Its slug key | `domain` | `subjectArea` |
+| Its list of table names | `logical.models` | `logical.tables` |
+| A relationship's ends (subject area JSON) | `fromModel` / `toModel` | `fromTable` / `toTable` |
+| A relationship's far end (table YAML) | `toModel` | `toTable` |
+| A table's role (table YAML) | `modelRole` | `tableRole` |
+| An annotation's linked table | `linkedModel` | `linkedTable` |
+
+Everything else — `layer`, `modelFolder` (the dbt `models/` path filter), `viewConfig`, `positions`, columns, keys, the subject area file's path `.erd-studio/{layer}/{name}.json` — is the same in both. **The examples below use the v5 names; in a v6 project write the v6 name from this table instead.**
+
+- `naming: v5` → write the v5 names, and create new table files in `logical-models/`.
+- `naming: v6`, `mixed` (a project half-way through the move), or no `.erd-studio/` yet → write the v6 names, and create new table files in `tables/`. In a mixed project, edit an existing file in the naming it already uses.
+- **Never mix the two in one file** (`schemaVersion: 6` with `domain`, or `logical.tables` beside `logical.models`): such a file does not open. A YAML file holding both `modelRole` and `tableRole` cannot be edited on the canvas; only the v6 key is read.
+- **Never move files between `logical-models/` and `tables/` yourself.** The user moves a project with **ERD Studio: Migrate to the New File Naming**, one undoable step; doctor's `erd.namingMigration` previews it. ERD Studio versions before the one that wrote v6 cannot open v6 files, so the move is the user's decision, never yours.
+
 ## Architecture Overview
 
 ```
@@ -80,7 +102,7 @@ The **Model Library** panel in the ERD Studio sidebar shows all YAML files in `l
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `schemaVersion` | Yes | Must be `5` |
+| `schemaVersion` | Yes | `5` in the v5 naming, `6` in the v6 naming (see "File naming" above) |
 | `domain` | Yes | Domain slug (matches filename without `.json`) |
 | `layer` | Yes | Layer name matching parent directory (e.g. `silver`, `gold`) |
 | `description` | No | Human-readable domain description |
@@ -333,7 +355,7 @@ Every entry in "in source but not in YAML" must have a specific reason. A class-
 
 **Spelling:** always spell `fromModel`, `toModel` and the columns exactly as the model and column are named. ERD Studio matches them ignoring case, but writes the real spelling the next time it changes that entry.
 
-**Direction:** `fromModel` is always the many (FK) side, `toModel` the side it points at (PK). Never write `one-to-many`: swap the ends and write `many-to-one`, in the other model's file — it is the same relationship. `one-to-one` and `many-to-many` keep the direction they were drawn in. Keys win: the many side is never its model's whole primary or natural key while the other end is a column of a model with a different key — ERD Studio reads such a `many-to-one` the other way round (**Move Relationships to Model Library** stores it so), and the canvas refuses a ⇄ that would write it. FK column names should match the PK column name of the referenced table.
+**Direction:** `fromModel` is always the many (FK) side, `toModel` the side it points at (PK). Never write `one-to-many`: swap the ends and write `many-to-one`, in the other model's file — it is the same relationship. `one-to-one` and `many-to-many` keep the direction they were drawn in. Keys win: the many side is never its model's whole primary or natural key while the other end is a column of a model with a different key — such a `many-to-one` is drawn backwards: ERD Studio draws it as stored but flags it (an amber ⚠ on the line with **Turn round**, a comment in the DBML / Mermaid export, a `backwardsRelationships` count in `erd-studio doctor`), **Move Relationships to Model Library** stores it the right way round, and the canvas refuses a ⇄ that would write it. Never write one; when doctor reports some (`turn-round-relationships`), offer to turn them round: a `many-to-one` from the column that is not a key to the key, in that column's model file. FK column names should match the PK column name of the referenced table.
 
 ### Where relationships live
 
@@ -458,4 +480,4 @@ When asked to execute a sync plan, or when `.erd-studio/.sync-plan.json` exists:
 2. Read `.erd-studio/.sync-plan.json` for the specific actions to execute
 3. Follow the execution steps in SYNC.md to reconcile logical and physical models
 
-<!-- erd-studio-harness: 30 -->
+<!-- erd-studio-harness: 32 -->

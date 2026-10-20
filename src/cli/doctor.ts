@@ -13,10 +13,17 @@ import * as path from 'path';
 
 import type { FileState } from '../types/harness';
 import { redactPaths } from '../types/feedback';
-import { detectDomainFormat } from '../types/semantic';
+import { detectSubjectAreaFormat, mixesTableNaming, usesTableLibrary } from '../types/semantic';
+import type { ProjectNaming } from '../types/semantic';
+import { projectNamingOf } from '../services/projectNaming';
+import { describeNamingMigration, planNamingMigration } from '../services/namingMigration';
+import { readNamingMigrationInput } from '../services/namingMigrationFiles';
+import { tablesDirIsLayer, TABLES_DIR } from '../services/logicalModelService';
 import { normaliseName } from '../services/nameUtils';
-import { DomainFileError } from '../services/domainService';
-import { parseDomainJson } from '@erd-studio/core';
+import { SubjectAreaFileError } from '../services/domainService';
+import { keysContradictedRelationships, linkKey, parseSubjectAreaJson } from '@erd-studio/core';
+import type { Relationship } from '@erd-studio/core';
+import { dbtKeyIndexOf } from '../services/stageDisplay';
 import {
   dbtCommands,
   dbtExecutableCandidates,
@@ -45,11 +52,11 @@ import {
   type CliContext,
   type Envelope,
 } from './context';
-import { toUnreadableModelFile, unreadableHint, type UnreadableModelFile } from './diff';
+import { toUnreadableTableFile, unreadableHint, type UnreadableTableFile } from './diff';
 
 export type NextStepId =
   | 'install-dbt' | 'confirm-venv' | 'create-profile' | 'run-deps' | 'run-parse' | 'refresh-parse' | 'run-catalog'
-  | 'resolve-merge-conflicts' | 'fix-model-yaml' | 'migrate-v5' | 'update-harness' | 'ready';
+  | 'resolve-merge-conflicts' | 'fix-model-yaml' | 'resolve-naming-conflicts' | 'fix-subject-area-naming' | 'migrate-v5' | 'turn-round-relationships' | 'update-harness' | 'ready';
 
 export interface NextStep {
   id: NextStepId;
@@ -93,15 +100,50 @@ export interface DoctorResult extends Envelope {
     layers: string[];
     domains: number;
     logicalModels: number;
-    domainFormatIssues: Array<{ file: string; format: 'v4' | 'hybrid' | 'legacy' }>;
+    domainFormatIssues: Array<{ file: string; format: 'v4' | 'hybrid' | 'legacy'; namingMix?: true }>;
+    /**
+     * The file naming the project uses (#162): `v5` (`logical-models/`,
+     * `logical.models`), `v6` (`tables/`, `logical.tables`, schemaVersion 6)
+     * or `mixed`. Assistants write files in the naming reported here: a v5
+     * project writes v5 until it migrates; a `mixed` one, and a new one with
+     * no library folder yet, writes v6 (#182).
+     */
+    naming: ProjectNaming;
+    /**
+     * What "ERD Studio: Migrate to the New File Naming" would change (#182),
+     * when the project is not already v6. The CLI only describes it: the
+     * migration runs in VS Code, as one undoable edit.
+     */
+    namingMigration?: {
+      /** Table files it would move from `logical-models/` to `tables/`. */
+      moves: number;
+      /** Subject area files whose keys it would rename. */
+      rewrites: number;
+      /** Why it would refuse (empty when it can run); a v4 file means "Migrate to v5" first. */
+      refusals: string[];
+      /** The plan in words, as the VS Code dialog shows it. */
+      preview: string;
+    };
+    /**
+     * `.erd-studio/tables/` is a layer folder made before v6 (it holds
+     * subject area files, or layers.json lists a `tables` layer), so it is
+     * never read as the v6 table library.
+     */
+    tablesFolderIsLayer: boolean;
+    /**
+     * Tables with a file in both `logical-models/` and `tables/` (names
+     * compared ignoring case): `kept` is read, `ignored` is not. Paths are
+     * relative to the project root.
+     */
+    namingConflicts: Array<{ name: string; kept: string; ignored: string }>;
     /** Library model files that exist but do not parse (shadowed duplicates are never read, so never listed). */
-    unreadableModelFiles: UnreadableModelFile[];
+    unreadableModelFiles: UnreadableTableFile[];
     /**
      * Domain files holding unresolved git merge conflicts (`<<<<<<<` …
      * `=======` … `>>>>>>>`); `line` is the first `<<<<<<<`. These cannot load
      * until the conflict is resolved and the file is saved.
      */
-    conflictedDomainFiles: ConflictedDomainFile[];
+    conflictedDomainFiles: ConflictedSubjectAreaFile[];
     /**
      * Model files that spell a column type dbt's way (`data_type:`). They read
      * as `dataType`, and the next time ERD Studio writes that model's file (a
@@ -109,12 +151,30 @@ export interface DoctorResult extends Envelope {
      * renamed `dataType` — a warning, not a next step: nothing is broken.
      */
     dataTypeAliasFiles: DataTypeAliasFile[];
+    /**
+     * Relationships drawn backwards (#163): stored starting at a model's
+     * whole key and pointing at columns that are certainly not the other
+     * model's key, as the canvas flags them with a ⚠. Each link once, with
+     * every diagram that draws it.
+     */
+    backwardsRelationships: BackwardsRelationship[];
   };
   harness: { schemaSkill: FileState; setupSkill: FileState; version: string };
   nextSteps: NextStep[];
 }
 
-export interface ConflictedDomainFile {
+export interface BackwardsRelationship {
+  /** As stored: it starts here, at this model's key. */
+  fromModel: string;
+  fromColumns: string[];
+  toModel: string;
+  toColumns: string[];
+  cardinality: string;
+  /** The diagrams that draw it, project-relative, forward slashes. */
+  domains: string[];
+}
+
+export interface ConflictedSubjectAreaFile {
   /** Project-relative, forward slashes. */
   file: string;
   /** 1-based line of the first conflict marker. */
@@ -190,52 +250,114 @@ async function probe(
   return { result: await probeDbt(candidates, run), checked: true, untrusted };
 }
 
+/** The naming migration's plan (#182), as doctor reports it. */
+function namingMigrationPreview(ctx: CliContext): NonNullable<DoctorResult['erd']['namingMigration']> {
+  const plan = planNamingMigration(readNamingMigrationInput(ctx.root, ctx.semanticDir, ctx.subjectAreaService, ctx.tableLibraryService));
+  return { moves: plan.moves.length, rewrites: plan.rewrites.length, refusals: [...plan.refusals], preview: describeNamingMigration(plan) };
+}
+
 function erdSummary(ctx: CliContext): DoctorResult['erd'] {
   const semanticRoot = path.join(ctx.root, ctx.semanticDir);
   const exists = fs.existsSync(semanticRoot);
   if (!exists) {
     return {
       semanticDirExists: false, layers: [], domains: 0, logicalModels: 0, domainFormatIssues: [], unreadableModelFiles: [],
-      conflictedDomainFiles: [], dataTypeAliasFiles: [],
+      conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
+      naming: 'v6', tablesFolderIsLayer: false, namingConflicts: [],
     };
   }
-  const domains = ctx.domainService.listDomains(ctx.root, ctx.semanticDir);
+  const domains = ctx.subjectAreaService.listSubjectAreas(ctx.root, ctx.semanticDir);
   const issues: DoctorResult['erd']['domainFormatIssues'] = [];
-  const conflicted: ConflictedDomainFile[] = [];
+  const conflicted: ConflictedSubjectAreaFile[] = [];
   for (const d of domains) {
     try {
-      const format = detectDomainFormat(parseDomainJson(fs.readFileSync(d.filePath, 'utf-8'), d.filePath));
-      if (format !== 'v5') { issues.push({ file: relPath(ctx.root, d.filePath), format }); }
+      const raw = parseSubjectAreaJson(fs.readFileSync(d.filePath, 'utf-8'), d.filePath);
+      const format = detectSubjectAreaFormat(raw);
+      // A file mixing the v5 and v6 names (#162) is a hand-edit to undo, not one the migration repairs.
+      const namingMix = format === 'hybrid' && mixesTableNaming(raw);
+      if (!usesTableLibrary(format)) { issues.push({ file: relPath(ctx.root, d.filePath), format, ...(namingMix ? { namingMix: true as const } : {}) }); }
     } catch (err) {
       // A conflicted diagram cannot load at all, and git's own wording is the
       // fix (#145). Any other unreadable / invalid JSON is not a format issue;
       // `diff --all` names it.
-      if (err instanceof DomainFileError && err.mergeConflict && err.line !== undefined) {
+      if (err instanceof SubjectAreaFileError && err.mergeConflict && err.line !== undefined) {
         conflicted.push({ file: relPath(ctx.root, d.filePath), line: err.line });
       }
     }
   }
-  const unreadable: UnreadableModelFile[] = [];
+  const unreadable: UnreadableTableFile[] = [];
   const aliased: DataTypeAliasFile[] = [];
-  for (const entry of ctx.logicalModelService.listModelFiles()) {
+  for (const entry of ctx.tableLibraryService.listTableFiles()) {
     if (entry.shadowedBy) { continue; }
-    const err = ctx.logicalModelService.getModelFileError(entry.name);
-    if (err) { unreadable.push(toUnreadableModelFile(ctx.root, err)); continue; }
-    const { columns, ignored, anchored } = ctx.logicalModelService.dataTypeAliasColumns(entry.name);
+    const err = ctx.tableLibraryService.getTableFileError(entry.name);
+    if (err) { unreadable.push(toUnreadableTableFile(ctx.root, err)); continue; }
+    const { columns, ignored, anchored } = ctx.tableLibraryService.dataTypeAliasColumns(entry.name);
     if (columns.length + ignored.length + anchored.length > 0) {
       aliased.push({ name: entry.name, file: relPath(ctx.root, entry.filePath), columns, ignored, anchored });
     }
   }
+  // The extension's own answer (#182), so doctor and the canvas never disagree.
+  const naming = projectNamingOf(semanticRoot, ctx.tableLibraryService);
   return {
+    backwardsRelationships: backwardsRelationshipsOf(ctx, domains.map((d) => d.filePath).filter((f) => !issues.some((i) => i.file === relPath(ctx.root, f)))),
     semanticDirExists: true,
     layers: ctx.layerService.getValidLayerIds(),
     domains: domains.length,
-    logicalModels: ctx.logicalModelService.listModelNames().length,
+    logicalModels: ctx.tableLibraryService.listTableNames().length,
+    naming,
+    ...(naming === 'v6' ? {} : { namingMigration: namingMigrationPreview(ctx) }),
+    tablesFolderIsLayer: fs.existsSync(path.join(semanticRoot, TABLES_DIR)) && tablesDirIsLayer(semanticRoot),
+    namingConflicts: ctx.tableLibraryService.tableNamingConflicts()
+      .map((c) => ({ name: c.name, kept: relPath(ctx.root, c.kept), ignored: relPath(ctx.root, c.ignored) })),
     domainFormatIssues: issues,
     unreadableModelFiles: unreadable,
     conflictedDomainFiles: conflicted,
     dataTypeAliasFiles: aliased,
   };
+}
+
+/**
+ * The relationships the canvas flags as drawn backwards (#163), across every
+ * v5 diagram: core's `keysContradictedRelationships` on each logical stage,
+ * read with dbt's key evidence as the canvas reads it. A diagram that does
+ * not load is skipped (`diff --all` names it).
+ */
+function backwardsRelationshipsOf(ctx: CliContext, domainFiles: string[]): BackwardsRelationship[] {
+  const dbtKeyIndex = dbtKeyIndexOf(ctx.ymlData, ctx.manifest);
+  const byLink = new Map<string, BackwardsRelationship>();
+  for (const file of domainFiles) {
+    let relationships: Relationship[];
+    let flagged: Set<Relationship>;
+    try {
+      const domain = ctx.subjectAreaService.getSubjectAreaStage(file, { dbtKeyIndex });
+      const byName = new Map(domain.models.map((m) => [m.name.toLowerCase(), m]));
+      relationships = domain.relationships;
+      flagged = keysContradictedRelationships(relationships, (name) => byName.get(name.toLowerCase()), dbtKeyIndex);
+    } catch {
+      continue;
+    }
+    // A composite's members are one relationship.
+    const groups = new Map<string, Relationship[]>();
+    for (const rel of relationships) {
+      if (!flagged.has(rel)) continue;
+      const id = rel.compositeKey ? [rel.fromModel, rel.toModel, rel.compositeKey].join('\u0000').toLowerCase() : `\u0001${groups.size}`;
+      groups.set(id, [...(groups.get(id) ?? []), rel]);
+    }
+    for (const members of groups.values()) {
+      const key = members.map(linkKey).sort().join('\u0001');
+      const held = byLink.get(key) ?? {
+        fromModel: members[0].fromModel,
+        fromColumns: members.map((m) => m.fromColumn),
+        toModel: members[0].toModel,
+        toColumns: members.map((m) => m.toColumn),
+        cardinality: members[0].cardinality,
+        domains: [],
+      };
+      held.domains.push(relPath(ctx.root, file));
+      byLink.set(key, held);
+    }
+  }
+  return [...byLink.values()];
 }
 
 function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boolean; installPath: string; invocation: string | null }): NextStep[] {
@@ -278,14 +400,27 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
       `${u.file}${u.line !== undefined ? `:${u.line}` : ''}${u.code ? ` (${u.code})` : ''} — ${unreadableHint(u)}`);
     steps.push({
       id: 'fix-model-yaml',
-      title: `Fix ${r.erd.unreadableModelFiles.length === 1 ? 'a model file that does' : `${r.erd.unreadableModelFiles.length} model files that do`} not parse`,
+      title: `Fix ${r.erd.unreadableModelFiles.length === 1 ? 'a table file that does' : `${r.erd.unreadableModelFiles.length} table files that do`} not parse`,
       why: `${list.join('; ')}. `
         + (r.erd.unreadableModelFiles.every((u) => u.readable)
           ? 'ERD Studio loads these with the last copy of each repeated key but will not change the files until one copy is removed; fix them before anything else.'
-          : 'ERD Studio shows these models as empty until they parse; fix them before anything else.')
+          : 'ERD Studio shows these tables as empty until they parse; fix them before anything else.')
         + (r.erd.unreadableModelFiles.some((u) => u.mergeConflict)
           ? " A merge conflict is the user's to resolve; once they have saved the file, re-run doctor."
           : ''),
+      command: null,
+    });
+  }
+  // A table in both libraries (#162) is drawn from the logical-models/ copy
+  // only; which copy is right is the user's call, so it is raised early.
+  if (r.erd.namingConflicts.length > 0) {
+    const n = r.erd.namingConflicts.length;
+    steps.push({
+      id: 'resolve-naming-conflicts',
+      title: `Keep one file for ${n === 1 ? 'a table' : `${n} tables`} found in both logical-models/ and tables/`,
+      why: `${r.erd.namingConflicts.map((c) => `${c.name}: ${c.kept} is used, ${c.ignored} is ignored`).join('; ')}. `
+        + 'The project is half-way between the old (logical-models/) and new (tables/) file naming. Show the user both files '
+        + "and ask which to keep; don't delete either yourself.",
       command: null,
     });
   }
@@ -343,11 +478,35 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
       command: dbt.commands.catalog,
     });
   }
-  if (r.erd.domainFormatIssues.length > 0) {
+  const namingMix = r.erd.domainFormatIssues.filter((i) => i.namingMix);
+  const older = r.erd.domainFormatIssues.length - namingMix.length;
+  if (namingMix.length > 0) {
+    steps.push({
+      id: 'fix-subject-area-naming',
+      title: `Fix ${namingMix.length === 1 ? 'a subject area file that mixes' : `${namingMix.length} subject area files that mix`} the old and new key names`,
+      why: `${namingMix.map((i) => i.file).join(', ')}: ${namingMix.length === 1 ? 'it uses' : 'each uses'} the v6 names ("logical.tables", "subjectArea") `
+        + 'without "schemaVersion": 6, or beside the v5 names, so it cannot load. Use one set: the v5 names with schemaVersion 5, '
+        + 'or the v6 names with schemaVersion 6. `erd-studio diff` names what is wrong in each.',
+      command: null,
+    });
+  }
+  if (older > 0) {
     steps.push({
       id: 'migrate-v5',
-      title: 'Migrate older domain files',
-      why: `${r.erd.domainFormatIssues.length} domain file(s) use an older format; run "ERD Studio: Migrate to v5" in VS Code before changing them.`,
+      title: 'Migrate older subject area files',
+      why: `${older} subject area file(s) use an older format; run "ERD Studio: Migrate Subject Areas to the Central Table Library" in VS Code before changing them.`,
+      command: null,
+    });
+  }
+  const backwards = r.erd.backwardsRelationships.length;
+  if (backwards > 0) {
+    steps.push({
+      id: 'turn-round-relationships',
+      title: 'Turn round relationships drawn backwards',
+      why: `${backwards === 1 ? '1 relationship looks' : `${backwards} relationships look`} drawn backwards: ${backwards === 1 ? 'it starts' : 'each starts'} at a table's key `
+        + 'and points at a column that is not the other table\'s key. Turn it round on the canvas (the ⚠ on the line → Turn round), '
+        + 'or rewrite it as a many-to-one from the column that is not a key to the key, in that column\'s table file. '
+        + 'Leave one that was drawn this way on purpose.',
       command: null,
     });
   }
@@ -389,7 +548,8 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
       projectFiles: { schemaYmlFiles: 0, sourceFiles: 0, modelsDiscovered: 0 },
       erd: {
         semanticDirExists: false, layers: [], domains: 0, logicalModels: 0, domainFormatIssues: [], unreadableModelFiles: [],
-        conflictedDomainFiles: [], dataTypeAliasFiles: [],
+        conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
+        naming: 'v6', tablesFolderIsLayer: false, namingConflicts: [],
       },
       harness: { schemaSkill: 'missing', setupSkill: 'missing', version: harnessVersion },
     };

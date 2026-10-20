@@ -10,19 +10,19 @@
  *
  * Pure: no `vscode`, no file access. Callers pass the parsed yml / manifest
  * data in and write the results through their own write path (the editor's
- * `applyDomainEdit`, or a `wx` create for a new domain file). This module is
+ * `applySubjectAreaEdit`, or a `wx` create for a new domain file). This module is
  * reachable from `dist/cli.js`, so it must never import `vscode`.
  */
 
 import * as path from 'path';
 
-import { canonicalRelationship, linkKey } from '@erd-studio/core';
-import { CURRENT_SCHEMA_VERSION } from '../types/semantic';
-import type { ColumnDef, Relationship, SemanticModel } from '../types/semantic';
+import { canonicalRelationship, linkKey, toTableNamingDocument } from '@erd-studio/core';
+import { WRITTEN_SCHEMA_VERSION } from '../types/semantic';
+import type { ColumnDef, Relationship, SemanticTable } from '../types/semantic';
 import type { YmlData } from '../types/ymlData';
 import type { ManifestData } from '../types/manifest';
 import type { CatalogColumn, CatalogData } from '../types/catalog';
-import { validateModelNameSafety } from '../providers/payloadValidation';
+import { validateTableNameSafety } from '../providers/payloadValidation';
 import { derivePhysicalRelationships, mergeCompositeGroups, mergeUniqueMaps } from './domainService';
 import { normaliseName } from './nameUtils';
 import { catalogNodeFor, resolveColumnType } from './columnTypes';
@@ -113,8 +113,8 @@ export interface BuildDbtDraftInput {
   catalog?: CatalogData;
   /** True when `logical-models/` already has this model — it is referenced, not re-created. */
   libraryHas: (name: string) => boolean;
-  /** Seeds a new library model; defaults to {@link seedModelFromDbt}. */
-  seed?: (name: string) => SemanticModel | undefined;
+  /** Seeds a new library model; defaults to {@link seedTableFromDbt}. */
+  seed?: (name: string) => SemanticTable | undefined;
   /** Models already in the target domain (batch add): skipped as picks, but joined to by relationships. */
   existingModelNames?: readonly string[];
   /** Relationships already in the target domain, never emitted twice. */
@@ -133,7 +133,7 @@ export interface DbtDraft {
   /** Every accepted name, in order: what the domain's `logical.models` gains. */
   modelNames: string[];
   /** Library files to create (seeded from dbt). */
-  newModels: SemanticModel[];
+  newModels: SemanticTable[];
   /** Accepted names the library already has — only referenced. */
   reusedModels: string[];
   relationships: Relationship[];
@@ -201,7 +201,7 @@ function folderUnder(rel: string, modelPaths: readonly string[]): string | null 
  * models (yml spelling first), minus the ones dbt has disabled. Two more are
  * left out:
  *  - a model with no columns to copy (only a `.sql` file, or a yml entry with
- *    no `columns:`), judged from the same source `seedModelFromDbt` copies —
+ *    no `columns:`), judged from the same source `seedTableFromDbt` copies —
  *    it would only draw an empty box;
  *  - a manifest model from an installed dbt package. Package files sit under
  *    `dbt_packages/`, which the yml walker skips, and their `original_file_path`
@@ -231,7 +231,7 @@ export function listDraftModels(input: DraftSourceInput): DraftModelEntry[] {
     const yml = ymlData?.models.get(name);
     const man = manifestByKey.get(key);
     if (!yml && man && rootProjects.size > 0 && !rootProjects.has(man.projectName)) { return; }
-    // Same source seedModelFromDbt copies: the yml when there is one, else the manifest.
+    // Same source seedTableFromDbt copies: the yml when there is one, else the manifest.
     const columnCount = yml ? yml.columns.length : man?.columns.length ?? 0;
     if (columnCount === 0) { return; }
 
@@ -437,7 +437,7 @@ export function customDraftScope(modelNames: readonly string[], models: readonly
 
 /**
  * A logical model copied from dbt: the schema yml first (as
- * `LogicalModelService.ymlToSemanticModel` does), with the manifest filling a
+ * `TableLibraryService.ymlToSemanticTable` does), with the manifest filling a
  * missing description and the schema; the manifest alone when no yml declares
  * the model. Undefined when neither has it.
  *
@@ -446,12 +446,12 @@ export function customDraftScope(modelNames: readonly string[], models: readonly
  * physical stage resolves it (`resolveColumnType`: catalog, then the declared
  * `data_type:`, then the manifest), and is empty when no source has one.
  */
-export function seedModelFromDbt(
+export function seedTableFromDbt(
   name: string,
   ymlData?: YmlData,
   manifest?: ManifestData,
   catalog?: CatalogData,
-): SemanticModel | undefined {
+): SemanticTable | undefined {
   const key = normaliseName(name);
   const yml = ymlData?.models.get(name)
     ?? [...(ymlData?.models.values() ?? [])].find((m) => normaliseName(m.name) === key);
@@ -486,7 +486,7 @@ export function seedModelFromDbt(
       description: col.description ?? '',
     }));
 
-  const model: SemanticModel = { name: yml?.name ?? man!.name };
+  const model: SemanticTable = { name: yml?.name ?? man!.name };
   if (man?.schema) { model.schema = man.schema; }
   model.description = yml?.description || man?.description || '';
   model.columns = columns;
@@ -500,10 +500,10 @@ export function seedModelFromDbt(
  * draft relationship leaves from it. Returns a new model; existing flags win.
  */
 export function markDraftKeys(
-  model: SemanticModel,
+  model: SemanticTable,
   unique: DraftUniqueInfo,
   relationships: readonly Relationship[],
-): SemanticModel {
+): SemanticTable {
   const key = normaliseName(model.name);
   const uniqueCols = new Set<string>();
   let hasComposite = false;
@@ -548,7 +548,7 @@ export function markDraftKeys(
  * `one-to-one`, anything else `many-to-one` (the test names the "one" side).
  * Endpoints use the spelling of the names passed in.
  */
-export function relationshipsForAddedModels(
+export function relationshipsForAddedTables(
   existingNamesInDomain: readonly string[],
   addedNames: readonly string[],
   tests: readonly DraftRelationshipTest[],
@@ -593,18 +593,18 @@ export function relationshipsForAddedModels(
  */
 export function buildDbtDraft(input: BuildDbtDraftInput): DbtDraft {
   const limit = input.limit ?? DRAFT_MODEL_LIMIT;
-  const seed = input.seed ?? ((name: string) => seedModelFromDbt(name, input.ymlData, input.manifest, input.catalog));
+  const seed = input.seed ?? ((name: string) => seedTableFromDbt(name, input.ymlData, input.manifest, input.catalog));
   const disabled = input.skipDisabled === false ? new Set<string>() : input.manifest?.disabledModels ?? new Set<string>();
   const inDomain = new Set((input.existingModelNames ?? []).map(normaliseName));
 
   const skipped: DraftSkipped[] = [];
   const seen = new Set<string>();
-  const accepted: Array<{ name: string; model?: SemanticModel }> = [];
+  const accepted: Array<{ name: string; model?: SemanticTable }> = [];
   let truncated = false;
 
   for (const raw of input.modelNames) {
     const name = typeof raw === 'string' ? raw.trim() : '';
-    const safety = validateModelNameSafety(name);
+    const safety = validateTableNameSafety(name);
     if (safety) { skipped.push({ name: String(raw), reason: 'invalid-name', message: safety }); continue; }
     const key = normaliseName(name);
     if (seen.has(key)) { skipped.push({ name, reason: 'duplicate' }); continue; }
@@ -612,7 +612,7 @@ export function buildDbtDraft(input: BuildDbtDraftInput): DbtDraft {
     if (inDomain.has(key)) { skipped.push({ name, reason: 'already-in-domain' }); continue; }
     if (disabled.has(key)) { skipped.push({ name, reason: 'disabled' }); continue; }
 
-    let model: SemanticModel | undefined;
+    let model: SemanticTable | undefined;
     if (!input.libraryHas(name)) {
       model = seed(name);
       if (!model) { skipped.push({ name, reason: 'not-found' }); continue; }
@@ -627,7 +627,7 @@ export function buildDbtDraft(input: BuildDbtDraftInput): DbtDraft {
 
   const modelNames = accepted.map((a) => a.name);
   const tests = dbtTestsOf(input.ymlData, input.manifest);
-  const relationships = relationshipsForAddedModels(
+  const relationships = relationshipsForAddedTables(
     input.existingModelNames ?? [],
     modelNames,
     tests.relationshipTests,
@@ -651,7 +651,7 @@ export function buildDbtDraft(input: BuildDbtDraftInput): DbtDraft {
 // The domain file
 // ---------------------------------------------------------------------------
 
-export interface DraftDomainDocument {
+export interface DraftSubjectAreaDocument {
   schemaVersion: number;
   domain: string;
   layer: string;
@@ -666,16 +666,16 @@ export interface DraftDomainDocument {
  * `viewConfig` is empty on purpose: a domain with models and no positions is
  * a fresh layout (`isFreshLayout`), which the canvas auto-lays out on first open.
  */
-export function buildDraftDomainDocument(input: {
+export function buildDraftSubjectAreaDocument(input: {
   domain: string;
   layer: string;
   description?: string;
   modelNames: readonly string[];
   relationships: readonly Relationship[];
   modelFolder?: string;
-}): DraftDomainDocument {
+}): DraftSubjectAreaDocument {
   return {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
+    schemaVersion: WRITTEN_SCHEMA_VERSION,
     domain: input.domain,
     layer: input.layer,
     description: (input.description ?? '').trim(),
@@ -688,25 +688,28 @@ export function buildDraftDomainDocument(input: {
   };
 }
 
-/** The file text, formatted as `createDomain` writes it. */
-export function serializeDraftDomainDocument(doc: DraftDomainDocument): string {
-  return JSON.stringify(doc, null, 2) + '\n';
+/**
+ * The file text, formatted as `createDomain` writes it: under the v5 keys,
+ * or in the v6 naming (#182) for a project that writes it.
+ */
+export function serializeDraftSubjectAreaDocument(doc: DraftSubjectAreaDocument, tableNaming = false): string {
+  return JSON.stringify(tableNaming ? toTableNamingDocument({ ...doc }) : doc, null, 2) + '\n';
 }
 
-/** Domain slug rule — the one `validateDomainSlug` in extension.ts enforces. */
-export const DOMAIN_SLUG_PATTERN = /^[a-z][a-z0-9_-]*$/;
-const DOMAIN_SLUG_MAX = 64;
+/** Domain slug rule — the one `validateSubjectAreaSlug` in extension.ts enforces. */
+export const SUBJECT_AREA_SLUG_PATTERN = /^[a-z][a-z0-9_-]*$/;
+const SUBJECT_AREA_SLUG_MAX = 64;
 
 /** Turn free text into a domain slug, or '' when nothing usable is left. */
-export function toDomainSlug(text: string): string {
+export function toSubjectAreaSlug(text: string): string {
   const slug = text
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/-{2,}/g, '-')
     .replace(/^[^a-z]+/, '')
-    .slice(0, DOMAIN_SLUG_MAX)
+    .slice(0, SUBJECT_AREA_SLUG_MAX)
     .replace(/[-_]+$/, '');
-  return DOMAIN_SLUG_PATTERN.test(slug) ? slug : '';
+  return SUBJECT_AREA_SLUG_PATTERN.test(slug) ? slug : '';
 }
 
 /** Common model-name prefixes stripped when a cluster is named after its hub. */
@@ -718,13 +721,13 @@ const MODEL_PREFIX = /^(dim|fct|fact|stg|int|obt|hub|lnk|sat|mart|rpt)_/;
  * `customer`), else `dbt-draft`. With `taken` (domain names already in the
  * target layer) a `-2`, `-3`… suffix keeps it free.
  */
-export function suggestDomainName(scope: DraftScope | undefined, taken: Iterable<string> = []): string {
+export function suggestSubjectAreaName(scope: DraftScope | undefined, taken: Iterable<string> = []): string {
   let base = '';
   if (scope?.kind === 'folder' && scope.folder) {
     const segments = scope.folder.split('/').filter(Boolean);
-    base = toDomainSlug(segments[segments.length - 1] ?? '');
+    base = toSubjectAreaSlug(segments[segments.length - 1] ?? '');
   } else if (scope?.kind === 'cluster' && scope.modelNames[0]) {
-    base = toDomainSlug(scope.modelNames[0].toLowerCase().replace(MODEL_PREFIX, ''));
+    base = toSubjectAreaSlug(scope.modelNames[0].toLowerCase().replace(MODEL_PREFIX, ''));
   }
   if (!base) { base = 'dbt-draft'; }
 
@@ -732,7 +735,7 @@ export function suggestDomainName(scope: DraftScope | undefined, taken: Iterable
   if (!used.has(base)) { return base; }
   for (let n = 2; ; n++) {
     const suffix = `-${n}`;
-    const candidate = base.slice(0, DOMAIN_SLUG_MAX - suffix.length) + suffix;
+    const candidate = base.slice(0, SUBJECT_AREA_SLUG_MAX - suffix.length) + suffix;
     if (!used.has(candidate)) { return candidate; }
   }
 }

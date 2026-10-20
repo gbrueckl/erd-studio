@@ -7,14 +7,14 @@ import {
   LAYOUT_DIRECTIONS,
   DEFAULT_ELK_OPTIONS,
 } from '../../webview/lib/elkLayout';
-import type { ModelRole } from '../../src/types/semantic';
-import type { ModelFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
+import type { TableRole } from '../../src/types/semantic';
+import type { TableFlowNode, FkFlowEdge } from '@erd-studio/renderer/editor';
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeNode(id: string, role?: ModelRole | string): ModelFlowNode {
+function makeNode(id: string, role?: TableRole | string): TableFlowNode {
   return {
     id,
     type: 'model',
@@ -24,7 +24,7 @@ function makeNode(id: string, role?: ModelRole | string): ModelFlowNode {
       stage: 'logical',
       layer: 'silver',
       columns: [],
-      modelRole: role as ModelRole | undefined,
+      modelRole: role as TableRole | undefined,
     },
   };
 }
@@ -78,8 +78,8 @@ describe('roleToPartition', () => {
     expect(roleToPartition(undefined)).toBe(2);
   });
 
-  it('covers all ModelRole values', () => {
-    const allRoles: ModelRole[] = [
+  it('covers all TableRole values', () => {
+    const allRoles: TableRole[] = [
       'conformed-dim',
       'domain-dim',
       'transaction-fact',

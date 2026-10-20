@@ -19,9 +19,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
@@ -53,10 +53,10 @@ function makeDoc(fsPath: string) {
 
 function buildProvider(rootDir: string) {
   const layerService = new LayerService(rootDir, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(rootDir, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, rootDir, '.erd-studio');
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(rootDir, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, rootDir, '.erd-studio');
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
     globalStorageUri: vscode.Uri.file(path.join(rootDir, '.global-storage')),
@@ -68,14 +68,14 @@ function buildProvider(rootDir: string) {
 
   return new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     new ManifestService(),
     new YmlParserService(),
     new TemplateService(),
     layerService,
     rootDir,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
 }
 
@@ -185,7 +185,7 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-// Each reaches the document through a different route: applyDomainEdit
+// Each reaches the document through a different route: applySubjectAreaEdit
 // alone, a handler's own read first, the relationship planner and the model
 // library (v5). Add from dbt and the sync plan have tests of their own below.
 const EDITS: Array<[string, { type: string; payload?: unknown }]> = [
@@ -284,7 +284,8 @@ describe('an edit on a diagram git left in conflict (#151)', () => {
     const errs = errors(panel);
     expect(errs).toHaveLength(1);
     const text = errs[0].payload.message as string;
-    expect(text).toContain('Invalid JSON in domain file .erd-studio/silver/showcase.json');
+    expect(text).toContain('.erd-studio/silver/showcase.json has a mistake at line 1, column 2: the text there is not valid JSON. '
+      + 'Fix it and save, then try again.');
     expect(text).not.toContain('SyntaxError');
     expect(text).not.toContain('merge conflict');
     expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
@@ -298,7 +299,7 @@ describe('an edit on a diagram git left in conflict (#151)', () => {
     await panel._simulateMessage(EDITS[1][1]);
 
     expect(errors(panel)).toHaveLength(1);
-    expect(errors(panel)[0].payload.message).toContain('Domain file is empty: .erd-studio/silver/showcase.json');
+    expect(errors(panel)[0].payload.message).toContain('.erd-studio/silver/showcase.json has no content. Restore its content, then try again.');
     expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
     expect(doc.save).not.toHaveBeenCalled();
     expect(snapshot(path.join(root, '.erd-studio'))).toEqual(before);

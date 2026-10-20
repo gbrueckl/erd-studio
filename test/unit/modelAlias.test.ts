@@ -9,23 +9,23 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { DomainService } from '../../src/services/domainService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { SubjectAreaService } from '../../src/services/domainService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { extractManifestData } from '../../src/workers/manifestExtractor';
 import { validateModelAliasPayload } from '../../src/providers/payloadValidation';
 import {
   describeDuplicateFix,
   planDuplicateFix,
-  repointDomainModel,
+  repointSubjectAreaTable,
   suggestDuplicateName,
-  type DomainReference,
+  type SubjectAreaReference,
 } from '../../src/services/duplicateModelResolver';
 import { normaliseName } from '../../src/services/nameUtils';
 import type { LayerService } from '../../src/services/layerService';
 import type { ManifestData, ManifestModelInfo } from '../../src/types/manifest';
 import type { CatalogData, CatalogNodeInfo } from '../../src/types/catalog';
 import type { YmlData } from '../../src/types/ymlData';
-import type { SemanticModel, UnifiedDomain } from '../../src/types/semantic';
+import type { SemanticTable, UnifiedSubjectArea } from '../../src/types/semantic';
 
 const EMPTY_YML: YmlData = {
   models: new Map(),
@@ -56,7 +56,7 @@ function manifest(models: ManifestModelInfo[], tests: ManifestData['relationship
   };
 }
 
-function domain(models: SemanticModel[], layer = 'gold'): UnifiedDomain {
+function subjectArea(models: SemanticTable[], layer = 'gold'): UnifiedSubjectArea {
   return {
     schemaVersion: 5,
     domain: 'finance',
@@ -67,12 +67,12 @@ function domain(models: SemanticModel[], layer = 'gold'): UnifiedDomain {
   };
 }
 
-const service = new DomainService({} as LayerService);
+const service = new SubjectAreaService({} as LayerService);
 
 describe('physical stage: matching by warehouse relation', () => {
   it('matches by model name first — the alias never overrides the identity', () => {
-    const result = service.buildPhysicalDomain(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       manifest([manifestModel('gold_date', 'gold', 'date', ['date_key', 'fiscal_year'])]),
     );
@@ -83,8 +83,8 @@ describe('physical stage: matching by warehouse relation', () => {
   });
 
   it('falls back to (schema, alias) when the dbt model has another name', () => {
-    const result = service.buildPhysicalDomain(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       // dbt calls it dim_date, built as gold.date
       manifest([manifestModel('dim_date', 'gold', 'date', ['date_key', 'fiscal_year'])]),
@@ -96,8 +96,8 @@ describe('physical stage: matching by warehouse relation', () => {
   });
 
   it('never matches on the alias alone: silver.date is not gold.date', () => {
-    const result = service.buildPhysicalDomain(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       manifest([manifestModel('silver_date', 'silver', 'date')]),
     );
@@ -105,8 +105,8 @@ describe('physical stage: matching by warehouse relation', () => {
   });
 
   it('does not use the relation route for a model with no schema', () => {
-    const result = service.buildPhysicalDomain(
-      domain([{ name: 'gold_date', alias: 'date' }]),
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([{ name: 'gold_date', alias: 'date' }]),
       EMPTY_YML,
       manifest([manifestModel('dim_date', 'gold', 'date')]),
     );
@@ -114,8 +114,8 @@ describe('physical stage: matching by warehouse relation', () => {
   });
 
   it('treats a relation two dbt models share as ambiguous, not a guess', () => {
-    const result = service.buildPhysicalDomain(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       manifest([manifestModel('dim_date_a', 'gold', 'date'), manifestModel('dim_date_b', 'GOLD', 'DATE')]),
     );
@@ -123,8 +123,8 @@ describe('physical stage: matching by warehouse relation', () => {
   });
 
   it('matches the relation case-insensitively', () => {
-    const result = service.buildPhysicalDomain(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'Date' }]),
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'Date' }]),
       EMPTY_YML,
       manifest([manifestModel('dim_date', 'GOLD', 'DATE')]),
     );
@@ -132,8 +132,8 @@ describe('physical stage: matching by warehouse relation', () => {
   });
 
   it('draws relationship tests for a relation-matched model on its logical node', () => {
-    const result = service.buildPhysicalDomain(
-      domain([
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([
         { name: 'gold_date', schema: 'gold', alias: 'date' },
         { name: 'fct_sale', schema: 'gold' },
       ]),
@@ -149,8 +149,8 @@ describe('physical stage: matching by warehouse relation', () => {
   });
 
   it('shows the alias dbt builds under, falling back to the design', () => {
-    const result = service.buildPhysicalDomain(
-      domain([
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([
         { name: 'gold_date', schema: 'gold', alias: 'date' },
         { name: 'gold_calendar', schema: 'gold', alias: 'calendar' },
       ]),
@@ -178,8 +178,8 @@ describe('physical stage: matching by warehouse relation', () => {
       generatedAt: null,
       partial: false,
     };
-    const result = service.buildPhysicalDomain(
-      domain([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
+    const result = service.buildPhysicalSubjectArea(
+      subjectArea([{ name: 'gold_date', schema: 'gold', alias: 'date' }]),
       EMPTY_YML,
       undefined,
       catalog,
@@ -216,39 +216,41 @@ describe('manifest extraction: alias', () => {
   });
 });
 
-describe('LogicalModelService: alias in the model file', () => {
+describe('TableLibraryService: alias in the model file', () => {
   let dir: string;
-  let lms: LogicalModelService;
+  let lms: TableLibraryService;
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-alias-'));
-    lms = new LogicalModelService(dir);
+    // A v5 project: its library folder exists (a project with none writes v6, #182).
+    fs.mkdirSync(path.join(dir, '.erd-studio', 'logical-models'), { recursive: true });
+    lms = new TableLibraryService(dir);
   });
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
   it('round-trips alias right after schema', () => {
-    lms.saveModel({ name: 'gold_date', schema: 'gold', alias: 'date', description: 'Dates' }, 'gold');
-    const text = fs.readFileSync(path.join(lms.getModelsDir(), 'gold', 'gold_date.yml'), 'utf-8');
+    lms.saveTable({ name: 'gold_date', schema: 'gold', alias: 'date', description: 'Dates' }, 'gold');
+    const text = fs.readFileSync(path.join(lms.getTablesDir(), 'gold', 'gold_date.yml'), 'utf-8');
     expect(text).toBe('name: gold_date\nschema: gold\nalias: date\ndescription: Dates\n');
-    expect(lms.getModel('gold_date')!.alias).toBe('date');
+    expect(lms.getTable('gold_date')!.alias).toBe('date');
   });
 
   it('removes the key when the alias is cleared, keeping hand-written comments', () => {
-    const file = path.join(lms.getModelsDir(), 'gold_date.yml');
-    fs.mkdirSync(lms.getModelsDir(), { recursive: true });
+    const file = path.join(lms.getTablesDir(), 'gold_date.yml');
+    fs.mkdirSync(lms.getTablesDir(), { recursive: true });
     fs.writeFileSync(file, '# the gold calendar\nname: gold_date\nalias: date # table name\n');
-    const model = lms.getModel('gold_date')!;
+    const model = lms.getTable('gold_date')!;
     delete model.alias;
-    lms.saveModel(model);
+    lms.saveTable(model);
     expect(fs.readFileSync(file, 'utf-8')).toBe('# the gold calendar\nname: gold_date\n');
   });
 
-  it('serializeModelAt edits the file at the given path, not the one the name resolves to', () => {
-    const models = lms.getModelsDir();
+  it('serializeTableAt edits the file at the given path, not the one the name resolves to', () => {
+    const models = lms.getTablesDir();
     fs.mkdirSync(path.join(models, 'silver'), { recursive: true });
     fs.mkdirSync(path.join(models, 'gold'), { recursive: true });
     fs.writeFileSync(path.join(models, 'silver', 'date.yml'), 'name: date\n');
     fs.writeFileSync(path.join(models, 'gold', 'date.yml'), '# gold copy\nname: date\nowner: finance\n');
-    const text = lms.serializeModelAt({ name: 'gold_date', alias: 'date' }, path.join(models, 'gold', 'date.yml'));
+    const text = lms.serializeTableAt({ name: 'gold_date', alias: 'date' }, path.join(models, 'gold', 'date.yml'));
     expect(text).toBe('# gold copy\nname: gold_date\nowner: finance\nalias: date\n');
   });
 });
@@ -274,7 +276,7 @@ describe('validateModelAliasPayload', () => {
 });
 
 describe('duplicate model files', () => {
-  const refs: DomainReference[] = [
+  const refs: SubjectAreaReference[] = [
     { filePath: '/p/.erd-studio/silver/core.json', domain: 'core', layer: 'silver' },
     { filePath: '/p/.erd-studio/gold/finance.json', domain: 'finance', layer: 'gold' },
     { filePath: '/p/.erd-studio/gold/sales.json', domain: 'sales', layer: 'gold' },
@@ -317,7 +319,7 @@ describe('duplicate model files', () => {
       },
       stubColumns: ['date'],
     };
-    expect(repointDomainModel(doc, 'date', 'gold_date')).toBe(true);
+    expect(repointSubjectAreaTable(doc, 'date', 'gold_date')).toBe(true);
     expect(doc).toEqual({
       schemaVersion: 5,
       logical: {
@@ -334,9 +336,9 @@ describe('duplicate model files', () => {
 
   it('leaves a domain that does not use the name, or has inline (v4) models, alone', () => {
     const other = { logical: { models: ['fct_sale'], relationships: [] } };
-    expect(repointDomainModel(other, 'date', 'gold_date')).toBe(false);
+    expect(repointSubjectAreaTable(other, 'date', 'gold_date')).toBe(false);
     const v4 = { logical: { models: [{ name: 'date' }], relationships: [] } };
-    expect(repointDomainModel(v4, 'date', 'gold_date')).toBe(false);
+    expect(repointSubjectAreaTable(v4, 'date', 'gold_date')).toBe(false);
     expect(v4.logical.models).toEqual([{ name: 'date' }]);
   });
 });

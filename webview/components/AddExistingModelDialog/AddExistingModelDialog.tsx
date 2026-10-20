@@ -1,5 +1,5 @@
 /**
- * AddExistingModelDialog — dialog for adding existing models to a domain.
+ * AddExistingTableDialog — dialog for adding existing models to a domain.
  *
  * Displays a searchable, filterable list of models from three sources:
  * - Library: models with YAML definitions in .erd-studio/logical-models/
@@ -21,8 +21,8 @@ import { Panel } from '@xyflow/react';
 
 import { useEditorStore } from '../../store/editorStore';
 import { useSend } from '../../hooks/useMessageBus';
-import type { ExistingModelPreview, ManifestModelPreview } from '../../../src/types/display';
-import { ADD_EXISTING_MODELS_LIMIT } from '../../../src/types/messages';
+import type { ExistingTablePreview, ManifestModelPreview } from '../../../src/types/display';
+import { ADD_EXISTING_TABLES_LIMIT } from '../../../src/types/messages';
 import './AddExistingModelDialog.css';
 
 // ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ import './AddExistingModelDialog.css';
 type SourceKey = 'logical' | 'yml' | 'manifest';
 
 const SOURCE_CONFIG: Record<SourceKey, { label: string; description: string }> = {
-  logical: { label: 'Logical', description: 'ERD Studio model library' },
+  logical: { label: 'Logical', description: 'ERD Studio Table Library' },
   yml: { label: 'Physical', description: 'dbt .yml schema file' },
   manifest: { label: 'Compiled', description: 'Compiled manifest only' },
 };
@@ -41,7 +41,7 @@ const SOURCE_CONFIG: Record<SourceKey, { label: string; description: string }> =
 // Component
 // ---------------------------------------------------------------------------
 
-export function AddExistingModelDialog() {
+export function AddExistingTableDialog() {
   const isOpen = useEditorStore((s) => s.addExistingModelDialogOpen);
   const setAddExistingModelDialogOpen = useEditorStore((s) => s.setAddExistingModelDialogOpen);
   const existingModels = useEditorStore((s) => s.existingModels);
@@ -52,7 +52,7 @@ export function AddExistingModelDialog() {
   const send = useSend();
 
   // Use existingModels if available (v5), fall back to manifestModels (v4 compat)
-  const models: (ExistingModelPreview | ManifestModelPreview)[] =
+  const models: (ExistingTablePreview | ManifestModelPreview)[] =
     existingModels.length > 0 ? existingModels : manifestModels;
 
   // Local state
@@ -91,7 +91,7 @@ export function AddExistingModelDialog() {
           m.name.toLowerCase().includes(query) ||
           m.schema.toLowerCase().includes(query) ||
           m.description.toLowerCase().includes(query) ||
-          ('sourcePath' in m && (m as ExistingModelPreview).sourcePath.toLowerCase().includes(query)),
+          ('sourcePath' in m && (m as ExistingTablePreview).sourcePath.toLowerCase().includes(query)),
       );
     }
 
@@ -128,20 +128,20 @@ export function AddExistingModelDialog() {
       if (!canPickMany) return [modelName];
       const shown = prev.filter((name) => shownNames.has(name));
       if (shown.includes(modelName)) return shown.filter((name) => name !== modelName);
-      return shown.length >= ADD_EXISTING_MODELS_LIMIT ? shown : [...shown, modelName];
+      return shown.length >= ADD_EXISTING_TABLES_LIMIT ? shown : [...shown, modelName];
     });
   }, [canPickMany, shownNames]);
 
   const allShownSelected = filteredModels.length > 0 && visibleSelected.length === filteredModels.length;
-  const atLimit = visibleSelected.length >= ADD_EXISTING_MODELS_LIMIT;
-  const overLimit = filteredModels.length > ADD_EXISTING_MODELS_LIMIT;
+  const atLimit = visibleSelected.length >= ADD_EXISTING_TABLES_LIMIT;
+  const overLimit = filteredModels.length > ADD_EXISTING_TABLES_LIMIT;
 
   // Ticks every shown row, up to the limit; picks hidden by the search go.
   const handleSelectAllShown = useCallback(() => {
     setSelected((prev) => {
       const next = prev.filter((name) => filteredModels.some((m) => m.name === name));
       for (const m of filteredModels) {
-        if (next.length >= ADD_EXISTING_MODELS_LIMIT) break;
+        if (next.length >= ADD_EXISTING_TABLES_LIMIT) break;
         if (!next.includes(m.name)) next.push(m.name);
       }
       return next;
@@ -170,7 +170,7 @@ export function AddExistingModelDialog() {
   const handleDoubleClick = useCallback(
     (modelName: string) => {
       const others = canPickMany ? visibleSelected.filter((name) => name !== modelName) : [];
-      addModels([...others.slice(0, ADD_EXISTING_MODELS_LIMIT - 1), modelName]);
+      addModels([...others.slice(0, ADD_EXISTING_TABLES_LIMIT - 1), modelName]);
     },
     [addModels, canPickMany, visibleSelected],
   );
@@ -199,7 +199,7 @@ export function AddExistingModelDialog() {
     return (
       <Panel position="top-center" className="add-existing-model-dialog">
         <div className="add-existing-model-dialog__header">
-          <h3 className="add-existing-model-dialog__title">Add Existing Model</h3>
+          <h3 className="add-existing-model-dialog__title">Add Existing Table</h3>
           <button
             className="add-existing-model-dialog__close"
             onClick={handleClose}
@@ -211,15 +211,15 @@ export function AddExistingModelDialog() {
         </div>
         <div className="add-existing-model-dialog__content">
           <div className="add-existing-model-dialog__empty">
-            <p>No models available to add.</p>
+            <p>No tables available to add.</p>
             <p className="add-existing-model-dialog__empty-hint">
               {modelFolder ? (
                 <>
-                  No models found in <code>{modelFolder}/</code>. Add <code>.yml</code> schema files to your dbt project or run <code>dbt compile</code>.
+                  No dbt models found in <code>{modelFolder}/</code>. Add <code>.yml</code> schema files to your dbt project or run <code>dbt compile</code>.
                 </>
               ) : (
                 <>
-                  Add <code>.yml</code> schema files to your dbt project, create models in <code>.erd-studio/logical-models/</code>, or run <code>dbt compile</code>.
+                  Add <code>.yml</code> schema files to your dbt project, add tables to the Table Library, or run <code>dbt compile</code>.
                 </>
               )}
             </p>
@@ -233,7 +233,7 @@ export function AddExistingModelDialog() {
     <Panel position="top-center" className="add-existing-model-dialog">
       {/* Header */}
       <div className="add-existing-model-dialog__header">
-        <h3 className="add-existing-model-dialog__title">Add Existing Model</h3>
+        <h3 className="add-existing-model-dialog__title">Add Existing Table</h3>
         <button
           className="add-existing-model-dialog__close"
           onClick={handleClose}
@@ -251,7 +251,7 @@ export function AddExistingModelDialog() {
           <input
             type="text"
             className="add-existing-model-dialog__search-input"
-            placeholder="Search models..."
+            placeholder="Search tables..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             autoFocus
@@ -271,10 +271,10 @@ export function AddExistingModelDialog() {
             onClick={handleSelectAllShown}
             disabled={allShownSelected || atLimit}
             title={overLimit
-              ? `At most ${ADD_EXISTING_MODELS_LIMIT} models can be added at once`
-              : 'Tick every model the search and filters show'}
+              ? `At most ${ADD_EXISTING_TABLES_LIMIT} tables can be added at once`
+              : 'Tick every table the search and filters show'}
           >
-            {overLimit ? `Select first ${ADD_EXISTING_MODELS_LIMIT} shown` : `Select all ${filteredModels.length} shown`}
+            {overLimit ? `Select first ${ADD_EXISTING_TABLES_LIMIT} shown` : `Select all ${filteredModels.length} shown`}
           </button>
           <button
             className="add-existing-model-dialog__link"
@@ -306,17 +306,17 @@ export function AddExistingModelDialog() {
         </div>
 
         {/* Model List */}
-        <div className="add-existing-model-dialog__list" role="listbox" aria-multiselectable={canPickMany} aria-label="Models">
+        <div className="add-existing-model-dialog__list" role="listbox" aria-multiselectable={canPickMany} aria-label="Tables">
           {filteredModels.length === 0 ? (
             <div className="add-existing-model-dialog__no-results">
-              No models match your search or filters
+              No tables match your search or filters
             </div>
           ) : (
             filteredModels.map((model) => {
               const source: SourceKey = 'source' in model ? (model.source as SourceKey) : 'manifest';
-              const sourcePath = 'sourcePath' in model ? (model as ExistingModelPreview).sourcePath : undefined;
+              const sourcePath = 'sourcePath' in model ? (model as ExistingTablePreview).sourcePath : undefined;
               return (
-                <ModelItem
+                <TableItem
                   key={model.name}
                   model={model}
                   source={source}
@@ -345,7 +345,7 @@ export function AddExistingModelDialog() {
           onClick={handleAdd}
           disabled={visibleSelected.length === 0}
         >
-          {visibleSelected.length > 1 ? `Add ${visibleSelected.length} Models` : 'Add Model'}
+          {visibleSelected.length > 1 ? `Add ${visibleSelected.length} Tables` : 'Add Table'}
         </button>
       </div>
     </Panel>
@@ -356,7 +356,7 @@ export function AddExistingModelDialog() {
 // ModelItem subcomponent
 // ---------------------------------------------------------------------------
 
-interface ModelItemProps {
+interface TableItemProps {
   model: ManifestModelPreview;
   source: SourceKey;
   sourcePath?: string;
@@ -366,7 +366,7 @@ interface ModelItemProps {
   onDoubleClick: (name: string) => void;
 }
 
-function ModelItem({ model, source, sourcePath, isSelected, showCheck, onToggle, onDoubleClick }: ModelItemProps) {
+function TableItem({ model, source, sourcePath, isSelected, showCheck, onToggle, onDoubleClick }: TableItemProps) {
   const handleClick = useCallback(() => {
     onToggle(model.name);
   }, [onToggle, model.name]);

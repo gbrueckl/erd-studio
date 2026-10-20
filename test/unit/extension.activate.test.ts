@@ -32,7 +32,7 @@ import {
   _resetFirstRunGuardForTests,
 } from '../../src/extension';
 import { GETTING_STARTED_VIEW_TYPE, GettingStartedPanel } from '../../src/providers/GettingStartedPanel';
-import { DOMAIN_EDITOR_VIEW_TYPE } from '../../src/services/recoveryService';
+import { SUBJECT_AREA_EDITOR_VIEW_TYPE } from '../../src/services/recoveryService';
 import type { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
@@ -185,7 +185,7 @@ describe('activate() without a dbt project', () => {
     await activate(context);
 
     expect(registerEditor).toHaveBeenCalledTimes(1);
-    expect(registerEditor.mock.calls[0][0]).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(registerEditor.mock.calls[0][0]).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);
     expect(createTreeView).not.toHaveBeenCalled();
 
     // The stub editor explains why nothing renders instead of showing a blank webview.
@@ -345,7 +345,7 @@ describe('activate() with a dbt project', () => {
     const opened = exec.mock.calls.filter((c) => c[0] === 'vscode.openWith');
     expect(opened).toHaveLength(1);
     expect((opened[0][1] as { fsPath: string }).fsPath).toBe(vscode.Uri.file('/x/orders.json').fsPath);
-    expect(opened[0][2]).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(opened[0][2]).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);
     expect(opened[0][3]).toEqual({ preview: true });
   });
 
@@ -358,7 +358,7 @@ describe('activate() with a dbt project', () => {
 
     expect(registerEditor).toHaveBeenCalledTimes(1);
     const [viewType, provider, options] = registerEditor.mock.calls[0] as unknown as [string, SemanticEditorProvider, unknown];
-    expect(viewType).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(viewType).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);
     expect(typeof provider.resolveCustomTextEditor).toBe('function');
     expect(options).toEqual({ webviewOptions: { retainContextWhenHidden: true } });
     expect(createTreeView.mock.calls.map((c) => c[0])).toEqual([
@@ -380,7 +380,7 @@ describe('activate() with a dbt project', () => {
     await activate(context);
 
     const provider = registerEditor.mock.calls[0][1] as unknown as SemanticEditorProvider & {
-      _onDidWriteDomain: { fire: (e: { uri: unknown; modelLibraryChanged: boolean }) => void };
+      _onDidWriteSubjectArea: { fire: (e: { uri: unknown; modelLibraryChanged: boolean }) => void };
     };
     const libraryCall = createTreeView.mock.calls.find((c) => c[0] === 'erdStudio.modelLibrary');
     const libraryProvider = (libraryCall![1] as { treeDataProvider: { onDidChangeTreeData: (cb: () => void) => void } }).treeDataProvider;
@@ -389,7 +389,7 @@ describe('activate() with a dbt project', () => {
     libraryProvider.onDidChangeTreeData(() => { refreshes++; });
 
     const uri = vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'showcase.json'));
-    provider._onDidWriteDomain.fire({ uri, modelLibraryChanged: false });
+    provider._onDidWriteSubjectArea.fire({ uri, modelLibraryChanged: false });
 
     expect(refreshes).toBeGreaterThan(0);
   });
@@ -408,7 +408,7 @@ describe('activate() with a dbt project', () => {
       {} as import('vscode').CancellationToken,
     );
     vscode.window.tabGroups.activeTabGroup.activeTab = {
-      input: new vscode.TabInputCustom(doc.uri, DOMAIN_EDITOR_VIEW_TYPE),
+      input: new vscode.TabInputCustom(doc.uri, SUBJECT_AREA_EDITOR_VIEW_TYPE),
     };
     const input = vi.spyOn(vscode.window, 'showInputBox');
 
@@ -462,17 +462,17 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     const showcaseBefore = fs.readFileSync(path.join(root, '.erd-studio', 'silver', 'showcase.json'), 'utf-8');
     await activate(context);
     const info = vi.spyOn(vscode.window, 'showInformationMessage')
-      .mockImplementation((async (message: string) => (message === 'Organise Model Library by Layer?' ? 'Move Files' : undefined)) as never);
+      .mockImplementation((async (message: string) => (message === 'Organise Table Library by Layer?' ? 'Move Files' : undefined)) as never);
 
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
     // The modal lists the plan.
-    const confirm = info.mock.calls.find((c) => c[0] === 'Organise Model Library by Layer?')!;
+    const confirm = info.mock.calls.find((c) => c[0] === 'Organise Table Library by Layer?')!;
     expect(confirm[1]).toMatchObject({ modal: true });
     const detail = (confirm[1] as { detail: string }).detail;
-    expect(detail).toContain('Move 7 models into layer folders (1 → gold/, 6 → silver/).');
-    expect(detail).toContain('1 model used by more than one layer');
-    expect(detail).toContain('1 unused model');
+    expect(detail).toContain('Move 7 tables into layer folders (1 → gold/, 6 → silver/).');
+    expect(detail).toContain('1 table used by more than one layer');
+    expect(detail).toContain('1 unused table');
 
     const silver = fs.readdirSync(path.join(lib(), 'silver')).sort();
     expect(silver).toEqual([
@@ -483,14 +483,14 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     expect(topLevel).toEqual(['dim_date.yml', 'dim_location.yml']);
     // Domain files are untouched — they reference models by name.
     expect(fs.readFileSync(path.join(root, '.erd-studio', 'silver', 'showcase.json'), 'utf-8')).toBe(showcaseBefore);
-    expect(info).toHaveBeenCalledWith('Moved 7 model files into layer folders.');
+    expect(info).toHaveBeenCalledWith('Moved 7 table files into layer folders.');
   });
 
   /** Answer "Move Files" to the confirmation modal; resolve everything else to undefined. */
   const acceptMoves = () => vi.spyOn(vscode.window, 'showInformationMessage')
-    .mockImplementation((async (message: string) => (message === 'Organise Model Library by Layer?' ? 'Move Files' : undefined)) as never);
+    .mockImplementation((async (message: string) => (message === 'Organise Table Library by Layer?' ? 'Move Files' : undefined)) as never);
   const confirmDetail = (info: ReturnType<typeof acceptMoves>) =>
-    (info.mock.calls.find((c) => c[0] === 'Organise Model Library by Layer?')![1] as { detail: string }).detail;
+    (info.mock.calls.find((c) => c[0] === 'Organise Table Library by Layer?')![1] as { detail: string }).detail;
 
   it('moves a file out of the wrong layer folder into the one layer whose domains use it', async () => {
     // dim_customer is used only by silver domains, but its file sits in gold/.
@@ -509,7 +509,7 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     expect(fs.existsSync(path.join(lib(), 'dim_customer.yml'))).toBe(false);
     // gold/ held only dim_customer (the fixture has no gold-only model), so the emptied folder is removed.
     expect(fs.existsSync(path.join(lib(), 'gold'))).toBe(false);
-    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^Moved \d+ model files into layer folders\.$/));
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^Moved \d+ table files into layer folders\.$/));
   });
 
   it('reports nothing to move when re-run after a successful organise that relocated a file', async () => {
@@ -525,8 +525,8 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
     expect(info).toHaveBeenCalledTimes(1);
-    expect(String(info.mock.calls[0][0])).toMatch(/^Organise Model Library: nothing to move\. /);
-    expect(info.mock.calls.some((c) => c[0] === 'Organise Model Library by Layer?')).toBe(false);
+    expect(String(info.mock.calls[0][0])).toMatch(/^Organise Table Library: nothing to move\. /);
+    expect(info.mock.calls.some((c) => c[0] === 'Organise Table Library by Layer?')).toBe(false);
     expect(fs.readdirSync(path.join(lib(), 'silver')).sort()).toEqual(after);
   });
 
@@ -563,14 +563,14 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
   it('says there is nothing to move, without a modal, when every model is shared, unused or already filed', async () => {
     await activate(context);
     const info = vi.spyOn(vscode.window, 'showInformationMessage')
-      .mockImplementation((async (message: string) => (message === 'Organise Model Library by Layer?' ? 'Move Files' : undefined)) as never);
+      .mockImplementation((async (message: string) => (message === 'Organise Table Library by Layer?' ? 'Move Files' : undefined)) as never);
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
     info.mockClear();
 
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
     expect(info).toHaveBeenCalledTimes(1);
-    expect(String(info.mock.calls[0][0])).toMatch(/^Organise Model Library: nothing to move\. /);
+    expect(String(info.mock.calls[0][0])).toMatch(/^Organise Table Library: nothing to move\. /);
     expect(String(info.mock.calls[0][0])).not.toContain('\n');
   });
 
@@ -590,14 +590,14 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     expect(fs.readdirSync(lib()).sort()).toEqual(before);
   });
 
-  it('explains when there is no logical-models/ folder yet', async () => {
+  it('explains when there is no Table Library folder yet', async () => {
     fs.rmSync(lib(), { recursive: true, force: true });
     await activate(context);
     const info = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined as never);
 
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
-    expect(info).toHaveBeenCalledWith('Organise Model Library: there is no logical-models/ folder yet.');
+    expect(info).toHaveBeenCalledWith('Organise Table Library: there is no Table Library folder yet.');
   });
 });
 
@@ -667,7 +667,7 @@ describe('erdStudio.resolveDuplicateModel (issue #76: same table name in two lay
     // The gold domain keeps the gold file, byte for byte.
     expect(fs.readFileSync(path.join(erd(), 'gold', 'reporting.json'), 'utf-8')).toBe(goldDomainBefore);
     expect(fs.existsSync(path.join(lib(), 'gold', 'date.yml'))).toBe(true);
-    expect(info).toHaveBeenCalledWith(expect.stringMatching(/"silver_date" \(table: date\)\. Repointed 1 domain\.$/));
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/"silver_date" \(warehouse table: date\)\. Repointed 1 subject area\.$/));
   });
 
   it('changes nothing when the confirmation is dismissed', async () => {
@@ -702,7 +702,7 @@ describe('erdStudio.resolveDuplicateModel (issue #76: same table name in two lay
 
     await vscode.commands.executeCommand('erdStudio.resolveDuplicateModel');
 
-    expect(info).toHaveBeenCalledWith('Every model file in the library has its own name.');
+    expect(info).toHaveBeenCalledWith('Every table file in the library has its own name.');
   });
 });
 
@@ -1147,21 +1147,24 @@ describe('erdStudio.drawFromDbt', () => {
     expect((input.mock.calls[0][0] as { prompt: string }).prompt).toContain('Silver layer');
     expect(fs.existsSync(path.join(erd(), 'layers.json'))).toBe(true);
     const domainPath = path.join(erd(), 'silver', 'silver.json');
+    // A new project is written in the v6 naming (#182).
     const domain = JSON.parse(fs.readFileSync(domainPath, 'utf-8')) as {
-      schemaVersion: number; layer: string; logical: { models: string[]; relationships: unknown[] }; viewConfig: unknown;
+      schemaVersion: number; subjectArea: string; layer: string; logical: { tables: string[]; relationships: unknown[] }; viewConfig: unknown;
     };
-    expect(domain.schemaVersion).toBe(5);
+    expect(domain.schemaVersion).toBe(6);
+    expect(domain.subjectArea).toBe('silver');
     expect(domain.layer).toBe('silver');
     expect(domain.viewConfig).toEqual({}); // fresh: the canvas lays it out on first open
-    expect(domain.logical.models.length).toBeGreaterThan(1);
-    expect(domain.logical.models).not.toContain('dim_region'); // a .sql with no columns to copy
-    // An empty library is grouped by layer from the start.
-    for (const model of domain.logical.models) {
-      expect(fs.existsSync(path.join(lib(), 'silver', `${model}.yml`)), model).toBe(true);
+    expect(domain.logical.tables.length).toBeGreaterThan(1);
+    expect(domain.logical.tables).not.toContain('dim_region'); // a .sql with no columns to copy
+    // An empty library is grouped by layer from the start, in tables/.
+    for (const model of domain.logical.tables) {
+      expect(fs.existsSync(path.join(erd(), 'tables', 'silver', `${model}.yml`)), model).toBe(true);
     }
+    expect(fs.existsSync(lib())).toBe(false);
     expect(opened()).toHaveLength(1);
     expect(String((opened()[0][1] as { fsPath: string }).fsPath)).toBe(domainPath);
-    expect(opened()[0][2]).toBe(DOMAIN_EDITOR_VIEW_TYPE);
+    expect(opened()[0][2]).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);
     // A diagram the user just made opens in a tab that stays (#167).
     expect(opened()[0][3]).toBeUndefined();
   });
@@ -1321,7 +1324,7 @@ describe('existing-diagrams notice', () => {
     const workspaceState = new Map<string, unknown>([['erdStudio.harnessInstallPrompted', true]]);
     context = makeContext(root, { workspaceState });
     vscode.window.tabGroups.all = [{
-      tabs: [{ input: new vscode.TabInputCustom(vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'showcase.json')), DOMAIN_EDITOR_VIEW_TYPE) }],
+      tabs: [{ input: new vscode.TabInputCustom(vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'showcase.json')), SUBJECT_AREA_EDITOR_VIEW_TYPE) }],
     }];
     const info = vi.spyOn(vscode.window, 'showInformationMessage');
 
@@ -1410,6 +1413,8 @@ describe('erdStudio.exportDiagram', () => {
 
     await vscode.commands.executeCommand('erdStudio.exportDiagram', vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'missing.json')));
 
-    expect(shown).toHaveBeenCalledWith(expect.stringMatching(/^Could not export the diagram: /));
+    expect(shown).toHaveBeenCalledWith(
+      ".erd-studio/silver/missing.json can't be exported because the diagram file has a problem: it was deleted or renamed.",
+    );
   });
 });

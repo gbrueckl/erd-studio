@@ -1,25 +1,25 @@
 /**
- * Graph transformer — converts a DisplayDomain into React Flow nodes and edges.
+ * Graph transformer — converts a DisplaySubjectArea into React Flow nodes and edges.
  *
  * This is a pure function with no side effects, making it easy to unit test.
  * It handles:
- *   1. Mapping each DisplayModel → ModelFlowNode (with position + columns)
+ *   1. Mapping each DisplayTable → TableFlowNode (with position + columns)
  *   2. Mapping each DisplayRelationship → FkFlowEdge (with handle side selection)
  *   3. Selecting optimal handle sides based on relative node positions
  *   4. Injecting discrepancy data and ghost nodes/edges when a comparison report is active
  */
 
 import type {
-  DisplayDomain,
-  DisplayModel,
+  DisplaySubjectArea,
+  DisplayTable,
   Meta,
 } from '@erd-studio/core';
 import type {
   DiscrepancyReport,
-  ModelDiscrepancy,
+  TableDiscrepancy,
 } from '@erd-studio/core';
 import type {
-  ModelFlowNode,
+  TableFlowNode,
   FkFlowEdge,
   AnnotationFlowNode,
   AnnotationFlowEdge,
@@ -27,13 +27,13 @@ import type {
 } from '../types/graph';
 import { resolveNodeDimensions } from './nodeSizing';
 import { columnPairs, foldComposites, relationshipDisplayKey, relationshipEdgeId } from './relationshipDisplayKey';
-import { computeModelLabels } from './modelLabels';
+import { computeTableLabels } from './modelLabels';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface TransformResult {
-  nodes: (ModelFlowNode | AnnotationFlowNode)[];
+  nodes: (TableFlowNode | AnnotationFlowNode)[];
   edges: (FkFlowEdge | AnnotationFlowEdge)[];
 }
 
@@ -67,10 +67,10 @@ const DEFAULT_POSITION = { x: 0, y: 0 };
 const hasMeta = (meta: Meta | undefined): meta is Meta => !!meta && Object.keys(meta).length > 0;
 
 /**
- * Convert a DisplayModel's columns to ColumnDisplay[].
+ * Convert a DisplayTable's columns to ColumnDisplay[].
  * Sort by key priority (PK → NK → FK → non-key).
  */
-function mapColumns(model: DisplayModel): ColumnDisplay[] {
+function mapColumns(model: DisplayTable): ColumnDisplay[] {
   const mapped = model.columns.map((col) => ({
     name: col.name,
     dataType: col.dataType,
@@ -136,21 +136,21 @@ export function pickHandleSides(
 // ---------------------------------------------------------------------------
 
 /**
- * Convert a DisplayDomain into React Flow nodes and edges.
+ * Convert a DisplaySubjectArea into React Flow nodes and edges.
  *
  * @param domain — the display domain from extension host
  * @param options — optional discrepancy report and ghost positions
  * @returns nodes and edges ready for React Flow's `<ReactFlow>` component
  */
-export function transformDomain(
-  domain: DisplayDomain,
+export function transformSubjectArea(
+  domain: DisplaySubjectArea,
   options?: TransformOptions,
 ): TransformResult {
   const { models, relationships, viewConfig, layer, stage, layerConfig, readOnly } = domain;
   const positions = viewConfig.positions ?? {};
 
   // Build discrepancy lookup if report is active
-  const discrepancyMap = new Map<string, ModelDiscrepancy>();
+  const discrepancyMap = new Map<string, TableDiscrepancy>();
   if (options?.discrepancyReport) {
     for (const md of options.discrepancyReport.models) {
       discrepancyMap.set(md.name, md);
@@ -171,7 +171,7 @@ export function transformDomain(
     const dims = dimensionMap.get(id) ?? { width: 0, height: 0 };
     return { x: pos.x, y: pos.y, width: dims.width, height: dims.height };
   };
-  const dimensionsFor = (id: string, data: ModelFlowNode['data']): NodeDimensions =>
+  const dimensionsFor = (id: string, data: TableFlowNode['data']): NodeDimensions =>
     options?.nodeDimensions?.get(id)
       ?? resolveNodeDimensions({
         data: { ...data, isExpanded: options?.isExpanded?.(id) ?? false },
@@ -180,13 +180,13 @@ export function transformDomain(
 
   // --- Nodes ---------------------------------------------------------------
 
-  const labels = computeModelLabels(models);
-  const nodes: (ModelFlowNode | AnnotationFlowNode)[] = models.map((model) => {
+  const labels = computeTableLabels(models);
+  const nodes: (TableFlowNode | AnnotationFlowNode)[] = models.map((model) => {
     const columns = mapColumns(model);
     const position = positionMap.get(model.name) ?? DEFAULT_POSITION;
     const disc = discrepancyMap.get(model.name);
 
-    const node: ModelFlowNode = {
+    const node: TableFlowNode = {
       id: model.name,
       type: 'model' as const,
       position,
@@ -241,7 +241,7 @@ export function transformDomain(
         const position = positions[md.name] ?? { x: 50 + ghostIndex * 260, y: -150 };
         ghostIndex++;
         positionMap.set(md.name, position);
-        const ghost: ModelFlowNode = {
+        const ghost: TableFlowNode = {
           id: md.name,
           type: 'model' as const,
           position,
@@ -307,6 +307,7 @@ export function transformDomain(
           cardinality: rel.cardinality,
           ...(rel.role ? { role: rel.role } : {}),
           ...(rel.pairs ? { pairs: rel.pairs, compositeKey: rel.compositeKey } : {}),
+          ...(rel.keysContradict && !readOnly ? { keysContradict: true as const } : {}),
           stage,
           ...(readOnly ? { readOnly: true } : {}),
           ...(discStatus ? { discrepancyStatus: discStatus } : {}),

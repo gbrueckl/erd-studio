@@ -10,7 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type { ColumnDef, ModelTemplate } from '../types/semantic';
+import type { ColumnDef, TableTemplate } from '../types/semantic';
 
 const DEFAULT_SEMANTIC_DIR = '.erd-studio';
 const TEMPLATES_DIR = 'templates';
@@ -33,7 +33,7 @@ const TEMPLATES_DIR = 'templates';
  * label. A person's name is not unique, so a name marked as the natural key
  * is a claim the data cannot honour.
  */
-const FALLBACK_TEMPLATES: ModelTemplate[] = [
+const FALLBACK_TEMPLATES: TableTemplate[] = [
   {
     id: 'dimension',
     label: 'Dimension',
@@ -106,7 +106,7 @@ const FALLBACK_TEMPLATES: ModelTemplate[] = [
     id: 'blank',
     label: 'Blank',
     prefix: '',
-    description: 'Empty model with no predefined columns',
+    description: 'Empty table with no predefined columns',
     columns: [],
   },
 ];
@@ -121,7 +121,7 @@ export class TemplateService {
    * Templates are sorted by: dimension, fact, bridge, scd2, blank, then
    * alphabetically by id for any custom templates.
    */
-  loadTemplates(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): ModelTemplate[] {
+  loadTemplates(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): TableTemplate[] {
     const templatesPath = path.join(projectPath, semanticDir, TEMPLATES_DIR);
 
     if (!fs.existsSync(templatesPath)) {
@@ -144,7 +144,7 @@ export class TemplateService {
       return FALLBACK_TEMPLATES;
     }
 
-    const templates: ModelTemplate[] = [];
+    const templates: TableTemplate[] = [];
     const seenIds = new Map<string, string>();
     for (const file of jsonFiles.sort()) {
       const filePath = path.join(templatesPath, file);
@@ -183,7 +183,7 @@ export class TemplateService {
   /**
    * Load and validate a single template file.
    */
-  private loadTemplateFile(filePath: string): ModelTemplate | null {
+  private loadTemplateFile(filePath: string): TableTemplate | null {
     const raw = fs.readFileSync(filePath, 'utf-8');
     const parsed = JSON.parse(raw) as unknown;
 
@@ -202,7 +202,7 @@ export class TemplateService {
       throw new Error('Template must have a non-empty "label" field');
     }
 
-    const template: ModelTemplate = {
+    const template: TableTemplate = {
       id: obj.id.trim(),
       label: obj.label.trim(),
       prefix: typeof obj.prefix === 'string' ? obj.prefix : '',
@@ -265,7 +265,7 @@ export class TemplateService {
    * Sort templates with standard templates first in a defined order,
    * then any custom templates alphabetically.
    */
-  private sortTemplates(templates: ModelTemplate[]): ModelTemplate[] {
+  private sortTemplates(templates: TableTemplate[]): TableTemplate[] {
     const standardOrder = ['dimension', 'fact', 'bridge', 'scd2', 'blank'];
 
     return [...templates].sort((a, b) => {

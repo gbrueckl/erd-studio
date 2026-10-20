@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * ModelNode load error (#110) — a model whose logical-models file exists but
+ * TableNode load error (#110) — a model whose logical-models file exists but
  * has a YAML error shows the error and an "Open file" button instead of the
  * misleading "No columns". The button is an editing affordance, so the
  * read-only viewer drops it.
@@ -29,13 +29,13 @@ vi.mock('../../src/store/editorStore', () => ({
 }));
 
 import type { CanvasEditMessage } from '@erd-studio/core';
-import { ModelNode } from '../../src/components/Graph/ModelNode';
+import { TableNode } from '../../src/components/Graph/ModelNode';
 import { CanvasEnvironmentProvider } from '../../src/host/canvasEnvironment';
-import type { ModelFlowNode } from '../../src/types/graph';
+import type { TableFlowNode } from '../../src/types/graph';
 
-function renderNode(extra: Partial<ModelFlowNode['data']> = {}, viewer = false) {
+function renderNode(extra: Partial<TableFlowNode['data']> = {}, viewer = false) {
   const posted: CanvasEditMessage[] = [];
-  const data: ModelFlowNode['data'] = {
+  const data: TableFlowNode['data'] = {
     modelName: 'dim_broken',
     stage: 'logical',
     layer: 'silver',
@@ -43,7 +43,7 @@ function renderNode(extra: Partial<ModelFlowNode['data']> = {}, viewer = false) 
     isStub: false,
     ...extra,
   };
-  const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+  const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
   const utils = render(
     <CanvasEnvironmentProvider host={{ postMessage: (m) => posted.push(m) }} viewer={viewer}>
       <Node data={data} selected={false} />
@@ -52,7 +52,7 @@ function renderNode(extra: Partial<ModelFlowNode['data']> = {}, viewer = false) 
   return { ...utils, posted };
 }
 
-describe('ModelNode load error', () => {
+describe('TableNode load error', () => {
   it('shows the YAML error line and an Open file button instead of "No columns"', () => {
     const { container, posted } = renderNode({ loadError: { kind: 'yamlScalar', line: 4 } });
     expect(screen.getByText("YAML error on line 4 — ERD Studio can't read this file.")).toBeTruthy();

@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Panel } from '@xyflow/react';
 
-import { ModelRationale, hasRationaleContent } from './ModelRationale';
+import { TableRationale, hasRationaleContent } from './ModelRationale';
 import { DescriptionEditor } from './DescriptionEditor';
 import { GrainEditor } from './GrainEditor';
 import { AliasEditor } from './AliasEditor';
@@ -19,7 +19,9 @@ import { ColumnEditor } from './ColumnEditor';
 import { MetaEditor } from './MetaEditor';
 import { useEditorStore } from '../../store/editorStore';
 import { useCanvasHost, useIsViewer } from '../../host/canvasEnvironment';
+import { backwardsRelationshipNote } from '@erd-studio/core';
 import type { ColumnPair, DisplayRelationship, PhysicalColumnSource, PhysicalProvenance } from '@erd-studio/core';
+import { swapCardinality } from '../../lib/cardinalityUtils';
 import type { FkEdgeData } from '../../types/graph';
 import { columnPairs, foldComposites, relationshipEdgeId } from '../../lib/relationshipDisplayKey';
 import './DetailPanel.css';
@@ -129,7 +131,7 @@ export function DetailPanel() {
         return 'Only the upper/lower case differs — rename to another name first';
       }
       if (domain && trimmed !== selectedNode && domain.models.some((m) => same(m.name))) {
-        return 'A model with this name already exists';
+        return 'A table with this name already exists';
       }
       // logical-models/ is shared across domains — renaming onto an existing
       // library model would overwrite a file another domain depends on.
@@ -137,7 +139,7 @@ export function DetailPanel() {
         trimmed !== selectedNode &&
         existingModels.some((m) => m.source === 'logical' && same(m.name))
       ) {
-        return 'A model with this name already exists in the model library';
+        return 'A table with this name already exists in the Table Library';
       }
       return '';
     },
@@ -207,6 +209,24 @@ export function DetailPanel() {
           fromColumn: rel.fromColumn,
           toModel: rel.toModel,
           toColumn: rel.toColumn,
+        },
+      });
+    },
+    [host],
+  );
+
+  // Turn round a relationship drawn backwards (#163): the ⇄ the line offers,
+  // which the host stores the right way round. A composite sends its first pair.
+  const handleTurnRound = useCallback(
+    (rel: PanelRelationship) => {
+      host.postMessage({
+        type: 'updateRelationship',
+        payload: {
+          fromModel: rel.fromModel,
+          fromColumn: rel.fromColumn,
+          toModel: rel.toModel,
+          toColumn: rel.toColumn,
+          cardinality: swapCardinality(rel.cardinality),
         },
       });
     },
@@ -313,8 +333,8 @@ export function DetailPanel() {
           <button
             className="detail-panel__title-edit-btn"
             onClick={handleStartRename}
-            title="Rename model"
-            aria-label="Rename model"
+            title="Rename table"
+            aria-label="Rename table"
           >
             ✎
           </button>
@@ -384,7 +404,7 @@ export function DetailPanel() {
       {/* Design Rationale (the viewer shows the section only when there is some) */}
       {(!viewer || hasRationaleContent(model.rationale)) && (
         <div className="detail-panel__section">
-          <ModelRationale
+          <TableRationale
             modelName={model.name}
             rationale={model.rationale}
             modelRole={model.modelRole}
@@ -399,13 +419,13 @@ export function DetailPanel() {
           {confirmingDelete ? (
             <>
               <span className="detail-panel__confirm-label">
-                Remove model from domain?{totalRelationships > 0 ? ` (${totalRelationships} relationship(s) will also be removed)` : ''}
+                Remove table from subject area?{totalRelationships > 0 ? ` (${totalRelationships} relationship(s) will also be removed)` : ''}
               </span>
               <div className="detail-panel__confirm-actions">
                 <button
                   className="detail-panel__button detail-panel__button--danger"
                   onClick={handleDeleteModel}
-                  aria-label="Confirm remove model"
+                  aria-label="Confirm remove table"
                 >
                   Yes, Remove
                 </button>
@@ -422,10 +442,10 @@ export function DetailPanel() {
             <button
               className="detail-panel__button detail-panel__button--danger"
               onClick={() => setConfirmingDelete(true)}
-              title="Remove this model from the domain"
-              aria-label="Remove this model from the domain"
+              title="Remove this table from the subject area"
+              aria-label="Remove this table from the subject area"
             >
-              Remove from Domain
+              Remove from Subject Area
             </button>
           )}
         </div>
@@ -481,6 +501,18 @@ export function DetailPanel() {
                 <span className="detail-panel__rel-cardinality">
                   {rel.cardinality}
                 </span>
+                {viewer ? null : (!isReadOnly && rel.keysContradict && (
+                  <button
+                    className="detail-panel__rel-backwards"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTurnRound(rel);
+                    }}
+                    title={`${backwardsRelationshipNote(rel, rel.pairs ?? [rel])} Click to turn it round.`}
+                  >
+                    &#x26A0; Turn round
+                  </button>
+                ))}
                 {!isReadOnly && (
                   <button
                     className="detail-panel__rel-delete"
@@ -528,6 +560,18 @@ export function DetailPanel() {
                 <span className="detail-panel__rel-cardinality">
                   {rel.cardinality}
                 </span>
+                {viewer ? null : (!isReadOnly && rel.keysContradict && (
+                  <button
+                    className="detail-panel__rel-backwards"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTurnRound(rel);
+                    }}
+                    title={`${backwardsRelationshipNote(rel, rel.pairs ?? [rel])} Click to turn it round.`}
+                  >
+                    &#x26A0; Turn round
+                  </button>
+                ))}
                 {!isReadOnly && (
                   <button
                     className="detail-panel__rel-delete"

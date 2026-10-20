@@ -1,5 +1,5 @@
 /**
- * ModelRationale — collapsible section for all design rationale fields.
+ * TableRationale — collapsible section for all design rationale fields.
  *
  * Renders a clickable "Design Rationale" heading that toggles the body.
  * Each field has its own add/edit/read lifecycle and sends independent
@@ -16,7 +16,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import type { Rationale, ModelRole } from '@erd-studio/core';
+import type { Rationale, TableRole } from '@erd-studio/core';
 import { RationaleField } from './RationaleField';
 import { useIsViewer } from '../../host/canvasEnvironment';
 
@@ -33,14 +33,14 @@ export function hasRationaleContent(rationale: Rationale | undefined): boolean {
   ].some(Boolean);
 }
 
-interface ModelRationaleProps {
+interface TableRationaleProps {
   modelName: string;
   rationale?: Rationale;
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
   grain?: string;
 }
 
-export function ModelRationale({ modelName, rationale, modelRole, grain }: ModelRationaleProps) {
+export function TableRationale({ modelName, rationale, modelRole, grain }: TableRationaleProps) {
   const viewer = useIsViewer();
   const [open, setOpen] = useState(false);
   // Track whether user has clicked "Add Rationale" to force-show and auto-edit
@@ -111,7 +111,7 @@ export function ModelRationale({ modelName, rationale, modelRole, grain }: Model
             rationale={rationale}
             fieldKey="purpose"
             label="Purpose"
-            placeholder="What requirements does this model meet?"
+            placeholder="What requirements does this table meet?"
             autoEdit={!viewer && forceShow && !rationale?.purpose}
           />
 
@@ -120,7 +120,7 @@ export function ModelRationale({ modelName, rationale, modelRole, grain }: Model
             rationale={rationale}
             fieldKey="design"
             label="Design"
-            placeholder="Why was this model designed this way?"
+            placeholder="Why was this table designed this way?"
           />
 
           {modelRole && (
@@ -129,7 +129,7 @@ export function ModelRationale({ modelName, rationale, modelRole, grain }: Model
               rationale={rationale}
               fieldKey="roleChoice"
               label="Role Choice"
-              placeholder="Why was this model role selected?"
+              placeholder="Why was this table role selected?"
             />
           )}
 

@@ -20,15 +20,15 @@
  * the plan reports them instead.
  */
 
-import type { ModelFileEntry } from './logicalModelService';
+import type { TableFileEntry } from './logicalModelService';
 
 /** One domain's layer and the model names it references. */
-export interface DomainModelUsage {
+export interface SubjectAreaTableUsage {
   readonly layer: string;
   readonly modelNames: readonly string[];
 }
 
-export interface ModelMove {
+export interface TableMove {
   readonly name: string;
   readonly layer: string;
   readonly from: string;
@@ -39,7 +39,7 @@ export interface ModelMove {
 
 export interface OrganizePlan {
   /** Files that move into their layer's folder (from the top level or another layer's folder). */
-  readonly moves: ModelMove[];
+  readonly moves: TableMove[];
   /** Top-level models referenced from more than one layer, with those layers. */
   readonly shared: { name: string; layers: string[] }[];
   /** Top-level models no domain references. */
@@ -52,13 +52,14 @@ export interface OrganizePlan {
 
 /**
  * Build the plan. `layerIds` are the configured layers (layers.json);
- * `targetPath(name, layer)` returns where a moved file goes, or null when
- * `layer` cannot be a folder name (the model then stays put, as if shared).
+ * `targetPath(name, layer, from)` returns where the file at `from` goes, or
+ * null when `layer` cannot be a folder name (the model then stays put, as if
+ * shared).
  */
 export function planOrganizeByLayer(
-  entries: readonly ModelFileEntry[],
-  usage: readonly DomainModelUsage[],
-  targetPath: (name: string, layer: string) => string | null,
+  entries: readonly TableFileEntry[],
+  usage: readonly SubjectAreaTableUsage[],
+  targetPath: (name: string, layer: string, from: string) => string | null,
   layerIds: ReadonlySet<string> = new Set(usage.map(u => u.layer)),
 ): OrganizePlan {
   const layersByModel = new Map<string, Set<string>>();
@@ -71,7 +72,7 @@ export function planOrganizeByLayer(
   }
 
   const taken = new Set(entries.filter(e => e.folder !== '').map(e => `${e.folder}/${e.name}`));
-  const moves: ModelMove[] = [];
+  const moves: TableMove[] = [];
   const shared: { name: string; layers: string[] }[] = [];
   const unused: string[] = [];
   const conflicts: { name: string; layer: string }[] = [];
@@ -97,7 +98,7 @@ export function planOrganizeByLayer(
     }
     const layer = layers[0];
     if (entry.folder === layer) continue; // already in the right place
-    const to = targetPath(entry.name, layer);
+    const to = targetPath(entry.name, layer, entry.filePath);
     if (to === null) {
       if (!inLayerFolder) shared.push({ name: entry.name, layers });
       continue;
@@ -139,26 +140,26 @@ export function describeOrganizePlan(plan: OrganizePlan): string {
     const parts = [...perLayer.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([layer, n]) => `${n} → ${layer}/`);
-    lines.push(`Move ${plural(plan.moves.length, 'model')} into layer folders (${parts.join(', ')}).`);
+    lines.push(`Move ${plural(plan.moves.length, 'table')} into layer folders (${parts.join(', ')}).`);
     const relocated = plan.moves.filter(m => m.fromFolder);
     if (relocated.length > 0) {
       const examples = relocated.slice(0, 3).map(m => `${m.name}: ${m.fromFolder}/ → ${m.layer}/`);
       const more = relocated.length > 3 ? ` and ${relocated.length - 3} more` : '';
       lines.push(
         `${relocated.length === 1 ? 'One is' : `${relocated.length} are`} in another layer's folder, ` +
-        `because the domains that use ${relocated.length === 1 ? 'it' : 'them'} are now in a different layer ` +
+        `because the subject areas that use ${relocated.length === 1 ? 'it' : 'them'} are now in a different layer ` +
         `(${examples.join('; ')}${more}).`,
       );
     }
   }
   const staying: string[] = [];
   if (plan.shared.length > 0) {
-    staying.push(`${plural(plan.shared.length, 'model')} used by more than one layer (${nameList(plan.shared.map(s => s.name))})`);
+    staying.push(`${plural(plan.shared.length, 'table')} used by more than one layer (${nameList(plan.shared.map(s => s.name))})`);
   }
-  if (plan.unused.length > 0) staying.push(`${plural(plan.unused.length, 'unused model')} (${nameList(plan.unused)})`);
+  if (plan.unused.length > 0) staying.push(`${plural(plan.unused.length, 'unused table')} (${nameList(plan.unused)})`);
   if (plan.conflicts.length > 0) {
     staying.push(
-      `${plural(plan.conflicts.length, 'model')} whose layer folder already has a file of that name (${nameList(plan.conflicts.map(c => c.name))})`,
+      `${plural(plan.conflicts.length, 'table')} whose layer folder already has a file of that name (${nameList(plan.conflicts.map(c => c.name))})`,
     );
   }
   if (staying.length > 0) {
@@ -168,6 +169,6 @@ export function describeOrganizePlan(plan: OrganizePlan): string {
     const folders = plan.otherFolders.map(f => `${f.folder}/ (${f.count})`).join(', ');
     lines.push(`Left alone: folders that are not a layer in layers.json — ${folders}.`);
   }
-  lines.push('Domain files reference models by name, so no domain file changes.');
+  lines.push('Subject area files reference tables by name, so no subject area file changes.');
   return lines.join('\n\n');
 }

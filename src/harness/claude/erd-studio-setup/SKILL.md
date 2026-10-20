@@ -495,4 +495,4 @@ Read these when the stage calls for them — not all up front:
 | `references/metadata.md` | Stage 4 and enriching, before writing model files: dbt's `meta:` and the team's metadata list |
 | `references/building-the-model.md` | Stage 4, before writing any file |
 | `references/verify-and-fix.md` | Stage 5, and for adding dbt relationship tests |
-| `references/troubleshooting.md` | The helper is missing or stale (canvas-fallback mode), the skill or its format rules cannot be found, the safety check keeps blocking, Windows / remote setups, a merge conflict |
+| `references/troubleshooting.md` | The helper is missing or stale (canvas-fallback mode), the skill or its format rules cannot be found, the safety check keeps blocking, Windows / remote setups, a merge conflict, doctor's `turn-round-relationships` step (relationships drawn backwards) |

@@ -1,5 +1,5 @@
 /**
- * computeDomainDiff — THE cross-stage comparison of one domain file.
+ * computeSubjectAreaDiff — THE cross-stage comparison of one domain file.
  *
  * The canvas's "Compare to …" toggle (`SemanticEditorProvider.handleToggleDiscrepancy`)
  * and the `erd-studio diff` CLI both call this, so the two can only disagree
@@ -11,30 +11,30 @@
 
 import type { CatalogData } from '../types/catalog';
 import type { DiscrepancyReport } from '../types/discrepancy';
-import type { DisplayDomain } from '../types/display';
+import type { DisplaySubjectArea } from '../types/display';
 import type { ManifestData } from '../types/manifest';
-import type { Stage, UnifiedDomain } from '../types/semantic';
+import type { Stage, UnifiedSubjectArea } from '../types/semantic';
 import type { YmlData } from '../types/ymlData';
 import { compare } from './discrepancyService';
-import { DomainService } from './domainService';
-import { buildLogicalDisplayDomain, dbtKeyIndexOf } from './stageDisplay';
+import { SubjectAreaService } from './domainService';
+import { buildLogicalDisplaySubjectArea, dbtKeyIndexOf } from './stageDisplay';
 
 /** Everything the comparison reads besides the domain file itself. */
-export interface DomainDiffInputs {
-  /** Must have its LogicalModelService set, or v5 model names do not resolve. */
-  domainService: DomainService;
+export interface SubjectAreaDiffInputs {
+  /** Must have its TableLibraryService set, or v5 model names do not resolve. */
+  subjectAreaService: SubjectAreaService;
   ymlData: YmlData;
   manifest: ManifestData;
   catalog?: CatalogData;
 }
 
-export interface DomainDiffResult {
+export interface SubjectAreaDiffResult {
   /** The domain file as read — once — for this comparison. */
-  unified: UnifiedDomain;
+  unified: UnifiedSubjectArea;
   /** The stage being viewed. */
-  source: DisplayDomain;
+  source: DisplaySubjectArea;
   /** The stage compared against. */
-  target: DisplayDomain;
+  target: DisplaySubjectArea;
   report: DiscrepancyReport;
 }
 
@@ -44,41 +44,43 @@ export function otherStage(stage: Stage): Stage {
 }
 
 /**
- * Build one stage's `DisplayDomain` from an already-read unified domain.
+ * Build one stage's `DisplaySubjectArea` from an already-read unified domain.
  * Physical is derived from the dbt project; logical is the pure core of the
  * canvas's logical payload (no templates or pickers — the comparison never
  * reads them).
  */
 export function buildStageForDiff(
-  inputs: DomainDiffInputs,
-  unified: UnifiedDomain,
+  inputs: SubjectAreaDiffInputs,
+  unified: UnifiedSubjectArea,
   stage: Stage,
-): DisplayDomain {
+): DisplaySubjectArea {
   if (stage === 'physical') {
-    return inputs.domainService.buildPhysicalDomain(unified, inputs.ymlData, inputs.manifest, inputs.catalog);
+    return inputs.subjectAreaService.buildPhysicalSubjectArea(unified, inputs.ymlData, inputs.manifest, inputs.catalog);
   }
-  return buildLogicalDisplayDomain(DomainService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns);
+  return buildLogicalDisplaySubjectArea(
+    SubjectAreaService.toLogicalStage(unified), unified.viewConfig, unified.stubColumns, dbtKeyIndexOf(inputs.ymlData, inputs.manifest),
+  );
 }
 
 /**
  * Read `domainPath` once, build the source and target stages, and compare
  * them with the domain's `stubColumns` suppression.
  *
- * Throws what `DomainService.getDomain` throws (`DomainFileError`, an
+ * Throws what `SubjectAreaService.getSubjectArea` throws (`SubjectAreaFileError`, an
  * unsupported-format or unknown-layer error) — the caller decides how to
  * report it.
  *
  * @param targetStage defaults to the other stage; the canvas passes the stage
  *   the user picked.
  */
-export function computeDomainDiff(
-  inputs: DomainDiffInputs,
+export function computeSubjectAreaDiff(
+  inputs: SubjectAreaDiffInputs,
   domainPath: string,
   sourceStage: Stage,
   targetStage: Stage = otherStage(sourceStage),
-): DomainDiffResult {
+): SubjectAreaDiffResult {
   // The read winner sees dbt's key evidence, as the canvas does (#133 L1).
-  const unified = inputs.domainService.getDomain(domainPath, { dbtKeyIndex: dbtKeyIndexOf(inputs.ymlData, inputs.manifest) });
+  const unified = inputs.subjectAreaService.getSubjectArea(domainPath, { dbtKeyIndex: dbtKeyIndexOf(inputs.ymlData, inputs.manifest) });
   const source = buildStageForDiff(inputs, unified, sourceStage);
   const target = buildStageForDiff(inputs, unified, targetStage);
   const report = compare(source, target, new Set(unified.stubColumns ?? []));

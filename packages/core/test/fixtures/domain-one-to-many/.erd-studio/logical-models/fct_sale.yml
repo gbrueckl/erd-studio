@@ -1,0 +1,11 @@
+name: fct_sale
+schema: gold
+description: One row per sale
+columns:
+  - name: sale_id
+    dataType: BIGINT
+    isPrimaryKey: true
+  - name: store_key
+    dataType: INT
+  - name: amount
+    dataType: DECIMAL(18,2)

@@ -17,7 +17,7 @@ import {
 
 type Col = { name: string; dataType?: string; description?: string };
 const col = (name: string, dataType = 'varchar', description = ''): Col => ({ name, dataType, description });
-const model = (name: string, columns: Col[], extra: Partial<ConventionModel> = {}): ConventionModel =>
+const table = (name: string, columns: Col[], extra: Partial<ConventionModel> = {}): ConventionModel =>
   ({ name, kind: 'model', folder: ['marts'], schema: '', columnCount: columns.length, uniqueKeys: [], ...extra, columns });
 const rel = (fromModel: string, fromColumn: string, toModel: string, toColumn = fromColumn): ConventionRelationship =>
   ({ fromModel, fromColumn, toModel, toColumn });
@@ -25,11 +25,11 @@ const load = [col('load_date', 'timestamp'), col('record_source')];
 
 // A small raw vault whose names carry no hub_/lnk_/sat_ prefix.
 const vaultModels = (names = { ch: 'customer_hub', oh: 'order_hub', link: 'customer_order_link', sat: 'customer_sat' }, folder = ['raw_vault']) => [
-  model(names.ch, [col('customer_hk', 'binary(16)'), col('customer_id'), ...load], { folder, uniqueKeys: ['customer_hk'] }),
-  model(names.oh, [col('order_hk', 'binary(16)'), col('order_id'), ...load], { folder, uniqueKeys: ['order_hk'] }),
-  model(names.link, [col('customer_order_hk', 'binary(16)'), col('customer_hk', 'binary(16)'), col('order_hk', 'binary(16)'), ...load], { folder }),
+  table(names.ch, [col('customer_hk', 'binary(16)'), col('customer_id'), ...load], { folder, uniqueKeys: ['customer_hk'] }),
+  table(names.oh, [col('order_hk', 'binary(16)'), col('order_id'), ...load], { folder, uniqueKeys: ['order_hk'] }),
+  table(names.link, [col('customer_order_hk', 'binary(16)'), col('customer_hk', 'binary(16)'), col('order_hk', 'binary(16)'), ...load], { folder }),
   // A numeric attribute and a key out to the hub: a fact, by the star rules — but it is a satellite.
-  model(names.sat, [col('customer_hk', 'binary(16)'), col('hashdiff', 'binary(16)'), col('customer_name'), col('email'), col('credit_limit', 'decimal(12,2)'), ...load], { folder }),
+  table(names.sat, [col('customer_hk', 'binary(16)'), col('hashdiff', 'binary(16)'), col('customer_name'), col('email'), col('credit_limit', 'decimal(12,2)'), ...load], { folder }),
 ];
 const vaultRels = (names = { ch: 'customer_hub', oh: 'order_hub', link: 'customer_order_link', sat: 'customer_sat' }) => [
   rel(names.link, 'customer_hk', names.ch),
@@ -42,10 +42,10 @@ describe('vault-named tables without a catalog', () => {
     // No catalog: the yml lists keys and one amount, not load_date/record_source, so the column
     // check cannot see the vault — the names must still keep a Kimball rival out.
     const models = [
-      model('hub_customer', [col('customer_hk'), col('customer_id')], { uniqueKeys: ['customer_hk'] }),
-      model('hub_order', [col('order_hk'), col('order_id')], { uniqueKeys: ['order_hk'] }),
-      model('link_customer_order', [col('customer_order_hk'), col('customer_hk'), col('order_hk')]),
-      model('sat_order_details', [col('order_hk'), col('order_total', 'decimal(12,2)'), col('tax_paid', 'decimal(12,2)')]),
+      table('hub_customer', [col('customer_hk'), col('customer_id')], { uniqueKeys: ['customer_hk'] }),
+      table('hub_order', [col('order_hk'), col('order_id')], { uniqueKeys: ['order_hk'] }),
+      table('link_customer_order', [col('customer_order_hk'), col('customer_hk'), col('order_hk')]),
+      table('sat_order_details', [col('order_hk'), col('order_total', 'decimal(12,2)'), col('tax_paid', 'decimal(12,2)')]),
     ];
     const relationships = [
       rel('link_customer_order', 'customer_hk', 'hub_customer'),
@@ -66,20 +66,20 @@ describe('Data Vault structure', () => {
     expect(vaultKindOf(link)).toBe('link');
     expect(vaultKindOf(sat)).toBe('satellite');
     // automate_dv style: `customer_pk` typed as a digest, `load_datetime` / `rsrc`.
-    expect(vaultKindOf(model('customer', [col('customer_pk', 'binary(16)'), col('customer_id'), col('load_datetime', 'timestamp'), col('rsrc')]))).toBe('hub');
+    expect(vaultKindOf(table('customer', [col('customer_pk', 'binary(16)'), col('customer_id'), col('load_datetime', 'timestamp'), col('rsrc')]))).toBe('hub');
     // Hash keys by name, `hk_` prefix, and "hash key" in a column description.
-    expect(vaultKindOf(model('x', [col('hk_customer', 'varchar'), col('customer_number'), col('ldts'), col('rec_src')]))).toBe('hub');
-    expect(vaultKindOf(model('y', [col('customer_ref', 'varchar', 'MD5 hash key of the customer'), col('customer_id'), col('loaded_at'), col('record_source')]))).toBe('hub');
+    expect(vaultKindOf(table('x', [col('hk_customer', 'varchar'), col('customer_number'), col('ldts'), col('rec_src')]))).toBe('hub');
+    expect(vaultKindOf(table('y', [col('customer_ref', 'varchar', 'MD5 hash key of the customer'), col('customer_id'), col('loaded_at'), col('record_source')]))).toBe('hub');
   });
 
   it('needs a hash key and both halves of the load metadata', () => {
-    expect(vaultKindOf(model('a', [col('customer_hk'), col('customer_id'), col('load_date')]))).toBeNull();
-    expect(vaultKindOf(model('b', [col('customer_hk'), col('customer_id'), col('record_source')]))).toBeNull();
-    expect(vaultKindOf(model('c', [col('customer_id'), col('name'), ...load]))).toBeNull();
+    expect(vaultKindOf(table('a', [col('customer_hk'), col('customer_id'), col('load_date')]))).toBeNull();
+    expect(vaultKindOf(table('b', [col('customer_hk'), col('customer_id'), col('record_source')]))).toBeNull();
+    expect(vaultKindOf(table('c', [col('customer_id'), col('name'), ...load]))).toBeNull();
     // An `_id` typed char(32) is not a hash key; a hashdiff never is.
-    expect(vaultKindOf(model('d', [col('customer_id', 'char(32)'), col('hashdiff', 'char(32)'), col('name'), ...load]))).toBeNull();
+    expect(vaultKindOf(table('d', [col('customer_id', 'char(32)'), col('hashdiff', 'char(32)'), col('name'), ...load]))).toBeNull();
     // A wide table with a hash key is vault-shaped but not a hub.
-    const wide = model('e', [col('customer_hk'), ...Array.from({ length: 8 }, (_, i) => col(`attr_${i}`)), ...load]);
+    const wide = table('e', [col('customer_hk'), ...Array.from({ length: 8 }, (_, i) => col(`attr_${i}`)), ...load]);
     expect(vaultKindOf(wide)).toBe('vault');
   });
 
@@ -113,8 +113,8 @@ describe('Data Vault structure', () => {
 
   it('Kimball info marts beside the vault still read as a star, alongside the vault', () => {
     const marts = [
-      model('customers', [col('customer_id'), col('customer_name'), col('segment')], { uniqueKeys: ['customer_id'] }),
-      model('orders', [col('order_id'), col('customer_id'), col('order_total', 'decimal(12,2)')], { uniqueKeys: ['order_id'] }),
+      table('customers', [col('customer_id'), col('customer_name'), col('segment')], { uniqueKeys: ['customer_id'] }),
+      table('orders', [col('order_id'), col('customer_id'), col('order_total', 'decimal(12,2)')], { uniqueKeys: ['order_id'] }),
     ];
     const c = detectConventions({
       models: [...vaultModels(), ...marts], packages: [], snapshots: [],
@@ -127,14 +127,14 @@ describe('Data Vault structure', () => {
 });
 
 describe('Activity Schema structure', () => {
-  const stream = (name: string, extra: Col[] = []) => model(name, [
+  const stream = (name: string, extra: Col[] = []) => table(name, [
     col('activity_id'), col('ts', 'timestamp'), col('customer'), col('activity'), col('anonymous_customer_id'),
     col('feature_json', 'variant'), col('revenue_impact', 'decimal(12,2)'), col('link'), ...extra,
   ]);
 
   it('a narrow activity + entity + timestamp table is a stream, whatever its name', () => {
     expect(detectActivityStreams([stream('events')])).toEqual(['events']);
-    const c = detectConventions({ models: [stream('events'), model('customers', [col('customer_id'), col('name')], { uniqueKeys: ['customer_id'] })], packages: [], snapshots: [], relationships: [rel('events', 'customer', 'customers', 'customer_id')] });
+    const c = detectConventions({ models: [stream('events'), table('customers', [col('customer_id'), col('name')], { uniqueKeys: ['customer_id'] })], packages: [], snapshots: [], relationships: [rel('events', 'customer', 'customers', 'customer_id')] });
     // The stream's revenue_impact and key out do not make it a Kimball fact.
     expect(c.shape).toMatchObject({ style: 'activity-schema', confidence: 'weak', sources: ['structure'], alternatives: [] });
     expect(c.shape.evidence).toEqual(['shape: events looks like an activity stream (activity + entity + timestamp)']);
@@ -145,13 +145,13 @@ describe('Activity Schema structure', () => {
       .toMatchObject({ style: 'activity-schema', confidence: 'strong', sources: ['names', 'structure'] });
     const wide = stream('events', Array.from({ length: 5 }, (_, i) => col(`extra_${i}`)));
     expect(detectActivityStreams([wide])).toEqual([]);
-    expect(detectActivityStreams([model('events', [col('activity'), col('customer_id')])])).toEqual([]);
+    expect(detectActivityStreams([table('events', [col('activity'), col('customer_id')])])).toEqual([]);
   });
 });
 
 describe('Inmon / 3NF structure (a guess)', () => {
   const entity = (name: string, cols: string[], extra: Partial<ConventionModel> = {}) =>
-    model(name, cols.map((c) => col(c, c.endsWith('_date') ? 'date' : 'varchar')), { uniqueKeys: [cols[0]], ...extra });
+    table(name, cols.map((c) => col(c, c.endsWith('_date') ? 'date' : 'varchar')), { uniqueKeys: [cols[0]], ...extra });
   const normalised = (descriptions: Record<string, string> = {}) => [
     entity('customer', ['customer_id', 'customer_name', 'email'], { description: descriptions.customer }),
     entity('address', ['address_id', 'street', 'city', 'postcode']),
@@ -195,9 +195,9 @@ describe('Inmon / 3NF structure (a guess)', () => {
     const n = detectConventions({ models: normalised({ customer: 'Normalised customer entity.' }), packages: [], snapshots: [], relationships: normalisedRels });
     expect(n.shape).toMatchObject({ style: 'inmon-3nf', confidence: 'strong' });
     // …but alone it is plain English, and "denormalized" is not it.
-    expect(detectConventions({ models: [model('customers', [col('customer_id')], { description: 'Customers with normalised phone numbers.' })], packages: [], snapshots: [] }).shape.style).toBe('none');
+    expect(detectConventions({ models: [table('customers', [col('customer_id')], { description: 'Customers with normalised phone numbers.' })], packages: [], snapshots: [] }).shape.style).toBe('none');
     // Explicit Inmon wording alone is a weak description guess.
-    expect(detectConventions({ models: [model('customers', [col('customer_id')], { description: 'Core entity of our Inmon-style warehouse.' })], packages: [], snapshots: [] }).shape)
+    expect(detectConventions({ models: [table('customers', [col('customer_id')], { description: 'Core entity of our Inmon-style warehouse.' })], packages: [], snapshots: [] }).shape)
       .toMatchObject({ style: 'inmon-3nf', confidence: 'weak', sources: ['descriptions'] });
   });
 

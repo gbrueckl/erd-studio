@@ -29,7 +29,7 @@ const submitPayload = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const domainSummary = {
+const subjectAreaSummary = {
   stage: 'logical',
   modelCount: 4,
   relationshipCount: 3,
@@ -67,7 +67,7 @@ describe('validateRequestFeedbackContextPayload', () => {
 
   it('accepts webview errors and a domain summary', () => {
     expect(
-      validateRequestFeedbackContextPayload({ webviewErrors: ['boom'], domain: domainSummary }),
+      validateRequestFeedbackContextPayload({ webviewErrors: ['boom'], domain: subjectAreaSummary }),
     ).toBeNull();
   });
 
@@ -75,10 +75,10 @@ describe('validateRequestFeedbackContextPayload', () => {
     ['a non-object payload', 'nope', /must be an object/],
     ['non-string errors', { webviewErrors: [1] }, /list of strings/],
     ['a non-list errors field', { webviewErrors: 'boom' }, /list of strings/],
-    ['a domain summary missing a stage', { domain: { ...domainSummary, stage: 5 } }, /stage must be a string/],
+    ['a domain summary missing a stage', { domain: { ...subjectAreaSummary, stage: 5 } }, /stage must be a string/],
     [
       'a non-numeric model count',
-      { domain: { ...domainSummary, modelCount: 'four' } },
+      { domain: { ...subjectAreaSummary, modelCount: 'four' } },
       /modelCount must be a finite number/,
     ],
   ])('rejects %s', (_label, value, pattern) => {
@@ -149,7 +149,7 @@ describe('validateSubmitFeedbackPayload', () => {
           webviewErrors: ['boom'],
           regressionOf: 42,
           commentOnIssue: 43,
-          domain: domainSummary,
+          domain: subjectAreaSummary,
         }),
       ),
     ).toBeNull();
@@ -185,7 +185,7 @@ describe('validateCopyFeedbackReportPayload', () => {
     expect(validateCopyFeedbackReportPayload(submitPayload())).toBeNull();
     expect(
       validateCopyFeedbackReportPayload(
-        submitPayload({ webviewErrors: [], domain: domainSummary }),
+        submitPayload({ webviewErrors: [], domain: subjectAreaSummary }),
       ),
     ).toBeNull();
   });
@@ -209,7 +209,7 @@ describe('validateSetFeedbackProviderPayload', () => {
       validateSetFeedbackProviderPayload({
         provider: 'hosted',
         webviewErrors: ['boom'],
-        domain: domainSummary,
+        domain: subjectAreaSummary,
       }),
     ).toBeNull();
   });

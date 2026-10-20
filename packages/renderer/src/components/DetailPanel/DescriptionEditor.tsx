@@ -67,7 +67,7 @@ export function DescriptionEditor({ modelName, description }: DescriptionEditorP
         <button
           className="detail-panel__rationale-add-btn"
           onClick={() => setEditing(true)}
-          title="Add model description"
+          title="Add table description"
         >
           + Add Description
         </button>
@@ -89,7 +89,7 @@ export function DescriptionEditor({ modelName, description }: DescriptionEditorP
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Describe this model..."
+          placeholder="Describe this table..."
           rows={3}
           autoFocus
         />

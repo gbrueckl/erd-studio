@@ -23,13 +23,13 @@ import {
   TextDocumentChangeReason,
 } from '../__mocks__/vscode';
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
 import { SelectorsService } from '../../src/services/selectorsService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { OwnWriteTracker } from '../../src/services/ownWriteTracker';
 import type { Relationship } from '../../src/types/semantic';
 
@@ -56,8 +56,8 @@ const EDGE = {
 interface Harness {
   root: string;
   provider: SemanticEditorProvider;
-  domainService: DomainService;
-  logicalModelService: LogicalModelService;
+  subjectAreaService: SubjectAreaService;
+  tableLibraryService: TableLibraryService;
   domainPath: (name: string) => string;
   /** Open a domain in a canvas panel; its messages go through `send`. */
   open: (name: string) => Promise<{
@@ -74,13 +74,15 @@ async function createHarness(ownRelationships: Relationship[] = []): Promise<Har
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-shared-rels-'));
   const semanticDir = '.erd-studio';
   const layerService = new LayerService(root, semanticDir);
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, semanticDir);
-  domainService.setLogicalModelService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, root, semanticDir);
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, semanticDir);
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, root, semanticDir);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
 
-  for (const model of [FCT_ORDER, DIM_CUSTOMER, DIM_DATE]) logicalModelService.saveModel(model);
+  // A v5 project: its library folder exists before the first table is saved (#182).
+  fs.mkdirSync(path.join(root, semanticDir, 'logical-models'), { recursive: true });
+  for (const model of [FCT_ORDER, DIM_CUSTOMER, DIM_DATE]) tableLibraryService.saveTable(model);
 
   const domainDir = path.join(root, semanticDir, 'silver');
   fs.mkdirSync(domainDir, { recursive: true });
@@ -101,15 +103,15 @@ async function createHarness(ownRelationships: Relationship[] = []): Promise<Har
     secrets: vscode.createMockSecretStorage(),
   } as unknown as vscode.ExtensionContext;
   const provider = new SemanticEditorProvider(
-    context, domainService, new ManifestService(), new YmlParserService(), new TemplateService(),
-    layerService, root, selectorsService, logicalModelService, new OwnWriteTracker(),
+    context, subjectAreaService, new ManifestService(), new YmlParserService(), new TemplateService(),
+    layerService, root, selectorsService, tableLibraryService, new OwnWriteTracker(),
   );
 
   return {
     root,
     provider,
-    domainService,
-    logicalModelService,
+    subjectAreaService,
+    tableLibraryService,
     domainPath,
     open: async (name) => {
       const document = createMockTextDocument(domainPath(name), fs.readFileSync(domainPath(name), 'utf-8'), { persist: true });
@@ -133,8 +135,8 @@ async function createHarness(ownRelationships: Relationship[] = []): Promise<Har
     },
     readDomain: (name) => JSON.parse(fs.readFileSync(domainPath(name), 'utf-8')),
     shown: (name) => {
-      logicalModelService.invalidateCache();
-      return domainService.getDomain(domainPath(name)).logical.relationships;
+      tableLibraryService.invalidateCache();
+      return subjectAreaService.getSubjectArea(domainPath(name)).logical.relationships;
     },
   };
 }
@@ -165,10 +167,10 @@ describe('relationships stored once in the model library (#126)', () => {
       expect(orders.errors()).toEqual([]);
       expect(_appliedEdits).toHaveLength(1);
       expect(h.readDomain('orders').logical.relationships).toEqual([]);
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([
         { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' },
       ]);
-      expect(fs.readFileSync(h.logicalModelService.modelPath('fct_order'), 'utf-8')).toMatch(/^relationships:/m);
+      expect(fs.readFileSync(h.tableLibraryService.tablePath('fct_order'), 'utf-8')).toMatch(/^relationships:/m);
     });
 
     it('is drawn by every domain holding both models, and by no domain missing one', async () => {
@@ -208,7 +210,7 @@ describe('relationships stored once in the model library (#126)', () => {
       await reporting.send({ type: 'removeRelationship', payload: EDGE });
 
       expect(reporting.errors()).toEqual([]);
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toBeUndefined();
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toBeUndefined();
       expect(h.shown('orders')).toEqual([]);
     });
 
@@ -230,7 +232,7 @@ describe('relationships stored once in the model library (#126)', () => {
       await orders.send({ type: 'renameModel', payload: { oldName: 'dim_customer', newName: 'dim_client' } });
 
       expect(orders.errors()).toEqual([]);
-      expect(h.logicalModelService.getModel('fct_order')?.relationships?.[0].toModel).toBe('dim_client');
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships?.[0].toModel).toBe('dim_client');
     });
   });
 
@@ -259,13 +261,13 @@ describe('relationships stored once in the model library (#126)', () => {
 
       expect(orders.errors()).toEqual([]);
       expect(h.readDomain('orders').logical.relationships).toHaveLength(2);
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toBeUndefined();
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toBeUndefined();
       expect(h.shown('reporting')).toEqual([]);
     });
 
     it('once the library holds one, editing a domain-file relationship moves it there', async () => {
-      const model = h.logicalModelService.getModel('fct_order')!;
-      h.logicalModelService.saveModel({ ...model, relationships: [{ fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' }] });
+      const model = h.tableLibraryService.getTable('fct_order')!;
+      h.tableLibraryService.saveTable({ ...model, relationships: [{ fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' }] });
       const orders = await h.open('orders');
       await orders.send({ type: 'updateRelationship', payload: { ...DATE_EDGE, cardinality: 'one-to-one' } });
 
@@ -279,7 +281,7 @@ describe('relationships stored once in the model library (#126)', () => {
     beforeEach(async () => { h = await createHarness(); });
 
     it('refuses the edit, naming the file, instead of replacing the unsaved text', async () => {
-      const ymlPath = h.logicalModelService.modelPath('fct_order');
+      const ymlPath = h.tableLibraryService.tablePath('fct_order');
       const onDisk = fs.readFileSync(ymlPath, 'utf-8');
       const tab = await vscode.workspace.openTextDocument(vscode.Uri.file(ymlPath)) as unknown as { _setText: (t: string) => void; getText: () => string };
       tab._setText(`${onDisk}# my unsaved note\n`);
@@ -297,7 +299,7 @@ describe('relationships stored once in the model library (#126)', () => {
       const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
       Object.defineProperty(process, 'platform', { value: 'darwin' });
       try {
-        const ymlPath = h.logicalModelService.modelPath('fct_order');
+        const ymlPath = h.tableLibraryService.tablePath('fct_order');
         const onDisk = fs.readFileSync(ymlPath, 'utf-8');
         // e.g. a Windows drive letter `c:` against `C:`, or a folder typed in another case on macOS
         const tab = createMockTextDocument(ymlPath.toUpperCase(), onDisk);
@@ -325,13 +327,13 @@ describe('relationships stored once in the model library (#126)', () => {
     beforeEach(async () => { h = await createHarness(); });
 
     it('a one-to-many drawn from the dimension goes to the fact\'s file as many-to-one; the dimension file is untouched', async () => {
-      const dimBefore = fs.readFileSync(h.logicalModelService.modelPath('dim_customer'), 'utf-8');
+      const dimBefore = fs.readFileSync(h.tableLibraryService.tablePath('dim_customer'), 'utf-8');
       const orders = await h.open('orders');
       await orders.send({ type: 'addRelationship', payload: { ...REVERSED, cardinality: 'one-to-many' } });
 
       expect(orders.errors()).toEqual([]);
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([FCT_ENTRY]);
-      expect(fs.readFileSync(h.logicalModelService.modelPath('dim_customer'), 'utf-8')).toBe(dimBefore);
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([FCT_ENTRY]);
+      expect(fs.readFileSync(h.tableLibraryService.tablePath('dim_customer'), 'utf-8')).toBe(dimBefore);
       expect(h.shown('reporting')).toEqual([{ ...EDGE, cardinality: 'many-to-one' }]);
     });
 
@@ -344,8 +346,8 @@ describe('relationships stored once in the model library (#126)', () => {
         'Failed to update relationship: dim_customer.customer_key is dim_customer\'s key, so each value appears only once — ' +
         'it can\'t be the "many" side. Unmark it as a key first, then try again.',
       ]);
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([FCT_ENTRY]);
-      expect(h.logicalModelService.getModel('dim_customer')?.relationships).toBeUndefined();
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([FCT_ENTRY]);
+      expect(h.tableLibraryService.getTable('dim_customer')?.relationships).toBeUndefined();
     });
 
     it('refuses the same two columns joined the other way round — one link, one line', async () => {
@@ -360,22 +362,22 @@ describe('relationships stored once in the model library (#126)', () => {
     it('keeps a role through a swap and an edit that leaves it, and clears it on an empty edit', async () => {
       const orders = await h.open('orders');
       await orders.send({ type: 'addRelationship', payload: { ...EDGE, cardinality: 'many-to-one', role: '  buyer ' } });
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([{ ...FCT_ENTRY, role: 'buyer' }]);
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([{ ...FCT_ENTRY, role: 'buyer' }]);
       expect(h.shown('reporting')).toEqual([{ ...EDGE, cardinality: 'many-to-one', role: 'buyer' }]);
 
       await orders.send({ type: 'updateRelationship', payload: { ...EDGE, cardinality: 'one-to-one' } });
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([{ ...FCT_ENTRY, cardinality: 'one-to-one', role: 'buyer' }]);
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([{ ...FCT_ENTRY, cardinality: 'one-to-one', role: 'buyer' }]);
 
       const original = { originalFromModel: EDGE.fromModel, originalFromColumn: EDGE.fromColumn, originalToModel: EDGE.toModel, originalToColumn: EDGE.toColumn };
       await orders.send({ type: 'editRelationship', payload: { ...original, ...EDGE, cardinality: 'one-to-one', role: '' } });
       expect(orders.errors()).toEqual([]);
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([{ ...FCT_ENTRY, cardinality: 'one-to-one' }]);
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([{ ...FCT_ENTRY, cardinality: 'one-to-one' }]);
     });
 
     it('lifecycle: every relationship edit, across two diagrams, keeps one definition on the many side', async () => {
       const files = () => ({
-        fct: h.logicalModelService.getModel('fct_order')?.relationships,
-        dim: h.logicalModelService.getModel('dim_customer')?.relationships,
+        fct: h.tableLibraryService.getTable('fct_order')?.relationships,
+        dim: h.tableLibraryService.getTable('dim_customer')?.relationships,
       });
       const orders = await h.open('orders');
       const reporting = await h.open('reporting');
@@ -402,13 +404,13 @@ describe('relationships stored once in the model library (#126)', () => {
 
       // 5. Renaming the model it points at keeps it, role included.
       await orders.send({ type: 'renameModel', payload: { oldName: 'dim_customer', newName: 'dim_client' } });
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([
         { ...FCT_ENTRY, toModel: 'dim_client', cardinality: 'one-to-one', role: 'account owner' },
       ]);
 
       // 6. Removing the fact's column removes the relationship everywhere.
       await orders.send({ type: 'removeColumn', payload: { modelName: 'fct_order', columnName: 'customer_key' } });
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toBeUndefined();
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toBeUndefined();
       expect(h.shown('reporting')).toEqual([]);
       expect([orders.errors(), reporting.errors()]).toEqual([[], []]);
     });
@@ -417,7 +419,7 @@ describe('relationships stored once in the model library (#126)', () => {
       const orders = await h.open('orders');
       await orders.send({ type: 'addRelationship', payload: { ...EDGE, cardinality: 'many-to-one', role: 7 } });
       expect(orders.errors()).toEqual(['Failed to add relationship: the role must be text of at most 60 characters.']);
-      expect(h.logicalModelService.getModel('fct_order')?.relationships).toBeUndefined();
+      expect(h.tableLibraryService.getTable('fct_order')?.relationships).toBeUndefined();
     });
   });
 });
@@ -432,11 +434,11 @@ describe('relationship ends spelled in another case (#133 L4)', () => {
 
   it('⇄ on Dim_Customer.Customer_Key rewrites only that entry, spelled dim_customer.customer_key, its comment kept', async () => {
     h = await createHarness();
-    const file = h.logicalModelService.modelPath('fct_order');
+    const file = h.tableLibraryService.tablePath('fct_order');
     const head = fs.readFileSync(file, 'utf-8');
     const other = '  - fromColumn: order_key # untouched\n    toModel: Dim_Date\n    toColumn: DATE_KEY\n    cardinality: many-to-one\n';
     fs.writeFileSync(file, `${head}relationships:\n  - fromColumn: Customer_Key # the buyer\n    toModel: Dim_Customer\n    toColumn: CUSTOMER_KEY\n    cardinality: many-to-one\n${other}`);
-    h.logicalModelService.invalidateCache();
+    h.tableLibraryService.invalidateCache();
     expect(h.shown('orders')).toEqual([{ ...EDGE, cardinality: 'many-to-one' }]);
 
     const orders = await h.open('orders');
@@ -463,7 +465,7 @@ describe('relationship ends spelled in another case (#133 L4)', () => {
     await orders.send({ type: 'removeRelationship', payload: { ...EDGE, fromModel: 'Fct_Order', toColumn: 'CUSTOMER_KEY' } });
     expect(h.readDomain('orders').logical.relationships).toEqual([]);
     expect(orders.errors()).toEqual([]);
-    expect(h.logicalModelService.getModel('fct_order')?.relationships).toBeUndefined();
+    expect(h.tableLibraryService.getTable('fct_order')?.relationships).toBeUndefined();
   });
 });
 
@@ -474,7 +476,7 @@ describe('"Mark … as primary key" travels with the relationship (#133 L1)', ()
     vi.restoreAllMocks();
     fs.rmSync(h.root, { recursive: true, force: true });
   });
-  const unkeyed = () => h.logicalModelService.saveModel({ ...DIM_CUSTOMER, columns: [{ ...DIM_CUSTOMER.columns[0], isPrimaryKey: undefined }] });
+  const unkeyed = () => h.tableLibraryService.saveTable({ ...DIM_CUSTOMER, columns: [{ ...DIM_CUSTOMER.columns[0], isPrimaryKey: undefined }] });
   const files = (edit: { _ops: Array<{ uri?: { fsPath: string } }> }) => edit._ops.map((op) => path.basename(op.uri?.fsPath ?? '')).sort();
 
   it('sets isPrimaryKey in the same WorkspaceEdit as the relationship — one undo step', async () => {
@@ -485,9 +487,9 @@ describe('"Mark … as primary key" travels with the relationship (#133 L1)', ()
     expect(orders.errors()).toEqual([]);
     expect(_appliedEdits).toHaveLength(1);
     expect(files(_appliedEdits[0] as never)).toEqual(['dim_customer.yml', 'fct_order.yml', 'orders.json']);
-    h.logicalModelService.invalidateCache();
-    expect(h.logicalModelService.getModel('dim_customer')?.columns[0].isPrimaryKey).toBe(true);
-    expect(h.logicalModelService.getModel('fct_order')?.relationships).toEqual([
+    h.tableLibraryService.invalidateCache();
+    expect(h.tableLibraryService.getTable('dim_customer')?.columns[0].isPrimaryKey).toBe(true);
+    expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([
       { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' },
     ]);
   });
@@ -497,10 +499,10 @@ describe('"Mark … as primary key" travels with the relationship (#133 L1)', ()
     const orders = await h.open('orders');
     await orders.send({ type: 'addRelationship', payload: { ...EDGE, cardinality: 'many-to-one', markKey: { model: 'dim_customer', columns: ['customer_key'] } } });
     expect(orders.errors()).toEqual([
-      'Failed to add relationship: dim_customer already has a key marked — the relationship was not added. Set its keys in the model first.',
+      'Failed to add relationship: dim_customer already has a key marked — the relationship was not added. Set its keys in the table first.',
     ]);
     expect(_appliedEdits).toHaveLength(0);
-    expect(h.logicalModelService.getModel('fct_order')?.relationships).toBeUndefined();
+    expect(h.tableLibraryService.getTable('fct_order')?.relationships).toBeUndefined();
   });
 
   it('is refused at the boundary when it is not one end of the link', async () => {
@@ -525,7 +527,7 @@ describe('a self-reference (#133 L3)', () => {
 
   async function openHr() {
     h = await createHarness();
-    h.logicalModelService.saveModel({ name: 'employee', columns: [
+    h.tableLibraryService.saveTable({ name: 'employee', columns: [
       { name: 'employee_id', dataType: 'int', description: '', isPrimaryKey: true },
       { name: 'manager_id', dataType: 'int', description: '' },
     ] });
@@ -540,15 +542,15 @@ describe('a self-reference (#133 L3)', () => {
     const hr = await openHr();
     await hr.send({ type: 'addRelationship', payload: { ...SELF, fromColumn: 'employee_id', toColumn: 'manager_id', cardinality: 'one-to-many', role: 'manager' } });
     expect(hr.errors()).toEqual([]);
-    h.logicalModelService.invalidateCache();
-    expect(h.logicalModelService.getModel('employee')?.relationships).toEqual([
+    h.tableLibraryService.invalidateCache();
+    expect(h.tableLibraryService.getTable('employee')?.relationships).toEqual([
       { fromColumn: 'manager_id', toModel: 'employee', toColumn: 'employee_id', cardinality: 'many-to-one', role: 'manager' },
     ]);
     expect(h.shown('hr')).toEqual([{ ...SELF, cardinality: 'many-to-one', role: 'manager' }]);
 
     // Renaming the model renames its own entry's toModel.
     await hr.send({ type: 'renameModel', payload: { oldName: 'employee', newName: 'staff' } });
-    expect(h.logicalModelService.getModel('staff')?.relationships).toEqual([
+    expect(h.tableLibraryService.getTable('staff')?.relationships).toEqual([
       { fromColumn: 'manager_id', toModel: 'staff', toColumn: 'employee_id', cardinality: 'many-to-one', role: 'manager' },
     ]);
   });
@@ -563,7 +565,7 @@ describe('a self-reference (#133 L3)', () => {
     const hr = await openHr();
     await hr.send({ type: 'addRelationship', payload: { ...SELF, cardinality: 'many-to-one' } });
     await hr.send({ type: 'removeColumn', payload: { modelName: 'employee', columnName: 'manager_id' } });
-    expect(h.logicalModelService.getModel('employee')?.relationships).toBeUndefined();
+    expect(h.tableLibraryService.getTable('employee')?.relationships).toBeUndefined();
   });
 });
 
@@ -576,8 +578,8 @@ describe('composite foreign keys on the canvas (#133 L2)', () => {
   });
   async function openVault() {
     h = await createHarness();
-    h.logicalModelService.saveModel({ name: 'pit_customer', columns: ['pit_id', 'customer_hk', 'as_of_date'].map((name, i) => ({ name, dataType: 'string', description: '', ...(i === 0 ? { isPrimaryKey: true } : {}) })) });
-    h.logicalModelService.saveModel({ name: 'sat_customer', columns: ['customer_hk', 'load_date'].map((name) => ({ name, dataType: 'string', description: '', isPrimaryKey: true })) });
+    h.tableLibraryService.saveTable({ name: 'pit_customer', columns: ['pit_id', 'customer_hk', 'as_of_date'].map((name, i) => ({ name, dataType: 'string', description: '', ...(i === 0 ? { isPrimaryKey: true } : {}) })) });
+    h.tableLibraryService.saveTable({ name: 'sat_customer', columns: ['customer_hk', 'load_date'].map((name) => ({ name, dataType: 'string', description: '', isPrimaryKey: true })) });
     fs.writeFileSync(h.domainPath('vault'), JSON.stringify({
       schemaVersion: 5, domain: 'vault', layer: 'silver', description: '', logical: { models: ['pit_customer', 'sat_customer'], relationships: [] },
       viewConfig: { positions: { pit_customer: { x: 0, y: 0 }, sat_customer: { x: 300, y: 0 } } },
@@ -595,24 +597,24 @@ describe('composite foreign keys on the canvas (#133 L2)', () => {
     await vault.send({ type: 'addRelationship', payload: { ...FIRST, cardinality: 'many-to-one', extraPairs: [{ fromColumn: 'as_of_date', toColumn: 'load_date' }] } });
     expect(vault.errors()).toEqual([]);
     expect(_appliedEdits).toHaveLength(1);
-    h.logicalModelService.invalidateCache();
-    expect(h.logicalModelService.getModel('pit_customer')?.relationships).toEqual(GROUP);
+    h.tableLibraryService.invalidateCache();
+    expect(h.tableLibraryService.getTable('pit_customer')?.relationships).toEqual(GROUP);
     expect(h.shown('vault').map((r) => r.compositeKey)).toEqual(['fk_sat_customer', 'fk_sat_customer']);
 
     await vault.send({ type: 'removeRelationship', payload: { ...FIRST, fromColumn: 'as_of_date', toColumn: 'load_date' } });
     expect(_appliedEdits).toHaveLength(1);
-    expect(h.logicalModelService.getModel('pit_customer')?.relationships).toBeUndefined();
+    expect(h.tableLibraryService.getTable('pit_customer')?.relationships).toBeUndefined();
   });
 
   it('regroups singles a 1.6.7 save left, and says so', async () => {
     const vault = await openVault();
-    h.logicalModelService.saveModel({ ...h.logicalModelService.getModel('pit_customer')!, relationships: GROUP.map(({ compositeKey: _k, ...r }) => r) as never });
+    h.tableLibraryService.saveTable({ ...h.tableLibraryService.getTable('pit_customer')!, relationships: GROUP.map(({ compositeKey: _k, ...r }) => r) as never });
     const infos = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined as never);
     const original = { originalFromModel: FIRST.fromModel, originalFromColumn: FIRST.fromColumn, originalToModel: FIRST.toModel, originalToColumn: FIRST.toColumn };
     await vault.send({ type: 'editRelationship', payload: { ...original, ...FIRST, cardinality: 'many-to-one', extraPairs: [{ fromColumn: 'as_of_date', toColumn: 'load_date' }] } });
     expect(vault.errors()).toEqual([]);
-    h.logicalModelService.invalidateCache();
-    expect(h.logicalModelService.getModel('pit_customer')?.relationships).toEqual(GROUP);
+    h.tableLibraryService.invalidateCache();
+    expect(h.tableLibraryService.getTable('pit_customer')?.relationships).toEqual(GROUP);
     expect(infos).toHaveBeenCalledWith('Grouped 1 existing relationship into fk_sat_customer.');
   });
 
@@ -622,7 +624,7 @@ describe('composite foreign keys on the canvas (#133 L2)', () => {
     expect(vault.errors()).toEqual(["Failed to add relationship: a composite key can't be many-to-many."]);
     await vault.send({ type: 'addRelationship', payload: { ...FIRST, cardinality: 'many-to-one', extraPairs: [{ fromColumn: 'Customer_HK', toColumn: 'load_date' }] } });
     expect(vault.errors()).toEqual(['Failed to add relationship: a column is used twice in the composite key.']);
-    expect(h.logicalModelService.getModel('pit_customer')?.relationships).toBeUndefined();
+    expect(h.tableLibraryService.getTable('pit_customer')?.relationships).toBeUndefined();
   });
 });
 
@@ -660,7 +662,7 @@ describe('a rename reaches the copies other diagrams keep of their own (#133 L5)
   it('one undo puts the other diagram back on disk too, not just in memory', async () => {
     const orders = await perDiagram();
     const reportingBefore = fs.readFileSync(h.domainPath('reporting'), 'utf-8');
-    const ymlPath = h.logicalModelService.modelPath('dim_customer');
+    const ymlPath = h.tableLibraryService.tablePath('dim_customer');
     const ymlBefore = fs.readFileSync(ymlPath, 'utf-8');
     await orders.send({ type: 'updateColumn', payload: { modelName: 'dim_customer', oldColumnName: 'customer_key', column: { name: 'customer_sk', dataType: 'string', description: '' } } });
     expect(orders.errors()).toEqual([]);
@@ -740,9 +742,9 @@ describe("VS Code's own undo — Cmd+Z on the canvas — after an edit to two mo
   /** A link stored at both ends, as a 1.6.7 drag from each side can leave it. */
   async function storedAtBothEnds() {
     h = await createHarness();
-    h.logicalModelService.saveModel({ ...FCT_ORDER, relationships: [{ fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' }] });
-    h.logicalModelService.saveModel({ ...DIM_CUSTOMER, relationships: [{ fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key', cardinality: 'one-to-many' }] });
-    const files = ['fct_order', 'dim_customer'].map((name) => h.logicalModelService.modelPath(name));
+    h.tableLibraryService.saveTable({ ...FCT_ORDER, relationships: [{ fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' }] });
+    h.tableLibraryService.saveTable({ ...DIM_CUSTOMER, relationships: [{ fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key', cardinality: 'one-to-many' }] });
+    const files = ['fct_order', 'dim_customer'].map((name) => h.tableLibraryService.tablePath(name));
     const before = files.map((file) => fs.readFileSync(file, 'utf-8'));
     const orders = await h.open('orders');
     await orders.send({ type: 'removeRelationship', payload: EDGE });
@@ -833,5 +835,110 @@ describe('the notice after deleting a link another diagram still draws (#133 D3)
       'Deleted. These diagrams still draw this relationship from copies of their own: silver/reporting, silver/sales. ' +
       'Delete those copies too if it should go everywhere.',
     ]);
+  });
+});
+
+describe('a relationship 1.6.7 saved backwards (#163)', () => {
+  let h: Harness;
+  beforeEach(() => { _resetMockWorkspace(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(h.root, { recursive: true, force: true });
+  });
+
+  const OFFER = '1 relationship in this diagram looks drawn backwards';
+
+  /** dim_customer's file holds a many-to-one from its own key to fct_order: drawn backwards. */
+  async function backwards() {
+    h = await createHarness();
+    h.tableLibraryService.saveTable({
+      ...DIM_CUSTOMER,
+      relationships: [{ fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key', cardinality: 'many-to-one' }],
+    });
+    const files = ['fct_order', 'dim_customer'].map((name) => h.tableLibraryService.tablePath(name));
+    const before = files.map((file) => fs.readFileSync(file, 'utf-8'));
+    return { files, before, read: () => files.map((file) => fs.readFileSync(file, 'utf-8')) };
+  }
+
+  const offers = (info: { mock: { calls: unknown[][] } }) => info.mock.calls.filter(([text]) => String(text).startsWith(OFFER));
+
+  it('is drawn as stored, flagged keysContradict, and offered once — writing nothing until the user picks', async () => {
+    const { before, read } = await backwards();
+    const info = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue('Not Now' as never);
+    const orders = await h.open('orders');
+    await orders.send({ type: 'ready' });
+    await vi.waitFor(() => expect(offers(info)).toHaveLength(1));
+
+    const loaded = (orders.panel._postedMessages as Array<{ type: string; payload: { relationships: Array<Record<string, unknown>> } }>)
+      .find((m) => m.type === 'domainLoaded')!;
+    expect(loaded.payload.relationships).toEqual([expect.objectContaining({
+      fromModel: 'dim_customer', toModel: 'fct_order', cardinality: 'many-to-one', keysContradict: true,
+    })]);
+    expect(offers(info)[0].slice(1)).toEqual(['Turn Round', 'Review…', 'Not Now', "Don't Ask Again"]);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(_appliedEdits).toHaveLength(0);
+    expect(read()).toEqual(before);
+
+    // Once a session: another canvas opening does not ask again.
+    await (await h.open('reporting')).send({ type: 'ready' });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(offers(info)).toHaveLength(1);
+  });
+
+  it('Turn Round stores it the right way round in one WorkspaceEdit, and the ⚠ goes', async () => {
+    await backwards();
+    vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue('Turn Round' as never);
+    const orders = await h.open('orders');
+    await orders.send({ type: 'ready' });
+    await vi.waitFor(() => expect(h.tableLibraryService.getTable('fct_order')?.relationships).toEqual([
+      { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' },
+    ]));
+    expect(_appliedEdits).toHaveLength(1);
+    expect(orders.errors()).toEqual([]);
+    h.tableLibraryService.invalidateCache();
+    expect(h.tableLibraryService.getTable('dim_customer')?.relationships ?? []).toEqual([]);
+  });
+
+  it('Review… turns round only what stays ticked: unticking all writes nothing', async () => {
+    const { before, read } = await backwards();
+    vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue('Review…' as never);
+    const pick = vi.spyOn(vscode.window, 'showQuickPick').mockResolvedValue([] as never);
+    await (await h.open('orders')).send({ type: 'ready' });
+    await vi.waitFor(() => expect(pick).toHaveBeenCalled());
+    const [items, options] = pick.mock.calls[0] as unknown as [Array<{ label: string; picked: boolean }>, { canPickMany: boolean }];
+    expect(items.map((i) => [i.label, i.picked])).toEqual([['dim_customer.customer_key → fct_order.customer_key', true]]);
+    expect(options.canPickMany).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(_appliedEdits).toHaveLength(0);
+    expect(read()).toEqual(before);
+  });
+
+  it('Turn Round after the link changed meanwhile turns nothing round, and reports no error', async () => {
+    await backwards();
+    let pick: (choice: string) => void = () => undefined;
+    vi.spyOn(vscode.window, 'showInformationMessage').mockImplementation(
+      (() => new Promise((resolve) => { pick = resolve as (choice: string) => void; })) as never,
+    );
+    const orders = await h.open('orders');
+    await orders.send({ type: 'ready' });
+    await vi.waitFor(() => expect(vscode.window.showInformationMessage).toHaveBeenCalled());
+    // While the toast waits, the link is removed and the canvas reloads.
+    h.tableLibraryService.saveTable({ ...DIM_CUSTOMER });
+    await orders.send({ type: 'ready' });
+    const before = fs.readFileSync(h.tableLibraryService.tablePath('fct_order'), 'utf-8');
+    _appliedEdits.length = 0;
+    pick('Turn Round');
+    await new Promise((r) => setTimeout(r, 30));
+    expect(_appliedEdits).toHaveLength(0);
+    expect(orders.errors()).toEqual([]);
+    expect(fs.readFileSync(h.tableLibraryService.tablePath('fct_order'), 'utf-8')).toBe(before);
+  });
+
+  it('is never offered on a diagram whose relationships run the right way', async () => {
+    h = await createHarness();
+    const info = vi.spyOn(vscode.window, 'showInformationMessage');
+    await (await h.open('orders')).send({ type: 'ready' });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(offers(info)).toHaveLength(0);
   });
 });

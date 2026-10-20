@@ -4,7 +4,7 @@
  * Shows stage colours, relationship types, cardinality notation, the node
  * header badges (schema abbreviation and physical provenance chips) and the
  * column badges. The badge vocabulary is imported from lib/badgeLabels so the
- * legend cannot fall out of step with what ModelNode actually renders. Positioned in the bottom-left corner, collapsible
+ * legend cannot fall out of step with what TableNode actually renders. Positioned in the bottom-left corner, collapsible
  * to a `?` icon button.
  */
 
@@ -128,7 +128,7 @@ export function Legend() {
               <svg className="legend__edge-sample" viewBox="0 0 48 8" aria-hidden="true">
                 <line x1="0" y1="4" x2="48" y2="4" className="legend__edge legend__edge--annotation" />
               </svg>
-              <span className="legend__item-desc">Note linked to model</span>
+              <span className="legend__item-desc">Note linked to table</span>
             </div>
           </div>
         </section>

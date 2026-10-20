@@ -2,21 +2,21 @@
  * Types for React Flow graph nodes and edges.
  *
  * These types define the data payloads for custom React Flow node and edge
- * components. The graph transformer converts DisplayDomain data into
+ * components. The graph transformer converts DisplaySubjectArea data into
  * these shapes.
  */
 
 import type { Node, Edge } from '@xyflow/react';
-import type { AnnotationColor, Cardinality, ColumnPair, DbtKeyHint, Layer, Meta, ModelLoadError, ModelLoadWarning, ModelRole, Stage } from '@erd-studio/core';
+import type { AnnotationColor, Cardinality, ColumnPair, DbtKeyHint, Layer, Meta, TableLoadError, TableLoadWarning, TableRole, Stage } from '@erd-studio/core';
 import type { LayerConfig } from '@erd-studio/core';
-import type { ModelDiscrepancy } from '@erd-studio/core';
+import type { TableDiscrepancy } from '@erd-studio/core';
 import type { PhysicalProvenance } from '@erd-studio/core';
 
 // ---------------------------------------------------------------------------
 // Column display
 // ---------------------------------------------------------------------------
 
-/** Column data enriched with PK/FK/NK indicators for display in ModelNode. */
+/** Column data enriched with PK/FK/NK indicators for display in TableNode. */
 export interface ColumnDisplay {
   name: string;
   dataType: string;
@@ -38,17 +38,17 @@ export interface ColumnDisplay {
 }
 
 // ---------------------------------------------------------------------------
-// ModelNode
+// TableNode
 // ---------------------------------------------------------------------------
 
-/** Data payload for a ModelNode React Flow node. */
-export type ModelNodeData = {
+/** Data payload for a TableNode React Flow node. */
+export type TableNodeData = {
   /** Model name (unique within a domain). */
   modelName: string;
   /**
    * Header label when it differs from `modelName`: the model's table name
    * (`alias`), qualified by schema when another model on the canvas would read
-   * the same. See `computeModelLabels`.
+   * the same. See `computeTableLabels`.
    */
   label?: string;
   /** The active design stage. */
@@ -76,7 +76,7 @@ export type ModelNodeData = {
   /** Grain statement — "One row per ___". Shown as subtitle on node. */
   grain?: string;
   /** Model's role in the data warehouse architecture. Shown as badge on node. */
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
   /** Structured metadata (`meta:`) — shown in the name's hover tip. Absent when empty. */
   meta?: Meta;
   /** Whether this stage is read-only (physical). */
@@ -104,16 +104,16 @@ export type ModelNodeData = {
    * The model's file exists but could not be read (logical stage only): the
    * node shows the error and an "Open file" button instead of "No columns".
    */
-  loadError?: ModelLoadError;
+  loadError?: TableLoadError;
   /**
    * The model's file was read but needs fixing (logical stage only): a key
    * written twice, whose last value is shown (#164). Absent from an older core.
    */
-  loadWarning?: ModelLoadWarning;
+  loadWarning?: TableLoadWarning;
   /** Whether this model is in stub display mode (PK/NK columns only). */
   isStub: boolean;
   /** Per-model discrepancy data when a cross-stage comparison report is active. */
-  discrepancy?: ModelDiscrepancy;
+  discrepancy?: TableDiscrepancy;
   /** The stage currently being viewed (set when discrepancy overlay is active). */
   discrepancySourceStage?: Stage;
   /** The stage being compared against (set when discrepancy overlay is active). */
@@ -122,7 +122,7 @@ export type ModelNodeData = {
    * Index signature required by React Flow's Node generic.
    *
    * It also means an unknown or misspelled key type-checks, and a field written
-   * here but never destructured in ModelNode ships as dead payload — which is
+   * here but never destructured in TableNode ships as dead payload — which is
    * exactly how `hasRationale` and `modelRole` gained matching dead CSS. Add a
    * field here only together with the code that reads it.
    */
@@ -130,7 +130,7 @@ export type ModelNodeData = {
 };
 
 /** Typed React Flow node for a semantic model. */
-export type ModelFlowNode = Node<ModelNodeData, 'model'>;
+export type TableFlowNode = Node<TableNodeData, 'model'>;
 
 // ---------------------------------------------------------------------------
 // FkEdge
@@ -152,6 +152,11 @@ export type FkEdgeData = {
   pairs?: ColumnPair[];
   /** The composite's `compositeKey` name, alongside `pairs`. */
   compositeKey?: string;
+  /**
+   * The keys contradict its direction (`DisplayRelationship.keysContradict`,
+   * #163): drawn with a ⚠ and Turn round, except for viewers.
+   */
+  keysContradict?: true;
   /** Stage of the owning domain canvas — drives CSS colour class. */
   stage?: Stage;
   /** Discrepancy status for ghost/extra/mismatch edges. */

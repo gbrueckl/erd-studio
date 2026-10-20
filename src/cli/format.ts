@@ -3,7 +3,8 @@
  * CLI prints without `--json`). Colour only on a TTY and never with NO_COLOR.
  */
 
-import { describeUnreadable, mergeConflictHumanHint, type DiffResult, type DomainDiff, type Fix } from './diff';
+import { describeUnreadable, mergeConflictHumanHint, type DiffResult, type SubjectAreaDiff, type Fix } from './diff';
+import { foreignKeyAtTo } from '@erd-studio/core';
 import type { DoctorResult } from './doctor';
 import type { InventoryResult } from './inventory';
 
@@ -77,10 +78,10 @@ function fixLine(f: Fix, p: Paint): string {
   }
 }
 
-function domainBlock(d: DomainDiff, p: Paint): string[] {
+function subjectAreaBlock(d: SubjectAreaDiff, p: Paint): string[] {
   const head = `${d.domain} (${d.layer})`;
   if (d.error) { return [`${head} — ${p.red('could not be compared')}: ${d.error.message}`]; }
-  if (d.needsMigration) { return [`${head} — ${p.yellow('older (v4) format')}: run "ERD Studio: Migrate to v5" first`]; }
+  if (d.needsMigration) { return [`${head} — ${p.yellow('older (v4) format')}: run "ERD Studio: Migrate Subject Areas to the Central Table Library" first`]; }
   const { blocking, advisory } = d.counts;
   const summary = blocking === 0 && advisory === 0
     ? p.green('matches dbt')
@@ -94,14 +95,14 @@ function domainBlock(d: DomainDiff, p: Paint): string[] {
     return u ? `  ${p.red('✗')} ${describeUnreadable(u, 'diff')}` : fixLine(f, p);
   })];
   if (d.modelsWithoutColumns.length > 0) {
-    lines.push(p.dim(`  ${plural(d.modelsWithoutColumns.length, 'model')} with no column information in dbt yet: ${d.modelsWithoutColumns.join(', ')}`));
+    lines.push(p.dim(`  ${plural(d.modelsWithoutColumns.length, 'table')} with no column information in dbt yet: ${d.modelsWithoutColumns.join(', ')}`));
   }
   return lines;
 }
 
 export function formatDiff(r: DiffResult, p: Paint): string {
-  if (r.domains.length === 0) { return 'No domains to compare.\n'; }
-  return r.domains.map((d) => domainBlock(d, p).join('\n')).join('\n\n') + '\n';
+  if (r.domains.length === 0) { return 'No subject areas to compare.\n'; }
+  return r.domains.map((d) => subjectAreaBlock(d, p).join('\n')).join('\n\n') + '\n';
 }
 
 export function formatDoctor(r: DoctorResult, p: Paint): string {
@@ -123,7 +124,19 @@ export function formatDoctor(r: DoctorResult, p: Paint): string {
   lines.push(`${ok(r.artifacts.manifest.status === 'ok')} manifest ${r.artifacts.manifest.status}`
     + (r.artifacts.manifest.models !== null ? ` (${plural(r.artifacts.manifest.models, 'model')})` : ''));
   lines.push(`${ok(r.artifacts.catalog.status === 'ok')} catalog ${r.artifacts.catalog.status}`);
-  lines.push(`${ok(r.erd.semanticDirExists)} ERD Studio: ${plural(r.erd.domains, 'domain')}, ${plural(r.erd.logicalModels, 'logical model')}`);
+  lines.push(`${ok(r.erd.semanticDirExists)} ERD Studio: ${plural(r.erd.domains, 'subject area')}, ${plural(r.erd.logicalModels, 'table')}`
+    + (r.erd.semanticDirExists ? ` — file naming ${r.erd.naming}${r.erd.tablesFolderIsLayer ? ' (tables/ is a layer folder)' : ''}` : ''));
+  const migration = r.erd.namingMigration;
+  if (migration && migration.moves + migration.rewrites > 0) {
+    lines.push(`${p.yellow('!')} "Migrate to the New File Naming" in VS Code would `
+      + [migration.moves > 0 ? `move ${plural(migration.moves, 'table file')} to tables/` : '',
+        migration.rewrites > 0 ? `rename keys in ${plural(migration.rewrites, 'subject area')}` : '']
+        .filter(Boolean).join(' and ')
+      + (migration.refusals.length > 0 ? ` (not yet: ${migration.refusals.join(' ')})` : ''));
+  }
+  for (const c of r.erd.namingConflicts ?? []) {
+    lines.push(`${p.red('✗')} ${c.name} is in both ${c.kept} and ${c.ignored} — ${c.kept} is used; keep one`);
+  }
   for (const c of r.erd.conflictedDomainFiles) {
     lines.push(`${p.red('✗')} ${c.file} line ${c.line}: ${mergeConflictHumanHint('doctor')}`);
   }
@@ -133,7 +146,7 @@ export function formatDoctor(r: DoctorResult, p: Paint): string {
   for (const a of r.erd.dataTypeAliasFiles) {
     if (a.columns.length > 0) {
       lines.push(`${p.yellow('!')} ${a.file}: ${columnsSubject(a.columns, 'uses', 'use', "dbt's data_type")}`
-        + ` — read as dataType; the next edit of this model on the canvas writes ${a.columns.length === 1 ? 'it' : 'them'} back as dataType`);
+        + ` — read as dataType; the next edit of this table on the canvas writes ${a.columns.length === 1 ? 'it' : 'them'} back as dataType`);
     }
     if (a.ignored.length > 0) {
       lines.push(`${p.yellow('!')} ${a.file}: ${columnsSubject(a.ignored, 'has', 'have', 'both dataType and data_type')}`
@@ -144,6 +157,11 @@ export function formatDoctor(r: DoctorResult, p: Paint): string {
         + ' — read as dataType, but kept as written: a YAML anchor sits on the empty dataType or the data_type key,'
         + ' and renaming would break what refers to it');
     }
+  }
+  for (const b of r.erd.backwardsRelationships) {
+    const ends = (model: string, cols: string[]): string => `${model}.${cols.length === 1 ? cols[0] : `(${cols.join(', ')})`}`;
+    lines.push(`${p.yellow('!')} ${ends(b.fromModel, b.fromColumns)} → ${ends(b.toModel, b.toColumns)} looks drawn backwards`
+      + ` (it starts at ${foreignKeyAtTo(b.cardinality) ? b.toModel : b.fromModel}'s key) — in ${b.domains.join(', ')}`);
   }
   lines.push(`${ok(r.harness.schemaSkill === 'current')} Claude skills: schema ${r.harness.schemaSkill}, setup ${r.harness.setupSkill}`);
   lines.push('', 'Next steps:');

@@ -2,7 +2,7 @@
  * `toMermaid` — a diagram as a Mermaid `erDiagram`
  * (https://mermaid.js.org/syntax/entityRelationshipDiagram.html), one way.
  *
- * The output is a contract: the same `DisplayDomain` always gives the same
+ * The output is a contract: the same `DisplaySubjectArea` always gives the same
  * text, its second line (after `erDiagram`) is a version line, and every
  * mapping change is a deliberate golden update plus a CHANGELOG line. The
  * syntax used is the
@@ -28,6 +28,7 @@
  * | many-to-one / one-to-many         | `"from" }o--|| "to"` / `"from" ||--o{ "to"`                               |
  * | one-to-one / many-to-many         | `"from" ||--|| "to"` / `"from" }o--o{ "to"`                               |
  * | relationship columns              | a `%% from.col -> to.col, cardinality` line above the relationship       |
+ * | relationship drawn backwards (`keysContradict`) | a `%% This starts at …'s key (…), so it was probably drawn backwards.` line under that one |
  * | relationship role                 | the label; without a role, the foreign-key column(s)                     |
  * | composite foreign key             | one relationship, label (or comment) naming every column                 |
  * | sticky note                       | `%% Sticky note <n>: …` lines at the end                                 |
@@ -47,9 +48,9 @@
  * exported.
  */
 
-import type { DisplayDomain } from './types/display.js';
-import { describeEnds, foreignKeyColumns, oneLine, prepareDomain } from './exportShared.js';
-import type { ExportColumn, ExportLink, ExportModel } from './exportShared.js';
+import type { DisplaySubjectArea } from './types/display.js';
+import { backwardsNoteOf, describeEnds, foreignKeyColumns, oneLine, prepareSubjectArea } from './exportShared.js';
+import type { ExportColumn, ExportLink, ExportTable } from './exportShared.js';
 
 export const MERMAID_EXPORT_HEADER = '%% erd-studio mermaid-export v1';
 
@@ -70,7 +71,7 @@ function entityName(name: string): string {
   return oneLine(name).replace(/"/g, "'").replace(/%/g, '_').replace(/\\/g, '/');
 }
 
-function entity(model: ExportModel): string {
+function entity(model: ExportTable): string {
   return `"${entityName(model.name)}"`;
 }
 
@@ -112,8 +113,8 @@ function attributeLine(column: ExportColumn): string {
   return `    ${type} ${name}${keys.length > 0 ? ` ${keys.join(', ')}` : ''}${comment}`;
 }
 
-function modelLines(model: ExportModel): string[] {
-  const lines: string[] = [`  %% Model ${oneLine(model.name)}`];
+function tableLines(model: ExportTable): string[] {
+  const lines: string[] = [`  %% Table ${oneLine(model.name)}`];
   if (entityName(model.name) !== model.name) {
     lines.push(`  %%   written as ${entity(model)}: Mermaid entity names cannot hold ", % or \\`);
   }
@@ -139,7 +140,7 @@ function modelLines(model: ExportModel): string[] {
   for (const sentence of model.skippedColumns) lines.push(`  %%   ${sentence}; not exported`);
   if (model.loadError) {
     const error = model.loadError;
-    lines.push(`  %%   its model file could not be read (${oneLine(error.kind)}${error.line !== undefined ? `, line ${error.line}` : ''})`);
+    lines.push(`  %%   its table file could not be read (${oneLine(error.kind)}${error.line !== undefined ? `, line ${error.line}` : ''})`);
   } else if (model.columns.length === 0) {
     lines.push('  %%   no columns yet');
   }
@@ -153,13 +154,15 @@ function relationshipLines(link: ExportLink): string[] {
   const label = link.role ?? foreignKeyColumns(link).columns.join(', ');
   return [
     `  %% ${describeEnds(link.from.name, link.fromColumns, link.to.name, link.toColumns)}, ${link.cardinality}`,
+    // Drawn as stored, with the canvas's ⚠ sentence (#163).
+    ...(link.keysContradict ? [`  %% ${backwardsNoteOf(link)}`] : []),
     `  ${entity(link.from)} ${CONNECTORS[link.cardinality]} ${entity(link.to)} : "${quotedText(label)}"`,
   ];
 }
 
-/** The diagram as a Mermaid `erDiagram`. Deterministic; never throws on a valid `DisplayDomain`, however minimal. */
-export function toMermaid(domain: DisplayDomain): string {
-  const prepared = prepareDomain(domain);
+/** The diagram as a Mermaid `erDiagram`. Deterministic; never throws on a valid `DisplaySubjectArea`, however minimal. */
+export function toMermaid(domain: DisplaySubjectArea): string {
+  const prepared = prepareSubjectArea(domain);
   const about = [prepared.layer && `layer ${oneLine(prepared.layer)}`, prepared.stage && `${oneLine(prepared.stage)} stage`].filter(Boolean);
   const out: string[] = [
     // `erDiagram` first: Mermaid 10.0 to 10.4 reject any line before it, comments included.
@@ -172,7 +175,7 @@ export function toMermaid(domain: DisplayDomain): string {
   ];
 
   const entities = new Set<string>();
-  const exported = new Set<ExportModel>();
+  const exported = new Set<ExportTable>();
   for (const item of prepared.models) {
     if (item.kind === 'skipped') {
       out.push(`  %% Not exported: ${item.text}.`);
@@ -185,7 +188,7 @@ export function toMermaid(domain: DisplayDomain): string {
     }
     entities.add(name);
     exported.add(item.model);
-    out.push('', ...modelLines(item.model));
+    out.push('', ...tableLines(item.model));
   }
 
   if (prepared.links.length > 0) out.push('');
@@ -196,7 +199,7 @@ export function toMermaid(domain: DisplayDomain): string {
     }
     const { link } = item;
     if (!exported.has(link.from) || !exported.has(link.to)) {
-      out.push(`  %% Not exported: ${describeEnds(link.from.name, link.fromColumns, link.to.name, link.toColumns)} (a model it joins is not exported).`);
+      out.push(`  %% Not exported: ${describeEnds(link.from.name, link.fromColumns, link.to.name, link.toColumns)} (a table it joins is not exported).`);
       continue;
     }
     out.push(...relationshipLines(link));

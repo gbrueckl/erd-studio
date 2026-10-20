@@ -18,13 +18,13 @@ import { STAGE_HEX } from '@erd-studio/renderer/editor';
 import { stageName } from '../../lib/stageUtils';
 import { SyncFooter, StalenessWarning } from '../DiscrepancyPanel/SyncControls';
 import {
-  modelKey,
+  tableKey,
   columnKey,
   relationshipKey,
   deriveColumnAction,
   deriveRelationshipAction,
 } from '../../../src/types/syncPlan';
-import type { ModelDiscrepancy, RelationshipDiscrepancy } from '../../../src/types/discrepancy';
+import type { TableDiscrepancy, RelationshipDiscrepancy } from '../../../src/types/discrepancy';
 import type { GroundTruth } from '../../../src/types/syncPlan';
 import type { Stage } from '../../../src/types/semantic';
 import './SyncMergeModal.css';
@@ -34,10 +34,10 @@ import './SyncMergeModal.css';
 // ---------------------------------------------------------------------------
 
 const ACTION_HINTS: Record<string, string> = {
-  'add-to-logical':                        'Will add this model to your logical design',
-  'remove-from-logical':                   'Will remove this model from your logical design',
-  'add-to-physical':                       'Will add this model to dbt (requires compile)',
-  'remove-from-physical':                  'Will remove this model from dbt',
+  'add-to-logical':                        'Will add this table to your logical design',
+  'remove-from-logical':                   'Will remove this table from your logical design',
+  'add-to-physical':                       'Will add this table to dbt (requires compile)',
+  'remove-from-physical':                  'Will remove this table from dbt',
   'add-column-to-logical':                 'Will add this column to your logical design',
   'remove-column-from-logical':            'Will remove this column from your logical design',
   'add-column-to-physical':                'Will add this column in dbt schema',
@@ -68,7 +68,7 @@ const ITEM_STATUS_TEXT: Record<string, string> = {
   'cardinality-mismatch': 'Cardinality diff',
 };
 
-function modelStatusText(status: string, sourceStage: string, targetStage: string): string {
+function tableStatusText(status: string, sourceStage: string, targetStage: string): string {
   if (status === 'extra') return `Only in ${stageName(sourceStage)}`;
   if (status === 'missing') return `Only in ${stageName(targetStage)}`;
   return status;
@@ -148,7 +148,7 @@ function AcceptCell({ side, selectionKey, children, valueColor, hint }: AcceptCe
 }
 
 // ---------------------------------------------------------------------------
-// ModelRow
+// TableRow
 // ---------------------------------------------------------------------------
 
 interface SelectionSummary {
@@ -157,8 +157,8 @@ interface SelectionSummary {
   total: number;
 }
 
-interface ModelRowProps {
-  model: ModelDiscrepancy;
+interface TableRowProps {
+  model: TableDiscrepancy;
   sourceStage: string;
   targetStage: string;
   isCollapsed: boolean;
@@ -169,7 +169,7 @@ interface ModelRowProps {
   selectionSummary: SelectionSummary | null;
 }
 
-function ModelRow({ model, sourceStage, targetStage, isCollapsed, hasFoldableContent, onToggle, modelSyncKeys, allResolved, selectionSummary }: ModelRowProps) {
+function TableRow({ model, sourceStage, targetStage, isCollapsed, hasFoldableContent, onToggle, modelSyncKeys, allResolved, selectionSummary }: TableRowProps) {
   const setSyncSelectionBulk = useEditorStore((s) => s.setSyncSelectionBulk);
 
   const handleBulk = useCallback(
@@ -211,7 +211,7 @@ function ModelRow({ model, sourceStage, targetStage, isCollapsed, hasFoldableCon
       <div className="sync-modal__model-item-row">
         {model.status !== 'matched' && (
           <span className={`sync-modal__status-badge sync-modal__status-badge--${model.status}`}>
-            {modelStatusText(model.status, sourceStage, targetStage)}
+            {tableStatusText(model.status, sourceStage, targetStage)}
           </span>
         )}
         <span className="sync-modal__model-name">{model.name}</span>
@@ -279,7 +279,7 @@ function ModelRow({ model, sourceStage, targetStage, isCollapsed, hasFoldableCon
 
 interface ColumnRowProps {
   modelName: string;
-  col: ModelDiscrepancy['columns'][number];
+  col: TableDiscrepancy['columns'][number];
   sourceStage: string;
   targetStage: string;
 }
@@ -393,24 +393,24 @@ function RelationshipRow({ rel, sourceStage, targetStage }: { rel: RelationshipD
 }
 
 // ---------------------------------------------------------------------------
-// ModelRowGroup — section header + collapsible column rows
+// TableRowGroup — section header + collapsible column rows
 // ---------------------------------------------------------------------------
 
-interface ModelRowGroupProps {
-  model: ModelDiscrepancy;
-  conflictCols: ModelDiscrepancy['columns'];
+interface TableRowGroupProps {
+  model: TableDiscrepancy;
+  conflictCols: TableDiscrepancy['columns'];
   sourceStage: string;
   targetStage: string;
   isCollapsed: boolean;
   onToggle: () => void;
 }
 
-function ModelRowGroup({ model, conflictCols, sourceStage, targetStage, isCollapsed, onToggle }: ModelRowGroupProps) {
+function TableRowGroup({ model, conflictCols, sourceStage, targetStage, isCollapsed, onToggle }: TableRowGroupProps) {
   const syncSelections = useEditorStore((s) => s.syncSelections);
   const setSyncSelection = useEditorStore((s) => s.setSyncSelection);
   const hasFoldableContent = conflictCols.length > 0;
 
-  const mKey = model.status !== 'matched' ? modelKey(model.name) : null;
+  const mKey = model.status !== 'matched' ? tableKey(model.name) : null;
 
   const columnKeys = useMemo(
     () => conflictCols.map((col) => columnKey(model.name, col.name)),
@@ -483,7 +483,7 @@ function ModelRowGroup({ model, conflictCols, sourceStage, targetStage, isCollap
 
   return (
     <>
-      <ModelRow
+      <TableRow
         model={model}
         sourceStage={sourceStage}
         targetStage={targetStage}
@@ -554,7 +554,7 @@ export function SyncMergeModal() {
   const allSyncKeys = useMemo(() => {
     const keys: string[] = [];
     for (const m of models) {
-      if (m.status !== 'matched') keys.push(modelKey(m.name));
+      if (m.status !== 'matched') keys.push(tableKey(m.name));
       for (const c of m.columns) {
         if (c.status !== 'matched') keys.push(columnKey(m.name, c.name));
       }
@@ -585,7 +585,7 @@ export function SyncMergeModal() {
     const status = new Map<string, boolean>();
     for (const m of models) {
       const keys: string[] = [];
-      if (m.status !== 'matched') keys.push(modelKey(m.name));
+      if (m.status !== 'matched') keys.push(tableKey(m.name));
       for (const c of m.columns) {
         if (c.status !== 'matched') keys.push(columnKey(m.name, c.name));
       }
@@ -607,7 +607,7 @@ export function SyncMergeModal() {
 
   // Split models and relationships into unresolved / resolved when hiding
   const { unresolved: unresolvedModels, resolved: resolvedModels } = useMemo(() => {
-    if (!hideResolved) return { unresolved: models, resolved: [] as ModelDiscrepancy[] };
+    if (!hideResolved) return { unresolved: models, resolved: [] as TableDiscrepancy[] };
     return splitByResolved(models, (m) => !!modelResolutionStatus.get(m.name));
   }, [models, hideResolved, modelResolutionStatus]);
 
@@ -757,7 +757,7 @@ export function SyncMergeModal() {
               {unresolvedModels.map((model) => {
                 const conflictCols = model.columns.filter((c) => c.status !== 'matched');
                 return (
-                  <ModelRowGroup
+                  <TableRowGroup
                     key={model.name}
                     model={model}
                     conflictCols={conflictCols}
@@ -815,7 +815,7 @@ export function SyncMergeModal() {
                   {resolvedSectionOpen && resolvedModels.map((model) => {
                     const conflictCols = model.columns.filter((c) => c.status !== 'matched');
                     return (
-                      <ModelRowGroup
+                      <TableRowGroup
                         key={model.name}
                         model={model}
                         conflictCols={conflictCols}

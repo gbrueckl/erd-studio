@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import {
-  deriveModelAction,
+  deriveTableAction,
   deriveColumnAction,
   resolveGroundTruthDataType,
   deriveRelationshipAction,
-  modelKey,
+  tableKey,
   columnKey,
   relationshipKey,
 } from '../../src/types/syncPlan';
 
 describe('syncPlan — selection keys', () => {
   it('modelKey builds "model:{name}"', () => {
-    expect(modelKey('dim_customer')).toBe('model:dim_customer');
+    expect(tableKey('dim_customer')).toBe('model:dim_customer');
   });
 
   it('columnKey builds "col:{model}:{column}"', () => {
@@ -24,40 +24,40 @@ describe('syncPlan — selection keys', () => {
   });
 });
 
-describe('syncPlan — deriveModelAction', () => {
+describe('syncPlan — deriveTableAction', () => {
   describe('sourceStage = logical', () => {
     it('extra + logical truth = no-op (null)', () => {
-      expect(deriveModelAction('extra', 'logical', 'logical')).toBeNull();
+      expect(deriveTableAction('extra', 'logical', 'logical')).toBeNull();
     });
 
     it('extra + physical truth = remove-from-logical', () => {
-      expect(deriveModelAction('extra', 'physical', 'logical')).toBe('remove-from-logical');
+      expect(deriveTableAction('extra', 'physical', 'logical')).toBe('remove-from-logical');
     });
 
     it('missing + logical truth = remove-from-physical', () => {
-      expect(deriveModelAction('missing', 'logical', 'logical')).toBe('remove-from-physical');
+      expect(deriveTableAction('missing', 'logical', 'logical')).toBe('remove-from-physical');
     });
 
     it('missing + physical truth = add-to-logical', () => {
-      expect(deriveModelAction('missing', 'physical', 'logical')).toBe('add-to-logical');
+      expect(deriveTableAction('missing', 'physical', 'logical')).toBe('add-to-logical');
     });
   });
 
   describe('sourceStage = physical', () => {
     it('extra + physical truth = no-op (null)', () => {
-      expect(deriveModelAction('extra', 'physical', 'physical')).toBeNull();
+      expect(deriveTableAction('extra', 'physical', 'physical')).toBeNull();
     });
 
     it('extra + logical truth = remove-from-physical', () => {
-      expect(deriveModelAction('extra', 'logical', 'physical')).toBe('remove-from-physical');
+      expect(deriveTableAction('extra', 'logical', 'physical')).toBe('remove-from-physical');
     });
 
     it('missing + physical truth = remove-from-logical', () => {
-      expect(deriveModelAction('missing', 'physical', 'physical')).toBe('remove-from-logical');
+      expect(deriveTableAction('missing', 'physical', 'physical')).toBe('remove-from-logical');
     });
 
     it('missing + logical truth = add-to-physical', () => {
-      expect(deriveModelAction('missing', 'logical', 'physical')).toBe('add-to-physical');
+      expect(deriveTableAction('missing', 'logical', 'physical')).toBe('add-to-physical');
     });
   });
 });

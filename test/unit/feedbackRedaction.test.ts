@@ -20,7 +20,7 @@ import {
 } from '../../src/services/feedbackService';
 import { redactPaths, type FeedbackDraft } from '../../src/types/feedback';
 
-const DOMAIN_FILE = '/Users/khaidirhasan/Documents/Codes/medical/.erd-studio/silver/sales.json';
+const SUBJECT_AREA_FILE = '/Users/khaidirhasan/Documents/Codes/medical/.erd-studio/silver/sales.json';
 const SECRETS = ['khaidirhasan', 'medical', 'silver', 'sales'];
 
 function expectNoSecrets(text: string): void {
@@ -30,7 +30,7 @@ function expectNoSecrets(text: string): void {
 describe('redactPaths', () => {
   it.each([
     [
-      `Invalid JSON in domain file ${DOMAIN_FILE}: Unexpected end of JSON input`,
+      `Invalid JSON in domain file ${SUBJECT_AREA_FILE}: Unexpected end of JSON input`,
       'Invalid JSON in domain file {project}/.erd-studio/{layer}/{domain}.json: Unexpected end of JSON input',
     ],
     [
@@ -41,6 +41,10 @@ describe('redactPaths', () => {
       'Could not read /Users/jo/My Projects/acme dbt/.erd-studio/logical-models/dim_customer.yml',
       'Could not read {project}/.erd-studio/logical-models/{model}.yml',
     ],
+    // v6's table library (#181), top level and one folder down; a `tables` layer's diagram stays a diagram.
+    ['/home/jo/acme/.erd-studio/tables/gold/dim_customer.yml bad', '{project}/.erd-studio/tables/{table}.yml bad'],
+    ['/home/jo/acme/.erd-studio/tables/dim_customer.yml bad', '{project}/.erd-studio/tables/{table}.yml bad'],
+    ['/home/jo/acme/.erd-studio/tables/orders.json bad', '{project}/.erd-studio/{layer}/{domain}.json bad'],
     ['/home/jo/acme/.erd-studio/layers.json failed', '{project}/.erd-studio/layers.json failed'],
     ['/home/jo/acme/erd-studio/gold/finance.json', '{project}/erd-studio/{layer}/{domain}.json'],
     [
@@ -70,7 +74,7 @@ describe('redactPaths', () => {
   });
 
   it('is idempotent', () => {
-    const once = redactPaths(`a ${DOMAIN_FILE} b C:\\x\\y\\z.yml c`);
+    const once = redactPaths(`a ${SUBJECT_AREA_FILE} b C:\\x\\y\\z.yml c`);
     expect(redactPaths(once)).toBe(once);
   });
 });
@@ -80,16 +84,16 @@ describe('where a report leaves the machine', () => {
 
   const draft: FeedbackDraft = {
     kind: 'bug',
-    title: `Crash opening ${DOMAIN_FILE}`,
-    description: `Error shown on canvas: Invalid JSON in domain file ${DOMAIN_FILE}`,
-    steps: `1. open ${DOMAIN_FILE}`,
+    title: `Crash opening ${SUBJECT_AREA_FILE}`,
+    description: `Error shown on canvas: Invalid JSON in domain file ${SUBJECT_AREA_FILE}`,
+    steps: `1. open ${SUBJECT_AREA_FILE}`,
     includeDiagnostics: true,
   };
 
   function diagnostics() {
-    hostErrorLog.record('sendDomainData', `Invalid JSON in domain file ${DOMAIN_FILE}`);
+    hostErrorLog.record('sendDomainData', `Invalid JSON in domain file ${SUBJECT_AREA_FILE}`);
     const context = { extension: { packageJSON: { version: '1.0.7' } } };
-    return collectDiagnostics(context as never, undefined, [`[extension] Could not read ${DOMAIN_FILE}`]);
+    return collectDiagnostics(context as never, undefined, [`[extension] Could not read ${SUBJECT_AREA_FILE}`]);
   }
 
   it('collectDiagnostics redacts both error lists but leaves the log itself raw', () => {
@@ -97,7 +101,7 @@ describe('where a report leaves the machine', () => {
     expect(d.hostErrors[0]).toContain('{project}/.erd-studio/{layer}/{domain}.json');
     expect(d.webviewErrors[0]).toContain('{project}/.erd-studio/{layer}/{domain}.json');
     expectNoSecrets([...d.hostErrors, ...d.webviewErrors].join('\n'));
-    expect(hostErrorLog.recent()[0]).toContain(DOMAIN_FILE);
+    expect(hostErrorLog.recent()[0]).toContain(SUBJECT_AREA_FILE);
   });
 
   it('the issue form carries no path in any field', () => {

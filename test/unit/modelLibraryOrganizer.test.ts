@@ -4,11 +4,11 @@
 import { describe, it, expect } from 'vitest';
 
 import { describeOrganizePlan, planOrganizeByLayer, type OrganizePlan } from '../../src/services/modelLibraryOrganizer';
-import type { ModelFileEntry } from '../../src/services/logicalModelService';
+import type { TableFileEntry } from '../../src/services/logicalModelService';
 
 const DIR = '/p/.erd-studio/logical-models';
-const top = (name: string): ModelFileEntry => ({ name, folder: '', filePath: `${DIR}/${name}.yml` });
-const inFolder = (folder: string, name: string, shadowedBy?: string): ModelFileEntry => ({
+const top = (name: string): TableFileEntry => ({ name, folder: '', filePath: `${DIR}/${name}.yml` });
+const inFolder = (folder: string, name: string, shadowedBy?: string): TableFileEntry => ({
   name,
   folder,
   filePath: `${DIR}/${folder}/${name}.yml`,
@@ -176,29 +176,29 @@ describe('describeOrganizePlan', () => {
       otherFolders: [],
     };
     expect(describeOrganizePlan(plan)).toBe([
-      'Move 3 models into layer folders (1 → gold/, 2 → silver/).',
-      'Staying at the top of logical-models/: 1 model used by more than one layer (d); 2 unused models (e, f); ' +
-        '1 model whose layer folder already has a file of that name (g).',
-      'Domain files reference models by name, so no domain file changes.',
+      'Move 3 tables into layer folders (1 → gold/, 2 → silver/).',
+      'Staying at the top of logical-models/: 1 table used by more than one layer (d); 2 unused tables (e, f); ' +
+        '1 table whose layer folder already has a file of that name (g).',
+      'Subject area files reference tables by name, so no subject area file changes.',
     ].join('\n\n'));
   });
 
   it('uses the singular for one move and omits the staying line when nothing stays', () => {
     const text = describeOrganizePlan({ moves: [move('a', 'gold')], shared: [], unused: [], conflicts: [], otherFolders: [] });
     expect(text).toBe(
-      'Move 1 model into layer folders (1 → gold/).\n\nDomain files reference models by name, so no domain file changes.',
+      'Move 1 table into layer folders (1 → gold/).\n\nSubject area files reference tables by name, so no subject area file changes.',
     );
   });
 
   it('describes a plan with nothing to move', () => {
     const text = describeOrganizePlan({ moves: [], shared: [], unused: ['x'], conflicts: [], otherFolders: [] });
     expect(text).not.toContain('Move ');
-    expect(text).toContain('Staying at the top of logical-models/: 1 unused model (x).');
+    expect(text).toContain('Staying at the top of logical-models/: 1 unused table (x).');
   });
 
   it('names at most three models per group', () => {
     const text = describeOrganizePlan({ moves: [], shared: [], unused: ['a', 'b', 'c', 'd', 'e'], conflicts: [], otherFolders: [] });
-    expect(text).toContain('5 unused models (a, b, c and 2 more)');
+    expect(text).toContain('5 unused tables (a, b, c and 2 more)');
   });
 
   it('explains files moving out of another layer\'s folder and folders it leaves alone', () => {
@@ -209,8 +209,8 @@ describe('describeOrganizePlan', () => {
       conflicts: [],
       otherFolders: [{ folder: 'Staging', count: 2 }],
     });
-    expect(text).toContain('Move 2 models into layer folders (2 → silver/).');
-    expect(text).toContain("One is in another layer's folder, because the domains that use it are now in a different layer (rpt_sales: gold/ → silver/).");
+    expect(text).toContain('Move 2 tables into layer folders (2 → silver/).');
+    expect(text).toContain("One is in another layer's folder, because the subject areas that use it are now in a different layer (rpt_sales: gold/ → silver/).");
     expect(text).toContain('Left alone: folders that are not a layer in layers.json — Staging/ (2).');
   });
 });

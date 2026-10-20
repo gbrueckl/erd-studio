@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * ModelNode badge tooltips — what hovering a canvas badge actually says.
+ * TableNode badge tooltips — what hovering a canvas badge actually says.
  *
  * Every abbreviation on a node is a word the user has not been told. The chips
  * are too small to hold the explanation, so the explanation lives in `title`,
@@ -30,12 +30,12 @@ vi.mock('../../src/store/editorStore', () => ({
   useEditorStore: (selector: (s: typeof mockStoreState) => unknown) => selector(mockStoreState),
 }));
 
-import { ModelNode } from '../../src/components/Graph/ModelNode';
-import type { ColumnDisplay, ModelFlowNode } from '../../src/types/graph';
+import { TableNode } from '../../src/components/Graph/ModelNode';
+import type { ColumnDisplay, TableFlowNode } from '../../src/types/graph';
 import { SCD_TITLE, ADDITIVE_TITLE } from '../../src/lib/badgeLabels';
 
-function renderNode(extra: Partial<ModelFlowNode['data']> = {}, columns?: ColumnDisplay[]) {
-  const data: ModelFlowNode['data'] = {
+function renderNode(extra: Partial<TableFlowNode['data']> = {}, columns?: ColumnDisplay[]) {
+  const data: TableFlowNode['data'] = {
     modelName: 'dim_customer',
     stage: 'logical',
     layer: 'silver',
@@ -46,11 +46,11 @@ function renderNode(extra: Partial<ModelFlowNode['data']> = {}, columns?: Column
     readOnly: false,
     ...extra,
   };
-  const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+  const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
   return render(<Node data={data} selected={false} />);
 }
 
-describe('ModelNode schema badge tooltip', () => {
+describe('TableNode schema badge tooltip', () => {
   it('names the database schema the abbreviation stands for', () => {
     const { container } = renderNode({ stage: 'physical', readOnly: true, schema: 'silver' });
     const badge = container.querySelector('.model-node__badge')!;
@@ -68,7 +68,7 @@ describe('ModelNode schema badge tooltip', () => {
   });
 });
 
-describe('ModelNode column symbol tooltips', () => {
+describe('TableNode column symbol tooltips', () => {
   const col = (extra: Partial<ColumnDisplay>): ColumnDisplay => ({
     name: 'status',
     dataType: 'string',
@@ -102,7 +102,7 @@ describe('ModelNode column symbol tooltips', () => {
   });
 });
 
-describe('ModelNode comparison markers', () => {
+describe('TableNode comparison markers', () => {
   const missing = {
     name: 'churn_flag',
     status: 'missing' as const,
@@ -157,7 +157,7 @@ describe('ModelNode comparison markers', () => {
   });
 });
 
-describe('ModelNode header hover card', () => {
+describe('TableNode header hover card', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 

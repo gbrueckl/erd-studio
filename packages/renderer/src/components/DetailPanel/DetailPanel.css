@@ -1006,3 +1006,23 @@
   padding: 3px 8px;
   font-size: 10px;
 }
+
+/* A relationship drawn backwards (#163): ⚠ Turn round, before the delete button. */
+.detail-panel__rel-backwards {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--warning-fg);
+  border-radius: 3px;
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.detail-panel__rel-backwards:hover {
+  border-color: var(--focus-border);
+  background: var(--button-bg);
+  color: var(--button-fg);
+}

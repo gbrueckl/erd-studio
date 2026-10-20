@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import {
-  applyMoveToModel,
+  applyMoveToTable,
   describeLeftAlone,
   describeMovePlan,
   diagramsStillDrawing,
@@ -15,28 +15,28 @@ import {
   planRelationshipWrite,
   planMoveToLibrary,
   planRehome,
-  removeColumnFromDomainRelationships,
+  removeColumnFromSubjectAreaRelationships,
   removeColumnRelationships,
   removeLibraryRelationships,
   resolveConflict,
   sharedRelationshipCount,
-  renameColumnInDomainRelationships,
+  renameColumnInSubjectAreaRelationships,
   renameColumnInRelationships,
-  renameModelInDomainRelationships,
-  renameModelInRelationships,
+  renameTableInSubjectAreaRelationships,
+  renameTableInRelationships,
   routeToLibrary,
   upsertLibraryRelationship,
   usesLibraryRelationships,
 } from '../../src/services/libraryRelationships';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { buildDbtKeyIndex } from '@erd-studio/core';
 import type { ColumnPair } from '@erd-studio/core';
-import type { Relationship, SemanticModel } from '../../src/types/semantic';
+import type { Relationship, SemanticTable } from '../../src/types/semantic';
 
 const REL: Relationship = {
   fromModel: 'fct_order', fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one',
 };
-const fct = (relationships?: SemanticModel['relationships']): SemanticModel =>
+const fct = (relationships?: SemanticTable['relationships']): SemanticTable =>
   ({ name: 'fct_order', columns: [], ...(relationships ? { relationships: structuredClone(relationships) } : {}) });
 const { fromModel: _from, ...STORED } = REL;
 
@@ -73,16 +73,16 @@ describe('library relationship edits', () => {
   it('follows column and model renames in other models', () => {
     const model = fct([STORED]);
     renameColumnInRelationships([model], 'dim_customer', 'customer_key', 'customer_sk');
-    renameModelInRelationships([model], 'dim_customer', 'dim_client');
+    renameTableInRelationships([model], 'dim_customer', 'dim_client');
     expect(model.relationships).toEqual([{ ...STORED, toModel: 'dim_client', toColumn: 'customer_sk' }]);
   });
 
   it('follows a rename into a differently-cased entry, writing the new name as typed (#133 L4)', () => {
-    const own = { name: 'Fct_Order', columns: [], relationships: [{ ...STORED, fromColumn: 'CUSTOMER_KEY' }] } as SemanticModel;
+    const own = { name: 'Fct_Order', columns: [], relationships: [{ ...STORED, fromColumn: 'CUSTOMER_KEY' }] } as SemanticTable;
     const other = fct([{ ...STORED, toModel: 'Dim_Customer', toColumn: 'Customer_Key' }]);
     renameColumnInRelationships([own], 'fct_order', 'customer_key', 'customer_sk');
     renameColumnInRelationships([other], 'dim_customer', 'customer_key', 'customer_sk');
-    renameModelInRelationships([other], 'DIM_customer', 'dim_client');
+    renameTableInRelationships([other], 'DIM_customer', 'dim_client');
     expect(own.relationships).toEqual([{ ...STORED, fromColumn: 'customer_sk' }]);
     expect(other.relationships).toEqual([{ ...STORED, toModel: 'dim_client', toColumn: 'customer_sk' }]);
   });
@@ -93,14 +93,14 @@ describe('library relationship edits', () => {
       { ...REL, toColumn: 'CUSTOMER_KEY' },
       { note: 'not a relationship' },
     ];
-    expect(renameColumnInDomainRelationships(rels, 'fct_order', 'customer_key', 'customer_sk')).toBe(true);
-    expect(renameModelInDomainRelationships(rels, 'Dim_Customer', 'dim_client')).toBe(true);
+    expect(renameColumnInSubjectAreaRelationships(rels, 'fct_order', 'customer_key', 'customer_sk')).toBe(true);
+    expect(renameTableInSubjectAreaRelationships(rels, 'Dim_Customer', 'dim_client')).toBe(true);
     expect(rels).toEqual([
       { ...REL, fromModel: 'FCT_ORDER', fromColumn: 'customer_sk', toModel: 'dim_client' },
       { ...REL, fromColumn: 'customer_sk', toModel: 'dim_client', toColumn: 'CUSTOMER_KEY' },
       { note: 'not a relationship' },
     ]);
-    expect(renameColumnInDomainRelationships(rels, 'nope', 'customer_key', 'x')).toBe(false);
+    expect(renameColumnInSubjectAreaRelationships(rels, 'nope', 'customer_key', 'x')).toBe(false);
   });
 
   it('routes a link whose ends are spelled in another case to one model object (#133 L4)', () => {
@@ -126,7 +126,7 @@ describe('library relationship edits', () => {
 });
 
 describe('planMoveToLibrary', () => {
-  const lookup = (name: string): SemanticModel | null => (name === 'fct_order' ? fct() : null);
+  const lookup = (name: string): SemanticTable | null => (name === 'fct_order' ? fct() : null);
 
   it('moves a relationship the domains agree on once, out of every domain holding it', () => {
     const plan = planMoveToLibrary(
@@ -162,19 +162,19 @@ describe('planMoveToLibrary', () => {
   });
 });
 
-describe('LogicalModelService writes relationships', () => {
+describe('TableLibraryService writes relationships', () => {
   it('round-trips the list and leaves an unchanged one (and its comment) alone', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-rels-yml-'));
     try {
-      const service = new LogicalModelService(root, '.erd-studio');
-      service.saveModel(fct([STORED]));
-      const file = service.modelPath('fct_order');
+      const service = new TableLibraryService(root, '.erd-studio');
+      service.saveTable(fct([STORED]));
+      const file = service.tablePath('fct_order');
       const text = fs.readFileSync(file, 'utf-8').replace('relationships:', 'relationships: # shared across domains');
       fs.writeFileSync(file, text);
       service.invalidateCache();
-      const model = service.getModel('fct_order')!;
+      const model = service.getTable('fct_order')!;
       expect(model.relationships).toEqual([STORED]);
-      service.saveModel({ ...model, description: 'Orders' });
+      service.saveTable({ ...model, description: 'Orders' });
       expect(fs.readFileSync(file, 'utf-8')).toContain('# shared across domains');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -183,7 +183,7 @@ describe('LogicalModelService writes relationships', () => {
 });
 
 describe('settling a conflict (#126)', () => {
-  const lookup = (name: string): SemanticModel | null => (name === 'fct_order' ? fct() : null);
+  const lookup = (name: string): SemanticTable | null => (name === 'fct_order' ? fct() : null);
   const conflicted = () => planMoveToLibrary(
     [{ label: 'gold/orders', relationships: [REL] }, { label: 'gold/reporting', relationships: [{ ...REL, cardinality: 'one-to-one' }] }],
     lookup,
@@ -239,7 +239,7 @@ describe('stored on the many side (#133)', () => {
   const REVERSED: Relationship = {
     fromModel: 'dim_customer', fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key', cardinality: 'one-to-many',
   };
-  const dim = (relationships?: SemanticModel['relationships']): SemanticModel =>
+  const dim = (relationships?: SemanticTable['relationships']): SemanticTable =>
     ({ name: 'dim_customer', columns: [], ...(relationships ? { relationships: structuredClone(relationships) } : {}) });
 
   it('routeToLibrary stores a one-to-many on the fact, as many-to-one', () => {
@@ -280,7 +280,7 @@ describe('stored on the many side (#133)', () => {
     const { rehome } = planRehome(library, (name) => library.find((m) => m.name === name) ?? null);
     expect(rehome).toEqual([{ from: 'dim_customer', stored: REVERSED, to: REL }]);
     expect(describeMovePlan({ toLibrary: [], removeFromDomains: new Map(), conflicts: [], skippedNoModel: [], rehome, disagreements: [], lockedFiles: [] }))
-      .toMatch(/^Turned round: 1 relationship is stored in the file of the model it points at/);
+      .toMatch(/^Turned round: 1 relationship is stored in the file of the table it points at/);
   });
 
   it('removing a link drops every copy, in both model files, whichever end the line was drawn from', () => {
@@ -293,7 +293,7 @@ describe('stored on the many side (#133)', () => {
   describe('planRehome turns round a many-to-one 1.6.7 saved backwards on a dimension', () => {
     const KEY = { name: 'customer_key', dataType: 'int', description: '', isPrimaryKey: true };
     const backwards = { fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key', cardinality: 'many-to-one' as const, role: 'buyer' };
-    const plan = (dimColumns: SemanticModel['columns'], fctColumns: SemanticModel['columns'] = []) => {
+    const plan = (dimColumns: SemanticTable['columns'], fctColumns: SemanticTable['columns'] = []) => {
       const library = [{ ...dim([backwards]), columns: dimColumns }, { ...fct(), columns: fctColumns }];
       return planRehome(library, (name) => library.find((m) => m.name === name) ?? null);
     };
@@ -406,12 +406,12 @@ describe('the move keeps roles (#133)', () => {
 
 describe('planRelationshipWrite — one canvas edit acts on the link (#133)', () => {
   const KEY = { name: 'customer_key', dataType: 'int', description: '', isPrimaryKey: true };
-  const dim = (relationships?: SemanticModel['relationships'], keyed = true): SemanticModel =>
+  const dim = (relationships?: SemanticTable['relationships'], keyed = true): SemanticTable =>
     ({ name: 'dim_customer', columns: [{ ...KEY, isPrimaryKey: keyed }], ...(relationships ? { relationships } : {}) });
-  const fact = (relationships?: SemanticModel['relationships']): SemanticModel =>
+  const fact = (relationships?: SemanticTable['relationships']): SemanticTable =>
     ({ name: 'fct_order', columns: [{ ...KEY, name: 'order_key' }, { ...KEY, isPrimaryKey: false }], ...(relationships ? { relationships } : {}) });
   const BACK = { fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key', cardinality: 'many-to-one' as const };
-  const library = (models: SemanticModel[], domainRelationships: Relationship[] = []) => ({ home: 'library' as const, models, domainRelationships });
+  const library = (models: SemanticTable[], domainRelationships: Relationship[] = []) => ({ home: 'library' as const, models, domainRelationships });
 
   it('folds every copy into one entry in its home, with the drawn copy\'s role, and changes none of its inputs', () => {
     const models = [dim([BACK]), fact([{ ...STORED, role: 'buyer' }])];
@@ -504,7 +504,7 @@ describe('the move preview and its leftovers', () => {
     );
     expect(plan.removeFromDomains.get('silver/orders')?.size).toBe(1);
     expect(describeMovePlan(plan)).toContain(
-      "Kept the model library's version: 1 diagram copy says something different",
+      "Kept the Table Library's version: 1 diagram copy says something different",
     );
     expect(describeMovePlan(plan)).toContain(
       '• silver/orders: fct_order.customer_key → dim_customer.customer_key one-to-one — the library has fct_order.customer_key → dim_customer.customer_key many-to-one in logical-models/fct_order.yml',
@@ -513,7 +513,7 @@ describe('the move preview and its leftovers', () => {
 
   it('applies a turned-round entry by itself, and gives a role only to the copy that says the same', () => {
     const model = fct([{ ...STORED, cardinality: 'one-to-one' }, STORED]);
-    applyMoveToModel({ toLibrary: [{ ...REL, role: 'buyer' }], rehome: [] }, model);
+    applyMoveToTable({ toLibrary: [{ ...REL, role: 'buyer' }], rehome: [] }, model);
     expect(model.relationships).toEqual([{ ...STORED, cardinality: 'one-to-one' }, { ...STORED, role: 'buyer' }]);
   });
 
@@ -532,7 +532,7 @@ describe('composite foreign keys (#133 L2)', () => {
   const col = (name: string, isPrimaryKey = false) => ({ name, dataType: 'string', description: '', ...(isPrimaryKey ? { isPrimaryKey } : {}) });
   const member = (from: string, to: string, extra: Partial<Relationship> = {}) =>
     ({ fromColumn: from, toModel: SAT, toColumn: to, cardinality: 'many-to-one' as const, compositeKey: 'fk_sat_customer', ...extra });
-  const models = (pitRels: SemanticModel['relationships'] = undefined, satKeys = true): SemanticModel[] => [
+  const models = (pitRels: SemanticTable['relationships'] = undefined, satKeys = true): SemanticTable[] => [
     { name: PIT, columns: [col('pit_id', true), col('customer_hk'), col('as_of_date')], ...(pitRels ? { relationships: structuredClone(pitRels) } : {}) },
     { name: SAT, columns: [col('customer_hk', satKeys), col('load_date', satKeys), col('name')] },
   ];
@@ -617,9 +617,9 @@ describe('composite foreign keys (#133 L2)', () => {
     removeColumnRelationships(ms, SAT, 'LOAD_DATE');
     expect(ms[0].relationships).toBeUndefined();
     const own = GROUP.map((m) => ({ fromModel: PIT, ...m }));
-    expect(removeColumnFromDomainRelationships([...own, { note: 'x' }], PIT, 'customer_hk')).toEqual([{ note: 'x' }]);
+    expect(removeColumnFromSubjectAreaRelationships([...own, { note: 'x' }], PIT, 'customer_hk')).toEqual([{ note: 'x' }]);
     // A stale key on one entry is a single link: only it goes.
-    expect(removeColumnFromDomainRelationships(own.slice(0, 1), PIT, 'customer_hk')).toEqual([]);
+    expect(removeColumnFromSubjectAreaRelationships(own.slice(0, 1), PIT, 'customer_hk')).toEqual([]);
   });
 });
 
@@ -627,7 +627,7 @@ describe('composite keys: what the exhaustive check found (#133 L2)', () => {
   const col = (name: string, isPrimaryKey = false) => ({ name, dataType: 'string', description: '', ...(isPrimaryKey ? { isPrimaryKey } : {}) });
   const m = (fromColumn: string, toModel: string, toColumn: string, cardinality: Relationship['cardinality'], compositeKey?: string) =>
     ({ fromColumn, toModel, toColumn, cardinality, ...(compositeKey ? { compositeKey } : {}) });
-  const models = (fct: SemanticModel['relationships'], dim: SemanticModel['relationships']): SemanticModel[] => [
+  const models = (fct: SemanticTable['relationships'], dim: SemanticTable['relationships']): SemanticTable[] => [
     { name: 'dim', columns: [col('k', true), col('k_x', true)], ...(dim ? { relationships: structuredClone(dim) } : {}) },
     { name: 'fct', columns: [col('id', true), col('k'), col('k_x')], ...(fct ? { relationships: structuredClone(fct) } : {}) },
   ];

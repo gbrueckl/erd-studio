@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as vscode from 'vscode';
 
 import {
-  DOMAIN_EDITOR_VIEW_TYPE,
-  hasOpenDomainCanvas,
+  SUBJECT_AREA_EDITOR_VIEW_TYPE,
+  hasOpenSubjectAreaCanvas,
   saveAllAndReload,
 } from '../../src/services/recoveryService';
 
@@ -24,26 +24,26 @@ describe('recoveryService', () => {
     vi.restoreAllMocks();
   });
 
-  describe('hasOpenDomainCanvas', () => {
+  describe('hasOpenSubjectAreaCanvas', () => {
     it('returns false when no tabs are open', () => {
-      expect(hasOpenDomainCanvas()).toBe(false);
+      expect(hasOpenSubjectAreaCanvas()).toBe(false);
     });
 
     it('returns false when only non-canvas tabs are open', () => {
       setOpenTabs([{ input: { uri: { fsPath: '/foo.ts' } } }]);
-      expect(hasOpenDomainCanvas()).toBe(false);
+      expect(hasOpenSubjectAreaCanvas()).toBe(false);
     });
 
     it('returns true when a domain canvas tab is open', () => {
-      const tabInput = new vscode.TabInputCustom({ fsPath: '/dom.json' }, DOMAIN_EDITOR_VIEW_TYPE);
+      const tabInput = new vscode.TabInputCustom({ fsPath: '/dom.json' }, SUBJECT_AREA_EDITOR_VIEW_TYPE);
       setOpenTabs([{ input: tabInput }]);
-      expect(hasOpenDomainCanvas()).toBe(true);
+      expect(hasOpenSubjectAreaCanvas()).toBe(true);
     });
 
     it('ignores TabInputCustom entries with a different viewType', () => {
       const tabInput = new vscode.TabInputCustom({ fsPath: '/img.png' }, 'imagePreview.previewEditor');
       setOpenTabs([{ input: tabInput }]);
-      expect(hasOpenDomainCanvas()).toBe(false);
+      expect(hasOpenSubjectAreaCanvas()).toBe(false);
     });
   });
 
