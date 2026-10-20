@@ -2490,7 +2490,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * tolerant `JSON.parse`: a bad document there is not the user's error.
    */
   private parseSubjectAreaDocument(document: vscode.TextDocument, text: string = document.getText()): Record<string, unknown> {
-    const shown = path.relative(this.workspaceRoot, document.uri.fsPath).split(path.sep).join('/');
+    const shown = this.shownSubjectAreaPath(document.uri.fsPath);
     let data: unknown;
     try {
       data = parseSubjectAreaJson(text, shown);
@@ -2602,7 +2602,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    */
   private shownSubjectAreaPath(fsPath: string): string {
     const relative = path.relative(this.workspaceRoot, fsPath);
-    if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) return path.basename(fsPath);
+    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      return path.basename(fsPath);
+    }
     return relative.split(path.sep).join('/');
   }
 
@@ -2631,7 +2633,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
   /** The "deleted or renamed" screen's payload (#161), naming the file project-relative. */
   private subjectAreaMissingPayload(document: vscode.TextDocument): ErrorMessage['payload'] {
-    const shown = path.relative(this.workspaceRoot, document.uri.fsPath).split(path.sep).join('/');
+    const shown = this.shownSubjectAreaPath(document.uri.fsPath);
     return { message: `${shown} was deleted or renamed outside ERD Studio.`, kind: 'domain-missing' };
   }
 

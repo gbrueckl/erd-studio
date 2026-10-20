@@ -312,14 +312,17 @@ export function parseSubjectAreaJson(raw: string, filePath: string): unknown {
     throw new SubjectAreaFileError('empty', filePath, `Subject area file is empty: ${filePath}`);
   }
 
+  // A byte order mark (Windows PowerShell 5 writes one) is not a mistake
+  // the user can see or fix in the text editor, which hides it (#186). It is
+  // left out of the location too, or every mistake in such a file would be
+  // reported at line 1, column 1.
+  const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
   try {
-    // A byte order mark (Windows PowerShell 5 writes one) is not a mistake
-    // the user can see or fix in the text editor, which hides it (#186).
-    return JSON.parse(raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw);
+    return JSON.parse(text);
   } catch (err) {
     // Only text that already failed to parse is checked, so a valid file
     // whose description quotes a marker can never be reported as conflicted.
-    const line = findConflictMarkers(raw);
+    const line = findConflictMarkers(text);
     if (line !== null) {
       throw new SubjectAreaFileError(
         'invalid-json',
@@ -330,7 +333,7 @@ export function parseSubjectAreaJson(raw: string, filePath: string): unknown {
       );
     }
     const message = err instanceof Error ? err.message : String(err);
-    const located = locateJsonSyntaxError(raw, message);
+    const located = locateJsonSyntaxError(text, message);
     throw new SubjectAreaFileError(
       'invalid-json',
       filePath,

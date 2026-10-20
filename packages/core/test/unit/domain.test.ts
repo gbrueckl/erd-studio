@@ -146,6 +146,11 @@ describe('where an invalid-json domain file goes wrong (#186)', () => {
     expect(parseSubjectAreaJson('\ufeff{"schemaVersion": 5}', FILE)).toEqual({ schemaVersion: 5 });
   });
 
+  it('locates a mistake in a file with a byte order mark as the text editor shows it', () => {
+    expect(where(caught('\ufeff{\n  "a": 1,\n}'))).toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+    expect(where(caught('\ufeff{"a": 1, "b": 2,}'))).toEqual({ line: 1, column: 16, problem: 'trailing-comma' });
+  });
+
   it('calls a mistake a missing comma only where a comma could go', () => {
     // A missing colon, in the words an older V8 (Node 18, VS Code 1.85) uses.
     expect(locateJsonSyntaxError('{"a" "b": 1}', 'Unexpected string in JSON at position 5')?.problem).toBe('unexpected');

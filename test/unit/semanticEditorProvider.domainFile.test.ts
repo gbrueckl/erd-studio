@@ -375,6 +375,12 @@ describe('a domain file with a JSON mistake (#186)', () => {
     await vi.waitFor(() => expect(executeCommand).toHaveBeenCalledTimes(2), { timeout: 4000, interval: 10 });
     for (const call of executeCommand.mock.calls) expect(call).toEqual(['vscode.openWith', expect.anything(), 'default']);
   });
+
+  it('names a file outside the project by its name only, but keeps a folder that merely starts with two dots', () => {
+    const shown = (fsPath: string) => (buildProvider(root) as any).shownSubjectAreaPath(fsPath) as string;
+    expect(shown(path.join(root, '..', 'elsewhere', 'showcase.json'))).toBe('showcase.json');
+    expect(shown(path.join(root, '..erd', 'silver', 'showcase.json'))).toBe('..erd/silver/showcase.json');
+  });
 });
 
 describe('a JSON file under the semantic dir that is not a domain', () => {
