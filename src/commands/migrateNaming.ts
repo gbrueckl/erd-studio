@@ -174,11 +174,8 @@ async function runMigration(deps: MigrateNamingDeps): Promise<MigrateNamingOutco
   plan = again;
 
   const edit = new vscode.WorkspaceEdit();
-  const newFolders = new Set<string>();
   for (const move of plan.moves) {
     const to = abs(move.to);
-    for (let dir = path.dirname(to); dir.length > semanticRoot.length && !fs.existsSync(dir); dir = path.dirname(dir)) newFolders.add(dir);
-    fs.mkdirSync(path.dirname(to), { recursive: true });
     if (move.text === undefined) {
       edit.renameFile(vscode.Uri.file(abs(move.from)), vscode.Uri.file(to), { overwrite: false });
     } else {
@@ -194,6 +191,15 @@ async function runMigration(deps: MigrateNamingDeps): Promise<MigrateNamingOutco
     // VS Code keeps a BOM out of the document's text (and writes it back on save).
     edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), rewrite.text.replace(/^\uFEFF/, ''));
     docs.push(doc);
+  }
+
+  // The target folders are made only now, once nothing above can throw, so a
+  // failure while building the edit leaves no empty `tables/` behind.
+  const newFolders = new Set<string>();
+  for (const move of plan.moves) {
+    const to = abs(move.to);
+    for (let dir = path.dirname(to); dir.length > semanticRoot.length && !fs.existsSync(dir); dir = path.dirname(dir)) newFolders.add(dir);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
   }
 
   // Released (once) before the canvases redraw, or if anything throws first.

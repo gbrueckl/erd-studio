@@ -84,7 +84,8 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
     }
 
     // A `tables/` copy of a name `logical-models/` also has (#181): reported, with no fix to offer.
-    if (element.shadowedBy && element.library) {
+    // A duplicate within `tables/` itself (#182) is an ordinary one, below.
+    if (element.shadowedBy && element.library && this.isInV5Library(element.shadowedBy)) {
       const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
       item.contextValue = 'logicalModelReadOnly';
       item.iconPath = new vscode.ThemeIcon('error');
@@ -215,6 +216,12 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  /** Whether `filePath` is in `logical-models/` (the v5 library). */
+  private isInV5Library(filePath: string): boolean {
+    const rel = path.relative(path.resolve(this.tableLibraryService.getTablesDir()), path.resolve(filePath));
+    return !rel.startsWith('..') && !path.isAbsolute(rel);
+  }
 
   /** A model whose file needs fixing: marked, explained, and opened at the line. */
   private fileErrorItem(

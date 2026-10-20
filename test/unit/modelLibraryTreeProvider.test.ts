@@ -417,6 +417,18 @@ describe('TableLibraryTreeProvider', () => {
       expect(items[0].tooltip).toContain('Keep one of the two files');
     });
 
+    it('treats a duplicate within tables/ as an ordinary duplicate, with the fix offered (#182)', () => {
+      const V6 = '/project/.erd-studio/tables';
+      const p = build([
+        { name: 'dim_a', folder: '', library: 'tables', filePath: `${V6}/dim_a.yml` },
+        { name: 'dim_a', folder: 'gold', library: 'tables', filePath: `${V6}/gold/dim_a.yml`, shadowedBy: `${V6}/dim_a.yml` },
+      ]);
+      const gold = folders(p.getChildren() as TableLibraryNode[]).find((f) => f.folder === 'gold')!;
+      const item = p.getTreeItem(gold.children[0]);
+      expect(item.contextValue).toBe('logicalModelDuplicate');
+      expect(item.description).toBe('(duplicate — ignored)');
+    });
+
     it('renders a folder unknown to layers.json with its folder name and an uncoloured icon', () => {
       const p = build([entry('a', 'scratch')]);
       const [scratch] = folders(p.getChildren());

@@ -5115,7 +5115,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         layer: (parsed.layer as string | undefined) ?? '',
         modelFolder: (name) => this.tableLibraryService.tableFolder(name),
         tableLibraryFile: (name) => this.tableLibraryService.tableLibraryFile(name),
-        newTableLibraryDir: this.tableLibraryService.writesTableNaming() ? 'tables' : 'logical-models',
+        newTableLibraryDir: this.tableLibraryService.newTableLibraryDirName(),
       });
 
       const totalActions = countSyncPlanActions(syncPlan);

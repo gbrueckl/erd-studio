@@ -32,7 +32,8 @@ export function subjectAreaFormatsIn(semanticRoot: string, tablesIsLibrary: bool
     for (const file of files) {
       if (!file.endsWith('.json') || file.startsWith('.')) continue;
       try {
-        formats.push(detectSubjectAreaFormat(JSON.parse(fs.readFileSync(path.join(semanticRoot, dir.name, file), 'utf-8'))));
+        // A BOM is no reason to ignore a file: the migration planner reads it too.
+        formats.push(detectSubjectAreaFormat(JSON.parse(fs.readFileSync(path.join(semanticRoot, dir.name, file), 'utf-8').replace(/^\uFEFF/, ''))));
       } catch {
         // Not readable JSON: says nothing about the naming.
       }

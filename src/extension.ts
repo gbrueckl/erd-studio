@@ -1000,7 +1000,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const refreshContextKeys = (): void => {
     void vscode.commands.executeCommand('setContext', 'erdStudio.hasSemanticDir', fs.existsSync(fullSemanticDirPath));
-    void vscode.commands.executeCommand('setContext', 'erdStudio.hasLogicalModelsDir', tableLibraryService.dirExists());
+    // A project that writes the v6 naming (#182) makes `tables/` with its first
+    // table, so the view shows from setup on, not only once a table exists.
+    void vscode.commands.executeCommand('setContext', 'erdStudio.hasLogicalModelsDir',
+      tableLibraryService.dirExists() || (fs.existsSync(fullSemanticDirPath) && tableLibraryService.writesTableNaming()));
     refreshDiagramsStatus();
   };
   refreshContextKeys();
@@ -1510,8 +1513,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Prompted, one WorkspaceEdit, one undo step.
     vscode.commands.registerCommand('erdStudio.resolveDuplicateModel', async (arg?: TableLibraryNode | string) => {
       const entries = tableLibraryService.listTableFiles();
-      // A file in v6's tables/ (#162) is never renamed here: this version does not write it.
-      const duplicates = entries.filter((e) => e.shadowedBy && !e.library);
+      // A duplicate within one library (#182: `tables/` too). A `tables/` copy of a
+      // name `logical-models/` also has is the migration's conflict, not fixed here (#181).
+      const duplicates = entries.filter((e) => e.shadowedBy && (!e.library || tableLibraryService.isTableNamingFile(e.shadowedBy)));
       const target = typeof arg === 'string' ? arg : arg?.type === 'model' ? arg.filePath : undefined;
       // Compare real paths: the tree hands over what the library listed, but a
       // warning or a caller may name the same file through a symlinked prefix.
@@ -1584,8 +1588,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const v6 = detectSubjectAreaFormat(raw) === 'v6';
         const parsed = v6 ? normaliseSubjectAreaDocument(raw) : raw;
         if (!repointSubjectAreaTable(parsed, dup.name, newName)) continue;
-        const next = rewriteJsonScalars(text, v6 ? toTableNamingDocument(parsed) : parsed)
-          ?? JSON.stringify(v6 ? toTableNamingDocument(parsed) : parsed, null, 2) + '\n';
+        const fileObject = v6 ? toTableNamingDocument(parsed) : parsed;
+        const next = rewriteJsonScalars(text, fileObject) ?? JSON.stringify(fileObject, null, 2) + '\n';
         edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(text.length)), next);
         domainDocs.push(doc);
       }

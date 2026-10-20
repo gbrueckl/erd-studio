@@ -456,6 +456,11 @@ export class TableLibraryService {
     return this.writesTableNaming() && !tablesDirIsLayer(this.semanticRoot) ? this.v6TablesDir : this.tablesDir;
   }
 
+  /** The folder name (`tables` or `logical-models`) new table files are created in, as sync plans report it. */
+  newTableLibraryDirName(): string {
+    return this.newTablesDir() === this.v6TablesDir ? TABLES_DIR : LOGICAL_MODELS_DIR;
+  }
+
   /** Every table name with a file in both `logical-models/` and `tables/`, ignoring case. */
   tableNamingConflicts(): TableNamingConflict[] {
     return this.listTableFiles()
