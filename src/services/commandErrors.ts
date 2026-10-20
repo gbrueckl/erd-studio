@@ -149,7 +149,8 @@ export function describeDiagramFileProblem(err: unknown, filePath: string, shown
   if (err instanceof SubjectAreaValidationError) {
     // Core's sentence names the file by its absolute path.
     const reason = redactPaths(err.message.split(filePath).join(shown)).replace(/\.\s*$/, '');
-    return { reason, openable: true };
+    // A file from a newer ERD Studio is fine; editing it is not the fix.
+    return { reason, openable: !/update the extension/i.test(err.message) };
   }
   return undefined;
 }

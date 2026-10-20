@@ -890,6 +890,8 @@ export class TableLibraryService {
     // when that key is `name:` and so points the write at another file (#164).
     const warning = tableLoadWarningOf(model);
     if (warning) {
+      // No location: `loadEditableDocument` refuses `filePath` itself when it
+      // holds the duplicate, so the warning's line is in another file (#189).
       throw new DuplicateKeyWriteRefused(
         `Can't change "${model.name}": ${warning.key ? `"${warning.key}"` : 'a key'} is written twice in one block of its table file ` +
           `(line ${warning.line}). Remove one copy, then try again.`,

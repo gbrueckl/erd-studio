@@ -146,6 +146,37 @@ describe('Draw from dbt — a failure that is ERD Studio\'s', () => {
     expect((inputBox.mock.calls[1][0] as vscode.InputBoxOptions).value).toBe('orders');
   });
 
+  it('a Try Again that fails again says so, rather than seeming to do nothing', async () => {
+    shown.mockResolvedValueOnce(TRY_AGAIN_BUTTON as never);
+    const d = deps();
+    d.subjectAreaService.countSubjectAreaFileRelationships = () => { throw new Error('first'); };
+    let loads = 0;
+    d.loadDbt = async () => { if (loads++ > 0) throw new Error('manifest went away'); return {}; };
+
+    await drawFromDbt(d);
+
+    await vi.waitFor(() => expect(toasts()).toHaveLength(2));
+    expect(toasts()[1]).toEqual({
+      message: "Draw from dbt hit a problem in ERD Studio while running Try Again, so nothing was changed. This isn't something you did. Please send us a report.",
+      buttons: ['Send Feedback'],
+    });
+  });
+
+  it('a new project: a failed draw also removes the .erd-studio folder it created', async () => {
+    fs.rmSync(path.join(tmp, '.erd-studio'), { recursive: true, force: true });
+    vi.spyOn(lms, 'saveTable').mockImplementation(() => { throw fsError('ENOSPC', path.join(tmp, 'x')); });
+    const d = deps();
+    d.layerService.saveConfig = async () => {
+      fs.mkdirSync(path.join(tmp, '.erd-studio'), { recursive: true });
+      fs.writeFileSync(path.join(tmp, '.erd-studio', 'layers.json'), '{}');
+    };
+
+    await drawFromDbt(d);
+
+    expect(fs.existsSync(path.join(tmp, '.erd-studio'))).toBe(false);
+    expect(toasts()[0].message).toMatch(/Nothing was changed\.$/);
+  });
+
   it('saving the diagram: an unknown error is ours, and nothing is left behind', async () => {
     const save = lms.saveTable.bind(lms);
     vi.spyOn(lms, 'saveTable').mockImplementation((model, folder) => {

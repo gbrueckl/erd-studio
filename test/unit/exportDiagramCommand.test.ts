@@ -434,6 +434,13 @@ describe('errors', () => {
     expect(ui.errorButtons).toEqual([[OPEN_FILE_BUTTON]]);
   });
 
+  it('a diagram file from a newer ERD Studio offers nothing to open: editing it is not the fix', async () => {
+    const ui = fakeUi({ format: 'dbml', action: 'copy' });
+    const err = new SubjectAreaValidationError('This file uses schema version 99. Please update the extension.');
+    await exportDiagramCommand(deps(ui, { exportDomain: vi.fn(async () => { throw err; }) }).deps, SUBJECT_AREA);
+    expect(ui.errorButtons).toEqual([[]]);
+  });
+
   it('a diagram file that is gone offers nothing to open', async () => {
     const ui = fakeUi({ format: 'dbml', action: 'copy' });
     const err = new SubjectAreaFileError('missing', SUBJECT_AREA, `Subject area file not found: ${SUBJECT_AREA}`);

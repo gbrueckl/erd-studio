@@ -137,9 +137,14 @@ function showErrorWithActions(message: string, actions: Readonly<Record<string, 
   void vscode.window.showErrorMessage(message, ...Object.keys(actions)).then((choice) => {
     const action = choice ? actions[choice] : undefined;
     if (!action) return;
+    // A button that fails (a re-run whose dbt read throws) still says so, rather than seeming to do nothing.
     void Promise.resolve()
       .then(action)
-      .catch((err) => console.error(`[ERD Studio] ${TITLE}: "${choice}" failed:`, err));
+      .catch((err) => {
+        console.error(`[ERD Studio] ${TITLE}: "${choice}" failed:`, err);
+        const doing = `while running ${choice}`;
+        showErrorWithActions(oursMessage(TITLE, doing, 'nothing was changed'), { [SEND_FEEDBACK_BUTTON]: sendFeedback(doing, err) });
+      });
   });
 }
 
@@ -292,8 +297,12 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps, resume?: DrawFromDbtResume)
   const before = new Map<string, string>();
   // Asked before any table file lands: the diagram is written in the naming the project writes (#182).
   const tableNaming = tableLibraryService.writesTableNaming();
+  // Folders the draw creates, removed again if it fails (a new project's layers.json with them).
+  const semanticRoot = path.join(workspaceRoot, semanticDir);
+  const createdRoot = !fs.existsSync(semanticRoot);
+  const createdLayerDir = !fs.existsSync(layerDir);
   try {
-    if (!fs.existsSync(path.join(workspaceRoot, semanticDir))) {
+    if (createdRoot) {
       await layerService.saveConfig(layerService.getAllLayers());
     }
     fs.mkdirSync(layerDir, { recursive: true });
@@ -333,6 +342,11 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps, resume?: DrawFromDbtResume)
     for (const [modelPath, text] of before) {
       try { fs.writeFileSync(modelPath, text, 'utf-8'); ownWrites.recordWrite(modelPath); } catch { undone = false; }
     }
+    if (undone && createdRoot) {
+      try { fs.rmSync(semanticRoot, { recursive: true, force: true }); } catch { undone = false; }
+    } else if (undone && createdLayerDir) {
+      try { fs.rmdirSync(layerDir); } catch { /* not empty, or never made: leave it */ }
+    }
     // EEXIST from the diagram's own exclusive write: the name was taken since it was checked.
     const exists = !domainWritten && err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST'
       && failedPath(err) === domainPath;
@@ -340,12 +354,13 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps, resume?: DrawFromDbtResume)
       nameTaken();
       return undefined;
     }
-    telemetry.error('drawWriteFailed');
     const outcome = undone ? 'Nothing was changed.' : `Some files in ${semanticDir}/ may already have changed.`;
+    // A refusal is explained, not a failure, so it is not counted (as on the canvas).
     if (isRefusedWrite(err)) {
       showRefusal(err, outcome);
       return undefined;
     }
+    telemetry.error('drawWriteFailed');
     const failure = classifyWriteFailure(err);
     if (failure === 'other') {
       const doing = 'while saving the diagram';
