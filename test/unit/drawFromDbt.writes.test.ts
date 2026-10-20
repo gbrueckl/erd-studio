@@ -110,15 +110,16 @@ describe('Draw from dbt — model files it rewrites', () => {
     expect(text.replace(/\r\n/g, '')).not.toMatch(/\n/);
   });
 
-  it('names what failed when it cannot read the library to plan the diagram, and writes nothing', async () => {
+  it('says it is ERD Studio\'s problem when it cannot read the library to plan the diagram, and writes nothing', async () => {
     const error = vi.spyOn(vscode.window, 'showErrorMessage');
     const d = deps();
     d.subjectAreaService.countSubjectAreaFileRelationships = () => { throw new Error('EACCES: permission denied, scandir'); };
 
     await expect(drawFromDbt(d)).resolves.toBeUndefined();
 
+    // The raw error goes to Send Feedback's report, never the toast (#189).
     expect(error.mock.calls.map((c) => String(c[0]))).toEqual([
-      'Draw from dbt could not read the Table Library to plan the diagram: EACCES: permission denied, scandir. Nothing was changed.',
+      "Draw from dbt hit a problem in ERD Studio while reading your Table Library, so nothing was changed. This isn't something you did. Please send us a report.",
     ]);
     expect(fs.readFileSync(fctPath, 'utf-8')).toBe(FCT_ORDER);
     expect(lms.tableExists('dim_customer')).toBe(false);

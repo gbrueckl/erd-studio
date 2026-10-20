@@ -257,14 +257,27 @@ const BLANK_LINE = /\n[ \t]*\r?\n/;
 // ---------------------------------------------------------------------------
 
 /**
+ * Where a refused write's file is, when the refusal knows it (#189): the
+ * absolute path, and the 1-based line to put the cursor on. A command that
+ * shows the refusal offers Open File with it.
+ */
+export interface RefusedFileLocation {
+  filePath: string;
+  line?: number;
+}
+
+/**
  * A model file's `relationships:` list that cannot be rewritten in place
  * (not a list, an alias, an entry the reader cannot use): the edit is refused,
  * naming file and line, rather than lose what is written there.
  */
 export class RelationshipsRewriteRefused extends Error {
-  constructor(message: string) {
+  readonly location?: RefusedFileLocation;
+
+  constructor(message: string, location?: RefusedFileLocation) {
     super(message);
     this.name = 'RelationshipsRewriteRefused';
+    if (location) this.location = location;
   }
 }
 
@@ -274,9 +287,12 @@ export class RelationshipsRewriteRefused extends Error {
  * first copy, which nothing reads. The edit is refused, naming file and line.
  */
 export class DuplicateKeyWriteRefused extends Error {
-  constructor(message: string) {
+  readonly location?: RefusedFileLocation;
+
+  constructor(message: string, location?: RefusedFileLocation) {
     super(message);
     this.name = 'DuplicateKeyWriteRefused';
+    if (location) this.location = location;
   }
 }
 
@@ -287,9 +303,12 @@ export class DuplicateKeyWriteRefused extends Error {
  * user's call: refused, by file and key.
  */
 export class TableNamingWriteRefused extends Error {
-  constructor(message: string) {
+  readonly location?: RefusedFileLocation;
+
+  constructor(message: string, location?: RefusedFileLocation) {
     super(message);
     this.name = 'TableNamingWriteRefused';
+    if (location) this.location = location;
   }
 }
 
@@ -321,7 +340,7 @@ function usesTableNamingKeys(root: YAMLMap): boolean {
  * this service manages, `toV6` after, so a v6 file is written in v6. Throws
  * {@link TableNamingWriteRefused} for a map holding a key in both namings.
  */
-function renameNamingKeys(root: YAMLMap, direction: 'toV5' | 'toV6', file: string): void {
+function renameNamingKeys(root: YAMLMap, direction: 'toV5' | 'toV6', file: string, filePath?: string): void {
   for (const { map, keys } of namingMaps(root)) {
     for (const [v5, v6] of Object.entries(keys)) {
       const [from, to] = direction === 'toV5' ? [v6, v5] : [v5, v6];
@@ -330,6 +349,7 @@ function renameNamingKeys(root: YAMLMap, direction: 'toV5' | 'toV6', file: strin
       if (map.items.some((p) => keyIs(p, to))) {
         throw new TableNamingWriteRefused(
           `${file} holds both "${v5}" and "${v6}", so ERD Studio cannot tell which one to change. Remove "${v5}" (only "${v6}" is read), then try again.`,
+          filePath ? { filePath } : undefined,
         );
       }
       if (isScalar(pair.key)) setScalarValue(pair.key, to);
@@ -880,9 +900,9 @@ export class TableLibraryService {
       // A v6 file (#182) — in `tables/`, or using a v6 key — is edited under
       // the keys this service manages and written back in v6.
       const v6 = this.isTableNamingFile(filePath) || (existing !== null && usesTableNamingKeys(doc.contents));
-      if (v6) renameNamingKeys(doc.contents, 'toV5', this.libraryRelativePath(filePath));
+      if (v6) renameNamingKeys(doc.contents, 'toV5', this.libraryRelativePath(filePath), filePath);
       this.applyTable(doc, doc.contents, model, filePath);
-      if (v6) renameNamingKeys(doc.contents, 'toV6', this.libraryRelativePath(filePath));
+      if (v6) renameNamingKeys(doc.contents, 'toV6', this.libraryRelativePath(filePath), filePath);
     }
     return keepLineEndings(doc.toString(STRINGIFY_OPTIONS), this.readExisting(filePath));
   }
@@ -1213,6 +1233,7 @@ export class TableLibraryService {
     return new DuplicateKeyWriteRefused(
       `${path.basename(filePath)}${line !== undefined ? `, line ${line}` : ''}: ${what}, so ERD Studio cannot change this file. ` +
         'Remove one copy, then try again.',
+      { filePath, ...(line !== undefined ? { line } : {}) },
     );
   }
 
@@ -1382,7 +1403,10 @@ export class TableLibraryService {
       const line = fs.readFileSync(filePath, 'utf-8').slice(0, offset).split('\n').length;
       const file = this.libraryRelativePath(filePath);
       this.onSyncRefused?.();
-      return new RelationshipsRewriteRefused(`${file}, line ${line}: ${why}, so ERD Studio cannot change it. Fix it by hand first.`);
+      return new RelationshipsRewriteRefused(
+        `${file}, line ${line}: ${why}, so ERD Studio cannot change it. Fix it by hand first.`,
+        { filePath, line },
+      );
     };
     if (!isSeq(list)) {
       if (desired.length === 0) return; // nothing was read from it, so nothing changed

@@ -27,16 +27,30 @@ import {
   type DbtDraft,
   type DraftSkipped,
 } from '../services/dbtDraft';
-import { pickDraftScope } from '../providers/dbtDraftPicker';
+import { pickDraftScope, type DraftScopePick } from '../providers/dbtDraftPicker';
+import { openTableFileAt } from './openModelFile';
 import { dirtyFiles } from '../providers/dirtyDocuments';
 import { drawnDiagramCopies, routeToLibrary, usesLibraryRelationships } from '../services/libraryRelationships';
 import { readSubjectAreaRelationships } from './moveRelationshipsToLibrary';
+import {
+  SEND_FEEDBACK_BUTTON,
+  classifyWriteFailure,
+  failedPath,
+  feedbackPrefill,
+  oursMessage,
+  projectRelative,
+} from '../services/commandErrors';
 import { ownWrites } from '../services/ownWriteTracker';
 import { SUBJECT_AREA_EDITOR_VIEW_TYPE } from '../services/recoveryService';
 import { telemetry } from '../services/telemetryService';
 import type { SubjectAreaService } from '../services/domainService';
 import type { LayerService } from '../services/layerService';
-import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused, type TableLibraryService } from '../services/logicalModelService';
+import {
+  DuplicateKeyWriteRefused,
+  RelationshipsRewriteRefused,
+  TableNamingWriteRefused,
+  type TableLibraryService,
+} from '../services/logicalModelService';
 import type { CatalogData } from '../types/catalog';
 import type { ManifestData } from '../types/manifest';
 import type { YmlData } from '../types/ymlData';
@@ -54,6 +68,8 @@ const TITLE = 'Draw from dbt';
 export const NO_DBT_MODELS_MESSAGE =
   'No dbt models with columns found. Draw from dbt reads the columns listed in your schema .yml files — ' +
   'add columns: to your models there, then try again.';
+
+export const NO_LAYERS_MESSAGE = 'No layers are configured for new diagrams. Add a layer first.';
 
 export interface DrawFromDbtDeps {
   workspaceRoot: string;
@@ -74,6 +90,25 @@ export interface DrawFromDbtDeps {
   onWritten: (written: { domainPath: string; modelNames: string[] }) => void;
 }
 
+/**
+ * Where Try Again and Choose Another Name re-enter the flow (#189): at the
+ * name step, with the models and layer the user already chose, so a failed
+ * draw never costs them their selection.
+ */
+export interface DrawFromDbtResume {
+  pick: DraftScopePick;
+  layer: string;
+  /** The name to offer again (Try Again); the suggested one when absent. */
+  name?: string;
+}
+
+export const ADD_LAYER_BUTTON = 'Add Layer';
+export const SHOW_FILE_BUTTON = 'Show File';
+export const OPEN_FILE_BUTTON = 'Open File';
+export const TRY_AGAIN_BUTTON = 'Try Again';
+export const OPEN_IT_BUTTON = 'Open It';
+export const CHOOSE_ANOTHER_NAME_BUTTON = 'Choose Another Name';
+
 export interface DrawFromDbtResult {
   domainPath: string;
   draft: DbtDraft;
@@ -84,17 +119,36 @@ export interface DrawFromDbtResult {
  * nothing to draw, or when a write fails (each case has already said so).
  * Anything that throws is counted and rethrown.
  */
-export async function drawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult | undefined> {
+export async function drawFromDbt(deps: DrawFromDbtDeps, resume?: DrawFromDbtResume): Promise<DrawFromDbtResult | undefined> {
   telemetry.feature('drawStarted');
   try {
-    return await runDrawFromDbt(deps);
+    return await runDrawFromDbt(deps, resume);
   } catch (err) {
     telemetry.error('drawFromDbtFailed');
     throw err;
   }
 }
 
-async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult | undefined> {
+/**
+ * Show an error with its buttons, and run the one the user picks. Never
+ * awaited: the command resolves while the toast is still up.
+ */
+function showErrorWithActions(message: string, actions: Readonly<Record<string, () => unknown>>): void {
+  void vscode.window.showErrorMessage(message, ...Object.keys(actions)).then((choice) => {
+    const action = choice ? actions[choice] : undefined;
+    if (!action) return;
+    void Promise.resolve()
+      .then(action)
+      .catch((err) => console.error(`[ERD Studio] ${TITLE}: "${choice}" failed:`, err));
+  });
+}
+
+/** Send Feedback, prefilled with the redacted failure: for a failure that is ours. */
+function sendFeedback(doing: string, err: unknown): () => unknown {
+  return () => vscode.commands.executeCommand('erdStudio.reportBug', feedbackPrefill(TITLE, doing, err));
+}
+
+async function runDrawFromDbt(deps: DrawFromDbtDeps, resume?: DrawFromDbtResume): Promise<DrawFromDbtResult | undefined> {
   const { workspaceRoot, semanticDir, layerService, subjectAreaService, tableLibraryService } = deps;
 
   const { ymlData, manifest, catalog } = await vscode.window.withProgress(
@@ -112,7 +166,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     void vscode.window.showInformationMessage(NO_DBT_MODELS_MESSAGE);
     return undefined;
   }
-  const pick = await pickDraftScope(listDraftScopes(source), { models, title: TITLE });
+  const pick = resume?.pick ?? await pickDraftScope(listDraftScopes(source), { models, title: TITLE });
   if (!pick) { telemetry.feature('drawCancelScope'); return undefined; }
 
   // Layer: the one the dbt folder names (marts → gold, …) when it is a layer
@@ -120,10 +174,13 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   const creatable = layerService.getCreatableLayers();
   if (creatable.length === 0) {
     telemetry.feature('drawNoLayers');
-    void vscode.window.showErrorMessage('No layers are configured for new diagrams. Add a layer first.');
+    showErrorWithActions(NO_LAYERS_MESSAGE, {
+      [ADD_LAYER_BUTTON]: () => vscode.commands.executeCommand('erdStudio.addLayer'),
+    });
     return undefined;
   }
-  let layer = creatable.find((l) => l.id === pick.scope.suggestedLayer)?.id;
+  let layer = creatable.find((l) => l.id === resume?.layer)?.id
+    ?? creatable.find((l) => l.id === pick.scope.suggestedLayer)?.id;
   if (!layer && creatable.length === 1) { layer = creatable[0].id; }
   if (!layer) {
     const choice = await vscode.window.showQuickPick(
@@ -141,7 +198,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   const name = await vscode.window.showInputBox({
     title: TITLE,
     prompt: `Name the diagram. It is saved in the ${layerLabel} layer.`,
-    value: suggested,
+    value: resume?.name ?? suggested,
     ignoreFocusOut: true,
     validateInput: (value: string) => deps.validateDomainName(value, chosenLayer),
   });
@@ -163,8 +220,16 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
 
   const layerDir = path.join(workspaceRoot, semanticDir, chosenLayer);
   const domainPath = path.join(layerDir, `${slug}.json`);
+  const again: DrawFromDbtResume = { pick, layer: chosenLayer, name: slug };
+  const tryAgain = (): unknown => drawFromDbt(deps, again);
+  // The name box already refuses a name in use; this is a diagram that
+  // appeared since (another window, git), so the choices are kept.
+  const nameTaken = (): void => showErrorWithActions(`A diagram named "${slug}" already exists in the ${layerLabel} layer.`, {
+    [OPEN_IT_BUTTON]: () => vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(domainPath), SUBJECT_AREA_EDITOR_VIEW_TYPE),
+    [CHOOSE_ANOTHER_NAME_BUTTON]: () => drawFromDbt(deps, { pick, layer: chosenLayer }),
+  });
   if (fs.existsSync(domainPath)) {
-    void vscode.window.showErrorMessage(`A diagram named "${slug}" already exists in the ${layerLabel} layer.`);
+    nameTaken();
     return undefined;
   }
 
@@ -197,28 +262,34 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     // is on disk rather than after.
     for (const model of routed.changed) tableLibraryService.serializeTable(model);
   } catch (err) {
-    if (err instanceof DuplicateKeyWriteRefused || err instanceof RelationshipsRewriteRefused) {
-      void vscode.window.showErrorMessage(`${TITLE}: ${err.message} Nothing was changed.`);
+    if (isRefusedWrite(err)) {
+      showRefusal(err, 'Nothing was changed.');
       return undefined;
     }
     telemetry.error('drawFromDbtFailed');
-    void vscode.window.showErrorMessage(
-      `${TITLE} could not read the Table Library to plan the diagram: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`,
-    );
+    const doing = 'while reading your Table Library';
+    showErrorWithActions(oursMessage(TITLE, doing, 'nothing was changed'), {
+      [SEND_FEEDBACK_BUTTON]: sendFeedback(doing, err),
+      [TRY_AGAIN_BUTTON]: tryAgain,
+    });
     return undefined;
   }
   if (dirty.length > 0) {
     const libraryRoot = path.dirname(tableLibraryService.getTablesDir());
     const file = path.relative(libraryRoot, dirty[0]).split(path.sep).join('/');
-    void vscode.window.showErrorMessage(
-      `${TITLE}: ${file} has unsaved changes. Save or revert it, then try again. Nothing was changed.`,
-    );
+    const dirtyPath = dirty[0];
+    showErrorWithActions(`${TITLE}: ${file} has unsaved changes. Save or revert it, then try again. Nothing was changed.`, {
+      [SHOW_FILE_BUTTON]: () => vscode.window.showTextDocument(vscode.Uri.file(dirtyPath)),
+    });
     return undefined;
   }
 
   // Writes start here. A project with no ERD folder yet gets the default
   // layers.json first, exactly as Set Up Semantic Domains Directory writes it.
   const written: string[] = [];
+  let domainWritten = false;
+  // What each existing library file held before the draw changed it, to put back on failure.
+  const before = new Map<string, string>();
   // Asked before any table file lands: the diagram is written in the naming the project writes (#182).
   const tableNaming = tableLibraryService.writesTableNaming();
   try {
@@ -240,22 +311,57 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
       relationships: routed.kept,
     });
     fs.writeFileSync(domainPath, serializeDraftSubjectAreaDocument(doc, tableNaming), { encoding: 'utf-8', flag: 'wx' });
+    domainWritten = true;
     ownWrites.recordWrite(domainPath);
     // Existing library models that gained a relationship, once the diagram is on disk.
     for (const model of routed.changed) {
-      if (!draft.newModels.includes(model)) tableLibraryService.saveTable(model);
+      if (draft.newModels.includes(model)) continue;
+      const modelPath = tableLibraryService.tablePath(model.name);
+      if (fs.existsSync(modelPath)) before.set(modelPath, fs.readFileSync(modelPath, 'utf-8'));
+      tableLibraryService.saveTable(model);
     }
   } catch (err) {
-    // Leave no orphan model files behind a domain that was never written.
+    // Leave nothing behind: no orphan model files, no diagram naming models
+    // that were just removed, no library file half way through the draw.
+    let undone = true;
     for (const modelName of written) {
-      try { tableLibraryService.deleteTable(modelName); } catch { /* best effort */ }
+      try { tableLibraryService.deleteTable(modelName); } catch { undone = false; }
     }
-    const exists = err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST';
-    if (!exists) { telemetry.error('drawWriteFailed'); }
-    const msg = exists
-      ? `A diagram named "${slug}" already exists in the ${layerLabel} layer.`
-      : `${TITLE} could not write the diagram: ${err instanceof Error ? err.message : String(err)}`;
-    void vscode.window.showErrorMessage(msg);
+    if (domainWritten) {
+      try { fs.unlinkSync(domainPath); ownWrites.recordDelete(domainPath); } catch { undone = false; }
+    }
+    for (const [modelPath, text] of before) {
+      try { fs.writeFileSync(modelPath, text, 'utf-8'); ownWrites.recordWrite(modelPath); } catch { undone = false; }
+    }
+    // EEXIST from the diagram's own exclusive write: the name was taken since it was checked.
+    const exists = !domainWritten && err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST'
+      && failedPath(err) === domainPath;
+    if (exists) {
+      nameTaken();
+      return undefined;
+    }
+    telemetry.error('drawWriteFailed');
+    const outcome = undone ? 'Nothing was changed.' : `Some files in ${semanticDir}/ may already have changed.`;
+    if (isRefusedWrite(err)) {
+      showRefusal(err, outcome);
+      return undefined;
+    }
+    const failure = classifyWriteFailure(err);
+    if (failure === 'other') {
+      const doing = 'while saving the diagram';
+      const ours = undone ? 'nothing was changed' : `some files in ${semanticDir}/ may already have changed`;
+      showErrorWithActions(oursMessage(TITLE, doing, ours), {
+        [SEND_FEEDBACK_BUTTON]: sendFeedback(doing, err),
+        [TRY_AGAIN_BUTTON]: tryAgain,
+      });
+      return undefined;
+    }
+    const failedAt = failedPath(err);
+    const folder = failedAt ? projectRelative(workspaceRoot, path.dirname(failedAt)) : `${semanticDir}/${chosenLayer}`;
+    const why = failure === 'permission'
+      ? `ERD Studio isn't allowed to write to ${folder}/. Check the folder's permissions, then try again.`
+      : 'the disk is full. Free up some space, then try again.';
+    showErrorWithActions(`${TITLE} couldn't save the diagram: ${why} ${outcome}`, { [TRY_AGAIN_BUTTON]: tryAgain });
     return undefined;
   }
 
@@ -267,6 +373,22 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   const notice = describeDraftNotice(draft);
   if (notice) { void vscode.window.showInformationMessage(notice); }
   return { domainPath, draft };
+}
+
+/** A write refused because of what is in the user's file, which names file and line. */
+type RefusedWrite = DuplicateKeyWriteRefused | RelationshipsRewriteRefused | TableNamingWriteRefused;
+
+function isRefusedWrite(err: unknown): err is RefusedWrite {
+  return err instanceof DuplicateKeyWriteRefused || err instanceof RelationshipsRewriteRefused
+    || err instanceof TableNamingWriteRefused;
+}
+
+/** The refusal's own sentence, with Open File when it knows the file. */
+function showRefusal(err: RefusedWrite, outcome: string): void {
+  const location = err.location;
+  showErrorWithActions(`${TITLE}: ${err.message} ${outcome}`, location
+    ? { [OPEN_FILE_BUTTON]: () => openTableFileAt(location.filePath, location.line) }
+    : {});
 }
 
 /** The one-line note after drawing — only when something was left out. */

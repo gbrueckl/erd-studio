@@ -1413,6 +1413,8 @@ describe('erdStudio.exportDiagram', () => {
 
     await vscode.commands.executeCommand('erdStudio.exportDiagram', vscode.Uri.file(path.join(root, '.erd-studio', 'silver', 'missing.json')));
 
-    expect(shown).toHaveBeenCalledWith(expect.stringMatching(/^Could not export the diagram: /));
+    expect(shown).toHaveBeenCalledWith(
+      ".erd-studio/silver/missing.json can't be exported because the diagram file has a problem: it was deleted or renamed.",
+    );
   });
 });
