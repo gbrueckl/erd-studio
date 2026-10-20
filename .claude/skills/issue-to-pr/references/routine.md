@@ -30,6 +30,7 @@ to the repo, so only someone who can label issues can start a run.
 | 6 Video | always | Best effort, as described under "The video in a routine". |
 | 7 PR, comment | `gh pr create`, `gh issue comment` | REST only, as described under "GitHub from the sandbox". |
 | 8 Merge | on the user's say-so | **Never.** A routine never merges, closes issues or pushes to `develop`/`main`. |
+| 7 Confluence follow-up | issue in erd-studio-pro | The sandbox can't reach the private repo. Put the issue text in the PR body under "Confluence follow-up needed" (`cross-repo.md` A); the product-manager routine raises it. |
 
 ### Untrusted text
 
