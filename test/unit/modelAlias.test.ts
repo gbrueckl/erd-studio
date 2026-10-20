@@ -221,6 +221,8 @@ describe('TableLibraryService: alias in the model file', () => {
   let lms: TableLibraryService;
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-alias-'));
+    // A v5 project: its library folder exists (a project with none writes v6, #182).
+    fs.mkdirSync(path.join(dir, '.erd-studio', 'logical-models'), { recursive: true });
     lms = new TableLibraryService(dir);
   });
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));

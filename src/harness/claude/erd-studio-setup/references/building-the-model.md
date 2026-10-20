@@ -12,6 +12,13 @@ from `inventory --models` output. Anything you had to guess is marked "(draft)" 
 
 ## Which files to write
 
+**File naming first.** Doctor's `erd.naming` says which names this project writes. This page uses
+the v5 names (`logical-models/`, `"domain"`, `logical.models`, `fromModel` / `toModel`,
+`modelRole`). When `naming` is `v6` or `mixed` — and in a project with no `.erd-studio/` yet —
+write the v6 names instead (`tables/`, `"subjectArea"`, `logical.tables`, `fromTable` /
+`toTable`, `tableRole`, `"schemaVersion": 6`), exactly as the schema skill's "File naming"
+section maps them. Never mix the two in one file.
+
 | File | Write it when |
 |---|---|
 | `.erd-studio/layers.json` | It does not exist and the chosen layer is not `silver` or `gold` (e.g. `bronze` or `core`), or it exists and lacks the chosen layer |

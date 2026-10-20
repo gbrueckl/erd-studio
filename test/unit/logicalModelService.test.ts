@@ -16,8 +16,10 @@ import type { SemanticTable } from '../../src/types/semantic';
 // Test helpers
 // ---------------------------------------------------------------------------
 
+/** A v5 project: its `logical-models/` folder exists, so new tables go there (a project with no library folder writes v6, #182). */
 function createTempWorkspace(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-test-'));
+  fs.mkdirSync(path.join(dir, '.erd-studio', 'logical-models'), { recursive: true });
   return dir;
 }
 
@@ -51,6 +53,7 @@ describe('TableLibraryService', () => {
 
   describe('directory management', () => {
     it('reports dirExists as false when logical-models/ does not exist', () => {
+      fs.rmSync(path.join(tempDir, '.erd-studio', 'logical-models'), { recursive: true });
       expect(service.dirExists()).toBe(false);
     });
 
@@ -731,6 +734,7 @@ describe('TableLibraryService layer folders', () => {
 
   describe('groupsByFolder (layer folders are opt-in)', () => {
     it('is true when logical-models/ does not exist', () => {
+      fs.rmSync(modelsDir, { recursive: true });
       expect(fs.existsSync(modelsDir)).toBe(false);
       expect(service.groupsByFolder()).toBe(true);
     });
@@ -837,7 +841,7 @@ describe('TableLibraryService layer folders', () => {
       ['an unrelated absolute path', () => path.join(os.tmpdir(), 'erd-nowhere', 'x.yml')],
     ])('refuses %s', (_label, make) => {
       const target = make(tempDir);
-      expect(() => service.ensureDir(target)).toThrow(/outside the logical-models directory/);
+      expect(() => service.ensureDir(target)).toThrow(/outside the Table Library/);
       expect(fs.existsSync(path.dirname(target))).toBe(false);
     });
   });

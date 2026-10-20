@@ -80,7 +80,9 @@
       {
         "fileMatch": [
           "**/.erd-studio/logical-models/*.yml",
-          "**/.erd-studio/logical-models/*/*.yml"
+          "**/.erd-studio/logical-models/*/*.yml",
+          "**/.erd-studio/tables/*.yml",
+          "**/.erd-studio/tables/*/*.yml"
         ],
         "url": "./schemas/logical-model.schema.json"
       }
@@ -167,6 +169,11 @@
       {
         "command": "erdStudio.migrateToV5",
         "title": "Migrate Subject Areas to the Central Table Library",
+        "category": "ERD Studio"
+      },
+      {
+        "command": "erdStudio.migrateToTableNaming",
+        "title": "Migrate to the New File Naming",
         "category": "ERD Studio"
       },
       {
@@ -480,6 +487,11 @@
           "command": "erdStudio.moveRelationshipsToLibrary",
           "when": "view == erdStudio.modelLibrary",
           "group": "1_organise@1"
+        },
+        {
+          "command": "erdStudio.migrateToTableNaming",
+          "when": "view == erdStudio.modelLibrary",
+          "group": "1_organise@2"
         },
         {
           "command": "erdStudio.drawFromDbt",

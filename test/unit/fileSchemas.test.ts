@@ -15,7 +15,7 @@ import ts from 'typescript';
 import { parse as parseYaml } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-import { LIBRARY_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION, detectSubjectAreaFormat } from '../../packages/core/src/types/semantic';
+import { LIBRARY_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION, TABLE_NAMING_SCHEMA_VERSION, detectSubjectAreaFormat } from '../../packages/core/src/types/semantic';
 import { LAYERS_SCHEMA_VERSION } from '../../packages/core/src/types/layer';
 import { RATIONALE_KEYS } from '../../packages/core/src/logicalModel';
 import { VALID_CARDINALITIES } from '../../packages/core/src/domain';
@@ -61,6 +61,14 @@ function interfaceKeys(relFile: string, name: string): string[] {
   return decl.members.map((m) => (m.name as ts.Identifier).text).sort();
 }
 
+/** The schema v6 name of each key the table naming renames (#162, written since #182). */
+const V6_NAMES: Readonly<Record<string, string>> = {
+  domain: 'subjectArea', models: 'tables', fromModel: 'fromTable', toModel: 'toTable', modelRole: 'tableRole', linkedModel: 'linkedTable',
+};
+
+/** An interface's keys plus the v6 name of each one the naming renames: what a schema describing both namings declares. */
+const withV6Names = (keys: string[]): string[] => [...keys, ...keys.flatMap((k) => (V6_NAMES[k] ? [V6_NAMES[k]] : []))].sort();
+
 /** Schema property names, minus the `$schema` pointer every root accepts. */
 const schemaKeys = (node: Schema): string[] =>
   Object.keys(node.properties).filter((k) => k !== '$schema').sort();
@@ -83,18 +91,18 @@ describe('schemas match the TypeScript types', () => {
     ['layers file', 'LayersConfigFile', LAYER, () => layersSchema],
     ['layer', 'LayerConfig', LAYER, () => layersSchema.definitions.layer],
   ] as const)('%s declares exactly the fields of %s', (_label, iface, file, node) => {
-    expect(schemaKeys(node())).toEqual(interfaceKeys(file, iface));
+    expect(schemaKeys(node())).toEqual(withV6Names(interfaceKeys(file, iface)));
   });
 
   it('a model file relationship declares the fields of Relationship without fromModel (TableRelationship)', () => {
     expect(schemaKeys(tableSchema.definitions.relationship)).toEqual(
-      interfaceKeys(SEMANTIC, 'Relationship').filter((key) => key !== 'fromModel'),
+      withV6Names(interfaceKeys(SEMANTIC, 'Relationship').filter((key) => key !== 'fromModel')),
     );
   });
 
   it('logical stage declares StageDataV5 plus the deprecated stage-level viewConfig the reader still honours', () => {
     expect(schemaKeys(subjectAreaSchema.properties.logical)).toEqual(
-      [...interfaceKeys(SEMANTIC, 'StageDataV5'), 'viewConfig'].sort(),
+      withV6Names([...interfaceKeys(SEMANTIC, 'StageDataV5'), 'viewConfig']),
     );
   });
 
@@ -149,9 +157,8 @@ describe('schema enums match the runtime', () => {
     expect(subjectAreaSchema.definitions.annotation.properties.color.enum).toEqual(ANNOTATION_COLORS.map((c) => c.value));
   });
 
-  it('schema versions are the v5 and v4 shapes the schema describes', () => {
-    // v6 (#162) is read but not written yet; its own schema comes with the writer.
-    expect(subjectAreaSchema.properties.schemaVersion.enum).toEqual([LIBRARY_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION]);
+  it('schema versions are the v6, v5 and v4 shapes the schema describes', () => {
+    expect(subjectAreaSchema.properties.schemaVersion.enum).toEqual([TABLE_NAMING_SCHEMA_VERSION, LIBRARY_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION]);
     expect(layersSchema.properties.schemaVersion.maximum).toBe(LAYERS_SCHEMA_VERSION);
   });
 
@@ -243,6 +250,34 @@ describe('the fixture project validates', () => {
     const text = fs.readFileSync(abs, 'utf-8');
     const data = abs.endsWith('.yml') ? parseYaml(text) : JSON.parse(text);
     expect(validate(schema!, data)).toEqual([]);
+  });
+});
+
+describe('the v6 naming validates (#182)', () => {
+  // The showcase in the v6 naming: what migrating the fixture project writes (the other v6 fixtures carry core-test roles).
+  const V6_DIR = path.join(ROOT, 'packages/core/test/fixtures/naming-v6/showcase');
+  const v6Files = listFiles(V6_DIR).filter((abs) => /\.erd-studio\/((silver|gold)\/[^/]+\.json|tables\/.*\.yml)$/.test(abs.split(path.sep).join('/')));
+
+  it.each(v6Files.map((abs) => [path.relative(V6_DIR, abs), abs]))('%s', (rel, abs) => {
+    const text = fs.readFileSync(abs, 'utf-8');
+    const schema = abs.endsWith('.yml') ? 'logical-model.schema.json' : 'domain.schema.json';
+    expect(schemaFor(`dbt-project/.erd-studio/${rel.split(path.sep).join('/').replace(/^.*?\.erd-studio\//, '')}`)).toBe(schema);
+    expect(validate(schema, abs.endsWith('.yml') ? parseYaml(text) : JSON.parse(text))).toEqual([]);
+  });
+
+  it('flags a v5 key in a v6 file and a v6 key in a v5 one', () => {
+    const v6 = { schemaVersion: 6, subjectArea: 'd', layer: 'silver', logical: { tables: ['a'], relationships: [] }, viewConfig: {} };
+    expect(validate('domain.schema.json', v6)).toEqual([]);
+    expect(validate('domain.schema.json', { ...v6, domain: 'd' })).not.toEqual([]);
+    expect(validate('domain.schema.json', { ...v6, logical: { models: ['a'], relationships: [] } })).not.toEqual([]);
+    const v5 = { schemaVersion: 5, domain: 'd', layer: 'silver', logical: { models: ['a'], relationships: [] }, viewConfig: {} };
+    expect(validate('domain.schema.json', v5)).toEqual([]);
+    expect(validate('domain.schema.json', { ...v5, subjectArea: 'd' })).not.toEqual([]);
+    const rel = { fromColumn: 'x', toColumn: 'y', cardinality: 'many-to-one' };
+    expect(validate('domain.schema.json', { ...v6, logical: { tables: ['a'], relationships: [{ ...rel, fromTable: 'a', toTable: 'b' }] } })).toEqual([]);
+    expect(validate('domain.schema.json', { ...v6, logical: { tables: ['a'], relationships: [{ ...rel, fromTable: 'a', toModel: 'b' }] } })).not.toEqual([]);
+    expect(validate('logical-model.schema.json', { name: 'a', tableRole: 'transaction-fact', relationships: [{ ...rel, toTable: 'b' }] })).toEqual([]);
+    expect(validate('logical-model.schema.json', { name: 'a', relationships: [{ ...rel, toTable: 'b', toModel: 'b' }] })).not.toEqual([]);
   });
 });
 

@@ -1,11 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ERD Studio domain",
-  "description": "A domain diagram: .erd-studio/{layer}/{domain}.json. References models by name and holds relationships and canvas layout. Reference: https://github.com/liam-machine/erd-studio/blob/main/docs/semantic-domain-json-reference.md#domain-file-erd-studiolayerdomainjson",
+  "description": "A subject area diagram: .erd-studio/{layer}/{name}.json. References tables by name and holds relationships and canvas layout. Written in the project's naming: schema v6 (\"subjectArea\", \"logical.tables\", \"fromTable\" / \"toTable\") or v5 (\"domain\", \"logical.models\", \"fromModel\" / \"toModel\"); `erd-studio doctor` reports which. Reference: https://github.com/liam-machine/erd-studio/blob/main/docs/semantic-domain-json-reference.md#domain-file-erd-studiolayerdomainjson",
   "type": "object",
   "required": [
     "schemaVersion",
-    "domain",
     "layer",
     "logical"
   ],
@@ -18,15 +17,21 @@
     "schemaVersion": {
       "type": "integer",
       "enum": [
+        6,
         5,
         4
       ],
-      "description": "Domain file format version. Write 5. Version 4 (inline model objects) still loads until migrated with \"ERD Studio: Migrate Domains to Central Model Store\"."
+      "description": "File format version. 6 for the table naming (\"subjectArea\", \"logical.tables\"), 5 for the model naming (\"domain\", \"logical.models\"): write the one `erd-studio doctor` reports. Version 4 (inline model objects) still loads until migrated with \"ERD Studio: Migrate Subject Areas to the Central Table Library\"."
     },
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Domain slug. Should equal the file name without .json."
+      "description": "Schema v5 and v4: the subject area slug. Should equal the file name without .json. Schema v6 calls it \"subjectArea\"."
+    },
+    "subjectArea": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema v6: the subject area slug. Should equal the file name without .json."
     },
     "layer": {
       "type": "string",
@@ -53,14 +58,13 @@
       "type": "object",
       "description": "The editable logical stage.",
       "required": [
-        "models",
         "relationships"
       ],
       "additionalProperties": false,
       "properties": {
         "models": {
           "type": "array",
-          "description": "Model NAME strings. Each resolves to .erd-studio/logical-models/{name}.yml or .erd-studio/logical-models/{folder}/{name}.yml. Never mix names with inline model objects — such a file does not open.",
+          "description": "Schema v5 and v4: table NAME strings. Each resolves to .erd-studio/logical-models/{name}.yml or .erd-studio/logical-models/{folder}/{name}.yml. Never mix names with inline model objects — such a file does not open. Schema v6 calls it \"tables\".",
           "oneOf": [
             {
               "items": {
@@ -80,9 +84,17 @@
             }
           ]
         },
+        "tables": {
+          "type": "array",
+          "description": "Schema v6: table NAME strings. Each resolves to .erd-studio/tables/{name}.yml or .erd-studio/tables/{folder}/{name}.yml.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "relationships": {
           "type": "array",
-          "description": "FK relationships. (fromModel, fromColumn, toModel, toColumn) must be unique within the domain.",
+          "description": "FK relationships. (from, fromColumn, to, toColumn) must be unique within the subject area.",
           "items": {
             "$ref": "#/definitions/relationship"
           }
@@ -133,9 +145,7 @@
     "relationship": {
       "type": "object",
       "required": [
-        "fromModel",
         "fromColumn",
-        "toModel",
         "toColumn",
         "cardinality"
       ],
@@ -144,7 +154,12 @@
         "fromModel": {
           "type": "string",
           "minLength": 1,
-          "description": "Model holding the FK (the \"many\" side of many-to-one)."
+          "description": "Schema v5: the table holding the FK (the \"many\" side of many-to-one). Schema v6 calls it \"fromTable\"."
+        },
+        "fromTable": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Schema v6: the table holding the FK (the \"many\" side of many-to-one)."
         },
         "fromColumn": {
           "type": "string",
@@ -154,7 +169,12 @@
         "toModel": {
           "type": "string",
           "minLength": 1,
-          "description": "Referenced model (PK side)."
+          "description": "Referenced model (PK side). Schema v6 calls it \"toTable\"."
+        },
+        "toTable": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Schema v6: the referenced table (the \"one\" side)."
         },
         "toColumn": {
           "type": "string",
@@ -183,7 +203,21 @@
           "maxLength": 64,
           "description": "Entries of this file with the same fromModel that share this value form one composite foreign key: one relationship over several column pairs, drawn as one line. Each entry is one column pair; all must point at the same toModel with the same cardinality (many-to-one or one-to-one). ERD Studio 1.6.7 and earlier read the entries as separate relationships and drop this key when they save the file."
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "fromModel",
+            "toModel"
+          ]
+        },
+        {
+          "required": [
+            "fromTable",
+            "toTable"
+          ]
+        }
+      ]
     },
     "viewConfig": {
       "type": "object",
@@ -277,9 +311,79 @@
         },
         "linkedModel": {
           "type": "string",
-          "description": "Draws a dashed edge from the note to this model."
+          "description": "Schema v5: draws a dashed edge from the note to this table. Schema v6 calls it \"linkedTable\"."
+        },
+        "linkedTable": {
+          "type": "string",
+          "description": "Schema v6: draws a dashed edge from the note to this table."
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 6
+          }
+        },
+        "required": [
+          "schemaVersion"
+        ]
+      },
+      "then": {
+        "required": [
+          "subjectArea"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "domain"
+              ]
+            }
+          ]
+        },
+        "properties": {
+          "logical": {
+            "required": [
+              "tables"
+            ],
+            "not": {
+              "required": [
+                "models"
+              ]
+            }
+          }
+        }
+      },
+      "else": {
+        "required": [
+          "domain"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "subjectArea"
+              ]
+            }
+          ]
+        },
+        "properties": {
+          "logical": {
+            "required": [
+              "models"
+            ],
+            "not": {
+              "required": [
+                "tables"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
 }

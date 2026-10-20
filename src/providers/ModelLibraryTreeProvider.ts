@@ -114,8 +114,7 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
     const isOrphan = element.referencingDomains.length === 0;
     const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
 
-    // Delete acts on the file, and a `tables/` file is not changed by this version (#181).
-    item.contextValue = element.library ? 'logicalModelReadOnly' : 'logicalModel';
+    item.contextValue = 'logicalModel';
     item.iconPath = new vscode.ThemeIcon(isOrphan ? 'warning' : 'symbol-class');
 
     if (element.fileError) {
@@ -256,15 +255,9 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
       : new vscode.ThemeIcon('folder');
     const count = element.children.length;
     item.description = `${count} ${count === 1 ? 'table' : 'tables'}`;
-    if (element.library) {
-      const where = `${element.library}/${element.folder ? `${element.folder}/` : ''}`;
-      if (element.folder) item.description += ` · ${element.library}/`;
-      item.tooltip = `${where} — the new file naming, which this version of ERD Studio reads but cannot edit yet`;
-      return item;
-    }
-    item.tooltip = layer
-      ? `logical-models/${element.folder}/ — tables created in ${layer.label} subject areas`
-      : `logical-models/${element.folder}/`;
+    const where = `${element.library ?? 'logical-models'}/${element.folder ? `${element.folder}/` : ''}`;
+    if (element.library && element.folder) item.description += ` · ${element.library}/`;
+    item.tooltip = layer ? `${where} — tables created in ${layer.label} subject areas` : where;
     return item;
   }
 

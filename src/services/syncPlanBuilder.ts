@@ -61,6 +61,12 @@ export interface SyncPlanContext {
    * Wins over `modelFolder`, which assumes `logical-models/`.
    */
   tableLibraryFile?: (modelName: string) => string | null;
+  /**
+   * Where a table with no file yet would get one: `logical-models` in a v5
+   * project, v6's `tables` in one that writes the new naming (#182).
+   * Default `logical-models`.
+   */
+  newTableLibraryDir?: string;
 }
 
 /** Actions that edit dbt files, after which `dbt compile` is needed. */
@@ -224,7 +230,7 @@ export function buildSyncPlan(
       // The file where it actually is — top level or a layer folder.
       logicalModelPath: toSlash(path.join(
         ctx.semanticDir,
-        ctx.tableLibraryFile?.(modelName) ?? path.join('logical-models', ctx.modelFolder?.(modelName) ?? '', `${modelName}.yml`),
+        ctx.tableLibraryFile?.(modelName) ?? path.join(ctx.newTableLibraryDir ?? 'logical-models', ctx.modelFolder?.(modelName) ?? '', `${modelName}.yml`),
       )),
       dbtSqlPath,
       dbtSchemaPath,

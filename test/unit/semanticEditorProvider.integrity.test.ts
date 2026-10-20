@@ -93,7 +93,8 @@ async function createHarness(): Promise<Harness> {
   const selectorsService = new SelectorsService(subjectAreaService, root, semanticDir);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
 
-  // Library
+  // Library: a v5 project's, its folder made first (a project with none writes v6, #182)
+  fs.mkdirSync(path.join(root, semanticDir, 'logical-models'), { recursive: true });
   tableLibraryService.saveTable(FCT_ORDER);
   tableLibraryService.saveTable(DIM_TASK);
   tableLibraryService.saveTable(DIM_CUSTOMER);

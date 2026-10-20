@@ -24,7 +24,7 @@ import type {
   ViewConfig,
   Annotation,
 } from './types/semantic.js';
-import { CURRENT_SCHEMA_VERSION, describeUnsupportedSubjectAreaFormat, detectSubjectAreaFormat, usesTableLibrary } from './types/semantic.js';
+import { CURRENT_SCHEMA_VERSION, TABLE_NAMING_SCHEMA_VERSION, describeUnsupportedSubjectAreaFormat, detectSubjectAreaFormat, usesTableLibrary } from './types/semantic.js';
 import { LOGICAL_MODELS_DIR, TableMergeConflictError } from './logicalModel.js';
 import {
   canonicalRelationship, compositeGroupProblem, linkKey, normaliseCompositeKey, normaliseRelationshipRole, respellRelationship,
@@ -184,39 +184,77 @@ export function validateSubjectAreaDocument(
   return { obj: format === 'v6' ? normaliseSubjectAreaDocument(obj) : obj, format };
 }
 
-/** Rename the v6 key `from` to the in-memory `to` in a copy of `obj`; when both are written, the v6 one wins. */
+/**
+ * Rename the key `from` to `to` in a copy of `obj`, where `from` stood, so
+ * the key order (and a byte-level rewrite that pairs renamed keys by
+ * position, like the extension's) is kept; when both are written, `from`'s
+ * value wins.
+ */
 function renamedKey(obj: Record<string, unknown>, from: string, to: string): Record<string, unknown> {
   if (!(from in obj)) return obj;
-  const { [from]: value, ...rest } = obj;
-  return { ...rest, [to]: value };
+  // `fromEntries` defines each key as data, so a `__proto__` key stays a key.
+  return Object.fromEntries(Object.entries(obj).filter(([k]) => k !== to).map(([k, v]) => [k === from ? to : k, v]));
 }
 
-/** The relationship entries of a v6 list under their in-memory (v5) keys. */
-function normaliseRelationshipEntries(value: unknown): unknown {
+/** The v6 key and its v5 (in-memory) name, for each key the naming changes (#162). */
+const SUBJECT_AREA_KEYS = { subjectArea: 'domain', tables: 'models' } as const;
+const RELATIONSHIP_END_KEYS = { fromTable: 'fromModel', toTable: 'toModel' } as const;
+const ANNOTATION_KEYS = { linkedTable: 'linkedModel' } as const;
+
+/** Which way {@link renameNamingKeys} goes: v6 names to the in-memory (v5) ones, or back. */
+type NamingDirection = 'toV5' | 'toV6';
+
+/** `[from, to]` for a v6 → v5 key pair in `direction`. */
+function keyPair(v6: string, v5: string, direction: NamingDirection): [string, string] {
+  return direction === 'toV5' ? [v6, v5] : [v5, v6];
+}
+
+/** The relationship entries of a list under the other naming's keys. */
+function renameRelationshipEntries(value: unknown, direction: NamingDirection): unknown {
   if (!Array.isArray(value)) return value;
   return value.map((entry) => {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
     // A v6 end wins only when it holds text, as `parseTableText` reads `toTable`;
     // a stray non-string one beside a v5 end is dropped rather than hiding it.
-    const end = (o: Record<string, unknown>, from: string, to: string): Record<string, unknown> => {
-      if (typeof o[from] === 'string' || !(to in o)) return renamedKey(o, from, to);
+    const end = (o: Record<string, unknown>, v6: string, v5: string): Record<string, unknown> => {
+      const [from, to] = keyPair(v6, v5, direction);
+      if (direction === 'toV6' || typeof o[from] === 'string' || !(to in o)) return renamedKey(o, from, to);
       const { [from]: _stray, ...rest } = o;
       return rest;
     };
-    return end(end(entry as Record<string, unknown>, 'fromTable', 'fromModel'), 'toTable', 'toModel');
+    let out = entry as Record<string, unknown>;
+    for (const [v6, v5] of Object.entries(RELATIONSHIP_END_KEYS)) out = end(out, v6, v5);
+    return out;
   });
 }
 
-/** A v6 view config (top level, or the stage-level fallback) under its in-memory keys. */
-function normaliseViewConfig(value: unknown): unknown {
+/** A view config (top level, or the stage-level fallback) under the other naming's keys. */
+function renameViewConfig(value: unknown, direction: NamingDirection): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const viewConfig = value as Record<string, unknown>;
   if (!Array.isArray(viewConfig.annotations)) return viewConfig;
+  const [from, to] = keyPair('linkedTable', ANNOTATION_KEYS.linkedTable, direction);
   return {
     ...viewConfig,
     annotations: viewConfig.annotations.map((a: unknown) =>
-      a && typeof a === 'object' && !Array.isArray(a) ? renamedKey(a as Record<string, unknown>, 'linkedTable', 'linkedModel') : a),
+      a && typeof a === 'object' && !Array.isArray(a) ? renamedKey(a as Record<string, unknown>, from, to) : a),
   };
+}
+
+/** Every key the naming changes, renamed in `direction`, in place of the old one. */
+function renameNamingKeys(obj: Record<string, unknown>, direction: NamingDirection): Record<string, unknown> {
+  const doc = renamedKey(obj, ...keyPair('subjectArea', SUBJECT_AREA_KEYS.subjectArea, direction));
+  const result: Record<string, unknown> = { ...doc };
+  if (doc.logical && typeof doc.logical === 'object' && !Array.isArray(doc.logical)) {
+    const logical = renamedKey(doc.logical as Record<string, unknown>, ...keyPair('tables', SUBJECT_AREA_KEYS.tables, direction));
+    result.logical = {
+      ...logical,
+      ...('relationships' in logical ? { relationships: renameRelationshipEntries(logical.relationships, direction) } : {}),
+      ...('viewConfig' in logical ? { viewConfig: renameViewConfig(logical.viewConfig, direction) } : {}),
+    };
+  }
+  if ('viewConfig' in doc) result.viewConfig = renameViewConfig(doc.viewConfig, direction);
+  return result;
 }
 
 /**
@@ -224,23 +262,27 @@ function normaliseViewConfig(value: unknown): unknown {
  * after `validateSubjectAreaDocument` branches on the naming: `subjectArea`
  * → `domain`, `logical.tables` → `logical.models`, a relationship's
  * `fromTable` / `toTable` → `fromModel` / `toModel`, an annotation's
- * `linkedTable` → `linkedModel`. Returns a copy; `schemaVersion` keeps the
- * file's own value. Model yml is normalised the same way, by key, in
- * `parseTableText`.
+ * `linkedTable` → `linkedModel`. Returns a copy, in the file's key order;
+ * `schemaVersion` keeps the file's own value. Model yml is normalised the
+ * same way, by key, in `parseTableText`. {@link toTableNamingDocument} is
+ * the way back.
  */
 export function normaliseSubjectAreaDocument(obj: Record<string, unknown>): Record<string, unknown> {
-  const doc = renamedKey(obj, 'subjectArea', 'domain');
-  const result: Record<string, unknown> = { ...doc };
-  if (doc.logical && typeof doc.logical === 'object' && !Array.isArray(doc.logical)) {
-    const logical = renamedKey(doc.logical as Record<string, unknown>, 'tables', 'models');
-    result.logical = {
-      ...logical,
-      ...('relationships' in logical ? { relationships: normaliseRelationshipEntries(logical.relationships) } : {}),
-      ...('viewConfig' in logical ? { viewConfig: normaliseViewConfig(logical.viewConfig) } : {}),
-    };
-  }
-  if ('viewConfig' in doc) result.viewConfig = normaliseViewConfig(doc.viewConfig);
-  return result;
+  return renameNamingKeys(obj, 'toV5');
+}
+
+/**
+ * A subject area document held under the in-memory (v5) keys, written back
+ * in the v6 naming (#182): the inverse of {@link normaliseSubjectAreaDocument},
+ * key order kept, with `schemaVersion` set to 6 (in place, or first when the
+ * document had none). Returns a copy. What a host writes for a v6 file, and
+ * what the naming migration writes for a v5 one.
+ */
+export function toTableNamingDocument(obj: Record<string, unknown>): Record<string, unknown> {
+  const renamed = renameNamingKeys(obj, 'toV6');
+  return 'schemaVersion' in renamed
+    ? { ...renamed, schemaVersion: TABLE_NAMING_SCHEMA_VERSION }
+    : { schemaVersion: TABLE_NAMING_SCHEMA_VERSION, ...renamed };
 }
 
 /** The configured layers, as far as domain loading needs them. */

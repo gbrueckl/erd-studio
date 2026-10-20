@@ -1,8 +1,8 @@
 /**
- * The extension host and the CLI reading the v6 file naming (#162 part 3,
- * #181): `tables/` beside `logical-models/`, a `tables` layer made before v6,
- * a table in both folders, and every write refused, since this version reads
- * v6 but writes only v5.
+ * The extension host and the CLI on the v6 file naming (#162 parts 3 and 4,
+ * #181, #182): `tables/` beside `logical-models/`, a `tables` layer made
+ * before v6, a table in both folders, and every write landing in the naming
+ * its file already uses.
  *
  * Drives the real provider and services over a temp copy of the fixture dbt
  * project, turned (wholly or partly) into the v6 naming by `toTableNaming`.
@@ -28,6 +28,7 @@ import { redactPaths } from '../../src/types/feedback';
 import { runDoctor } from '../../src/cli/doctor';
 import { formatDoctor, makePaint } from '../../src/cli/format';
 import { allSelections } from '../../src/services/syncPlanBuilder';
+import { detectSubjectAreaFormat } from '@erd-studio/core';
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const FIXTURE_ROOT = path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project');
@@ -137,6 +138,44 @@ async function open(relative: string) {
   return { doc, panel };
 }
 
+/** Open `relative` on a canvas whose edits really land: applyEdit and save write the files (#182). */
+async function openWritable(relative: string) {
+  vi.mocked(vscode.workspace.applyEdit).mockRestore();
+  const file = path.join(erd, relative);
+  const { provider, tableLibraryService } = buildProvider();
+  const doc = vscode.createMockTextDocument(file, fs.readFileSync(file, 'utf-8'), { persist: true });
+  const panel = vscode.createMockWebviewPanel();
+  await provider.resolveCustomTextEditor(
+    doc as unknown as import('vscode').TextDocument,
+    panel as unknown as import('vscode').WebviewPanel,
+    {} as import('vscode').CancellationToken,
+  );
+  await panel._simulateMessage({ type: 'ready' });
+  await vi.waitFor(
+    () => expect(posted(panel).some((m) => m.type === 'domainLoaded' || m.type === 'error')).toBe(true),
+    { timeout: 4000, interval: 20 },
+  );
+  return { doc, panel, tableLibraryService };
+}
+
+/** The v5 keys a v6 file must never hold, wherever they are written (#182). */
+const V5_JSON_KEYS = /"(domain|models|fromModel|toModel|linkedModel)"\s*:/;
+const V5_YML_KEYS = /^\s*(?:- )?(modelRole|toModel|fromModel)\s*:/m;
+
+/** Every subject area file is still v6 and every table file in `tables/` uses only v6 keys; `logical-models/` never comes back. */
+function expectStillV6(): void {
+  for (const [file, text] of snapshot()) {
+    const rel = path.relative(erd, file).split(path.sep).join('/');
+    if (/^(silver|gold)\/[^/]+\.json$/.test(rel)) {
+      expect(detectSubjectAreaFormat(JSON.parse(text)), rel).toBe('v6');
+      expect(text, rel).not.toMatch(V5_JSON_KEYS);
+    } else if (rel.startsWith('tables/')) {
+      expect(text, rel).not.toMatch(V5_YML_KEYS);
+    }
+  }
+  expect(fs.existsSync(path.join(erd, 'logical-models'))).toBe(false);
+}
+
 /** Every file under the semantic dir, path → bytes. */
 function snapshot(): Map<string, string> {
   const out = new Map<string, string>();
@@ -189,7 +228,7 @@ const EDITS: Array<[string, { type: string; payload?: unknown }]> = [
 ];
 
 describe('a project in the v6 naming on the canvas', () => {
-  it('opens the showcase diagram read-only, with every table and relationship, and says why', async () => {
+  it('opens the showcase diagram editable, with every table and relationship, and writes nothing', async () => {
     toTableNaming();
     const info = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
     const before = snapshot();
@@ -197,42 +236,73 @@ describe('a project in the v6 naming on the canvas', () => {
 
     expect(errors(panel)).toEqual([]);
     const loaded = posted(panel).find((m) => m.type === 'domainLoaded')!.payload;
-    expect(loaded.readOnly).toBe(true);
+    expect(loaded.readOnly).toBe(false);
     expect(loaded.schemaVersion).toBe(6);
     expect(loaded.models.map((m: { name: string }) => m.name).sort()).toEqual(
       ['dim_customer', 'dim_date', 'dim_project', 'dim_task', 'fct_order', 'fct_task_event'],
     );
     expect(loaded.models.every((m: { columns: unknown[] }) => m.columns.length > 0)).toBe(true);
     expect(loaded.relationships.length).toBeGreaterThan(0);
-    expect(info.mock.calls.some(([m]) => /silver\/showcase\.json uses the new file naming .* shown read-only/.test(m as string))).toBe(true);
+    expect(info.mock.calls.some(([m]) => /read-only|cannot edit/.test(m as string))).toBe(false);
     expect(snapshot()).toEqual(before);
     expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
     // The first-load usage survey reads it as v5 does, without an error.
     expect(vi.mocked(console.error).mock.calls.map(([m]) => String(m))).not.toContain('[SemanticEditorProvider] relationship survey failed:');
   });
 
-  it.each(EDITS)('%s is refused by name and writes nothing', async (_name, message) => {
+  // addRelationship's fixture link is already drawn; the next test adds a new one.
+  it.each(EDITS.filter(([name]) => name !== 'addRelationship'))('%s lands, and every file stays in the v6 naming (#182)', async (_name, message) => {
     toTableNaming();
-    const { doc, panel } = await open('silver/showcase.json');
+    const { panel } = await openWritable('silver/showcase.json');
     const before = snapshot();
     panel._postedMessages.length = 0;
 
     await panel._simulateMessage(message);
 
-    const errs = errors(panel);
-    expect(errs).toHaveLength(1);
-    expect(errs[0].payload.message).toContain('new file naming');
-    expect(errs[0].payload.message).toContain('cannot edit yet');
-    expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
-    expect(doc.save).not.toHaveBeenCalled();
-    expect(snapshot()).toEqual(before);
+    expect(errors(panel)).toEqual([]);
+    expect(snapshot()).not.toEqual(before);
+    expectStillV6();
+  });
+
+  it('a new table goes to tables/, and a relationship added to it is stored with fromTable / toTable', async () => {
+    toTableNaming();
+    const { panel } = await openWritable('silver/showcase.json');
+    await panel._simulateMessage({ type: 'addModel', payload: { name: 'dim_new', schema: '', description: '', columns: [{ name: 'k', dataType: 'INT', isPrimaryKey: true }] } });
+    await panel._simulateMessage({ type: 'addColumn', payload: { modelName: 'fct_task_event', column: { name: 'new_key', dataType: 'INT' } } });
+    await panel._simulateMessage({ type: 'updateModelRole', payload: { modelName: 'dim_new', modelRole: 'reference' } });
+    await panel._simulateMessage({
+      type: 'addRelationship',
+      payload: { fromModel: 'fct_task_event', fromColumn: 'new_key', toModel: 'dim_new', toColumn: 'k', cardinality: 'many-to-one' },
+    });
+    expect(errors(panel)).toEqual([]);
+    const showcase = JSON.parse(fs.readFileSync(path.join(erd, 'silver', 'showcase.json'), 'utf-8'));
+    expect(showcase.logical.tables).toContain('dim_new');
+    expect(fs.existsSync(path.join(erd, 'tables', 'dim_new.yml'))).toBe(true);
+    // This project keeps relationships in its diagrams.
+    expect(showcase.logical.relationships).toContainEqual(expect.objectContaining({ fromTable: 'fct_task_event', toTable: 'dim_new', fromColumn: 'new_key' }));
+    expect(fs.readFileSync(path.join(erd, 'tables', 'dim_new.yml'), 'utf-8')).toMatch(/^tableRole: reference$/m);
+    expectStillV6();
+  });
+
+  it('a rename reaches another v6 diagram, which stays v6', async () => {
+    toTableNaming();
+    const other = path.join(erd, 'silver', 'tasks_v6.json');
+    fs.writeFileSync(other, JSON.stringify({
+      schemaVersion: 6, subjectArea: 'tasks_v6', layer: 'silver', logical: { tables: ['dim_task'], relationships: [] }, viewConfig: {},
+    }, null, 2) + '\n');
+    const { panel } = await openWritable('silver/showcase.json');
+    await panel._simulateMessage({ type: 'renameModel', payload: { oldName: 'dim_task', newName: 'dim_job' } });
+    expect(errors(panel)).toEqual([]);
+    expect(JSON.parse(fs.readFileSync(other, 'utf-8')).logical.tables).toEqual(['dim_job']);
+    expect(fs.existsSync(path.join(erd, 'tables', 'dim_job.yml'))).toBe(true);
+    expectStillV6();
   });
 });
 
 describe('a mixed project (#181)', () => {
-  it('a v5 diagram draws a table from tables/, and refuses to edit that table', async () => {
+  it('a v5 diagram draws a table from tables/, and an edit to it keeps that file in v6', async () => {
     tablesToV6(['dim_task']);
-    const { doc, panel } = await open('silver/showcase.json');
+    const { panel } = await openWritable('silver/showcase.json');
     const loaded = posted(panel).find((m) => m.type === 'domainLoaded')!.payload;
     expect(loaded.readOnly).toBe(false);
     const task = loaded.models.find((m: { name: string }) => m.name === 'dim_task');
@@ -240,33 +310,43 @@ describe('a mixed project (#181)', () => {
     // tableRole is read as the role it renames.
     expect(task.modelRole).toBe('domain-dim');
 
-    const before = snapshot();
+    const showcaseBefore = fs.readFileSync(path.join(erd, 'silver', 'showcase.json'), 'utf-8');
     panel._postedMessages.length = 0;
     await panel._simulateMessage({ type: 'updateModelDescription', payload: { modelName: 'dim_task', description: 'x' } });
-    const errs = errors(panel);
-    expect(errs).toHaveLength(1);
-    expect(errs[0].payload.message).toContain('tables/dim_task.yml uses the new file naming');
-    expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
-    expect(doc.save).not.toHaveBeenCalled();
-    expect(snapshot()).toEqual(before);
+    await panel._simulateMessage({ type: 'updateModelRole', payload: { modelName: 'dim_task', modelRole: 'reference' } });
+    expect(errors(panel)).toEqual([]);
+    const text = fs.readFileSync(path.join(erd, 'tables', 'dim_task.yml'), 'utf-8');
+    expect(text).toMatch(/^tableRole: reference$/m);
+    expect(text).not.toMatch(V5_YML_KEYS);
+    // The v5 diagram stays v5.
+    expect(fs.readFileSync(path.join(erd, 'silver', 'showcase.json'), 'utf-8')).toBe(showcaseBefore);
   });
 
-  it('a rename that a v6 diagram would follow is refused rather than leave it pointing at the old name', async () => {
+  it('a rename that a v6 diagram follows rewrites it in v6, and the v5 diagram in v5', async () => {
     const v6 = path.join(erd, 'silver', 'tasks_v6.json');
     fs.writeFileSync(v6, JSON.stringify({
       schemaVersion: 6, subjectArea: 'tasks_v6', layer: 'silver', logical: { tables: ['dim_task'], relationships: [] }, viewConfig: {},
-    }, null, 2));
-    const { panel } = await open('silver/showcase.json');
-    const before = snapshot();
-    panel._postedMessages.length = 0;
+    }, null, 2) + '\n');
+    const { panel } = await openWritable('silver/showcase.json');
 
     await panel._simulateMessage({ type: 'renameModel', payload: { oldName: 'dim_task', newName: 'dim_job' } });
 
-    const errs = errors(panel);
-    expect(errs).toHaveLength(1);
-    expect(errs[0].payload.message).toContain('silver/tasks_v6.json would change too');
-    expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
-    expect(snapshot()).toEqual(before);
+    expect(errors(panel)).toEqual([]);
+    expect(fs.readFileSync(v6, 'utf-8')).toBe(JSON.stringify({
+      schemaVersion: 6, subjectArea: 'tasks_v6', layer: 'silver', logical: { tables: ['dim_job'], relationships: [] }, viewConfig: {},
+    }, null, 2) + '\n');
+    const showcase = JSON.parse(fs.readFileSync(path.join(erd, 'silver', 'showcase.json'), 'utf-8'));
+    expect(detectSubjectAreaFormat(showcase)).toBe('v5');
+    expect(showcase.logical.models).toContain('dim_job');
+  });
+
+  it('a rename keeps a logical-models/ file in logical-models/, under its v5 keys (#182)', async () => {
+    tablesToV6(['dim_task']);
+    const { panel } = await openWritable('silver/showcase.json');
+    await panel._simulateMessage({ type: 'renameModel', payload: { oldName: 'dim_customer', newName: 'dim_client' } });
+    expect(errors(panel)).toEqual([]);
+    expect(fs.existsSync(path.join(erd, 'logical-models', 'dim_client.yml'))).toBe(true);
+    expect(fs.existsSync(path.join(erd, 'tables', 'dim_client.yml'))).toBe(false);
   });
 
   it('a table in both folders is drawn from logical-models/ and reported, ignoring case', async () => {
@@ -301,23 +381,38 @@ describe('TableLibraryService with tables/', () => {
     expect(lib.hasTablesLibrary()).toBe(true);
   });
 
-  it('refuses to write, rename or delete a file in tables/', () => {
+  it('writes, renames and deletes a file in tables/ under the v6 keys (#182)', () => {
     tablesToV6(['dim_task']);
     const lib = new TableLibraryService(root, '.erd-studio');
-    const before = snapshot();
     const model = lib.getTable('dim_task')!;
-    expect(() => lib.serializeTable({ ...model, description: 'x' })).toThrow(TableNamingWriteRefused);
-    expect(() => lib.saveTable({ ...model, description: 'x' })).toThrow(TableNamingWriteRefused);
-    expect(() => lib.deleteTable('dim_task')).toThrow(TableNamingWriteRefused);
-    expect(() => lib.renameTable('dim_task', 'dim_job')).toThrow(TableNamingWriteRefused);
-    expect(snapshot()).toEqual(before);
+    lib.saveTable({ ...model, description: 'x', modelRole: 'reference' });
+    const saved = fs.readFileSync(path.join(erd, 'tables', 'dim_task.yml'), 'utf-8');
+    expect(saved).toMatch(/^tableRole: reference$/m);
+    expect(saved).not.toMatch(V5_YML_KEYS);
+    lib.renameTable('dim_task', 'dim_job');
+    expect(fs.existsSync(path.join(erd, 'tables', 'dim_job.yml'))).toBe(true);
+    expect(fs.existsSync(path.join(erd, 'tables', 'dim_task.yml'))).toBe(false);
+    lib.deleteTable('dim_job');
+    expect(fs.existsSync(path.join(erd, 'tables', 'dim_job.yml'))).toBe(false);
   });
 
-  it('still writes new tables to logical-models/', () => {
-    tablesToV6(['dim_task']);
+  it('writes new tables to logical-models/ while the project is v5, and to tables/ once it is mixed or v6', () => {
     const lib = new TableLibraryService(root, '.erd-studio');
     lib.saveTable({ name: 'dim_new', columns: [] });
     expect(fs.existsSync(path.join(erd, 'logical-models', 'dim_new.yml'))).toBe(true);
+    tablesToV6(['dim_task']);
+    lib.invalidateCache();
+    lib.saveTable({ name: 'dim_newer', columns: [], modelRole: 'reference' });
+    const text = fs.readFileSync(path.join(erd, 'tables', 'dim_newer.yml'), 'utf-8');
+    expect(text).toMatch(/^tableRole: reference$/m);
+  });
+
+  it('a project with no library folder at all writes its first table to tables/ in v6', () => {
+    fs.rmSync(erd, { recursive: true });
+    const lib = new TableLibraryService(root, '.erd-studio');
+    lib.saveTable({ name: 'dim_first', columns: [], modelRole: 'reference' });
+    expect(fs.readFileSync(path.join(erd, 'tables', 'dim_first.yml'), 'utf-8')).toMatch(/^tableRole: reference$/m);
+    expect(fs.existsSync(path.join(erd, 'logical-models'))).toBe(false);
   });
 
   it('reports a table in both folders, ignoring case', () => {
@@ -334,14 +429,24 @@ describe('TableLibraryService with tables/', () => {
 });
 
 describe('the Breaker\'s cases (#181)', () => {
-  it('refuses a canvas write to a logical-models/ file that uses a v6 key, rather than lose the edit on the next read', () => {
+  it('a logical-models/ file that uses a v6 key is written in v6, so the edit is not lost on the next read', () => {
     const file = path.join(erd, 'logical-models', 'dim_task.yml');
     fs.writeFileSync(file, fs.readFileSync(file, 'utf-8').replace(/^modelRole:/m, 'tableRole:'));
     const lib = new TableLibraryService(root, '.erd-studio');
     const model = lib.getTable('dim_task')!;
     expect(model.modelRole).toBe('domain-dim');
-    expect(() => lib.serializeTable({ ...model, modelRole: 'reference' })).toThrow(/uses the new file naming \("tableRole"\)/);
-    expect(() => lib.serializeTable({ ...model, modelRole: 'reference' })).toThrow(TableNamingWriteRefused);
+    const text = lib.serializeTable({ ...model, modelRole: 'reference' });
+    expect(text).toMatch(/^tableRole: reference$/m);
+    expect(text).not.toMatch(/modelRole/);
+  });
+
+  it('refuses a file that holds a key in both namings, naming the file and both keys', () => {
+    const file = path.join(erd, 'logical-models', 'dim_task.yml');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf-8').replace(/^modelRole:(.*)$/m, 'modelRole:$1\ntableRole: reference'));
+    const lib = new TableLibraryService(root, '.erd-studio');
+    const model = lib.getTable('dim_task')!;
+    expect(() => lib.serializeTable({ ...model, description: 'y' })).toThrow(TableNamingWriteRefused);
+    expect(() => lib.serializeTable({ ...model, description: 'y' })).toThrow(/holds both "modelRole" and "tableRole"/);
   });
 
   it('an empty tables/ folder is not a library: the project stays v5', async () => {
@@ -362,18 +467,17 @@ describe('the Breaker\'s cases (#181)', () => {
     expect(lib.tableNamingConflicts()[0].kept.toLowerCase()).toBe(found.toLowerCase());
   });
 
-  it('the physical stage of a v6 diagram cannot drag tables (positions would write the v6 file)', async () => {
+  it('the physical stage of a v6 diagram drags tables like a v5 one (#182)', async () => {
     toTableNaming();
     const { panel } = await open('silver/showcase.json');
     panel._postedMessages.length = 0;
     await panel._simulateMessage({ type: 'switchStage', payload: { stage: 'physical', requestId: 1 } });
     await vi.waitFor(() => expect(posted(panel).some((m) => m.type === 'stageData')).toBe(true), { timeout: 4000, interval: 20 });
-    expect(posted(panel).find((m) => m.type === 'stageData')!.payload.positionDraggable).toBe(false);
+    expect(posted(panel).find((m) => m.type === 'stageData')!.payload.positionDraggable).not.toBe(false);
     panel._postedMessages.length = 0;
     await panel._simulateMessage({ type: 'switchStage', payload: { stage: 'logical', requestId: 2 } });
     await vi.waitFor(() => expect(posted(panel).some((m) => m.type === 'stageData')).toBe(true), { timeout: 4000, interval: 20 });
-    // And back on the logical stage it is still read-only.
-    expect(posted(panel).find((m) => m.type === 'stageData')!.payload.readOnly).toBe(true);
+    expect(posted(panel).find((m) => m.type === 'stageData')!.payload.readOnly).toBe(false);
   });
 });
 
@@ -527,11 +631,14 @@ describe('doctor reports the naming (#181)', () => {
   });
 });
 
-describe('other writers leave the v6 naming alone', () => {
-  it('Rename Subject Area refuses a v6 file instead of writing "domain" into it', () => {
+describe('other writers keep the v6 naming (#182)', () => {
+  it('Rename Subject Area renames subjectArea in a v6 file, never writing "domain" into it', () => {
     toTableNaming();
     const text = fs.readFileSync(path.join(erd, 'silver', 'showcase.json'), 'utf-8');
-    expect(() => renameSubjectAreaInRaw(text, 'renamed')).toThrow('new file naming');
+    const out = JSON.parse(renameSubjectAreaInRaw(text, 'renamed'));
+    expect(out.subjectArea).toBe('renamed');
+    expect('domain' in out).toBe(false);
+    expect(detectSubjectAreaFormat(out)).toBe('v6');
   });
 
   it('the v5 migration skips a file mixing the v5 and v6 names', () => {
@@ -542,10 +649,11 @@ describe('other writers leave the v6 naming alone', () => {
     expect(migration.findV4SubjectAreas().map((p) => path.basename(p))).not.toContain('mix.json');
   });
 
-  it('Move Relationships to Table Library changes nothing in a project with tables/', async () => {
-    tablesToV6(['dim_task']);
-    const info = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
-    const before = snapshot();
+  it('Move Relationships to Table Library moves a v6 diagram\'s relationships into tables/, under the v6 keys', async () => {
+    toTableNaming();
+    const showcase = path.join(erd, 'silver', 'showcase.json');
+    expect(JSON.parse(fs.readFileSync(showcase, 'utf-8')).logical.relationships.length).toBeGreaterThan(0);
+    vi.spyOn(vscode.window, 'showInformationMessage').mockImplementation(async (...args: unknown[]) => args.at(-1) as never);
     const layerService = new LayerService(root, '.erd-studio');
     const subjectAreaService = new SubjectAreaService(layerService);
     const tableLibraryService = new TableLibraryService(root, '.erd-studio');
@@ -553,8 +661,9 @@ describe('other writers leave the v6 naming alone', () => {
     await moveRelationshipsToLibrary({
       workspaceRoot: root, semanticDir: '.erd-studio', subjectAreaService, tableLibraryService, onWritten: async () => {},
     });
-    expect(info.mock.calls[0][0]).toContain('uses the new file naming');
-    expect(snapshot()).toEqual(before);
+    expect(JSON.parse(fs.readFileSync(showcase, 'utf-8')).logical.relationships).toEqual([]);
+    expect(fs.readFileSync(path.join(erd, 'tables', 'fct_task_event.yml'), 'utf-8')).toMatch(/toTable: /);
+    expectStillV6();
   });
 
   it('feedback redaction names a tables/ file by its role', () => {

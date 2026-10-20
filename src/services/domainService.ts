@@ -100,14 +100,9 @@ export function renameSubjectAreaInRaw(rawText: string, newSlug: string): string
     throw new Error('Subject area file does not contain a JSON object');
   }
   const doc = parsed as Record<string, unknown>;
-  // A v6 file names its subject area `subjectArea` (#162); writing `domain`
-  // beside it would make a file no version reads. Not written yet.
-  if (detectSubjectAreaFormat(doc) === 'v6') {
-    throw new Error(
-      'This subject area file uses the new file naming (schemaVersion 6), which this version of ERD Studio reads but cannot edit yet.',
-    );
-  }
-  doc.domain = newSlug;
+  // A v6 file names its subject area `subjectArea` (#162, #182); writing
+  // `domain` beside it would make a file no version reads.
+  doc[detectSubjectAreaFormat(doc) === 'v6' ? 'subjectArea' : 'domain'] = newSlug;
   return JSON.stringify(doc, null, 2) + '\n';
 }
 

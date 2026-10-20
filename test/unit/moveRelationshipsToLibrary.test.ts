@@ -389,6 +389,8 @@ describe('canvas edits save the documents they edited (#126 hardening)', () => {
     subjectAreaService.setTableLibraryService(tableLibraryService);
     const selectorsService = new SelectorsService(subjectAreaService, root, SEMANTIC_DIR);
     vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
+    // A v5 project: its library folder exists before the first table (#182).
+    fs.mkdirSync(path.join(root, SEMANTIC_DIR, 'logical-models'), { recursive: true });
     tableLibraryService.saveTable({ name: 'fct_order', columns: [{ name: 'customer_key', dataType: 'string', description: '' }] });
     tableLibraryService.saveTable({ name: 'dim_customer', columns: [{ name: 'customer_key', dataType: 'string', description: '', isPrimaryKey: true }] });
     const domainPath = path.join(root, SEMANTIC_DIR, 'silver', 'orders.json');

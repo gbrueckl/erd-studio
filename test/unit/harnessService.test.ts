@@ -778,8 +778,20 @@ describe('HarnessService', () => {
   });
 
   describe('HARNESS_VERSION', () => {
-    it('is 30 (write each key once per block, #164)', () => {
-      expect(HARNESS_VERSION).toBe('31');
+    it('is 32 (write the file naming doctor reports, #182)', () => {
+      expect(HARNESS_VERSION).toBe('32');
+    });
+
+    it('tells assistants to write the naming doctor reports, and never to move files between the two folders (#182)', () => {
+      const content = service.generateContent('claude');
+      expect(content).toContain('use the one `erd-studio doctor` reports');
+      expect(content).toContain('read `erd.naming`');
+      // Every renamed key, in both namings, on one row of the mapping table.
+      for (const [v5, v6] of [['logical-models/', 'tables/'], ['domain', 'subjectArea'], ['logical.models', 'logical.tables'], ['modelRole', 'tableRole'], ['linkedModel', 'linkedTable']]) {
+        expect(content.split('\n').some((line) => line.includes(`\`${v5}\``) && line.includes(`\`${v6}\``)), v5).toBe(true);
+      }
+      expect(content).toContain('Never move files between `logical-models/` and `tables/` yourself');
+      expect(content).toContain('ERD Studio: Migrate to the New File Naming');
     });
 
     it('tells assistants to write each key once per block (#164)', () => {

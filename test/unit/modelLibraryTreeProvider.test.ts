@@ -398,21 +398,21 @@ describe('TableLibraryTreeProvider', () => {
       expect(v6Gold.children.map((c) => c.name)).toEqual(['fct_b']);
       const top = provider.getTreeItem(v6Top);
       expect(top.label).toBe('tables/');
-      expect(top.tooltip).toContain('reads but cannot edit yet');
+      expect(top.tooltip).toBe('tables/');
       const gold = provider.getTreeItem(v6Gold);
       expect(gold.label).toBe('Gold');
       expect(gold.description).toBe('1 table · tables/');
       expect(gold.id).not.toBe(provider.getTreeItem(v5Gold).id);
     });
 
-    it('offers no Delete or duplicate fix on a tables/ file, and names a copy in both libraries (#181)', () => {
+    it('offers Delete on a tables/ file (#182), and no fix on a copy in both libraries, which it names (#181)', () => {
       const t = (name: string, shadowedBy?: string): TableFileEntry => ({
         name, folder: '', library: 'tables', filePath: `/project/.erd-studio/tables/${name}.yml`, ...(shadowedBy ? { shadowedBy } : {}),
       });
       const p = build([entry('dim_a'), t('dim_b'), t('dim_a', `${DIR}/dim_a.yml`)]);
       const [v6Folder] = folders(p.getChildren() as TableLibraryNode[]);
       const items = v6Folder.children.map((c) => p.getTreeItem(c));
-      expect(items.map((i) => i.contextValue)).toEqual(['logicalModelReadOnly', 'logicalModelReadOnly']);
+      expect(items.map((i) => i.contextValue)).toEqual(['logicalModelReadOnly', 'logicalModel']);
       expect(items[0].description).toBe('(also in logical-models — ignored)');
       expect(items[0].tooltip).toContain('Keep one of the two files');
     });

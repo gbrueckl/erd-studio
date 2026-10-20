@@ -16,7 +16,7 @@
 
 import * as path from 'path';
 
-import { canonicalRelationship, linkKey } from '@erd-studio/core';
+import { canonicalRelationship, linkKey, toTableNamingDocument } from '@erd-studio/core';
 import { WRITTEN_SCHEMA_VERSION } from '../types/semantic';
 import type { ColumnDef, Relationship, SemanticTable } from '../types/semantic';
 import type { YmlData } from '../types/ymlData';
@@ -688,9 +688,12 @@ export function buildDraftSubjectAreaDocument(input: {
   };
 }
 
-/** The file text, formatted as `createDomain` writes it. */
-export function serializeDraftSubjectAreaDocument(doc: DraftSubjectAreaDocument): string {
-  return JSON.stringify(doc, null, 2) + '\n';
+/**
+ * The file text, formatted as `createDomain` writes it: under the v5 keys,
+ * or in the v6 naming (#182) for a project that writes it.
+ */
+export function serializeDraftSubjectAreaDocument(doc: DraftSubjectAreaDocument, tableNaming = false): string {
+  return JSON.stringify(tableNaming ? toTableNamingDocument({ ...doc }) : doc, null, 2) + '\n';
 }
 
 /** Domain slug rule — the one `validateSubjectAreaSlug` in extension.ts enforces. */

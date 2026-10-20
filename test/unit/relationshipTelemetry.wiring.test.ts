@@ -73,6 +73,8 @@ async function createHarness(options: {
   domains?: Record<string, { models: string[]; relationships?: Relationship[] }>;
 } = {}): Promise<Harness> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-rel-telemetry-'));
+  // A v5 project: its library folder exists (a project with none writes v6, #182).
+  fs.mkdirSync(path.join(root, '.erd-studio', 'logical-models'), { recursive: true });
   const semanticDir = '.erd-studio';
   const layerService = new LayerService(root, semanticDir);
   const subjectAreaService = new SubjectAreaService(layerService);

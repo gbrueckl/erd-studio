@@ -86,6 +86,7 @@ import {
   backwardsRelationshipNote,
   linkKey,
   normaliseSubjectAreaDocument,
+  toTableNamingDocument,
   parseSubjectAreaJson,
   sameLink,
   setMetaEntry,
@@ -177,6 +178,9 @@ import {
 } from '../services/libraryRelationships';
 import type { RelationshipWriteInput, RelationshipWriteOp } from '../services/libraryRelationships';
 import { auditRelationshipWrite, surveyLibrary } from '../services/relationshipHealth';
+import { namingMigrationIsEmpty } from '../services/namingMigration';
+import type { NamingMigrationPlan } from '../services/namingMigration';
+import type { ProjectNaming } from '@erd-studio/core';
 import type { RelationshipAudit } from '../services/relationshipHealth';
 import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused, TableNamingWriteRefused } from '../services/logicalModelService';
 import { readDbtProjectConfig } from '../services/dbtProjectConfig';
@@ -366,12 +370,21 @@ function isExplainedRefusal(err: unknown): boolean {
 }
 
 /**
- * Why a subject area file in the v6 naming (#162) cannot be changed: this
- * version reads it, but every writer still emits v5 keys, and a v5 key
- * written into a v6 file would make a file no version reads.
+ * The subject area documents `parseSubjectAreaDocument` read from a v6 file
+ * (#162): held under the in-memory (v5) keys like every other, and written
+ * back in the v6 naming by `serialiseSubjectArea` (#182).
  */
-const TABLE_NAMING_READ_ONLY =
-  'uses the new file naming (schemaVersion 6), which this version of ERD Studio reads but cannot edit yet.';
+const tableNamingDocuments = new WeakSet<object>();
+
+/** A parsed subject area document as its file's text: v6 keys again for a v6 file (#182), else as it is. */
+function subjectAreaFileObject(parsed: Record<string, unknown>): Record<string, unknown> {
+  return tableNamingDocuments.has(parsed) ? toTableNamingDocument(parsed) : parsed;
+}
+
+/** `parsed` re-rendered as its file's text, in the file's own naming and line endings. */
+function serialiseSubjectArea(parsed: Record<string, unknown>, original: string): string {
+  return keepLineEndings(JSON.stringify(subjectAreaFileObject(parsed), null, 2) + '\n', original);
+}
 import {
   isValidCardinality,
   isValidRelationshipRole,
@@ -462,6 +475,24 @@ export const RELATIONSHIP_MOVE_DECLINED_KEY = 'erdStudio.relationshipMoveDecline
  */
 export const RELATIONSHIP_BACKWARDS_DECLINED_KEY = 'erdStudio.relationshipBackwardsDeclined';
 
+/**
+ * workspaceState key: "Don't Ask Again" on the offer to move the project to
+ * the new file naming (#182). Per workspace, like #126's and #163's.
+ */
+export const NAMING_MIGRATION_DECLINED_KEY = 'erdStudio.namingMigrationDeclined';
+
+/** What the canvas needs to offer the naming migration (#182), wired by the extension. */
+interface NamingMigrationHooks {
+  /** The migration's plan for the project as it is on disk. */
+  plan: () => NamingMigrationPlan;
+  /** The project's naming (`projectNamingOf`). */
+  naming: () => ProjectNaming;
+  /** Run the migration command, with its own dialog; true when it migrated. */
+  run: () => Promise<boolean>;
+  /** This extension's version, for the teammates sentence. */
+  version: string;
+}
+
 /** A backwards group as the turn-round offer matches it again after the toast (#163): its links and cardinality. */
 function backwardsGroupId(members: readonly Relationship[]): string {
   return `${members[0]?.cardinality}\u0002${members.map(linkKey).sort().join('\u0001')}`;
@@ -521,6 +552,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly pendingUpdates = new Map<string, boolean>();
   /** The move-to-library offer is made at most once per session (#126). */
   private relationshipMoveOffered = false;
+  /** The naming migration's offer (#182): at most once per session, before the relationship offers. */
+  private namingMigrationOffered = false;
+  private namingMigration: NamingMigrationHooks | undefined;
   private relationshipBackwardsOffered = false;
   /** Each document's logical relationships flagged `keysContradict` when its canvas last loaded (#163). */
   private readonly backwardsDrawn = new Map<string, DisplayRelationship[]>();
@@ -1750,16 +1784,14 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * that reports the error to the webview.
    */
   private isSubjectAreaV5(parsed: Record<string, unknown>): boolean {
+    // A v6 file (#162) is held under the v5 keys: it is edited as v5 and written back as v6.
+    if (tableNamingDocuments.has(parsed)) return true;
     const format = detectSubjectAreaFormat(parsed);
     const unsupported = describeUnsupportedSubjectAreaFormat(format, 'being edited', parsed);
     if (unsupported) {
       throw new Error(unsupported);
     }
-    // v6 (#162) is read, never written: refused, not edited as v4.
-    if (format === 'v6') {
-      throw new EditRefused(`This subject area ${TABLE_NAMING_READ_ONLY}`);
-    }
-    return format === 'v5';
+    return format === 'v5' || format === 'v6';
   }
 
   /**
@@ -1918,8 +1950,72 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * diagram's relationships drawn backwards (#163).
    */
   private async offerRelationshipPrompts(document: vscode.TextDocument, webview: vscode.Webview, panelKey: string): Promise<void> {
+    // At most one prompt per canvas open (#182): the naming migration's, when
+    // it is made, leaves #126's and #163's offers for a later open.
+    if (await this.maybeOfferNamingMigration()) return;
     if (await this.maybeOfferRelationshipMove()) return;
     await this.maybeOfferTurnRound(document, webview, panelKey);
+  }
+
+  /** Wire the naming migration's offer (#182); the extension calls it once. */
+  setNamingMigration(
+    plan: NamingMigrationHooks['plan'],
+    naming: NamingMigrationHooks['naming'],
+    run: NamingMigrationHooks['run'],
+    version: string,
+  ): void {
+    this.namingMigration = { plan, naming, run, version };
+  }
+
+  /**
+   * Hold every open canvas's refresh while the naming migration applies
+   * (#182): half-way through, a table can be in both folders or in neither,
+   * and a canvas redrawn then would warn about it. The returned function
+   * lets them refresh again; the migration then redraws each once.
+   */
+  holdRefreshes(): () => void {
+    const held = [...this.openPanels.keys()].filter((key) => !this.pendingUpdates.get(key));
+    for (const key of held) this.pendingUpdates.set(key, true);
+    return () => { for (const key of held) this.pendingUpdates.delete(key); };
+  }
+
+  /**
+   * Offer, once a session, to move a v5 or mixed project to the new file
+   * naming (#182). Nothing is written without the user's choice: Review
+   * opens the command's dialog, which shows the whole plan. Not made when the
+   * migration would be refused (a layer called `tables`, a name in both
+   * libraries…): the command says why when it is run. True when the offer
+   * was shown, whatever the answer.
+   */
+  private async maybeOfferNamingMigration(): Promise<boolean> {
+    const hooks = this.namingMigration;
+    if (!hooks || this.namingMigrationOffered) return false;
+    this.namingMigrationOffered = true;
+    try {
+      if (this.context.workspaceState?.get<boolean>(NAMING_MIGRATION_DECLINED_KEY)) return false;
+      if (hooks.naming() === 'v6') return false;
+      const plan = hooks.plan();
+      // A v4 file is no refusal here: the command runs the v5 migration first.
+      const refused = plan.v4SubjectAreas.length > 0 ? plan.refusals.length > 1 : plan.refusals.length > 0;
+      if (refused || (namingMigrationIsEmpty(plan) && plan.v4SubjectAreas.length === 0)) return false;
+      const choice = await vscode.window.showInformationMessage(
+        'ERD Studio now says "table" and "subject area", and this project\'s files can say so too: .erd-studio/tables/ ' +
+          `instead of logical-models/, "subjectArea" instead of "domain". Teammates will need ERD Studio ${hooks.version} or later ` +
+          'to open the files afterwards. Review the migration?',
+        'Review the Migration…',
+        'Not Now',
+        "Don't Ask Again",
+      );
+      if (choice === 'Review the Migration…') {
+        await hooks.run();
+      } else if (choice === "Don't Ask Again") {
+        await this.context.workspaceState?.update(NAMING_MIGRATION_DECLINED_KEY, true);
+      }
+      return true;
+    } catch (err) {
+      console.warn('[SemanticEditorProvider] Naming migration offer skipped:', err);
+      return false;
+    }
   }
 
   /**
@@ -2087,16 +2183,16 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     for (const name of ops.delete ?? []) {
       if (!this.tableLibraryService.tableExists(name)) continue;
       const deletePath = this.tableLibraryService.tablePath(name);
-      this.tableLibraryService.refuseTableNamingWrite(deletePath, name);
       edit.deleteFile(vscode.Uri.file(deletePath), { ignoreIfNotExists: true });
       deleted.push(deletePath);
     }
 
     for (const { model, fromName } of ops.save ?? []) {
-      const renamedFrom = fromName !== undefined && fromName !== model.name
-        ? this.tableLibraryService.tableFolder(fromName)
-        : null;
-      const modelPath = this.tableLibraryService.tablePath(model.name, renamedFrom ?? layerFolder);
+      // A renamed file stays in its own library and folder (#182).
+      const renamed = fromName !== undefined && fromName !== model.name;
+      const modelPath = renamed
+        ? this.tableLibraryService.renamedTablePath(fromName, model.name)
+        : this.tableLibraryService.tablePath(model.name, layerFolder);
       const uri = vscode.Uri.file(modelPath);
       const yamlText = this.tableLibraryService.serializeTable(model, fromName);
       if (this.tableLibraryService.tableExists(model.name)) {
@@ -2269,10 +2365,6 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     this.refuseIfSubjectAreaFileGone(document);
     const text = document.getText();
     const parsed = this.parseSubjectAreaDocument(document, text);
-    // Positions, annotations and every other write to a v6 file (#162) stop here.
-    if (detectSubjectAreaFormat(parsed) === 'v6') {
-      throw new EditRefused(`This subject area ${TABLE_NAMING_READ_ONLY}`);
-    }
     const section = this.getStageSection(parsed, stage);
 
     try {
@@ -2287,8 +2379,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     if (dirty) throw new EditRefused(`${dirty} has unsaved changes. Save or revert it, then try again.`);
     const otherDomains = options.otherDomains ? this.rewriteOtherSubjectAreas(document.uri.fsPath, options.otherDomains) : [];
 
-    // Re-rendered as before, in the file's own line endings.
-    const updatedText = keepLineEndings(JSON.stringify(parsed, null, 2) + '\n', text);
+    // Re-rendered as before, in the file's own naming (#182) and line endings.
+    const updatedText = serialiseSubjectArea(parsed, text);
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       document.positionAt(0),
@@ -2418,21 +2510,20 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       }
       if (!parsed || typeof parsed !== 'object') continue;
       const format = detectSubjectAreaFormat(parsed);
-      // A v6 diagram (#162) the change reaches cannot be kept in step, so the
-      // whole edit is refused rather than leave it pointing at an old name.
-      if (format === 'v6' && rewrite(normaliseSubjectAreaDocument(parsed))) {
-        const name = path.relative(this.workspaceRoot, summary.filePath).split(path.sep).join('/');
-        throw new EditRefused(`${name} would change too, and it ${TABLE_NAMING_READ_ONLY} Nothing was changed.`);
+      if (format !== 'v5' && format !== 'v6') continue;
+      // A v6 diagram (#162) is rewritten under the v5 keys and written back in its own naming (#182).
+      if (format === 'v6') {
+        parsed = normaliseSubjectAreaDocument(parsed);
+        tableNamingDocuments.add(parsed);
       }
-      if (format !== 'v5') continue;
       if (!rewrite(parsed)) continue;
       if (dirtyFiles([summary.filePath]).length > 0) {
         const name = path.relative(this.workspaceRoot, summary.filePath).split(path.sep).join('/');
         throw new EditRefused(`${name} has unsaved changes. Save or revert it, then try again.`);
       }
       // Only the renamed strings change: the file keeps its layout and line endings.
-      const text = rewriteJsonScalars(original, parsed)
-        ?? keepLineEndings(JSON.stringify(parsed, null, 2) + '\n', original);
+      const text = rewriteJsonScalars(original, subjectAreaFileObject(parsed))
+        ?? serialiseSubjectArea(parsed, original);
       out.push({ filePath: summary.filePath, text });
     }
     return out;
@@ -2467,6 +2558,13 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     }
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       throw new EditRefused(`Subject area file ${shown} does not contain a JSON object.`);
+    }
+    // A v6 file (#162) is edited under the v5 keys, like every other, and
+    // written back in its own naming (`serialiseSubjectArea`, #182).
+    if (detectSubjectAreaFormat(data) === 'v6') {
+      const normalised = normaliseSubjectAreaDocument(data as Record<string, unknown>);
+      tableNamingDocuments.add(normalised);
+      return normalised;
     }
     return data as Record<string, unknown>;
   }
@@ -2509,24 +2607,6 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  /** Whether the open document is a subject area file in the v6 naming (#162). */
-  private usesTableNaming(document: vscode.TextDocument): boolean {
-    try {
-      return detectSubjectAreaFormat(JSON.parse(document.getText())) === 'v6';
-    } catch {
-      return false;
-    }
-  }
-
-  /** Say once per session per file why a v6 canvas is read-only (#162). */
-  private explainTableNamingReadOnly(document: vscode.TextDocument): void {
-    const key = `naming\0${document.uri.toString()}`;
-    if (this.duplicateWarningsShown.has(key)) return;
-    this.duplicateWarningsShown.add(key);
-    const shown = path.relative(this.workspaceRoot, document.uri.fsPath).split(path.sep).join('/');
-    void vscode.window.showInformationMessage(`${shown} ${TABLE_NAMING_READ_ONLY} It is shown read-only.`);
-  }
-
   /**
    * Convert a SemanticSubjectArea to a DisplaySubjectArea for the webview.
    * viewConfig is passed separately since it lives at the unified domain root level.
@@ -2537,11 +2617,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     ymlData: YmlData,
     viewConfig: import('../types/semantic').ViewConfig,
     stubColumns?: string[],
-    /** The file uses the v6 naming (#162): drawn read-only, since nothing writes it yet. */
-    tableNaming = false,
   ): DisplaySubjectArea {
     const editorPayload = this.buildWebviewPayload(domain, manifest, ymlData, domain.modelFolder);
-    const readOnly = domain.stage === 'physical' || tableNaming;
+    const readOnly = domain.stage === 'physical';
     const dbtKeyIndex = dbtKeyIndexOf(ymlData, manifest);
 
     const display = toDisplaySubjectArea(domain, {
@@ -2642,9 +2720,6 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
       let unifiedDomain = await this.readSubjectAreaTolerantly(document.uri.fsPath, { dbtKeyIndex });
       this.warnAboutDuplicateTables(unifiedDomain);
-      // A v6 file (#162) is shown read-only: nothing on this path may write it.
-      const tableNaming = this.usesTableNaming(document);
-      if (tableNaming) this.explainTableNamingReadOnly(document);
 
       // A fresh domain — models but not one stored position, typically written
       // by an AI assistant with `viewConfig: {}` — is laid out by the webview's
@@ -2652,12 +2727,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // edit, one undo step). The simple placement below still goes out in the
       // payload so the first paint is never at (0,0), but it is not written:
       // should the ELK run fail, the next open simply asks again.
-      const autoLayout = activeStage === 'logical' && !tableNaming && isFreshLayout(unifiedDomain);
+      const autoLayout = activeStage === 'logical' && isFreshLayout(unifiedDomain);
 
       // Auto-assign positions for models that lack them (e.g. added by AI agents)
       const computed = this.computeMissingPositions(unifiedDomain);
       if (computed) {
-        if (options.persistPositions && !autoLayout && !tableNaming) {
+        if (options.persistPositions && !autoLayout) {
           const positionsWritten = await this.autoPositionNewTables(document, computed);
           if (positionsWritten) {
             // Re-read since we wrote new positions to the file
@@ -2673,13 +2748,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         const physicalDomain = this.subjectAreaService.buildPhysicalSubjectArea(unifiedDomain, ymlData, manifest, catalog);
         const layerConfig = this.layerService.getLayer(unifiedDomain.layer);
         if (layerConfig) { physicalDomain.layerConfig = layerConfig; }
-        // Positions are written to the v6 file (#162), which is not written yet.
-        if (tableNaming) physicalDomain.positionDraggable = false;
         this.post(webview, { type: 'domainLoaded', payload: physicalDomain, welcomeDismissed });
         if (options.persistPositions) this.recordCanvasOpen(document, 'physical', physicalDomain.models.length, catalog !== undefined);
       } else {
         const domain = SubjectAreaService.toLogicalStage(unifiedDomain);
-        const displayDomain = this.buildDisplaySubjectArea(domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns, tableNaming);
+        const displayDomain = this.buildDisplaySubjectArea(domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns);
         // What the turn-round offer asks about (#163): the lines this canvas flags, without reading the file again.
         this.backwardsDrawn.set(document.uri.toString(), displayDomain.relationships.filter((r) => r.keysContradict));
         this.post(webview, {
@@ -4923,17 +4996,13 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (layerConfig) {
           physicalDomain.layerConfig = layerConfig;
         }
-        // Positions are written to the v6 file (#162), which is not written yet.
-        if (this.usesTableNaming(document)) physicalDomain.positionDraggable = false;
         this.post(webview, { type: 'stageData', payload: physicalDomain, ...reply });
         // #113: where a missing manifest is met (once per day).
         if (this.manifestService.isMissing) telemetry.featureOnce('manifestMissingPhysical');
       } else {
         // Logical — extract from unified file
         const domain = this.subjectAreaService.getSubjectAreaStage(document.uri.fsPath, { dbtKeyIndex });
-        const displayDomain = this.buildDisplaySubjectArea(
-          domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns, this.usesTableNaming(document),
-        );
+        const displayDomain = this.buildDisplaySubjectArea(domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns);
         this.post(webview, { type: 'stageData', payload: displayDomain, ...reply, ...this.manifestHintFlag() });
       }
     } catch (err) {
@@ -5046,6 +5115,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         layer: (parsed.layer as string | undefined) ?? '',
         modelFolder: (name) => this.tableLibraryService.tableFolder(name),
         tableLibraryFile: (name) => this.tableLibraryService.tableLibraryFile(name),
+        newTableLibraryDir: this.tableLibraryService.writesTableNaming() ? 'tables' : 'logical-models',
       });
 
       const totalActions = countSyncPlanActions(syncPlan);
