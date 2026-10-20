@@ -55,8 +55,11 @@ log() { echo "$(date -Is) $*" >> "$BOT/logs/runner.log"; }
 
 # Telegram, because GitHub tells Liam nothing about what this bot does: it acts as liam-machine.
 # The token goes to curl as config on stdin, never on its command line.
+# Each message is also kept in state/notifications.log: Telegram doesn't pass the quoted text of
+# a reply on to the ERD Studio session (erd-tg.sh), so it reads what "merge it" refers to there.
 notify() {
   NOTIFIED=1
+  printf '%s\n%s\n\n' "$(date -Is)" "$1" >> "$BOT/state/notifications.log"
   [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ] || return 0
   printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "$TELEGRAM_BOT_TOKEN" \
     | curl -sS --fail -m 20 -o /dev/null -K - --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
