@@ -19,6 +19,17 @@ import { findConflictMarkers } from './mergeConflict.js';
 /** Name of the model directory under the semantic dir (`.erd-studio/logical-models/`). */
 export const LOGICAL_MODELS_DIR = 'logical-models';
 
+/**
+ * The v6 name of the table library (`.erd-studio/tables/`, #162). Read
+ * alongside `logical-models/`, which is searched first; nothing writes here
+ * yet. A project made before v6 may have a layer called `tables`, so a
+ * host that can list directories checks before treating it as the library.
+ */
+export const TABLES_DIR = 'tables';
+
+/** The library folders, in the order a table name is looked up. */
+export const TABLE_LIBRARY_DIRS: readonly string[] = [LOGICAL_MODELS_DIR, TABLES_DIR];
+
 /** Rationale keys ERD Studio reads from (and writes to) a model file. */
 export const RATIONALE_KEYS = ['purpose', 'design', 'grainChoice', 'roleChoice', 'scdStrategy', 'measures'] as const;
 
@@ -101,6 +112,8 @@ interface YamlTable {
   description?: string;
   grain?: string;
   modelRole?: string;
+  /** The v6 name of `modelRole` (#162); wins when both are written. */
+  tableRole?: string;
   rationale?: Record<string, string>;
   meta?: unknown;
   columns?: YamlColumn[];
@@ -429,7 +442,8 @@ function yamlToTable(raw: YamlTable, fallbackName: string): SemanticTable {
   const alias = str(raw.alias)?.trim();
   const description = str(raw.description);
   const grain = str(raw.grain);
-  const modelRole = str(raw.modelRole);
+  // The v6 name wins only when it holds text: a stray non-string never hides a valid `modelRole`.
+  const modelRole = str(typeof raw.tableRole === 'string' ? raw.tableRole : raw.modelRole);
   if (schema) model.schema = schema;
   if (alias) model.alias = alias;
   if (description) model.description = description;
@@ -490,7 +504,9 @@ function readRelationships(value: unknown): TableRelationship[] {
   for (const entry of value) {
     const r = entry as Record<string, unknown> | null;
     if (!r || typeof r !== 'object' || Array.isArray(r)) continue;
-    const { fromColumn, toModel, toColumn, cardinality } = r;
+    // `toTable` is the v6 name of `toModel` (#162), and wins when both are written.
+    const { fromColumn, toColumn, cardinality } = r;
+    const toModel = typeof r.toTable === 'string' ? r.toTable : r.toModel;
     if (typeof fromColumn !== 'string' || typeof toModel !== 'string' || typeof toColumn !== 'string') continue;
     if (!fromColumn || !toModel || !toColumn) continue;
     const role = normaliseRelationshipRole(r.role);

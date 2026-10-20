@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 6,
+  "subjectArea": "sales",
+  "layer": "gold",
+  "description": "Relationships in the model library in the shapes released extensions wrote, plus a domain-file copy that disagrees",
+  "logical": {
+    "tables": [
+      "fct_order",
+      "dim_customer",
+      "dim_date",
+      "dim_product"
+    ],
+    "relationships": [
+      {
+        "fromTable": "fct_order",
+        "fromColumn": "customer_key",
+        "toTable": "dim_customer",
+        "toColumn": "customer_key",
+        "cardinality": "one-to-one"
+      }
+    ]
+  },
+  "viewConfig": {
+    "positions": {
+      "fct_order": {
+        "x": 400,
+        "y": 200
+      },
+      "dim_customer": {
+        "x": 40,
+        "y": 40
+      },
+      "dim_date": {
+        "x": 40,
+        "y": 360
+      },
+      "dim_product": {
+        "x": 760,
+        "y": 200
+      }
+    }
+  }
+}

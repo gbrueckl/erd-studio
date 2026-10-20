@@ -8,16 +8,19 @@
  *   {semanticDir}/layers.json
  *   {semanticDir}/logical-models/{model}.yml           <- a flat library, or
  *   {semanticDir}/logical-models/{layer}/{model}.yml   <- grouped by layer
+ *   {semanticDir}/tables/…                             <- the same, under v6's name
  *   {semanticDir}/{layer}/{domain}.json                <- domainPath
  *
  * A model file may sit at the top of `logical-models/` or one folder down;
  * the folder is organisational only and names are unique across the library.
- * With no directory listing to go on, a v5 model is found by probing, in
- * order: `logical-models/{model}.yml`, then the folder of every layer in
- * `layers.json` (and the domain's own), alphabetically — the extension's
- * order — and the first file that exists is used. A flat library therefore costs exactly one
- * read per model, as before. Folders not named after a layer are invisible
- * here: only hosts that can list directories (the extension) see them.
+ * With no directory listing to go on, a v5 or v6 model is found by probing,
+ * in order: `logical-models/{model}.yml`, then the folder of every layer in
+ * `layers.json` (and the domain's own), alphabetically, then the same under
+ * `tables/` — the extension's order — and the first file that exists is
+ * used. A flat v5 library therefore costs exactly one read per model, as
+ * before; a v6 one costs one more per folder probed first. Folders not named
+ * after a layer are invisible here: only hosts that can list directories (the
+ * extension) see them, and only they report a name found in both libraries.
  *
  * Everything the files say is validated and repaired by the same functions
  * the extension host uses. The limits in the options exist for hosts that
@@ -26,6 +29,7 @@
 
 import type { DisplaySubjectArea } from './types/display.js';
 import type { SubjectAreaFormat, TableLoadError, NodePosition, SemanticTable } from './types/semantic.js';
+import { usesTableLibrary } from './types/semantic.js';
 import type { LayerConfig } from './types/layer.js';
 import {
   SubjectAreaFileError,
@@ -39,7 +43,7 @@ import {
   type LayerLookup,
 } from './domain.js';
 import { LAYERS_CONFIG_FILE, parseLayersText } from './layers.js';
-import { LOGICAL_MODELS_DIR, YamlCharLimitError, YamlNodeLimitError, isSafeTableName, parseTableTextWithUsage } from './logicalModel.js';
+import { TABLE_LIBRARY_DIRS, YamlCharLimitError, YamlNodeLimitError, isSafeTableName, parseTableTextWithUsage } from './logicalModel.js';
 import { computeMissingPositions, toDisplaySubjectArea } from './displayDomain.js';
 import { checkLimit } from './limits.js';
 
@@ -112,11 +116,11 @@ export interface LoadDisplaySubjectAreaOptions {
   /** Most files read at once. Default 8. */
   maxParallelReads?: number;
   /**
-   * Which v5 model names may be read. A rejected name is never read and
+   * Which v5 / v6 model names may be read. A rejected name is never read and
    * renders as a placeholder. Default: `isSafeTableName`.
    */
   modelNameFilter?: (name: string) => boolean;
-  /** Most entries `logical.models` may have (v4 and v5, counted before any filtering). Default unlimited. */
+  /** Most entries `logical.models` (v6: `logical.tables`) may have (counted before any filtering). Default unlimited. */
   maxModels?: number;
   /**
    * Most YAML nodes one model file may expand to; a file over it renders as a
@@ -264,18 +268,19 @@ export async function loadDisplaySubjectArea(options: LoadDisplaySubjectAreaOpti
 
   // 7. v5 model files: each unique, allowed name read and parsed once.
   const parsed = new Map<string, ParsedTable>();
-  if (format === 'v5' && rawModels) {
+  if (usesTableLibrary(format) && rawModels) {
     const names = [...new Set(rawModels.filter((m): m is string => typeof m === 'string'))]
       .filter((name) => modelNameFilter(name));
-    const modelsDir = `${prefix}${LOGICAL_MODELS_DIR}/`;
     // Alphabetical, like the extension's TableLibraryService, so a name that
     // (wrongly) exists in two folders resolves to the same file in both hosts.
     const folders = [...new Set([domainLayer, ...layers.map((l) => l.id)])].sort((a, b) => a.localeCompare(b));
+    // `logical-models/` then `tables/` (#162), each top level first.
+    const candidates = TABLE_LIBRARY_DIRS.flatMap((dir) => ['', ...folders.map((f) => `${f}/`)].map((sub) => `${prefix}${dir}/${sub}`));
     await mapWithLimit(names, maxParallelReads, async (name) => {
       // One lane probes one candidate at a time, so maxParallelReads holds.
-      let text = await readFile(`${modelsDir}${name}.yml`);
-      for (let i = 0; (text === null || text === undefined) && i < folders.length; i++) {
-        text = await readFile(`${modelsDir}${folders[i]}/${name}.yml`);
+      let text: string | null | undefined;
+      for (let i = 0; (text === null || text === undefined) && i < candidates.length; i++) {
+        text = await readFile(`${candidates[i]}${name}.yml`);
       }
       parsed.set(name, parseTable(name, text, maxYamlChars, maxYamlNodes, warn));
     });

@@ -55,7 +55,7 @@ export interface MoveRelationshipsDeps {
   semanticDir: string;
   subjectAreaService: Pick<SubjectAreaService, 'listSubjectAreas'>;
   tableLibraryService: Pick<TableLibraryService, 'getTable' | 'listTables' | 'tablePath' | 'invalidateCache' | 'getTablesDir'>
-    & Partial<Pick<TableLibraryService, 'findTableNameIgnoringCase'>>;
+    & Partial<Pick<TableLibraryService, 'findTableNameIgnoringCase' | 'hasTablesLibrary'>>;
   /** Refresh the trees, open canvases and selectors once the files are written. */
   onWritten: (domainPaths: string[]) => Promise<void>;
   /** Test seam: how one file is written. Defaults to {@link writeFileAtomic}. */
@@ -103,6 +103,18 @@ export function readSubjectAreaRelationships(
     }
   }
   return domains;
+}
+
+/** Whether the project has v6's `tables/` library or any subject area file in the v6 naming (#162). */
+function usesTableNaming(deps: MoveRelationshipsDeps): boolean {
+  if (deps.tableLibraryService.hasTablesLibrary?.()) return true;
+  return deps.subjectAreaService.listSubjectAreas(deps.workspaceRoot, deps.semanticDir).some((summary) => {
+    try {
+      return detectSubjectAreaFormat(JSON.parse(fs.readFileSync(summary.filePath, 'utf-8'))) === 'v6';
+    } catch {
+      return false;
+    }
+  });
 }
 
 /**
@@ -160,6 +172,16 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
   const { workspaceRoot, semanticDir, subjectAreaService, tableLibraryService } = deps;
   const writeFile = deps.writeFile ?? writeFileAtomic;
   telemetry.feature('relMoveStarted');
+  // The move writes v5 keys. A project holding any of the new file naming
+  // (#162: `tables/`, a schemaVersion 6 diagram) is read but not written by
+  // this version, and a half-moved project would be worse than an unmoved one.
+  if (usesTableNaming(deps)) {
+    void vscode.window.showInformationMessage(
+      `${TITLE}: this project uses the new file naming (tables/, schemaVersion 6), which this version of ERD Studio ` +
+      'reads but cannot edit yet. Nothing was changed.',
+    );
+    return;
+  }
   // Read the library fresh: a cached copy may predate an edit made on disk.
   tableLibraryService.invalidateCache();
   const domains = readSubjectAreaRelationships(subjectAreaService, workspaceRoot, semanticDir)

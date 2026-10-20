@@ -192,6 +192,11 @@ describe('loadDisplaySubjectArea', () => {
         '.erd-studio/logical-models/bronze/missing.yml',
         '.erd-studio/logical-models/gold/missing.yml',
         '.erd-studio/logical-models/silver/missing.yml',
+        // Then v6's tables/ library, in the same order (#162).
+        '.erd-studio/tables/missing.yml',
+        '.erd-studio/tables/bronze/missing.yml',
+        '.erd-studio/tables/gold/missing.yml',
+        '.erd-studio/tables/silver/missing.yml',
       ]);
       expect(domain.models.map((m) => [m.name, m.columns.length])).toEqual([['sap__mara', 1], ['missing', 0]]);
     });

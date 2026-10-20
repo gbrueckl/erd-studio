@@ -24,7 +24,7 @@ import type {
   ViewConfig,
   Annotation,
 } from './types/semantic.js';
-import { CURRENT_SCHEMA_VERSION, describeUnsupportedSubjectAreaFormat, detectSubjectAreaFormat } from './types/semantic.js';
+import { CURRENT_SCHEMA_VERSION, describeUnsupportedSubjectAreaFormat, detectSubjectAreaFormat, usesTableLibrary } from './types/semantic.js';
 import { LOGICAL_MODELS_DIR, TableMergeConflictError } from './logicalModel.js';
 import {
   canonicalRelationship, compositeGroupProblem, linkKey, normaliseCompositeKey, normaliseRelationshipRole, respellRelationship,
@@ -176,12 +176,71 @@ export function validateSubjectAreaDocument(
   // documents are rejected with a remediation hint rather than silently
   // loaded as an empty or half-resolved domain.
   const format = detectSubjectAreaFormat(obj);
-  const unsupported = describeUnsupportedSubjectAreaFormat(format, filePath);
+  const unsupported = describeUnsupportedSubjectAreaFormat(format, filePath, obj);
   if (unsupported) {
     throw new SubjectAreaValidationError(unsupported);
   }
 
-  return { obj, format };
+  return { obj: format === 'v6' ? normaliseSubjectAreaDocument(obj) : obj, format };
+}
+
+/** Rename the v6 key `from` to the in-memory `to` in a copy of `obj`; when both are written, the v6 one wins. */
+function renamedKey(obj: Record<string, unknown>, from: string, to: string): Record<string, unknown> {
+  if (!(from in obj)) return obj;
+  const { [from]: value, ...rest } = obj;
+  return { ...rest, [to]: value };
+}
+
+/** The relationship entries of a v6 list under their in-memory (v5) keys. */
+function normaliseRelationshipEntries(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
+    // A v6 end wins only when it holds text, as `parseTableText` reads `toTable`;
+    // a stray non-string one beside a v5 end is dropped rather than hiding it.
+    const end = (o: Record<string, unknown>, from: string, to: string): Record<string, unknown> => {
+      if (typeof o[from] === 'string' || !(to in o)) return renamedKey(o, from, to);
+      const { [from]: _stray, ...rest } = o;
+      return rest;
+    };
+    return end(end(entry as Record<string, unknown>, 'fromTable', 'fromModel'), 'toTable', 'toModel');
+  });
+}
+
+/** A v6 view config (top level, or the stage-level fallback) under its in-memory keys. */
+function normaliseViewConfig(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const viewConfig = value as Record<string, unknown>;
+  if (!Array.isArray(viewConfig.annotations)) return viewConfig;
+  return {
+    ...viewConfig,
+    annotations: viewConfig.annotations.map((a: unknown) =>
+      a && typeof a === 'object' && !Array.isArray(a) ? renamedKey(a as Record<string, unknown>, 'linkedTable', 'linkedModel') : a),
+  };
+}
+
+/**
+ * The one place the v6 names (#162) become the in-memory ones, so nothing
+ * after `validateSubjectAreaDocument` branches on the naming: `subjectArea`
+ * → `domain`, `logical.tables` → `logical.models`, a relationship's
+ * `fromTable` / `toTable` → `fromModel` / `toModel`, an annotation's
+ * `linkedTable` → `linkedModel`. Returns a copy; `schemaVersion` keeps the
+ * file's own value. Model yml is normalised the same way, by key, in
+ * `parseTableText`.
+ */
+export function normaliseSubjectAreaDocument(obj: Record<string, unknown>): Record<string, unknown> {
+  const doc = renamedKey(obj, 'subjectArea', 'domain');
+  const result: Record<string, unknown> = { ...doc };
+  if (doc.logical && typeof doc.logical === 'object' && !Array.isArray(doc.logical)) {
+    const logical = renamedKey(doc.logical as Record<string, unknown>, 'tables', 'models');
+    result.logical = {
+      ...logical,
+      ...('relationships' in logical ? { relationships: normaliseRelationshipEntries(logical.relationships) } : {}),
+      ...('viewConfig' in logical ? { viewConfig: normaliseViewConfig(logical.viewConfig) } : {}),
+    };
+  }
+  if ('viewConfig' in doc) result.viewConfig = normaliseViewConfig(doc.viewConfig);
+  return result;
 }
 
 /** The configured layers, as far as domain loading needs them. */
@@ -313,10 +372,11 @@ export function toLogicalStage(unified: UnifiedSubjectArea): SemanticSubjectArea
 
 /**
  * Parse a stage data section from a domain file.
- * Handles both v4 (inline SemanticTable[]) and v5 (string[] name references)
+ * Handles both v4 (inline SemanticTable[]) and v5 / v6 (string[] name
+ * references; v6 already normalised to v5 keys by `validateSubjectAreaDocument`)
  * as decided by {@link detectSubjectAreaFormat} — hybrid/legacy documents are
  * rejected before this point, so every entry is guaranteed to match `format`.
- * For v5, resolves model names through `getModel`.
+ * For v5 and v6, resolves model names through `getModel`.
  * Returns null if the section is missing or invalid.
  */
 function parseStageData(
@@ -337,7 +397,7 @@ function parseStageData(
   const relationships = parseRelationships(obj.relationships, filePath, warn);
 
   let models: SemanticTable[];
-  if (format === 'v5') {
+  if (usesTableLibrary(format)) {
     const names = rawModels.filter((m): m is string => typeof m === 'string');
     if (getModel) {
       // Resolve model name references from logical-models/*.yml

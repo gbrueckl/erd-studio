@@ -2,6 +2,11 @@
 
 All notable changes to `@erd-studio/renderer`. While `0.x`, a breaking change bumps the minor version.
 
+## 0.3.0
+
+### Changed
+- Pins `@erd-studio/core` 0.3.0, which reads schema v6, the table naming ([#181](https://github.com/liam-machine/erd-studio/issues/181)). No change to the renderer's own API: a v6 subject area reaches `ErdCanvas` as the same `DisplaySubjectArea` its v5 twin does.
+
 ## 0.2.0
 
 ### Changed (breaking)

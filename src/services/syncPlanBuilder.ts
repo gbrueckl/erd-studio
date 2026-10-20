@@ -55,6 +55,12 @@ export interface SyncPlanContext {
    * in a library grouped by layer. Omitted: every path is top level.
    */
   modelFolder?: (modelName: string) => string | null;
+  /**
+   * Where a model's library file is, relative to the semantic dir
+   * (`logical-models/…` or v6's `tables/…`, #162), or null when it has none.
+   * Wins over `modelFolder`, which assumes `logical-models/`.
+   */
+  tableLibraryFile?: (modelName: string) => string | null;
 }
 
 /** Actions that edit dbt files, after which `dbt compile` is needed. */
@@ -216,7 +222,10 @@ export function buildSyncPlan(
     modelContext[modelName] = {
       modelName,
       // The file where it actually is — top level or a layer folder.
-      logicalModelPath: toSlash(path.join(ctx.semanticDir, 'logical-models', ctx.modelFolder?.(modelName) ?? '', `${modelName}.yml`)),
+      logicalModelPath: toSlash(path.join(
+        ctx.semanticDir,
+        ctx.tableLibraryFile?.(modelName) ?? path.join('logical-models', ctx.modelFolder?.(modelName) ?? '', `${modelName}.yml`),
+      )),
       dbtSqlPath,
       dbtSchemaPath,
     };

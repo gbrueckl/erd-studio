@@ -41,6 +41,10 @@ describe('redactPaths', () => {
       'Could not read /Users/jo/My Projects/acme dbt/.erd-studio/logical-models/dim_customer.yml',
       'Could not read {project}/.erd-studio/logical-models/{model}.yml',
     ],
+    // v6's table library (#181), top level and one folder down; a `tables` layer's diagram stays a diagram.
+    ['/home/jo/acme/.erd-studio/tables/gold/dim_customer.yml bad', '{project}/.erd-studio/tables/{table}.yml bad'],
+    ['/home/jo/acme/.erd-studio/tables/dim_customer.yml bad', '{project}/.erd-studio/tables/{table}.yml bad'],
+    ['/home/jo/acme/.erd-studio/tables/orders.json bad', '{project}/.erd-studio/{layer}/{domain}.json bad'],
     ['/home/jo/acme/.erd-studio/layers.json failed', '{project}/.erd-studio/layers.json failed'],
     ['/home/jo/acme/erd-studio/gold/finance.json', '{project}/erd-studio/{layer}/{domain}.json'],
     [

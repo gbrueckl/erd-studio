@@ -126,8 +126,8 @@ describe('validateSubjectAreaDocument', () => {
 
   it('rejects a schemaVersion newer than this version supports', () => {
     rejects(
-      { schemaVersion: 6 },
-      `Subject area file ${FILE} has schemaVersion 6 but this extension only supports up to version 5. Please update the extension.`,
+      { schemaVersion: 7 },
+      `Subject area file ${FILE} has schemaVersion 7 but this extension only supports up to version 6. Please update the extension.`,
     );
   });
 
