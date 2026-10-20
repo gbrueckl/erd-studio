@@ -36,10 +36,10 @@ function deps(overrides: Partial<DrawFromDbtDeps> = {}): DrawFromDbtDeps {
     } as unknown as DrawFromDbtDeps['layerService'],
     subjectAreaService: { listSubjectAreas: () => [] },
     tableLibraryService: {
-      modelExists: () => false,
-      saveModel: () => undefined,
+      tableExists: () => false,
+      saveTable: () => undefined,
       groupsByFolder: () => false,
-      deleteModel: () => undefined,
+      deleteTable: () => undefined,
     } as unknown as DrawFromDbtDeps['tableLibraryService'],
     loadDbt: async () => ({}),
     validateDomainName: () => undefined,
