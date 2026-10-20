@@ -19,6 +19,33 @@ import { redactPaths, type FeedbackKind } from '../types/feedback';
 /** The button that opens Send Feedback prefilled with the failure. */
 export const SEND_FEEDBACK_BUTTON = 'Send Feedback';
 
+/** The button that opens the user's file at the problem. */
+export const OPEN_FILE_BUTTON = 'Open File';
+
+/** A failure's buttons, by label, and what each one does. */
+export type ErrorActions = Readonly<Record<string, () => unknown>>;
+
+/**
+ * Show an error with its buttons (`show` is `window.showErrorMessage` or a
+ * test's fake), and run the one the user picks. Never awaited: the command
+ * resolves while the toast is still up. A button that fails goes to
+ * `onActionFailed`, so it says so rather than seeming to do nothing.
+ */
+export function showErrorWithActions(
+  show: (message: string, ...items: string[]) => PromiseLike<string | undefined>,
+  message: string,
+  actions: ErrorActions,
+  onActionFailed: (choice: string, err: unknown) => void,
+): void {
+  void Promise.resolve(show(message, ...Object.keys(actions))).then((choice) => {
+    const action = choice ? actions[choice] : undefined;
+    if (!choice || !action) return;
+    void Promise.resolve()
+      .then(action)
+      .catch((err: unknown) => onActionFailed(choice, err));
+  });
+}
+
 /** What `erdStudio.reportBug` accepts as its prefill. */
 export interface FeedbackPrefill {
   kind: FeedbackKind;
@@ -78,7 +105,8 @@ export function failedPath(err: unknown): string | undefined {
 /** `filePath` relative to `root` with `/` separators; the base name when it is outside `root`. */
 export function projectRelative(root: string, filePath: string): string {
   const rel = path.relative(root, filePath);
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return path.basename(filePath);
+  // `..` alone or as the first segment only: `..data/` is a folder inside the project.
+  if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return path.basename(filePath);
   return rel.split(path.sep).join('/');
 }
 
@@ -96,10 +124,14 @@ const JSON_MISTAKE_HINTS: Record<JsonSyntaxProblem, string> = {
  * character offset. `shown` is the project-relative path.
  */
 export function describeJsonMistake(shown: string, err: Pick<SubjectAreaFileError, 'line' | 'column' | 'syntaxProblem'>): string {
-  if (err.line === undefined || err.column === undefined || err.syntaxProblem === undefined) {
-    return `${shown} is not valid JSON.`;
-  }
-  return `${shown} has a mistake at line ${err.line}, column ${err.column}: ${JSON_MISTAKE_HINTS[err.syntaxProblem]}.`;
+  const at = jsonMistakeAt(err);
+  return at ? `${shown} has a mistake ${at}.` : `${shown} is not valid JSON.`;
+}
+
+/** "at line L, column C: <hint>" for a located JSON mistake, else undefined. */
+function jsonMistakeAt(err: Pick<SubjectAreaFileError, 'line' | 'column' | 'syntaxProblem'>): string | undefined {
+  if (err.line === undefined || err.column === undefined || err.syntaxProblem === undefined) return undefined;
+  return `at line ${err.line}, column ${err.column}: ${JSON_MISTAKE_HINTS[err.syntaxProblem]}`;
 }
 
 /** A diagram file the user has to fix, in words, and whether opening it helps. */
@@ -134,11 +166,9 @@ export function describeDiagramFileProblem(err: unknown, filePath: string, shown
             ...(err.line !== undefined ? { line: err.line } : {}),
           };
         }
-        const where = err.line !== undefined && err.column !== undefined && err.syntaxProblem !== undefined
-          ? `there is a mistake at line ${err.line}, column ${err.column}: ${JSON_MISTAKE_HINTS[err.syntaxProblem]}`
-          : 'it is not valid JSON';
+        const at = jsonMistakeAt(err);
         return {
-          reason: where,
+          reason: at ? `there is a mistake ${at}` : 'it is not valid JSON',
           openable: true,
           ...(err.line !== undefined ? { line: err.line } : {}),
           ...(err.column !== undefined ? { column: err.column } : {}),
@@ -147,6 +177,10 @@ export function describeDiagramFileProblem(err: unknown, filePath: string, shown
     }
   }
   if (err instanceof SubjectAreaValidationError) {
+    // Core wraps a TypeError thrown while building the diagram ("… is not a
+    // loadable subject area: Cannot read properties of …"): the raw exception
+    // is no sentence for the user, and the gap is ERD Studio's, so it is ours.
+    if ((err as { cause?: unknown }).cause instanceof TypeError) return undefined;
     // Core's sentence names the file by its absolute path.
     const reason = redactPaths(err.message.split(filePath).join(shown)).replace(/\.\s*$/, '');
     // A file from a newer ERD Studio is fine; editing it is not the fix.

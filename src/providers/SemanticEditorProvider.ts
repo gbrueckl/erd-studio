@@ -73,7 +73,7 @@ import { findVenvActivate } from '../services/dbtEnv';
 import { runDbtParse } from '../commands/runDbtParse';
 import { NO_DBT_MODELS_MESSAGE } from '../commands/drawFromDbt';
 import { EXPORT_DIAGRAM_COMMAND } from '../commands/exportDiagram';
-import { describeJsonMistake } from '../services/commandErrors';
+import { describeJsonMistake, projectRelative } from '../services/commandErrors';
 import { ManifestService } from '../services/manifestService';
 import { YmlParserService } from '../services/ymlParserService';
 import { TemplateService } from '../services/templateService';
@@ -2660,11 +2660,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * drive on Windows), so no screen or toast shows an absolute path.
    */
   private shownSubjectAreaPath(fsPath: string): string {
-    const relative = path.relative(this.workspaceRoot, fsPath);
-    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-      return path.basename(fsPath);
-    }
-    return relative.split(path.sep).join('/');
+    return projectRelative(this.workspaceRoot, fsPath);
   }
 
   /**

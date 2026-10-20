@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { SubjectAreaFileError } from '@erd-studio/core';
+import { SubjectAreaFileError, SubjectAreaValidationError } from '@erd-studio/core';
 
 import {
   classifyWriteFailure,
@@ -52,6 +52,10 @@ describe('projectRelative', () => {
     expect(projectRelative('/p', '/p/.erd-studio/silver')).toBe('.erd-studio/silver');
     expect(projectRelative('/p', '/elsewhere/x.json')).toBe('x.json');
   });
+
+  it('keeps a folder whose name starts with .. inside the project', () => {
+    expect(projectRelative('/p', '/p/..data/x.json')).toBe('..data/x.json');
+  });
 });
 
 describe('describeDiagramFileProblem', () => {
@@ -65,6 +69,12 @@ describe('describeDiagramFileProblem', () => {
   it('a merge conflict names its first line', () => {
     const err = new SubjectAreaFileError('invalid-json', '/p/a.json', 'conflict', { mergeConflict: true, line: 9 });
     expect(describeDiagramFileProblem(err, '/p/a.json', 'a.json')).toMatchObject({ openable: true, line: 9 });
+  });
+
+  it('calls core\'s wrapped TypeError ours, never showing the raw exception', () => {
+    const err = new SubjectAreaValidationError('/p/a.json is not a loadable subject area: Cannot read properties of undefined');
+    Object.defineProperty(err, 'cause', { value: new TypeError('Cannot read properties of undefined') });
+    expect(describeDiagramFileProblem(err, '/p/a.json', 'a.json')).toBeUndefined();
   });
 
   it('is undefined for a failure that is not the file\'s', () => {

@@ -423,6 +423,17 @@ describe('errors', () => {
     expect(features()).toEqual([]);
   });
 
+  it('an Open File that fails (the file was deleted since) says so, with Send Feedback', async () => {
+    const ui = fakeUi({ format: 'mermaid', action: 'copy', errorChoices: [OPEN_FILE_BUTTON] });
+    ui.openFileAt = async () => { throw new Error('cannot open /Users/someone/x.json'); };
+    await exportDiagramCommand(deps(ui, { projectRoot: '/project', exportDomain: vi.fn(async () => { throw jsonMistake(); }) }).deps, SUBJECT_AREA);
+    await vi.waitFor(() => expect(ui.errors).toHaveLength(2));
+    expect(ui.errors[1]).toBe(
+      "Export Diagram hit a problem in ERD Studio while running Open File, so nothing was exported. This isn't something you did. Please send us a report.",
+    );
+    expect(ui.errorButtons[1]).toEqual(['Send Feedback']);
+  });
+
   it('a diagram file this version cannot load names it without its absolute path', async () => {
     const ui = fakeUi({ format: 'dbml', action: 'copy' });
     const err = new SubjectAreaValidationError(`Subject area file ${SUBJECT_AREA} has invalid layer "bronze".`);

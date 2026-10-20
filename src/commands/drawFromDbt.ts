@@ -33,12 +33,15 @@ import { dirtyFiles } from '../providers/dirtyDocuments';
 import { drawnDiagramCopies, routeToLibrary, usesLibraryRelationships } from '../services/libraryRelationships';
 import { readSubjectAreaRelationships } from './moveRelationshipsToLibrary';
 import {
+  OPEN_FILE_BUTTON,
   SEND_FEEDBACK_BUTTON,
   classifyWriteFailure,
   failedPath,
   feedbackPrefill,
   oursMessage,
   projectRelative,
+  showErrorWithActions as showErrorWith,
+  type ErrorActions,
 } from '../services/commandErrors';
 import { ownWrites } from '../services/ownWriteTracker';
 import { SUBJECT_AREA_EDITOR_VIEW_TYPE } from '../services/recoveryService';
@@ -104,7 +107,7 @@ export interface DrawFromDbtResume {
 
 export const ADD_LAYER_BUTTON = 'Add Layer';
 export const SHOW_FILE_BUTTON = 'Show File';
-export const OPEN_FILE_BUTTON = 'Open File';
+export { OPEN_FILE_BUTTON };
 export const TRY_AGAIN_BUTTON = 'Try Again';
 export const OPEN_IT_BUTTON = 'Open It';
 export const CHOOSE_ANOTHER_NAME_BUTTON = 'Choose Another Name';
@@ -133,18 +136,12 @@ export async function drawFromDbt(deps: DrawFromDbtDeps, resume?: DrawFromDbtRes
  * Show an error with its buttons, and run the one the user picks. Never
  * awaited: the command resolves while the toast is still up.
  */
-function showErrorWithActions(message: string, actions: Readonly<Record<string, () => unknown>>): void {
-  void vscode.window.showErrorMessage(message, ...Object.keys(actions)).then((choice) => {
-    const action = choice ? actions[choice] : undefined;
-    if (!action) return;
-    // A button that fails (a re-run whose dbt read throws) still says so, rather than seeming to do nothing.
-    void Promise.resolve()
-      .then(action)
-      .catch((err) => {
-        console.error(`[ERD Studio] ${TITLE}: "${choice}" failed:`, err);
-        const doing = `while running ${choice}`;
-        showErrorWithActions(oursMessage(TITLE, doing, 'nothing was changed'), { [SEND_FEEDBACK_BUTTON]: sendFeedback(doing, err) });
-      });
+function showErrorWithActions(message: string, actions: ErrorActions): void {
+  // A button that fails (a re-run whose dbt read throws) still says so, rather than seeming to do nothing.
+  showErrorWith((m, ...items) => vscode.window.showErrorMessage(m, ...items), message, actions, (choice, err) => {
+    console.error(`[ERD Studio] ${TITLE}: "${choice}" failed:`, err);
+    const doing = `while running ${choice}`;
+    showErrorWithActions(oursMessage(TITLE, doing, 'nothing was changed'), { [SEND_FEEDBACK_BUTTON]: sendFeedback(doing, err) });
   });
 }
 
@@ -372,9 +369,9 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps, resume?: DrawFromDbtResume)
       return undefined;
     }
     const failedAt = failedPath(err);
-    const folder = failedAt ? projectRelative(workspaceRoot, path.dirname(failedAt)) : `${semanticDir}/${chosenLayer}`;
+    const failedFolder = failedAt ? projectRelative(workspaceRoot, path.dirname(failedAt)) : `${semanticDir}/${chosenLayer}`;
     const why = failure === 'permission'
-      ? `ERD Studio isn't allowed to write to ${folder}/. Check the folder's permissions, then try again.`
+      ? `ERD Studio isn't allowed to write to ${failedFolder}/. Check the folder's permissions, then try again.`
       : 'the disk is full. Free up some space, then try again.';
     showErrorWithActions(`${TITLE} couldn't save the diagram: ${why} ${outcome}`, { [TRY_AGAIN_BUTTON]: tryAgain });
     return undefined;

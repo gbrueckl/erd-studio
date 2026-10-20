@@ -29,12 +29,15 @@ import { DIAGRAM_EXPORT_FILE_EXTENSIONS } from '@erd-studio/core';
 import type { DiagramExportFormat } from '@erd-studio/core';
 
 import {
+  OPEN_FILE_BUTTON,
   SEND_FEEDBACK_BUTTON,
   classifyWriteFailure,
   describeDiagramFileProblem,
   feedbackPrefill,
   oursMessage,
   projectRelative,
+  showErrorWithActions,
+  type ErrorActions,
   type FeedbackPrefill,
 } from '../services/commandErrors';
 import { telemetry } from '../services/telemetryService';
@@ -81,7 +84,7 @@ export const DBML_COPIED_MESSAGE =
   'Copied the diagram as DBML. Paste it into dbdiagram.io or any other DBML tool.';
 export const NO_DIAGRAMS_MESSAGE = 'There are no diagrams to export yet.';
 
-export const OPEN_FILE_BUTTON = 'Open File';
+export { OPEN_FILE_BUTTON };
 export const CHOOSE_ANOTHER_LOCATION_BUTTON = 'Choose Another Location';
 
 /** The name the "ours" message gives the command. */
@@ -166,7 +169,7 @@ export async function exportDiagramCommand(deps: ExportDiagramDeps, arg?: unknow
 /** A failure already put in words: the message and its buttons. */
 interface ShownFailure {
   message: string;
-  actions: Readonly<Record<string, () => unknown>>;
+  actions: ErrorActions;
 }
 
 /** Thrown inside the flow for a failure that is already in words, so the one catch shows them. */
@@ -177,8 +180,7 @@ class ExportFailure extends Error {
 }
 
 /** Any failure that is not the user's to fix: ERD Studio's, with Send Feedback carrying the redacted error. */
-function oursFailure(err: unknown, ui: ExportDiagramUi): ShownFailure {
-  const doing = 'while exporting the diagram';
+function oursFailure(err: unknown, ui: ExportDiagramUi, doing = 'while exporting the diagram'): ShownFailure {
   return {
     message: oursMessage(COMMAND_NAME, doing, 'nothing was exported'),
     actions: { [SEND_FEEDBACK_BUTTON]: () => ui.sendFeedback(feedbackPrefill(COMMAND_NAME, doing, err)) },
@@ -187,13 +189,10 @@ function oursFailure(err: unknown, ui: ExportDiagramUi): ShownFailure {
 
 /** Show the failure, and run the button the user picks; never awaited. */
 function showFailure(ui: ExportDiagramUi, failure: ShownFailure): void {
-  const actions = failure.actions;
-  void ui.showErrorMessage(failure.message, ...Object.keys(actions)).then((choice) => {
-    const action = choice ? actions[choice] : undefined;
-    if (!action) return;
-    void Promise.resolve()
-      .then(action)
-      .catch((err) => console.error(`[ERD Studio] ${COMMAND_NAME}: "${choice}" failed:`, err));
+  // A button that fails (Open File on a file deleted since) still says so, rather than seeming to do nothing.
+  showErrorWithActions((m, ...items) => ui.showErrorMessage(m, ...items), failure.message, failure.actions, (choice, err) => {
+    console.error(`[ERD Studio] ${COMMAND_NAME}: "${choice}" failed:`, err);
+    showFailure(ui, oursFailure(err, ui, `while running ${choice}`));
   });
 }
 
