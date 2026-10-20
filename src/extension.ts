@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 
 import { SubjectAreaService, renameSubjectAreaInRaw } from './services/domainService';
 import { LayerService } from './services/layerService';
-import { CURRENT_SCHEMA_VERSION, getRawSubjectAreaTableNames, type SubjectAreaSummary, type Layer, type Stage, type UnifiedSubjectArea, type StageData } from './types/semantic';
+import { WRITTEN_SCHEMA_VERSION, detectSubjectAreaFormat, getRawSubjectAreaTableNames, type SubjectAreaSummary, type Layer, type Stage, type UnifiedSubjectArea, type StageData } from './types/semantic';
 import { ManifestService, type ManifestLoadFailure } from './services/manifestService';
 import { TemplateService } from './services/templateService';
 import { SubjectAreaTreeProvider, type TreeElement } from './providers/DomainTreeProvider';
@@ -1355,7 +1355,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         'Delete',
       );
       if (confirm === 'Delete') {
-        tableLibraryService.deleteTable(node.name);
+        try {
+          tableLibraryService.deleteTable(node.name);
+        } catch (err) {
+          // A file in v6's tables/ (#162) is read, never deleted, by this version.
+          void vscode.window.showErrorMessage(`Delete Table: ${err instanceof Error ? err.message : String(err)}`);
+          return;
+        }
         tableLibraryProvider.refresh();
       }
     }),
@@ -1379,7 +1385,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       const modelsDir = tableLibraryService.getTablesDir();
       const plan = planOrganizeByLayer(
-        tableLibraryService.listTableFiles(),
+        // Only logical-models/ is organised: v6's tables/ (#162) is never written.
+        tableLibraryService.listTableFiles().filter((e) => !e.library),
         usage,
         (name, layer) => TableLibraryService.isTableFolderName(layer) ? path.join(modelsDir, layer, `${name}.yml`) : null,
         new Set(layerService.getAllLayers().map((l) => l.id)),
@@ -1440,14 +1447,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Prompted, one WorkspaceEdit, one undo step.
     vscode.commands.registerCommand('erdStudio.resolveDuplicateModel', async (arg?: TableLibraryNode | string) => {
       const entries = tableLibraryService.listTableFiles();
-      const duplicates = entries.filter((e) => e.shadowedBy);
+      // A file in v6's tables/ (#162) is never renamed here: this version does not write it.
+      const duplicates = entries.filter((e) => e.shadowedBy && !e.library);
       const target = typeof arg === 'string' ? arg : arg?.type === 'model' ? arg.filePath : undefined;
       // Compare real paths: the tree hands over what the library listed, but a
       // warning or a caller may name the same file through a symlinked prefix.
       const realPath = (p: string): string => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
       let entry = target === undefined ? undefined : duplicates.find((e) => realPath(e.filePath) === realPath(target));
-      const modelsDir = tableLibraryService.getTablesDir();
-      const libPath = (p: string): string => `logical-models/${path.relative(modelsDir, p).split(path.sep).join('/')}`;
+      const libPath = (p: string): string => tableLibraryService.libraryRelativePath(p);
       if (!entry) {
         if (duplicates.length === 0) {
           void vscode.window.showInformationMessage('Every table file in the library has its own name.');
@@ -1493,6 +1500,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
       }
       const plan = planDuplicateFix(dup.name, dup.folder, newName, model.alias, references);
+      const v6Diagram = plan.repoint.find((ref) => {
+        try { return detectSubjectAreaFormat(JSON.parse(fs.readFileSync(ref.filePath, 'utf-8'))) === 'v6'; } catch { return false; }
+      });
+      if (v6Diagram) {
+        void vscode.window.showErrorMessage(
+          `${path.relative(workspaceRoot, v6Diagram.filePath).split(path.sep).join('/')} would change too, and it uses the new file naming ` +
+          '(schemaVersion 6), which this version of ERD Studio reads but cannot edit yet. Nothing was changed.',
+        );
+        return;
+      }
       const newPath = path.join(path.dirname(dup.filePath), `${newName}.yml`);
       const choice = await vscode.window.showInformationMessage(
         `Rename the duplicate "${dup.name}" to "${newName}"?`,
@@ -1734,7 +1751,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         const emptyStage: StageData = { models: [], relationships: [] };
         const domainData: UnifiedSubjectArea = {
-          schemaVersion: CURRENT_SCHEMA_VERSION,
+          schemaVersion: WRITTEN_SCHEMA_VERSION,
           domain: slug,
           layer,
           description: description.trim(),

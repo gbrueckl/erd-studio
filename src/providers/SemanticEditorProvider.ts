@@ -85,6 +85,7 @@ import {
   EMPTY_DBT_KEY_INDEX,
   backwardsRelationshipNote,
   linkKey,
+  normaliseSubjectAreaDocument,
   parseSubjectAreaJson,
   sameLink,
   setMetaEntry,
@@ -177,7 +178,7 @@ import {
 import type { RelationshipWriteInput, RelationshipWriteOp } from '../services/libraryRelationships';
 import { auditRelationshipWrite, surveyLibrary } from '../services/relationshipHealth';
 import type { RelationshipAudit } from '../services/relationshipHealth';
-import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused } from '../services/logicalModelService';
+import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused, TableNamingWriteRefused } from '../services/logicalModelService';
 import { readDbtProjectConfig } from '../services/dbtProjectConfig';
 import { normaliseName } from '../services/nameUtils';
 
@@ -358,8 +359,17 @@ class EditRefused extends Error {
 
 /** A refusal the user was told about in plain words, which usage telemetry does not count as a failure. */
 function isExplainedRefusal(err: unknown): boolean {
-  return err instanceof EditRefused || err instanceof RelationshipsRewriteRefused || err instanceof DuplicateKeyWriteRefused;
+  return err instanceof EditRefused || err instanceof RelationshipsRewriteRefused || err instanceof DuplicateKeyWriteRefused
+    || err instanceof TableNamingWriteRefused;
 }
+
+/**
+ * Why a subject area file in the v6 naming (#162) cannot be changed: this
+ * version reads it, but every writer still emits v5 keys, and a v5 key
+ * written into a v6 file would make a file no version reads.
+ */
+const TABLE_NAMING_READ_ONLY =
+  'uses the new file naming (schemaVersion 6), which this version of ERD Studio reads but cannot edit yet.';
 import {
   isValidCardinality,
   isValidRelationshipRole,
@@ -1739,9 +1749,13 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    */
   private isSubjectAreaV5(parsed: Record<string, unknown>): boolean {
     const format = detectSubjectAreaFormat(parsed);
-    const unsupported = describeUnsupportedSubjectAreaFormat(format, 'being edited');
+    const unsupported = describeUnsupportedSubjectAreaFormat(format, 'being edited', parsed);
     if (unsupported) {
       throw new Error(unsupported);
+    }
+    // v6 (#162) is read, never written: refused, not edited as v4.
+    if (format === 'v6') {
+      throw new EditRefused(`This subject area ${TABLE_NAMING_READ_ONLY}`);
     }
     return format === 'v5';
   }
@@ -1757,8 +1771,10 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     return layerIds.has(layer) && this.tableLibraryService.groupsByFolder(layerIds) ? layer : undefined;
   }
 
-  /** `logical-models/[{folder}/]{name}.yml` for an existing model file, for messages. */
+  /** `logical-models/[{folder}/]{name}.yml` (or `tables/…`) for an existing model file, for messages. */
   private libraryRelativePath(name: string): string {
+    const filePath = this.tableLibraryService.findTableFile(name);
+    if (filePath) return this.tableLibraryService.libraryRelativePath(filePath);
     const folder = this.tableLibraryService.tableFolder(name);
     return `logical-models/${folder ? `${folder}/` : ''}${name}.yml`;
   }
@@ -2069,6 +2085,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     for (const name of ops.delete ?? []) {
       if (!this.tableLibraryService.tableExists(name)) continue;
       const deletePath = this.tableLibraryService.tablePath(name);
+      this.tableLibraryService.refuseTableNamingWrite(deletePath, name);
       edit.deleteFile(vscode.Uri.file(deletePath), { ignoreIfNotExists: true });
       deleted.push(deletePath);
     }
@@ -2109,7 +2126,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       if (!this.tableLibraryService.tableExists(name)) continue;
       const filePath = this.tableLibraryService.tablePath(name);
       if (dirtyFiles([filePath]).length > 0) {
-        return `logical-models/${path.relative(this.tableLibraryService.getTablesDir(), filePath).split(path.sep).join('/')}`;
+        return this.tableLibraryService.libraryRelativePath(filePath);
       }
     }
     return null;
@@ -2250,6 +2267,10 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     this.refuseIfSubjectAreaFileGone(document);
     const text = document.getText();
     const parsed = this.parseSubjectAreaDocument(document, text);
+    // Positions, annotations and every other write to a v6 file (#162) stop here.
+    if (detectSubjectAreaFormat(parsed) === 'v6') {
+      throw new EditRefused(`This subject area ${TABLE_NAMING_READ_ONLY}`);
+    }
     const section = this.getStageSection(parsed, stage);
 
     try {
@@ -2393,7 +2414,15 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       } catch {
         continue;
       }
-      if (!parsed || typeof parsed !== 'object' || detectSubjectAreaFormat(parsed) !== 'v5') continue;
+      if (!parsed || typeof parsed !== 'object') continue;
+      const format = detectSubjectAreaFormat(parsed);
+      // A v6 diagram (#162) the change reaches cannot be kept in step, so the
+      // whole edit is refused rather than leave it pointing at an old name.
+      if (format === 'v6' && rewrite(normaliseSubjectAreaDocument(parsed))) {
+        const name = path.relative(this.workspaceRoot, summary.filePath).split(path.sep).join('/');
+        throw new EditRefused(`${name} would change too, and it ${TABLE_NAMING_READ_ONLY} Nothing was changed.`);
+      }
+      if (format !== 'v5') continue;
       if (!rewrite(parsed)) continue;
       if (dirtyFiles([summary.filePath]).length > 0) {
         const name = path.relative(this.workspaceRoot, summary.filePath).split(path.sep).join('/');
@@ -2447,25 +2476,53 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * `date` table's columns. The warning names both files and offers the fix.
    */
   private warnAboutDuplicateTables(domain: UnifiedSubjectArea): void {
-    const used = new Set(domain.logical.models.map((m) => m.name));
-    const modelsDir = this.tableLibraryService.getTablesDir();
-    const rel = (p: string): string => `logical-models/${path.relative(modelsDir, p).split(path.sep).join('/')}`;
+    const used = new Set(domain.logical.models.map((m) => m.name.toLowerCase()));
+    const rel = (p: string): string => this.tableLibraryService.libraryRelativePath(p);
     for (const entry of this.tableLibraryService.listTableFiles()) {
-      if (!entry.shadowedBy || !used.has(entry.name)) continue;
+      if (!entry.shadowedBy || !used.has(entry.name.toLowerCase())) continue;
       const key = `${domain.layer}/${domain.domain}\0${entry.filePath}`;
       if (this.duplicateWarningsShown.has(key)) continue;
       this.duplicateWarningsShown.add(key);
+      // In both libraries (#162): a project half-way between the v5 and v6
+      // naming. Reported, never resolved here — the v6 file is not written.
+      if (entry.library && !this.tableLibraryService.isTableNamingFile(entry.shadowedBy)) {
+        void vscode.window.showWarningMessage(
+          `"${entry.name}" has a file in both the old and the new table folder. ${domain.layer}/${domain.domain} uses ` +
+          `${rel(entry.shadowedBy)}; ${rel(entry.filePath)} is ignored. Keep one of them.`,
+        );
+        continue;
+      }
       const meantThisCopy = entry.folder === domain.layer;
       const message = `"${entry.name}" is defined twice. ${domain.layer}/${domain.domain} uses ${rel(entry.shadowedBy)}` +
         (meantThisCopy
           ? `, not the ${domain.layer} copy ${rel(entry.filePath)}, which is ignored.`
           : `; ${rel(entry.filePath)} is ignored.`);
-      void vscode.window.showWarningMessage(message, 'Fix…').then((choice) => {
+      // The fix rewrites files, so it is offered only inside logical-models/.
+      const fixable = !entry.library;
+      void vscode.window.showWarningMessage(message, ...(fixable ? ['Fix…'] : [])).then((choice) => {
         if (choice === 'Fix…') {
           void vscode.commands.executeCommand('erdStudio.resolveDuplicateModel', entry.filePath);
         }
       });
     }
+  }
+
+  /** Whether the open document is a subject area file in the v6 naming (#162). */
+  private usesTableNaming(document: vscode.TextDocument): boolean {
+    try {
+      return detectSubjectAreaFormat(JSON.parse(document.getText())) === 'v6';
+    } catch {
+      return false;
+    }
+  }
+
+  /** Say once per session per file why a v6 canvas is read-only (#162). */
+  private explainTableNamingReadOnly(document: vscode.TextDocument): void {
+    const key = `naming\0${document.uri.toString()}`;
+    if (this.duplicateWarningsShown.has(key)) return;
+    this.duplicateWarningsShown.add(key);
+    const shown = path.relative(this.workspaceRoot, document.uri.fsPath).split(path.sep).join('/');
+    void vscode.window.showInformationMessage(`${shown} ${TABLE_NAMING_READ_ONLY} It is shown read-only.`);
   }
 
   /**
@@ -2478,9 +2535,11 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
     ymlData: YmlData,
     viewConfig: import('../types/semantic').ViewConfig,
     stubColumns?: string[],
+    /** The file uses the v6 naming (#162): drawn read-only, since nothing writes it yet. */
+    tableNaming = false,
   ): DisplaySubjectArea {
     const editorPayload = this.buildWebviewPayload(domain, manifest, ymlData, domain.modelFolder);
-    const readOnly = domain.stage === 'physical';
+    const readOnly = domain.stage === 'physical' || tableNaming;
     const dbtKeyIndex = dbtKeyIndexOf(ymlData, manifest);
 
     const display = toDisplaySubjectArea(domain, {
@@ -2581,6 +2640,9 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
 
       let unifiedDomain = await this.readSubjectAreaTolerantly(document.uri.fsPath, { dbtKeyIndex });
       this.warnAboutDuplicateTables(unifiedDomain);
+      // A v6 file (#162) is shown read-only: nothing on this path may write it.
+      const tableNaming = this.usesTableNaming(document);
+      if (tableNaming) this.explainTableNamingReadOnly(document);
 
       // A fresh domain — models but not one stored position, typically written
       // by an AI assistant with `viewConfig: {}` — is laid out by the webview's
@@ -2588,12 +2650,12 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
       // edit, one undo step). The simple placement below still goes out in the
       // payload so the first paint is never at (0,0), but it is not written:
       // should the ELK run fail, the next open simply asks again.
-      const autoLayout = activeStage === 'logical' && isFreshLayout(unifiedDomain);
+      const autoLayout = activeStage === 'logical' && !tableNaming && isFreshLayout(unifiedDomain);
 
       // Auto-assign positions for models that lack them (e.g. added by AI agents)
       const computed = this.computeMissingPositions(unifiedDomain);
       if (computed) {
-        if (options.persistPositions && !autoLayout) {
+        if (options.persistPositions && !autoLayout && !tableNaming) {
           const positionsWritten = await this.autoPositionNewTables(document, computed);
           if (positionsWritten) {
             // Re-read since we wrote new positions to the file
@@ -2613,7 +2675,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (options.persistPositions) this.recordCanvasOpen(document, 'physical', physicalDomain.models.length, catalog !== undefined);
       } else {
         const domain = SubjectAreaService.toLogicalStage(unifiedDomain);
-        const displayDomain = this.buildDisplaySubjectArea(domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns);
+        const displayDomain = this.buildDisplaySubjectArea(domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns, tableNaming);
         // What the turn-round offer asks about (#163): the lines this canvas flags, without reading the file again.
         this.backwardsDrawn.set(document.uri.toString(), displayDomain.relationships.filter((r) => r.keysContradict));
         this.post(webview, {
@@ -4972,6 +5034,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         domain: (parsed.domain as string | undefined) ?? '',
         layer: (parsed.layer as string | undefined) ?? '',
         modelFolder: (name) => this.tableLibraryService.tableFolder(name),
+        tableLibraryFile: (name) => this.tableLibraryService.tableLibraryFile(name),
       });
 
       const totalActions = countSyncPlanActions(syncPlan);

@@ -171,6 +171,17 @@ describe('buildSyncPlan', () => {
     expect(plan.modelContext.dim_missing.logicalModelPath).toBe('.erd-studio/logical-models/dim_missing.yml');
   });
 
+  it('names a table file in v6\'s tables/ library where it is (#181)', () => {
+    const files: Record<string, string | null> = { fct_order: 'tables/gold/fct_order.yml', dim_customer: 'logical-models/dim_customer.yml', dim_missing: null };
+    const plan = buildSyncPlan(report(), allSelections(report(), 'physical'), {
+      ...ctx, modelFolder: () => 'gold', tableLibraryFile: (n) => files[n] ?? null,
+    });
+    expect(plan.modelContext.fct_order.logicalModelPath).toBe('.erd-studio/tables/gold/fct_order.yml');
+    expect(plan.modelContext.dim_customer.logicalModelPath).toBe('.erd-studio/logical-models/dim_customer.yml');
+    // No file: where a new one goes, still logical-models/ (nothing writes tables/ yet).
+    expect(plan.modelContext.dim_missing.logicalModelPath).toBe('.erd-studio/logical-models/gold/dim_missing.yml');
+  });
+
   it('resolves types stage-absolutely when compared from physical', () => {
     const r = report('physical');
     const plan = buildSyncPlan(r, { 'col:fct_order:amount': 'physical' }, ctx);

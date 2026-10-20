@@ -748,6 +748,7 @@ function describeSemanticPath(rest: string[]): string {
   if (rest.length === 1) return KEPT_FILE_NAMES.has(last.toLowerCase()) ? last : `{file}${ext}`;
   if (rest[0] === 'templates') return `templates/{template}${ext}`;
   if (rest[0] === 'logical-models') return `logical-models/{model}${ext}`;
+  if (rest[0] === 'tables' && ext !== '.json') return `tables/{table}${ext}`;
   if (rest.length === 2) return `{layer}/{domain}${ext}`;
   return `{path}/{file}${ext}`;
 }

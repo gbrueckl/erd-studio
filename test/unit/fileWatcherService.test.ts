@@ -617,7 +617,8 @@ describe('FileWatcherService', () => {
 
     it('watches the logical-models/ top level and its layer folders (issue #76)', () => {
       const pattern = _mockFileWatchers[3]._pattern as vscode.RelativePattern;
-      expect(pattern.pattern).toBe('.erd-studio/logical-models/**/*.yml');
+      // …and v6's tables/ library (#162), in the same glob.
+      expect(pattern.pattern).toBe('.erd-studio/{logical-models,tables}/**/*.yml');
     });
 
     it('reports a change to a model file in a layer folder by model name', () => {

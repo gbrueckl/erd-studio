@@ -19,7 +19,7 @@ import { TableLibraryService } from './logicalModelService';
 import { LayerService } from './layerService';
 import { keepLineEndings } from './lineEndings';
 import type { SemanticTable, Relationship, ViewConfig } from '../types/semantic';
-import { CURRENT_SCHEMA_VERSION, detectSubjectAreaFormat, getRawSubjectAreaTableNames } from '../types/semantic';
+import { WRITTEN_SCHEMA_VERSION, detectSubjectAreaFormat, getRawSubjectAreaTableNames, hasTableNamingKeys } from '../types/semantic';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -237,6 +237,9 @@ export class MigrationService {
           // silently restructured.
           if (!isSubjectAreaDocument(parsed)) continue;
           const format = detectSubjectAreaFormat(parsed);
+          // A v5 / v6 naming mix (#162) is a hand-edit to undo, not inline
+          // tables to move: the v5 migration would write v5 keys into it.
+          if (format === 'hybrid' && hasTableNamingKeys(parsed)) continue;
           if (format === 'hybrid' || format === 'legacy') {
             v4Paths.push(filePath);
           } else if (format === 'v4') {
@@ -372,7 +375,7 @@ export class MigrationService {
         delete parsed.relationships;
         delete parsed.stage;
 
-        parsed.schemaVersion = CURRENT_SCHEMA_VERSION;
+        parsed.schemaVersion = WRITTEN_SCHEMA_VERSION;
         logical.models = modelNames;
         parsed.logical = logical;
         if (!parsed.viewConfig || typeof parsed.viewConfig !== 'object') {

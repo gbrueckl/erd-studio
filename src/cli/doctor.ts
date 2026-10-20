@@ -13,7 +13,9 @@ import * as path from 'path';
 
 import type { FileState } from '../types/harness';
 import { redactPaths } from '../types/feedback';
-import { detectSubjectAreaFormat } from '../types/semantic';
+import { detectProjectNaming, detectSubjectAreaFormat, hasTableNamingKeys, usesTableLibrary } from '../types/semantic';
+import type { ProjectNaming, SubjectAreaFormat } from '../types/semantic';
+import { LOGICAL_MODELS_DIR, tablesDirIsLayer, TABLES_DIR } from '../services/logicalModelService';
 import { normaliseName } from '../services/nameUtils';
 import { SubjectAreaFileError } from '../services/domainService';
 import { keysContradictedRelationships, linkKey, parseSubjectAreaJson } from '@erd-studio/core';
@@ -51,7 +53,7 @@ import { toUnreadableTableFile, unreadableHint, type UnreadableTableFile } from 
 
 export type NextStepId =
   | 'install-dbt' | 'confirm-venv' | 'create-profile' | 'run-deps' | 'run-parse' | 'refresh-parse' | 'run-catalog'
-  | 'resolve-merge-conflicts' | 'fix-model-yaml' | 'migrate-v5' | 'turn-round-relationships' | 'update-harness' | 'ready';
+  | 'resolve-merge-conflicts' | 'fix-model-yaml' | 'resolve-naming-conflicts' | 'fix-subject-area-naming' | 'migrate-v5' | 'turn-round-relationships' | 'update-harness' | 'ready';
 
 export interface NextStep {
   id: NextStepId;
@@ -95,7 +97,25 @@ export interface DoctorResult extends Envelope {
     layers: string[];
     domains: number;
     logicalModels: number;
-    domainFormatIssues: Array<{ file: string; format: 'v4' | 'hybrid' | 'legacy' }>;
+    domainFormatIssues: Array<{ file: string; format: 'v4' | 'hybrid' | 'legacy'; namingMix?: true }>;
+    /**
+     * The file naming the project uses (#162): `v5` (`logical-models/`,
+     * `logical.models`), `v6` (`tables/`, `logical.tables`, schemaVersion 6)
+     * or `mixed`. Assistants write files in the naming reported here.
+     */
+    naming: ProjectNaming;
+    /**
+     * `.erd-studio/tables/` is a layer folder made before v6 (it holds
+     * subject area files, or layers.json lists a `tables` layer), so it is
+     * never read as the v6 table library.
+     */
+    tablesFolderIsLayer: boolean;
+    /**
+     * Tables with a file in both `logical-models/` and `tables/` (names
+     * compared ignoring case): `kept` is read, `ignored` is not. Paths are
+     * relative to the project root.
+     */
+    namingConflicts: Array<{ name: string; kept: string; ignored: string }>;
     /** Library model files that exist but do not parse (shadowed duplicates are never read, so never listed). */
     unreadableModelFiles: UnreadableTableFile[];
     /**
@@ -217,15 +237,21 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
     return {
       semanticDirExists: false, layers: [], domains: 0, logicalModels: 0, domainFormatIssues: [], unreadableModelFiles: [],
       conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
+      naming: 'v5', tablesFolderIsLayer: false, namingConflicts: [],
     };
   }
   const domains = ctx.subjectAreaService.listSubjectAreas(ctx.root, ctx.semanticDir);
   const issues: DoctorResult['erd']['domainFormatIssues'] = [];
   const conflicted: ConflictedSubjectAreaFile[] = [];
+  const formats: SubjectAreaFormat[] = [];
   for (const d of domains) {
     try {
-      const format = detectSubjectAreaFormat(parseSubjectAreaJson(fs.readFileSync(d.filePath, 'utf-8'), d.filePath));
-      if (format !== 'v5') { issues.push({ file: relPath(ctx.root, d.filePath), format }); }
+      const raw = parseSubjectAreaJson(fs.readFileSync(d.filePath, 'utf-8'), d.filePath);
+      const format = detectSubjectAreaFormat(raw);
+      formats.push(format);
+      // A file mixing the v5 and v6 names (#162) is a hand-edit to undo, not one the migration repairs.
+      const namingMix = format === 'hybrid' && hasTableNamingKeys(raw);
+      if (!usesTableLibrary(format)) { issues.push({ file: relPath(ctx.root, d.filePath), format, ...(namingMix ? { namingMix: true as const } : {}) }); }
     } catch (err) {
       // A conflicted diagram cannot load at all, and git's own wording is the
       // fix (#145). Any other unreadable / invalid JSON is not a format issue;
@@ -252,6 +278,14 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
     layers: ctx.layerService.getValidLayerIds(),
     domains: domains.length,
     logicalModels: ctx.tableLibraryService.listTableNames().length,
+    naming: detectProjectNaming({
+      hasLogicalModelsDir: fs.existsSync(path.join(semanticRoot, LOGICAL_MODELS_DIR)),
+      hasTablesLibrary: ctx.tableLibraryService.hasTablesLibrary(),
+      subjectAreaFormats: formats,
+    }),
+    tablesFolderIsLayer: fs.existsSync(path.join(semanticRoot, TABLES_DIR)) && tablesDirIsLayer(semanticRoot),
+    namingConflicts: ctx.tableLibraryService.tableNamingConflicts()
+      .map((c) => ({ name: c.name, kept: relPath(ctx.root, c.kept), ignored: relPath(ctx.root, c.ignored) })),
     domainFormatIssues: issues,
     unreadableModelFiles: unreadable,
     conflictedDomainFiles: conflicted,
@@ -354,6 +388,19 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
       command: null,
     });
   }
+  // A table in both libraries (#162) is drawn from the logical-models/ copy
+  // only; which copy is right is the user's call, so it is raised early.
+  if (r.erd.namingConflicts.length > 0) {
+    const n = r.erd.namingConflicts.length;
+    steps.push({
+      id: 'resolve-naming-conflicts',
+      title: `Keep one file for ${n === 1 ? 'a table' : `${n} tables`} found in both logical-models/ and tables/`,
+      why: `${r.erd.namingConflicts.map((c) => `${c.name}: ${c.kept} is used, ${c.ignored} is ignored`).join('; ')}. `
+        + 'The project is half-way between the old (logical-models/) and new (tables/) file naming. Show the user both files '
+        + "and ask which to keep; don't delete either yourself.",
+      command: null,
+    });
+  }
   if (dbt.checked && !dbt.found && !dbt.untrustedVenvDbt) {
     steps.push({
       id: 'install-dbt',
@@ -408,11 +455,23 @@ function nextStepsFor(r: Omit<DoctorResult, 'nextSteps'>, deps: { needsDeps: boo
       command: dbt.commands.catalog,
     });
   }
-  if (r.erd.domainFormatIssues.length > 0) {
+  const namingMix = r.erd.domainFormatIssues.filter((i) => i.namingMix);
+  const older = r.erd.domainFormatIssues.length - namingMix.length;
+  if (namingMix.length > 0) {
+    steps.push({
+      id: 'fix-subject-area-naming',
+      title: `Fix ${namingMix.length === 1 ? 'a subject area file that mixes' : `${namingMix.length} subject area files that mix`} the old and new key names`,
+      why: `${namingMix.map((i) => i.file).join(', ')}: ${namingMix.length === 1 ? 'it uses' : 'each uses'} the v6 names ("logical.tables", "subjectArea") `
+        + 'without "schemaVersion": 6, or beside the v5 names, so it cannot load. Use one set: the v5 names with schemaVersion 5, '
+        + 'or the v6 names with schemaVersion 6. `erd-studio diff` names what is wrong in each.',
+      command: null,
+    });
+  }
+  if (older > 0) {
     steps.push({
       id: 'migrate-v5',
       title: 'Migrate older subject area files',
-      why: `${r.erd.domainFormatIssues.length} subject area file(s) use an older format; run "ERD Studio: Migrate Subject Areas to the Central Table Library" in VS Code before changing them.`,
+      why: `${older} subject area file(s) use an older format; run "ERD Studio: Migrate Subject Areas to the Central Table Library" in VS Code before changing them.`,
       command: null,
     });
   }
@@ -467,6 +526,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
       erd: {
         semanticDirExists: false, layers: [], domains: 0, logicalModels: 0, domainFormatIssues: [], unreadableModelFiles: [],
         conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
+        naming: 'v5', tablesFolderIsLayer: false, namingConflicts: [],
       },
       harness: { schemaSkill: 'missing', setupSkill: 'missing', version: harnessVersion },
     };

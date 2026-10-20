@@ -15,7 +15,7 @@ import ts from 'typescript';
 import { parse as parseYaml } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-import { CURRENT_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION, detectSubjectAreaFormat } from '../../packages/core/src/types/semantic';
+import { LIBRARY_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION, detectSubjectAreaFormat } from '../../packages/core/src/types/semantic';
 import { LAYERS_SCHEMA_VERSION } from '../../packages/core/src/types/layer';
 import { RATIONALE_KEYS } from '../../packages/core/src/logicalModel';
 import { VALID_CARDINALITIES } from '../../packages/core/src/domain';
@@ -149,8 +149,9 @@ describe('schema enums match the runtime', () => {
     expect(subjectAreaSchema.definitions.annotation.properties.color.enum).toEqual(ANNOTATION_COLORS.map((c) => c.value));
   });
 
-  it('schema versions are the ones the readers accept', () => {
-    expect(subjectAreaSchema.properties.schemaVersion.enum).toEqual([CURRENT_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION]);
+  it('schema versions are the v5 and v4 shapes the schema describes', () => {
+    // v6 (#162) is read but not written yet; its own schema comes with the writer.
+    expect(subjectAreaSchema.properties.schemaVersion.enum).toEqual([LIBRARY_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION]);
     expect(layersSchema.properties.schemaVersion.maximum).toBe(LAYERS_SCHEMA_VERSION);
   });
 

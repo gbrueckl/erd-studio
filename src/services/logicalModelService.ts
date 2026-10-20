@@ -16,7 +16,7 @@ import * as path from 'path';
 import { Document, Pair, YAMLMap, YAMLSeq, parseDocument, isAlias, isMap, isNode, isPair, isScalar, isSeq, visit } from 'yaml';
 import type { Alias, Node, Scalar, ScalarTag, Tags } from 'yaml';
 
-import { LOGICAL_MODELS_DIR, RATIONALE_KEYS, classifyTableLoadError, tableLoadWarningOf, parseTableText } from '@erd-studio/core';
+import { LAYERS_CONFIG_FILE, LOGICAL_MODELS_DIR, RATIONALE_KEYS, TABLES_DIR, classifyTableLoadError, tableLoadWarningOf, parseTableText } from '@erd-studio/core';
 import type { TableLoadErrorKind } from '@erd-studio/core';
 import type { ColumnDef, TableRelationship, SemanticTable } from '../types/semantic';
 import type { YmlModelInfo } from '../types/ymlData';
@@ -27,7 +27,39 @@ import { keepLineEndings } from './lineEndings';
 
 // The directory name and the YAML -> SemanticTable parsing live in
 // @erd-studio/core; re-exported so existing imports of this module keep working.
-export { LOGICAL_MODELS_DIR } from '@erd-studio/core';
+export { LOGICAL_MODELS_DIR, TABLES_DIR } from '@erd-studio/core';
+
+/**
+ * Whether `{semanticRoot}/tables/` is a layer folder rather than v6's table
+ * library (#162). A project made before v6 may have a layer called `tables`:
+ * it is one when `layers.json` lists a layer with that id, or when the folder
+ * holds a subject area file (`tables/*.json`). A library folder holds only
+ * `*.yml`, at the top or one folder down. A folder that is a layer keeps the
+ * project on v5 (it is never read as a library) until it is renamed.
+ */
+export function tablesDirIsLayer(semanticRoot: string): boolean {
+  const dir = path.join(semanticRoot, TABLES_DIR);
+  try {
+    if (fs.readdirSync(dir, { withFileTypes: true }).some((d) => d.isFile() && d.name.endsWith('.json'))) return true;
+  } catch {
+    return false;
+  }
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(semanticRoot, LAYERS_CONFIG_FILE), 'utf-8')) as { layers?: unknown };
+    return Array.isArray(config.layers) &&
+      config.layers.some((l) => !!l && typeof l === 'object' && (l as { id?: unknown }).id === TABLES_DIR);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `{semanticRoot}/tables/` exists and is the v6 table library (not a
+ * layer folder; see {@link tablesDirIsLayer}).
+ */
+export function hasTablesLibrary(semanticRoot: string): boolean {
+  return fs.existsSync(path.join(semanticRoot, TABLES_DIR)) && !tablesDirIsLayer(semanticRoot);
+}
 
 /** Parsed model cached against the file's mtime + size. */
 interface CachedTable {
@@ -133,16 +165,34 @@ function duplicateKeyFileError(name: string, filePath: string, warning: { key: s
 export interface TableFileEntry {
   /** Model name (the file stem). */
   readonly name: string;
-  /** Sub-folder under logical-models/ (`''` for a file at the top level). */
+  /** Sub-folder under its library folder (`''` for a file at the top level). */
   readonly folder: string;
   /** Absolute path to the yml file. */
   readonly filePath: string;
   /**
    * Set when another file with the same name wins the lookup (top level
-   * first, then folders alphabetically): the path of the file that is used.
-   * A shadowed file is never read for a domain.
+   * first, then folders alphabetically; `logical-models/` before `tables/`):
+   * the path of the file that is used. A shadowed file is never read for a
+   * domain.
    */
   readonly shadowedBy?: string;
+  /**
+   * Set on a file in v6's `tables/` library (#162), which is read but never
+   * written by this version. Absent for `logical-models/`.
+   */
+  readonly library?: typeof TABLES_DIR;
+}
+
+/**
+ * A table whose name (ignoring case) has a file in both `logical-models/`
+ * and `tables/` (#162): a project half-way between the v5 and v6 naming.
+ * `kept` is the file that is read (the `logical-models/` one); `ignored` is
+ * never read. Reported, never resolved silently.
+ */
+export interface TableNamingConflict {
+  readonly name: string;
+  readonly kept: string;
+  readonly ignored: string;
 }
 
 /** Keys ERD Studio owns on a model file. Unknown keys are left untouched. */
@@ -219,8 +269,23 @@ export class DuplicateKeyWriteRefused extends Error {
   }
 }
 
+/**
+ * A write to a table file in v6's `tables/` library (#162). This version
+ * reads the v6 naming but writes only v5, and a v5 key written into a v6
+ * file would make a file that is neither: the edit is refused, by name.
+ */
+export class TableNamingWriteRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TableNamingWriteRefused';
+  }
+}
+
 export class TableLibraryService {
   private readonly tablesDir: string;
+  /** v6's library folder (`tables/`, #162): read after `tablesDir`, never written. */
+  private readonly v6TablesDir: string;
+  private readonly semanticRoot: string;
 
   /**
    * In-memory parse cache keyed by file path. Each entry is validated against
@@ -263,7 +328,58 @@ export class TableLibraryService {
     semanticDir = '.erd-studio',
     private readonly ownWriteTracker: OwnWriteTracker = ownWrites,
   ) {
-    this.tablesDir = path.join(workspaceRoot, semanticDir, LOGICAL_MODELS_DIR);
+    this.semanticRoot = path.join(workspaceRoot, semanticDir);
+    this.tablesDir = path.join(this.semanticRoot, LOGICAL_MODELS_DIR);
+    this.v6TablesDir = path.join(this.semanticRoot, TABLES_DIR);
+  }
+
+  /** Whether `tables/` is read as the v6 library (it exists and is not a layer folder). */
+  hasTablesLibrary(): boolean {
+    return hasTablesLibrary(this.semanticRoot);
+  }
+
+  /** Whether `filePath` is inside v6's `tables/` library, which is never written. */
+  isTableNamingFile(filePath: string): boolean {
+    const rel = path.relative(path.resolve(this.v6TablesDir), path.resolve(filePath));
+    return !rel.startsWith('..') && !path.isAbsolute(rel) && this.hasTablesLibrary();
+  }
+
+  /**
+   * `logical-models/…` or `tables/…`: a library file's path as messages name
+   * it, relative to the semantic dir with `/` separators.
+   */
+  libraryRelativePath(filePath: string): string {
+    return path.relative(this.semanticRoot, filePath).split(path.sep).join('/');
+  }
+
+  /**
+   * The library file holding `name`, relative to the semantic dir
+   * (`logical-models/gold/x.yml`, `tables/x.yml`), or null when there is none
+   * or the name is not path-safe.
+   */
+  tableLibraryFile(name: string): string | null {
+    try {
+      const filePath = this.findTableFile(name);
+      return filePath === null ? null : this.libraryRelativePath(filePath);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Throws {@link TableNamingWriteRefused} when `filePath` is in `tables/`. */
+  refuseTableNamingWrite(filePath: string, name: string): void {
+    if (!this.isTableNamingFile(filePath)) return;
+    throw new TableNamingWriteRefused(
+      `Can't change "${name}": its file ${this.libraryRelativePath(filePath)} uses the new file naming (tables/), ` +
+        'which this version of ERD Studio reads but cannot edit yet.',
+    );
+  }
+
+  /** Every table name with a file in both `logical-models/` and `tables/`, ignoring case. */
+  tableNamingConflicts(): TableNamingConflict[] {
+    return this.listTableFiles()
+      .filter((e) => e.library === TABLES_DIR && e.shadowedBy !== undefined && !this.isTableNamingFile(e.shadowedBy))
+      .map((e) => ({ name: e.name, kept: e.shadowedBy!, ignored: e.filePath }));
   }
 
   /**
@@ -453,11 +569,13 @@ export class TableLibraryService {
    * Dot-folders, deeper nesting and symlinked folders are not scanned.
    */
   listTableFiles(): TableFileEntry[] {
-    if (!fs.existsSync(this.tablesDir)) {
-      return [];
-    }
     const entries: TableFileEntry[] = [];
     const winners = new Map<string, string>();
+    // `logical-models/`'s files by lower-case name: a `tables/` file of the
+    // same name in any case is shadowed by it (#162). Within one library
+    // the match stays exact, as before.
+    const v5Winners = new Map<string, string>();
+    let library: typeof TABLES_DIR | undefined;
     const add = (dir: string, folder: string): void => {
       let files: string[];
       try {
@@ -471,18 +589,29 @@ export class TableLibraryService {
       for (const file of files) {
         const name = file.replace(/\.yml$/, '');
         const filePath = path.join(dir, file);
-        const winner = winners.get(name);
+        const winner = winners.get(name) ?? (library ? v5Winners.get(name.toLowerCase()) : undefined);
+        const tag = library ? { library } : {};
         if (winner === undefined) {
           winners.set(name, filePath);
-          entries.push({ name, folder, filePath });
+          if (!library) v5Winners.set(name.toLowerCase(), filePath);
+          entries.push({ name, folder, filePath, ...tag });
         } else {
-          entries.push({ name, folder, filePath, shadowedBy: winner });
+          entries.push({ name, folder, filePath, shadowedBy: winner, ...tag });
         }
       }
     };
-    add(this.tablesDir, '');
-    for (const folder of this.listFolders()) {
-      add(path.join(this.tablesDir, folder), folder);
+    if (fs.existsSync(this.tablesDir)) {
+      add(this.tablesDir, '');
+      for (const folder of this.listFolders()) {
+        add(path.join(this.tablesDir, folder), folder);
+      }
+    }
+    if (this.hasTablesLibrary()) {
+      library = TABLES_DIR;
+      add(this.v6TablesDir, '');
+      for (const folder of this.listFoldersOf(this.v6TablesDir)) {
+        add(path.join(this.v6TablesDir, folder), folder);
+      }
     }
     return entries;
   }
@@ -492,8 +621,12 @@ export class TableLibraryService {
    * sorted alphabetically. Dot-folders (`.git`, editor state) are skipped.
    */
   listFolders(): string[] {
+    return this.listFoldersOf(this.tablesDir);
+  }
+
+  private listFoldersOf(dir: string): string[] {
     try {
-      return fs.readdirSync(this.tablesDir, { withFileTypes: true })
+      return fs.readdirSync(dir, { withFileTypes: true })
         .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
         .map((d) => d.name)
         .sort((a, b) => a.localeCompare(b));
@@ -574,7 +707,7 @@ export class TableLibraryService {
     const filePath = this.findTableFile(name);
     if (filePath === null) return null;
     const dir = path.dirname(filePath);
-    return dir === path.resolve(this.tablesDir) ? '' : path.basename(dir);
+    return dir === path.resolve(this.tablesDir) || dir === path.resolve(this.v6TablesDir) ? '' : path.basename(dir);
   }
 
   // -------------------------------------------------------------------------
@@ -601,6 +734,7 @@ export class TableLibraryService {
    */
   saveTable(model: SemanticTable, folder?: string): void {
     const filePath = this.tablePath(model.name, folder);
+    this.refuseTableNamingWrite(filePath, model.name);
     this.ensureDir(filePath);
     this.writeAtomic(filePath, this.renderTable(model, filePath));
   }
@@ -638,6 +772,7 @@ export class TableLibraryService {
    * document generated from the model. Line endings follow the file's own.
    */
   private renderTable(model: SemanticTable, filePath: string): string {
+    this.refuseTableNamingWrite(filePath, model.name);
     const existing = this.loadEditableDocument(filePath);
     // A model read from a file with a key written twice is never written, even
     // when that key is `name:` and so points the write at another file (#164).
@@ -688,6 +823,7 @@ export class TableLibraryService {
    */
   deleteTable(name: string): void {
     const filePath = this.tablePath(name);
+    this.refuseTableNamingWrite(filePath, name);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
       this.ownWriteTracker.recordDelete(filePath);
@@ -719,6 +855,7 @@ export class TableLibraryService {
     // The renamed file stays in the folder the old one was in.
     const folder = this.tableFolder(oldName) ?? '';
     const oldPath = this.tablePath(oldName);
+    this.refuseTableNamingWrite(oldPath, oldName);
     const oldText = this.readExisting(oldPath);
     const doc = this.loadEditableDocument(oldPath);
     const target = this.tablePath(newName, folder);
@@ -843,6 +980,17 @@ export class TableLibraryService {
       const candidate = path.join(path.resolve(this.tablesDir), folder, `${name}.yml`);
       if (fs.existsSync(candidate)) {
         return candidate;
+      }
+    }
+    // Then v6's `tables/` (#162), in the same order. Only ever read: new
+    // files still go to `logical-models/` (newTablePath).
+    if (this.hasTablesLibrary()) {
+      const v6Dir = path.resolve(this.v6TablesDir);
+      for (const folder of ['', ...this.listFoldersOf(v6Dir)]) {
+        const candidate = path.join(v6Dir, folder, `${name}.yml`);
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
       }
     }
     return null;
@@ -1101,7 +1249,7 @@ export class TableLibraryService {
     const refuse = (node: unknown, why: string): Error => {
       const offset = isNode(node) ? node.range?.[0] ?? 0 : 0;
       const line = fs.readFileSync(filePath, 'utf-8').slice(0, offset).split('\n').length;
-      const file = `${LOGICAL_MODELS_DIR}/${path.relative(this.tablesDir, filePath).split(path.sep).join('/')}`;
+      const file = this.libraryRelativePath(filePath);
       this.onSyncRefused?.();
       return new RelationshipsRewriteRefused(`${file}, line ${line}: ${why}, so ERD Studio cannot change it. Fix it by hand first.`);
     };
