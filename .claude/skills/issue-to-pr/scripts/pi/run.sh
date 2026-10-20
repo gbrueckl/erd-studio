@@ -124,8 +124,10 @@ keepalive() {
 
 # Puts a runner clone on origin/<ref> exactly. A session may have left edits in it (it is their
 # cwd), and stale skill files would pair an old pi.md with this run.sh.
+# --force: deploy.yml moves the telemetry-worker-deployed tag, and a plain --tags fetch refuses
+# to move a tag the clone already has, so every run would fail here.
 sync_clone() {
-  git -C "$1" fetch -q --tags origin && git -C "$1" checkout -q -f --detach "origin/$2" && git -C "$1" clean -qfd
+  git -C "$1" fetch -q --tags --force origin && git -C "$1" checkout -q -f --detach "origin/$2" && git -C "$1" clean -qfd
 }
 
 [ -n "$SELFTEST" ] && exit 0

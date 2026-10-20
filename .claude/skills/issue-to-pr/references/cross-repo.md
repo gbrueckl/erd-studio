@@ -80,7 +80,7 @@ the change has been published:
 
 ```bash
 sha=$(gh api repos/liam-machine/erd-studio/pulls/<pr> --jq .merge_commit_sha)
-git -C ~/issue-bot/erd-studio fetch -q --tags origin
+git -C ~/issue-bot/erd-studio fetch -q --tags --force origin
 git -C ~/issue-bot/erd-studio tag --contains "$sha" -l '@erd-studio/*' | sort -V | head
 ```
 
