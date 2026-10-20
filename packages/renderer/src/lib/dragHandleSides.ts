@@ -1,14 +1,14 @@
 /**
  * Handle sides for edges after nodes are moved on the canvas.
  *
- * `transformDomain` chooses the handle side at each end of an edge from the
+ * `transformSubjectArea` chooses the handle side at each end of an edge from the
  * saved positions: `pickHandleSides` compares the two node rectangles, and a
  * self-referencing relationship always uses the top (source) and right
  * (target) handles. A canvas that lets nodes be dragged without rebuilding the
  * domain has to make that choice again for the edges on the dragged nodes, or
  * those edges stay attached to the side that faced the old position.
  *
- * The rectangles follow `transformDomain` too: a node's size is its measured
+ * The rectangles follow `transformSubjectArea` too: a node's size is its measured
  * size when React Flow has one, otherwise the model-node estimate from
  * `resolveNodeDimensions`, or an annotation's own (or default) size.
  */
@@ -17,11 +17,11 @@ import { pickHandleSides, type NodeDimensions, type NodeRect } from './graphTran
 import { resolveNodeDimensions } from './nodeSizing';
 import type { GraphNode, GraphEdge } from './nodeOverlays';
 
-/** Upstream's default note size in `transformDomain` (the annotation CSS minimum). */
+/** Upstream's default note size in `transformSubjectArea` (the annotation CSS minimum). */
 const DEFAULT_ANNOTATION_WIDTH = 160;
 const DEFAULT_ANNOTATION_HEIGHT = 80;
 
-/** Handles `transformDomain` gives a relationship from a model to itself. */
+/** Handles `transformSubjectArea` gives a relationship from a model to itself. */
 const SELF_REFERENCE_HANDLES = { sourceHandle: 'node-top-src', targetHandle: 'node-right-tgt' } as const;
 
 interface EdgeHandles {
@@ -48,7 +48,7 @@ export function nodeRect(node: GraphNode): NodeRect {
   return { x: node.position.x, y: node.position.y, ...sizeOf(node) };
 }
 
-/** The handles an edge between `source` and `target` should use, as `transformDomain` picks them. */
+/** The handles an edge between `source` and `target` should use, as `transformSubjectArea` picks them. */
 function handlesBetween(source: GraphNode, target: GraphNode): EdgeHandles {
   if (source.id === target.id) return SELF_REFERENCE_HANDLES;
   const sides = pickHandleSides(nodeRect(source), nodeRect(target));

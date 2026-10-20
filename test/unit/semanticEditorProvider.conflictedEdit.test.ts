@@ -19,9 +19,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
@@ -53,10 +53,10 @@ function makeDoc(fsPath: string) {
 
 function buildProvider(rootDir: string) {
   const layerService = new LayerService(rootDir, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(rootDir, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, rootDir, '.erd-studio');
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(rootDir, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, rootDir, '.erd-studio');
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
     globalStorageUri: vscode.Uri.file(path.join(rootDir, '.global-storage')),
@@ -68,14 +68,14 @@ function buildProvider(rootDir: string) {
 
   return new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     new ManifestService(),
     new YmlParserService(),
     new TemplateService(),
     layerService,
     rootDir,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
 }
 
@@ -185,7 +185,7 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-// Each reaches the document through a different route: applyDomainEdit
+// Each reaches the document through a different route: applySubjectAreaEdit
 // alone, a handler's own read first, the relationship planner and the model
 // library (v5). Add from dbt and the sync plan have tests of their own below.
 const EDITS: Array<[string, { type: string; payload?: unknown }]> = [

@@ -6,12 +6,12 @@ import { describe, it, expect } from 'vitest';
 import {
   isValidCardinality,
   isValidKeyType,
-  isValidModelRole,
+  isValidTableRole,
   isValidStage,
   validateColumnDef,
   validateColumnDefs,
-  validateModelName,
-  validateModelNameSafety,
+  validateTableName,
+  validateTableNameSafety,
   validateAnnotationPositions,
   validateAnnotationUpdate,
   validatePoint,
@@ -26,17 +26,17 @@ import {
   validateDismissManifestHintPayload,
   validateExportDiagramPayload,
 } from '../../src/providers/payloadValidation';
-import { MODEL_NAME_PATTERN } from '../../src/types/naming';
-import { ADD_EXISTING_MODELS_LIMIT } from '../../src/types/messages';
+import { TABLE_NAME_PATTERN } from '../../src/types/naming';
+import { ADD_EXISTING_TABLES_LIMIT } from '../../src/types/messages';
 
 describe('validateModelName', () => {
   // Either case is allowed (issue #93): PascalCase modellers write DimDate.
   it.each(['dim_customer', 'fct_order_2', 'a', 'DimDate', 'D_Date', 'Dim_Customer', 'X'])('accepts %j', (name) => {
-    expect(validateModelName(name)).toBeNull();
+    expect(validateTableName(name)).toBeNull();
   });
 
   it('accepts a name with surrounding whitespace (callers trim)', () => {
-    expect(validateModelName('  dim_customer ')).toBeNull();
+    expect(validateTableName('  dim_customer ')).toBeNull();
   });
 
   it.each([
@@ -51,29 +51,29 @@ describe('validateModelName', () => {
     ['', /empty/],
     ['   ', /empty/],
   ])('rejects %j', (name, pattern) => {
-    expect(validateModelName(name)).toMatch(pattern);
+    expect(validateTableName(name)).toMatch(pattern);
   });
 
   it('rejects non-string input', () => {
-    expect(validateModelName(undefined)).toMatch(/required/);
-    expect(validateModelName(42)).toMatch(/required/);
+    expect(validateTableName(undefined)).toMatch(/required/);
+    expect(validateTableName(42)).toMatch(/required/);
   });
 
-  it('agrees with the shared MODEL_NAME_PATTERN used by the New Model dialog', () => {
+  it('agrees with the shared TABLE_NAME_PATTERN used by the New Model dialog', () => {
     for (const name of ['dim_ok', '1bad', 'Bad', 'DimDate', 'has-dash', 'Has Space']) {
-      expect(validateModelName(name) === null).toBe(MODEL_NAME_PATTERN.test(name));
+      expect(validateTableName(name) === null).toBe(TABLE_NAME_PATTERN.test(name));
     }
   });
 });
 
-describe('validateModelNameSafety', () => {
+describe('validateTableNameSafety', () => {
   // dbt itself permits uppercase and digit-leading model names, so a name
   // discovered in the user's project (Add Existing Model) must not be held to
   // the authoring convention — only to what is safe as a file name.
   it.each(['DimCustomer', '2024_snapshot', 'Fct-Order', 'dim customer', 'dim_customer'])(
     'accepts the legal dbt model name %j',
     (name) => {
-      expect(validateModelNameSafety(name)).toBeNull();
+      expect(validateTableNameSafety(name)).toBeNull();
     },
   );
 
@@ -88,18 +88,18 @@ describe('validateModelNameSafety', () => {
     ['', /empty/],
     ['   ', /empty/],
   ])('rejects the unsafe name %j', (name, pattern) => {
-    expect(validateModelNameSafety(name)).toMatch(pattern);
+    expect(validateTableNameSafety(name)).toMatch(pattern);
   });
 
   it('rejects non-string input', () => {
-    expect(validateModelNameSafety(undefined)).toMatch(/required/);
-    expect(validateModelNameSafety(42)).toMatch(/required/);
+    expect(validateTableNameSafety(undefined)).toMatch(/required/);
+    expect(validateTableNameSafety(42)).toMatch(/required/);
   });
 
   it('is strictly weaker than the authoring check', () => {
     for (const name of ['dim_ok', 'DimCustomer', '1abc', 'has-dash', '../escape', '']) {
-      if (validateModelName(name) === null) {
-        expect(validateModelNameSafety(name)).toBeNull();
+      if (validateTableName(name) === null) {
+        expect(validateTableNameSafety(name)).toBeNull();
       }
     }
   });
@@ -201,10 +201,10 @@ describe('enumerated value guards', () => {
   });
 
   it('model role', () => {
-    expect(isValidModelRole('conformed-dim')).toBe(true);
-    expect(isValidModelRole('gold-dim')).toBe(true);
-    expect(isValidModelRole('dimension')).toBe(false);
-    expect(isValidModelRole(null)).toBe(false);
+    expect(isValidTableRole('conformed-dim')).toBe(true);
+    expect(isValidTableRole('gold-dim')).toBe(true);
+    expect(isValidTableRole('dimension')).toBe(false);
+    expect(isValidTableRole(null)).toBe(false);
   });
 
   it('key type', () => {
@@ -259,10 +259,10 @@ describe('positions', () => {
 });
 
 describe('validateAddExistingModelsPayload', () => {
-  it('accepts 1 to ADD_EXISTING_MODELS_LIMIT path-safe names, dbt casing included', () => {
+  it('accepts 1 to ADD_EXISTING_TABLES_LIMIT path-safe names, dbt casing included', () => {
     expect(validateAddExistingModelsPayload({ modelNames: ['fct_sale'] })).toBeNull();
     expect(validateAddExistingModelsPayload({ modelNames: ['SAP_Orders', '2024_events'] })).toBeNull();
-    expect(validateAddExistingModelsPayload({ modelNames: Array.from({ length: ADD_EXISTING_MODELS_LIMIT }, (_, i) => `m${i}`) })).toBeNull();
+    expect(validateAddExistingModelsPayload({ modelNames: Array.from({ length: ADD_EXISTING_TABLES_LIMIT }, (_, i) => `m${i}`) })).toBeNull();
   });
 
   it.each([undefined, null, [], 'fct_sale', {}, { modelNames: [] }, { modelNames: 'fct_sale' }])('rejects %j', (value) => {
@@ -270,7 +270,7 @@ describe('validateAddExistingModelsPayload', () => {
   });
 
   it('rejects one name over the limit', () => {
-    const names = Array.from({ length: ADD_EXISTING_MODELS_LIMIT + 1 }, (_, i) => `m${i}`);
+    const names = Array.from({ length: ADD_EXISTING_TABLES_LIMIT + 1 }, (_, i) => `m${i}`);
     expect(validateAddExistingModelsPayload({ modelNames: names })).toMatch(/At most 200/);
   });
 

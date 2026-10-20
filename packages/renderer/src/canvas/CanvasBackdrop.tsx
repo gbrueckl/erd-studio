@@ -5,7 +5,7 @@
 
 import { Background, BackgroundVariant, MiniMap, type Node } from '@xyflow/react';
 import { stageNodeColor } from '../lib/stageColors';
-import type { ModelFlowNode, AnnotationFlowNode } from '../types/graph';
+import type { TableFlowNode, AnnotationFlowNode } from '../types/graph';
 
 /** Minimap fill for annotation nodes, keyed by annotation colour. */
 export const ANNOTATION_MINIMAP_COLORS: Record<string, string> = {
@@ -18,7 +18,7 @@ function nodeColor(node: Node): string {
   if (node.type === 'annotation') {
     return ANNOTATION_MINIMAP_COLORS[(node as AnnotationFlowNode).data.color] ?? '#f59e0b';
   }
-  const d = (node as ModelFlowNode).data;
+  const d = (node as TableFlowNode).data;
   return stageNodeColor(d.stage, d.isGhost);
 }
 

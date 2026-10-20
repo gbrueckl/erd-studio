@@ -10,7 +10,7 @@ import { fixesFromPlan, runDiff, type DiffResult } from '../../src/cli/diff';
 import { canonicalRelationship } from '@erd-studio/core';
 import { main } from '../../src/cli/index';
 import type { InventoryResult } from '../../src/cli/inventory';
-import { computeDomainDiff } from '../../src/services/stageDiff';
+import { computeSubjectAreaDiff } from '../../src/services/stageDiff';
 import { allSelections, buildSyncPlan } from '../../src/services/syncPlanBuilder';
 import type { SyncPlan } from '../../src/types/syncPlan';
 import type { Relationship } from '../../src/types/semantic';
@@ -41,14 +41,14 @@ function copyProject(name = 'dbt-project'): string {
 }
 
 describe('diff', () => {
-  it('the showcase report is exactly computeDomainDiff from logical, and the plan is buildSyncPlan(all physical)', async () => {
+  it('the showcase report is exactly computeSubjectAreaDiff from logical, and the plan is buildSyncPlan(all physical)', async () => {
     const ctx = await buildCliContext({ project: PROJECT, semanticDir: '.erd-studio' });
     const { result, exitCode } = runDiff(ctx, { domains: ['.erd-studio/silver/showcase.json'] });
     expect(exitCode).toBe(1);
     const d = result.domains[0];
     const file = path.join(PROJECT, '.erd-studio/silver/showcase.json');
-    const expected = computeDomainDiff(
-      { domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
+    const expected = computeSubjectAreaDiff(
+      { subjectAreaService: ctx.subjectAreaService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
     expect(d.report).toEqual(expected.report);
     const plan = buildSyncPlan(expected.report, allSelections(expected.report, 'physical'), {
       manifest: ctx.manifest, ymlData: ctx.ymlData, projectRoot: PROJECT, semanticDir: '.erd-studio', domain: 'showcase', layer: 'silver',
@@ -175,7 +175,7 @@ describe('diff', () => {
     const root = copyProject();
     fs.mkdirSync(path.join(root, '.erd-studio', 'platinum'));
     fs.copyFileSync(path.join(root, '.erd-studio/silver/showcase.json'), path.join(root, '.erd-studio/platinum/odd.json'));
-    // listDomains walks only the configured layers, so --all never sees it…
+    // listSubjectAreas walks only the configured layers, so --all never sees it…
     const ctx = await buildCliContext({ project: root, semanticDir: '.erd-studio' });
     expect(runDiff(ctx, { all: true }).result.domains.map((d) => d.domain)).not.toContain('odd');
     // …and naming it directly fails on the layer, not with a crash.
@@ -356,7 +356,7 @@ describe('diff — an undeclared composite is advisory, blocking only under --st
     fs.rmSync(path.join(root, '.erd-studio'), { recursive: true, force: true });
     const models = ['fct_order', 'dim_customer'];
     const inventory = JSON.parse((await run(['inventory', '--models', models.join(','), '--json'], root)).out) as InventoryResult;
-    const file = writeModelFromInventory(root, inventory, 'silver', 'orders', 'library');
+    const file = writeTableFromInventory(root, inventory, 'silver', 'orders', 'library');
     const ymlPath = path.join(root, '.erd-studio', 'logical-models', 'fct_order.yml');
     const yml = parseYaml(fs.readFileSync(ymlPath, 'utf-8')) as { relationships: Array<Record<string, unknown>> };
     yml.relationships = [
@@ -450,7 +450,7 @@ describe('fixesFromPlan', () => {
 // ---------------------------------------------------------------------------
 
 /** What the skill's "building-the-model" recipe writes, done mechanically. */
-function writeModelFromInventory(
+function writeTableFromInventory(
   root: string,
   inventory: InventoryResult,
   layer: string,
@@ -512,7 +512,7 @@ describe('end to end: inventory → logical model → diff exits 0', () => {
     expect(inventory.models.map((m) => m.name).sort()).toEqual([...models].sort());
     expect(inventory.relationships.length).toBeGreaterThan(0);
 
-    const file = writeModelFromInventory(root, inventory, 'silver', 'orders');
+    const file = writeTableFromInventory(root, inventory, 'silver', 'orders');
 
     const diff = await run(['diff', '--domain', path.relative(root, file), '--json'], root);
     const result = JSON.parse(diff.out) as DiffResult;
@@ -553,7 +553,7 @@ describe('end to end, relationships in the model library (#126): inventory → l
     const models = ['fct_order', 'dim_customer', 'dim_project', 'dim_task', 'fct_task_event', 'fct_sale', 'dim_region', 'dim_date'];
     const inventory = JSON.parse((await run(['inventory', '--models', models.join(','), '--json'], root)).out) as InventoryResult;
 
-    const file = writeModelFromInventory(root, inventory, 'silver', 'orders', 'library');
+    const file = writeTableFromInventory(root, inventory, 'silver', 'orders', 'library');
     expect(JSON.parse(fs.readFileSync(file, 'utf-8')).logical.relationships).toEqual([]);
 
     const diff = await run(['diff', '--domain', path.relative(root, file), '--json'], root);
@@ -600,8 +600,8 @@ describe('the read winner sees dbt\'s key evidence in the CLI as on the canvas (
 
     const ctx = await buildCliContext({ project: root, semanticDir: '.erd-studio' });
     // Flags alone draw the dimension's backwards copy; dbt's unique test on dim_customer.customer_key draws the fact's.
-    expect(ctx.domainService.getDomain(file).logical.relationships[0].fromModel).toBe('dim_customer');
-    const canvas = computeDomainDiff({ domainService: ctx.domainService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
+    expect(ctx.subjectAreaService.getSubjectArea(file).logical.relationships[0].fromModel).toBe('dim_customer');
+    const canvas = computeSubjectAreaDiff({ subjectAreaService: ctx.subjectAreaService, ymlData: ctx.ymlData, manifest: ctx.manifest, catalog: ctx.catalog }, file, 'logical');
     expect(canvas.source.relationships).toEqual([expect.objectContaining({ fromModel: 'fct_order', toModel: 'dim_customer', cardinality: 'many-to-one' })]);
     expect(canvas.report.relationships.map((r) => r.status)).toEqual(['matched']);
 

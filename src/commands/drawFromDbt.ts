@@ -19,24 +19,24 @@ import * as vscode from 'vscode';
 
 import {
   buildDbtDraft,
-  buildDraftDomainDocument,
+  buildDraftSubjectAreaDocument,
   listDraftModels,
   listDraftScopes,
-  serializeDraftDomainDocument,
-  suggestDomainName,
+  serializeDraftSubjectAreaDocument,
+  suggestSubjectAreaName,
   type DbtDraft,
   type DraftSkipped,
 } from '../services/dbtDraft';
 import { pickDraftScope } from '../providers/dbtDraftPicker';
 import { dirtyFiles } from '../providers/dirtyDocuments';
 import { drawnDiagramCopies, routeToLibrary, usesLibraryRelationships } from '../services/libraryRelationships';
-import { readDomainRelationships } from './moveRelationshipsToLibrary';
+import { readSubjectAreaRelationships } from './moveRelationshipsToLibrary';
 import { ownWrites } from '../services/ownWriteTracker';
-import { DOMAIN_EDITOR_VIEW_TYPE } from '../services/recoveryService';
+import { SUBJECT_AREA_EDITOR_VIEW_TYPE } from '../services/recoveryService';
 import { telemetry } from '../services/telemetryService';
-import type { DomainService } from '../services/domainService';
+import type { SubjectAreaService } from '../services/domainService';
 import type { LayerService } from '../services/layerService';
-import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused, type LogicalModelService } from '../services/logicalModelService';
+import { DuplicateKeyWriteRefused, RelationshipsRewriteRefused, type TableLibraryService } from '../services/logicalModelService';
 import type { CatalogData } from '../types/catalog';
 import type { ManifestData } from '../types/manifest';
 import type { YmlData } from '../types/ymlData';
@@ -61,10 +61,10 @@ export interface DrawFromDbtDeps {
   /** `model-paths` from dbt_project.yml. */
   modelPaths: readonly string[];
   layerService: Pick<LayerService, 'getValidLayerIds' | 'getCreatableLayers' | 'getAllLayers' | 'saveConfig'>;
-  domainService: Pick<DomainService, 'listDomains' | 'countDomainFileRelationships'>;
-  logicalModelService: Pick<
-    LogicalModelService,
-    'modelExists' | 'saveModel' | 'serializeModel' | 'groupsByFolder' | 'deleteModel' | 'listModels' | 'getModel' | 'hasUnreadableRelationships' | 'modelPath' | 'getModelsDir'
+  subjectAreaService: Pick<SubjectAreaService, 'listSubjectAreas' | 'countSubjectAreaFileRelationships'>;
+  tableLibraryService: Pick<
+    TableLibraryService,
+    'tableExists' | 'saveTable' | 'serializeTable' | 'groupsByFolder' | 'deleteTable' | 'listTables' | 'getTable' | 'hasUnreadableRelationships' | 'tablePath' | 'getTablesDir'
   >;
   /** Schema yml, manifest and catalog; each may be undefined (no yml, never compiled, no `dbt docs generate`). */
   loadDbt: () => Promise<{ ymlData?: YmlData; manifest?: ManifestData; catalog?: CatalogData }>;
@@ -95,7 +95,7 @@ export async function drawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtRes
 }
 
 async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult | undefined> {
-  const { workspaceRoot, semanticDir, layerService, domainService, logicalModelService } = deps;
+  const { workspaceRoot, semanticDir, layerService, subjectAreaService, tableLibraryService } = deps;
 
   const { ymlData, manifest, catalog } = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: 'Reading your dbt project…' },
@@ -135,8 +135,8 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   }
   const layerLabel = creatable.find((l) => l.id === layer)?.label ?? layer;
 
-  const existingDomains = domainService.listDomains(workspaceRoot, semanticDir);
-  const suggested = suggestDomainName(pick.scope, existingDomains.filter((d) => d.layer === layer).map((d) => d.domain));
+  const existingDomains = subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
+  const suggested = suggestSubjectAreaName(pick.scope, existingDomains.filter((d) => d.layer === layer).map((d) => d.domain));
   const chosenLayer = layer;
   const name = await vscode.window.showInputBox({
     title: TITLE,
@@ -153,7 +153,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     ymlData,
     manifest,
     catalog,
-    libraryHas: (n) => logicalModelService.modelExists(n),
+    libraryHas: (n) => tableLibraryService.tableExists(n),
   });
   if (draft.modelNames.length === 0) {
     telemetry.feature('drawNothingDrawable');
@@ -179,23 +179,23 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   let routed: { kept: DbtDraft['relationships']; changed: DbtDraft['newModels'] };
   let dirty: string[];
   try {
-    folder = logicalModelService.groupsByFolder(new Set(layerService.getValidLayerIds())) ? chosenLayer : undefined;
+    folder = tableLibraryService.groupsByFolder(new Set(layerService.getValidLayerIds())) ? chosenLayer : undefined;
     routed = usesLibraryRelationships(
-      logicalModelService.listModels(),
-      domainService.countDomainFileRelationships(workspaceRoot, semanticDir),
-      logicalModelService.hasUnreadableRelationships(),
+      tableLibraryService.listTables(),
+      subjectAreaService.countSubjectAreaFileRelationships(workspaceRoot, semanticDir),
+      tableLibraryService.hasUnreadableRelationships(),
     )
-      ? routeToLibrary(draft.relationships, draft.newModels, (n) => logicalModelService.getModel(n),
-        drawnDiagramCopies(readDomainRelationships(domainService, workspaceRoot, semanticDir)))
+      ? routeToLibrary(draft.relationships, draft.newModels, (n) => tableLibraryService.getTable(n),
+        drawnDiagramCopies(readSubjectAreaRelationships(subjectAreaService, workspaceRoot, semanticDir)))
       : { kept: draft.relationships, changed: [] };
     dirty = dirtyFiles([
-      ...draft.newModels.map((m) => logicalModelService.modelPath(m.name, folder)),
-      ...routed.changed.map((m) => logicalModelService.modelPath(m.name)),
+      ...draft.newModels.map((m) => tableLibraryService.tablePath(m.name, folder)),
+      ...routed.changed.map((m) => tableLibraryService.tablePath(m.name)),
     ]);
     // Throws DuplicateKeyWriteRefused for a library file that is read but may
     // not be written (#164), or RelationshipsRewriteRefused, before the diagram
     // is on disk rather than after.
-    for (const model of routed.changed) logicalModelService.serializeModel(model);
+    for (const model of routed.changed) tableLibraryService.serializeTable(model);
   } catch (err) {
     if (err instanceof DuplicateKeyWriteRefused || err instanceof RelationshipsRewriteRefused) {
       void vscode.window.showErrorMessage(`${TITLE}: ${err.message} Nothing was changed.`);
@@ -208,7 +208,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     return undefined;
   }
   if (dirty.length > 0) {
-    const libraryRoot = path.dirname(logicalModelService.getModelsDir());
+    const libraryRoot = path.dirname(tableLibraryService.getTablesDir());
     const file = path.relative(libraryRoot, dirty[0]).split(path.sep).join('/');
     void vscode.window.showErrorMessage(
       `${TITLE}: ${file} has unsaved changes. Save or revert it, then try again. Nothing was changed.`,
@@ -226,27 +226,27 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
     fs.mkdirSync(layerDir, { recursive: true });
 
     for (const model of draft.newModels) {
-      logicalModelService.saveModel(model, folder);
+      tableLibraryService.saveTable(model, folder);
       written.push(model.name);
     }
 
-    const doc = buildDraftDomainDocument({
+    const doc = buildDraftSubjectAreaDocument({
       domain: slug,
       layer: chosenLayer,
       description: `Drawn from dbt: ${pick.scope.label}.`,
       modelNames: draft.modelNames,
       relationships: routed.kept,
     });
-    fs.writeFileSync(domainPath, serializeDraftDomainDocument(doc), { encoding: 'utf-8', flag: 'wx' });
+    fs.writeFileSync(domainPath, serializeDraftSubjectAreaDocument(doc), { encoding: 'utf-8', flag: 'wx' });
     ownWrites.recordWrite(domainPath);
     // Existing library models that gained a relationship, once the diagram is on disk.
     for (const model of routed.changed) {
-      if (!draft.newModels.includes(model)) logicalModelService.saveModel(model);
+      if (!draft.newModels.includes(model)) tableLibraryService.saveTable(model);
     }
   } catch (err) {
     // Leave no orphan model files behind a domain that was never written.
     for (const modelName of written) {
-      try { logicalModelService.deleteModel(modelName); } catch { /* best effort */ }
+      try { tableLibraryService.deleteTable(modelName); } catch { /* best effort */ }
     }
     const exists = err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST';
     if (!exists) { telemetry.error('drawWriteFailed'); }
@@ -260,7 +260,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   deps.onWritten({ domainPath, modelNames: written });
   telemetry.feature('drawFromDbt');
 
-  await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(domainPath), DOMAIN_EDITOR_VIEW_TYPE);
+  await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(domainPath), SUBJECT_AREA_EDITOR_VIEW_TYPE);
 
   const notice = describeDraftNotice(draft);
   if (notice) { void vscode.window.showInformationMessage(notice); }

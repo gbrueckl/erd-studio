@@ -25,10 +25,10 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { telemetry } from '../../src/services/telemetryService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
@@ -59,10 +59,10 @@ function makeDoc(fsPath: string) {
 
 function buildProvider(rootDir: string) {
   const layerService = new LayerService(rootDir, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(rootDir, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, rootDir, '.erd-studio');
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(rootDir, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, rootDir, '.erd-studio');
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
     globalStorageUri: vscode.Uri.file(path.join(rootDir, '.global-storage')),
@@ -74,14 +74,14 @@ function buildProvider(rootDir: string) {
 
   return new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     new ManifestService(),
     new YmlParserService(),
     new TemplateService(),
     layerService,
     rootDir,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
 }
 
@@ -153,12 +153,12 @@ describe('a diagram whose file is deleted while its canvas is open', () => {
     const error = vi.spyOn(telemetry, 'error');
     fs.rmSync(file);
 
-    provider.syncDomainFilePresence();
+    provider.syncSubjectAreaFilePresence();
     expect(errors(panel).map((m) => m.payload)).toEqual([MISSING]);
 
     // The refreshes that used to be the first sign of it say nothing new.
-    await provider.refreshAllOpenDomains();
-    provider.syncDomainFilePresence();
+    await provider.refreshAllOpenSubjectAreas();
+    provider.syncSubjectAreaFilePresence();
     expect(errors(panel)).toHaveLength(1);
     expect(error.mock.calls.map((c) => c[0])).toEqual(['domainLoad', 'domainLoadMissing']);
   });
@@ -167,7 +167,7 @@ describe('a diagram whose file is deleted while its canvas is open', () => {
     const { provider, panel } = await openLoaded();
     const before = posted(panel).length;
 
-    provider.syncDomainFilePresence();
+    provider.syncSubjectAreaFilePresence();
 
     expect(posted(panel)).toHaveLength(before);
   });
@@ -175,12 +175,12 @@ describe('a diagram whose file is deleted while its canvas is open', () => {
   it('redraws by itself when the file comes back', async () => {
     const { provider, file, content, panel } = await openLoaded();
     fs.rmSync(file);
-    provider.syncDomainFilePresence();
+    provider.syncSubjectAreaFilePresence();
     panel._postedMessages.length = 0;
 
     // `git checkout` back: same bytes, so the document fires no change.
     fs.writeFileSync(file, content);
-    provider.syncDomainFilePresence();
+    provider.syncSubjectAreaFilePresence();
 
     await vi.waitFor(() => expect(types(panel)).toContain('domainLoaded'), { timeout: 4000, interval: 10 });
     expect(errors(panel)).toEqual([]);
@@ -189,7 +189,7 @@ describe('a diagram whose file is deleted while its canvas is open', () => {
   it('writes nothing for an edit on the stale canvas, and the file stays deleted', async () => {
     const { provider, file, doc, panel } = await openLoaded();
     fs.rmSync(file);
-    provider.syncDomainFilePresence();
+    provider.syncSubjectAreaFilePresence();
     vi.mocked(vscode.workspace.applyEdit).mockClear();
     doc.save.mockClear();
     panel._postedMessages.length = 0;
@@ -209,7 +209,7 @@ describe('a diagram whose file is deleted while its canvas is open', () => {
   it('does not save an undo back into existence, from the toolbar or Cmd+Z', async () => {
     const { provider, file, doc, panel } = await openLoaded();
     fs.rmSync(file);
-    provider.syncDomainFilePresence();
+    provider.syncSubjectAreaFilePresence();
     const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
     doc.save.mockClear();
 

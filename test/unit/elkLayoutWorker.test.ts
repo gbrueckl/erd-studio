@@ -33,9 +33,9 @@ const fakes = vi.hoisted(() => {
 vi.mock('elkjs/lib/elk-api', () => ({ default: fakes.FakeELK }));
 
 import { runElkLayout, LAYOUT_TIMEOUT_MS } from '../../webview/lib/elkLayout';
-import type { ModelFlowNode } from '@erd-studio/renderer/editor';
+import type { TableFlowNode } from '@erd-studio/renderer/editor';
 
-const node: ModelFlowNode = {
+const node: TableFlowNode = {
   id: 'a',
   type: 'model',
   position: { x: 0, y: 0 },

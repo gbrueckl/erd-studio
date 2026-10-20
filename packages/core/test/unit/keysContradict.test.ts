@@ -10,20 +10,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { describe, it, expect } from 'vitest';
 
-import { toDisplayDomain } from '../../src/displayDomain';
+import { toDisplaySubjectArea } from '../../src/displayDomain';
 import { toDbml } from '../../src/exportDbml';
 import { toMermaid } from '../../src/exportMermaid';
 import { buildDbtKeyIndex } from '../../src/keyEvidence';
-import { loadDisplayDomain } from '../../src/loadDisplayDomain';
+import { loadDisplaySubjectArea } from '../../src/loadDisplayDomain';
 import { backwardsRelationshipNote } from '../../src/relationships';
 import type { DbtKeyIndex } from '../../src/keyEvidence';
-import type { Relationship, SemanticDomain, SemanticModel } from '../../src/types/semantic';
+import type { Relationship, SemanticSubjectArea, SemanticTable } from '../../src/types/semantic';
 import { parseMermaid, parseMermaidOldest, readDbmlEverywhere } from '../exportParsers';
 
 const col = (name: string, isPrimaryKey = false) => ({ name, dataType: 'int', description: '', isPrimaryKey });
 
-const DIM: SemanticModel = { name: 'dim_customer', description: '', columns: [col('customer_key', true)] } as SemanticModel;
-const FCT: SemanticModel = { name: 'fct_order', description: '', columns: [col('order_key', true), col('customer_key')] } as SemanticModel;
+const DIM: SemanticTable = { name: 'dim_customer', description: '', columns: [col('customer_key', true)] } as SemanticTable;
+const FCT: SemanticTable = { name: 'fct_order', description: '', columns: [col('order_key', true), col('customer_key')] } as SemanticTable;
 
 /** dim_customer.customer_key → fct_order.customer_key, many-to-one: the 1.6.7 backwards shape. */
 const BACKWARDS: Relationship = {
@@ -35,13 +35,13 @@ const FORWARDS: Relationship = {
 
 function display(
   relationships: Relationship[],
-  models: SemanticModel[] = [DIM, FCT],
+  models: SemanticTable[] = [DIM, FCT],
   extra: { stage?: 'logical' | 'physical'; dbtKeyIndex?: DbtKeyIndex } = {},
 ) {
   const domain = {
     schemaVersion: 5, domain: 'sales', layer: 'gold', stage: extra.stage ?? 'logical', description: '', models, relationships,
-  } as SemanticDomain;
-  return toDisplayDomain(domain, {
+  } as SemanticSubjectArea;
+  return toDisplaySubjectArea(domain, {
     viewConfig: {}, layerConfig: undefined, readOnly: extra.stage === 'physical',
     ...(extra.dbtKeyIndex ? { dbtKeyIndex: extra.dbtKeyIndex } : {}),
   });
@@ -71,12 +71,12 @@ describe('keysContradict (#163)', () => {
   });
 
   it('flags nothing when the keys do not decide: the target flags no key', () => {
-    const fctNoKey = { ...FCT, columns: [col('order_key'), col('customer_key')] } as SemanticModel;
+    const fctNoKey = { ...FCT, columns: [col('order_key'), col('customer_key')] } as SemanticTable;
     expect(flags(display([BACKWARDS], [DIM, fctNoKey]))).toEqual([false]);
   });
 
   it('counts dbt\'s tests for a model that flags no key, only when the host passes them', () => {
-    const dimNoKey = { ...DIM, columns: [col('customer_key')] } as SemanticModel;
+    const dimNoKey = { ...DIM, columns: [col('customer_key')] } as SemanticTable;
     const dbt = buildDbtKeyIndex([{ uniqueColumns: [['dim_customer', ['customer_key']]] }]);
     expect(flags(display([BACKWARDS], [dimNoKey, FCT]))).toEqual([false]);
     expect(flags(display([BACKWARDS], [dimNoKey, FCT], { dbtKeyIndex: dbt }))).toEqual([true]);
@@ -91,8 +91,8 @@ describe('keysContradict (#163)', () => {
   });
 
   it('judges a composite foreign key as a whole and flags every member', () => {
-    const dim = { name: 'dim_a', description: '', columns: [col('k1', true), col('k2', true)] } as SemanticModel;
-    const fct = { name: 'fct_b', description: '', columns: [col('id', true), col('k1'), col('k2')] } as SemanticModel;
+    const dim = { name: 'dim_a', description: '', columns: [col('k1', true), col('k2', true)] } as SemanticTable;
+    const fct = { name: 'fct_b', description: '', columns: [col('id', true), col('k1'), col('k2')] } as SemanticTable;
     const member = (c: string): Relationship => ({
       fromModel: 'dim_a', fromColumn: c, toModel: 'fct_b', toColumn: c, cardinality: 'many-to-one', compositeKey: 'fk_a',
     });
@@ -144,8 +144,8 @@ describe('a 1.6.7 file (#163)', () => {
     try { return fs.readFileSync(path.join(root, p), 'utf-8'); } catch { return null; }
   };
 
-  it("flags only the backwards library entry, through core's loadDisplayDomain", async () => {
-    const d = await loadDisplayDomain({ domainPath: '.erd-studio/gold/sales.json', readFile, readOnly: true, warn: () => {} });
+  it("flags only the backwards library entry, through core's loadDisplaySubjectArea", async () => {
+    const d = await loadDisplaySubjectArea({ domainPath: '.erd-studio/gold/sales.json', readFile, readOnly: true, warn: () => {} });
     const flagged = d.relationships.filter((r) => r.keysContradict).map((r) => `${r.fromModel}.${r.fromColumn}`);
     expect(flagged).toEqual(['dim_product.product_key']);
   });

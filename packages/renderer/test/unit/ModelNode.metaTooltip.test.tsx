@@ -28,10 +28,10 @@ vi.mock('../../src/store/editorStore', () => ({
   useEditorStore: (selector: (s: typeof mockStoreState) => unknown) => selector(mockStoreState),
 }));
 
-import { ModelNode } from '../../src/components/Graph/ModelNode';
+import { TableNode } from '../../src/components/Graph/ModelNode';
 import { hasTooltipContent } from '../../src/components/Graph/ColumnTooltip';
 import { metaRows } from '../../src/lib/metaFormat';
-import type { ColumnDisplay, ModelFlowNode } from '../../src/types/graph';
+import type { ColumnDisplay, TableFlowNode } from '../../src/types/graph';
 
 const col = (extra: Partial<ColumnDisplay> = {}): ColumnDisplay => ({
   name: 'status',
@@ -42,8 +42,8 @@ const col = (extra: Partial<ColumnDisplay> = {}): ColumnDisplay => ({
   ...extra,
 });
 
-function renderNode(extra: Partial<ModelFlowNode['data']> = {}, columns: ColumnDisplay[] = [col()]) {
-  const data: ModelFlowNode['data'] = {
+function renderNode(extra: Partial<TableFlowNode['data']> = {}, columns: ColumnDisplay[] = [col()]) {
+  const data: TableFlowNode['data'] = {
     modelName: 'dim_customer',
     stage: 'logical',
     layer: 'silver',
@@ -52,7 +52,7 @@ function renderNode(extra: Partial<ModelFlowNode['data']> = {}, columns: ColumnD
     readOnly: false,
     ...extra,
   };
-  const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+  const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
   return render(<Node data={data} selected={false} />);
 }
 

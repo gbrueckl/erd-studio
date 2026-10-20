@@ -5,7 +5,7 @@
 
 export type {
   DiscrepancyReport,
-  ModelDiscrepancy,
+  TableDiscrepancy,
   ColumnDiscrepancy,
   RelationshipDiscrepancy,
 } from '@erd-studio/core';

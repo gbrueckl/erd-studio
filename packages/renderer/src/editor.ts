@@ -24,7 +24,7 @@ export { CanvasBackdrop, ANNOTATION_MINIMAP_COLORS } from './canvas/CanvasBackdr
 export { canvasNodeTypes, canvasEdgeTypes } from './canvas/flowTypes';
 
 // Components
-export { ModelNode } from './components/Graph/ModelNode';
+export { TableNode } from './components/Graph/ModelNode';
 export { FkEdge } from './components/Graph/FkEdge';
 export { AnnotationNode } from './components/Graph/AnnotationNode';
 export { AnnotationEdge } from './components/Graph/AnnotationEdge';
@@ -48,5 +48,5 @@ export * from './lib/dataTypeColors';
 export * from './lib/badgeLabels';
 export { swapCardinality } from './lib/cardinalityUtils';
 export { columnPairs, foldComposites, relationshipDisplayKey, relationshipEdgeId } from './lib/relationshipDisplayKey';
-export { computeModelLabels, matchesModelSearch, type LabelledModel } from './lib/modelLabels';
+export { computeTableLabels, matchesTableSearch, type LabelledTable } from './lib/modelLabels';
 export { ANNOTATION_COLORS } from './lib/annotationColors';

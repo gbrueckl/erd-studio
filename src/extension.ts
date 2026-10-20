@@ -3,12 +3,12 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { DomainService, renameDomainInRaw } from './services/domainService';
+import { SubjectAreaService, renameSubjectAreaInRaw } from './services/domainService';
 import { LayerService } from './services/layerService';
-import { CURRENT_SCHEMA_VERSION, getRawDomainModelNames, type DomainSummary, type Layer, type Stage, type UnifiedDomain, type StageData } from './types/semantic';
+import { WRITTEN_SCHEMA_VERSION, detectSubjectAreaFormat, getRawSubjectAreaTableNames, type SubjectAreaSummary, type Layer, type Stage, type UnifiedSubjectArea, type StageData } from './types/semantic';
 import { ManifestService, type ManifestLoadFailure } from './services/manifestService';
 import { TemplateService } from './services/templateService';
-import { DomainTreeProvider, type TreeElement } from './providers/DomainTreeProvider';
+import { SubjectAreaTreeProvider, type TreeElement } from './providers/DomainTreeProvider';
 import { SemanticEditorProvider } from './providers/SemanticEditorProvider';
 import { SemanticFileDecorationProvider } from './providers/SemanticFileDecorationProvider';
 import { LayerDecorationProvider } from './providers/LayerDecorationProvider';
@@ -16,7 +16,7 @@ import { FileWatcherService } from './watchers/FileWatcherService';
 import { HarnessService, HARNESS_TARGETS, HARNESS_VERSION, extractHarnessVersion, type HarnessInstallResult, type HarnessTarget } from './services/harnessService';
 import { SelectorsService } from './services/selectorsService';
 import { LegacyTagCleanupService } from './services/legacyTagCleanupService';
-import { LogicalModelService } from './services/logicalModelService';
+import { TABLES_DIR, TableLibraryService } from './services/logicalModelService';
 import { ownWrites } from './services/ownWriteTracker';
 import { MigrationService, migrateLegacySemanticDir } from './services/migrationService';
 import { hasErdStudioData, resolveDbtProject, samePath, type DbtProjectResolution } from './services/projectDiscovery';
@@ -32,20 +32,20 @@ import {
   type ManifestMissingReason,
   type ManifestMissingReasonDeps,
 } from './services/manifestMissingReasons';
-import { ModelLibraryTreeProvider, type ModelLibraryNode } from './providers/ModelLibraryTreeProvider';
-import { describeOrganizePlan, planOrganizeByLayer, type DomainModelUsage } from './services/modelLibraryOrganizer';
-import { describeDuplicateFix, planDuplicateFix, repointDomainModel, suggestDuplicateName, type DomainReference } from './services/duplicateModelResolver';
-import { validateModelName } from './providers/payloadValidation';
-import { parseLogicalModelText } from '@erd-studio/core';
-import { DOMAIN_EDITOR_VIEW_TYPE, hasOpenDomainCanvas, saveAllAndReload } from './services/recoveryService';
+import { TableLibraryTreeProvider, type TableLibraryNode } from './providers/ModelLibraryTreeProvider';
+import { describeOrganizePlan, planOrganizeByLayer, type SubjectAreaTableUsage } from './services/modelLibraryOrganizer';
+import { describeDuplicateFix, planDuplicateFix, repointSubjectAreaTable, suggestDuplicateName, type SubjectAreaReference } from './services/duplicateModelResolver';
+import { validateTableName } from './providers/payloadValidation';
+import { parseTableText } from '@erd-studio/core';
+import { SUBJECT_AREA_EDITOR_VIEW_TYPE, hasOpenSubjectAreaCanvas, saveAllAndReload } from './services/recoveryService';
 import { submitFeedback } from './services/feedbackService';
 import { clearFeedbackApiKey, setFeedbackApiKey } from './services/feedbackAnalysisService';
 import { ReportTrackingService } from './services/reportTrackingService';
 import { TelemetryService, telemetry } from './services/telemetryService';
 import { startKnownFixes } from './services/knownFixesService';
 import type { TelemetryErrorCode, TelemetryFeature } from './services/telemetryPayload';
-import { modelFileErrorCode } from './services/telemetryPayload';
-import { notifyModelFileError, shouldWarnAboutModelFile } from './commands/openModelFile';
+import { tableFileErrorCode } from './services/telemetryPayload';
+import { notifyTableFileError, shouldWarnAboutTableFile } from './commands/openModelFile';
 import { MyReportsTreeProvider, type MyReportNode } from './providers/MyReportsTreeProvider';
 import type { FeedbackKind } from './types/feedback';
 import { CliLauncherService, type CliLauncherOptions } from './services/cliLauncherService';
@@ -69,7 +69,7 @@ import { deriveAiHelperState, promptFor, SETUP_PROMPT, type GettingStartedStatus
 import { assistantInfo } from './types/aiAssistants';
 import { DRAW_FROM_DBT_COMMAND, drawFromDbt } from './commands/drawFromDbt';
 import { EXPORT_DIAGRAM_COMMAND, exportDiagramCommand } from './commands/exportDiagram';
-import { exportDomainFile } from './services/diagramExport';
+import { exportSubjectAreaFile } from './services/diagramExport';
 import { moveRelationshipsToLibrary } from './commands/moveRelationshipsToLibrary';
 import { saveDocumentByUri } from './providers/documentSave';
 import { dirtyFiles } from './providers/dirtyDocuments';
@@ -344,7 +344,7 @@ const HARNESS_INSTALL_FEATURES: Record<HarnessTarget['id'], TelemetryFeature> = 
  * is not counted as `domainCreatedExternal`. Entries are removed when the event
  * arrives.
  */
-const domainsCreatedHere = new Set<string>();
+const subjectAreasCreatedHere = new Set<string>();
 
 /**
  * Usage telemetry: which AI assistants this machine has. Deferred so the PATH
@@ -438,7 +438,7 @@ function registerFallbackCommands(context: vscode.ExtensionContext): void {
   }
 
   context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(DOMAIN_EDITOR_VIEW_TYPE, {
+    vscode.window.registerCustomEditorProvider(SUBJECT_AREA_EDITOR_VIEW_TYPE, {
       resolveCustomTextEditor(_document: vscode.TextDocument, panel: vscode.WebviewPanel): void {
         panel.webview.options = { enableScripts: false };
         panel.webview.html =
@@ -469,8 +469,8 @@ export const SAME_CHECKOUT_WINDOW_MS = 5_000;
  * `SAME_CHECKOUT_WINDOW_MS` — a fresh clone — the first domain in list (tree)
  * order is returned instead of an arbitrary checkout-order pick.
  */
-export function mostRecentlyModified(domains: readonly DomainSummary[]): DomainSummary | undefined {
-  let best: DomainSummary | undefined;
+export function mostRecentlyModified(domains: readonly SubjectAreaSummary[]): SubjectAreaSummary | undefined {
+  let best: SubjectAreaSummary | undefined;
   let bestTime = -Infinity;
   let oldest = Infinity;
   for (const d of domains) {
@@ -538,10 +538,10 @@ async function handleUnsavedChanges(
   return true;
 }
 
-function validateDomainSlug(
+function validateSubjectAreaSlug(
   value: string,
   layer: Layer,
-  existingDomains: DomainSummary[],
+  existingDomains: SubjectAreaSummary[],
   currentDomainName?: string,
 ): string | undefined {
   if (!value || !value.trim()) {
@@ -678,7 +678,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   if (previousVersion === undefined && !context.globalState.get<boolean>(GETTING_STARTED_SHOWN_KEY)) {
     await context.globalState.update(GETTING_STARTED_PENDING_KEY, true);
   }
-  if (previousVersion && previousVersion !== currentVersion && hasOpenDomainCanvas()) {
+  if (previousVersion && previousVersion !== currentVersion && hasOpenSubjectAreaCanvas()) {
     // If the user cancels the reload (unsaved files), keep activating so
     // commands and the custom editor are still registered for this host.
     if (await saveAllAndReload(`ERD Studio updated to v${currentVersion}`)) {
@@ -819,21 +819,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const dbtConfig = readDbtProjectConfig(workspaceRoot);
 
   const layerService = new LayerService(workspaceRoot, semanticDir);
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(workspaceRoot, semanticDir);
-  logicalModelService.onParseFailure = (error) => {
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(workspaceRoot, semanticDir);
+  tableLibraryService.onParseFailure = (error) => {
     // Fixed keys only — `error.message` may quote the file and never leaves the machine.
     telemetry.error('modelFileParse');
-    telemetry.error(modelFileErrorCode(error.kind));
+    telemetry.error(tableFileErrorCode(error.kind));
     // Once per broken file per session (the service never re-reports a path, #113),
     // and not again in a later session while the file is unchanged (#164).
-    if (shouldWarnAboutModelFile(context.workspaceState, error.filePath)) {
-      notifyModelFileError(error);
+    if (shouldWarnAboutTableFile(context.workspaceState, error.filePath)) {
+      notifyTableFileError(error);
     }
   };
   // A model file's relationships: list could not be rewritten in place, so an edit was refused.
-  logicalModelService.onSyncRefused = () => telemetry.error('relSyncRefused');
-  domainService.setLogicalModelService(logicalModelService);
+  tableLibraryService.onSyncRefused = () => telemetry.error('relSyncRefused');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
   // Set once a manifest's (re)appearance has been counted, cleared when it is
   // seen missing again, so a manifest with no canvas to reload it (isMissing
   // then stays true) is not counted again on every later change (#113).
@@ -857,7 +857,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let selectorsOutOfSyncStatus: vscode.StatusBarItem | undefined;
 
   const selectorsService = new SelectorsService(
-    domainService,
+    subjectAreaService,
     workspaceRoot,
     semanticDir,
     {
@@ -918,7 +918,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   selectorsService.scheduleRegenerate();
 
   // Check for v4 → v5 migration (non-blocking)
-  const migrationService = new MigrationService(workspaceRoot, layerService, logicalModelService, semanticDir);
+  const migrationService = new MigrationService(workspaceRoot, layerService, tableLibraryService, semanticDir);
   if (migrationService.needsMigration()) {
     void vscode.window.showInformationMessage(
       'ERD Studio has a new table storage format that lets subject areas share tables. Migrate subject area files now?',
@@ -936,24 +936,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     });
   }
-  const treeProvider = new DomainTreeProvider(domainService, layerService, workspaceRoot, semanticDir);
-  const modelLibraryProvider = new ModelLibraryTreeProvider(
-    logicalModelService,
-    domainService,
+  const treeProvider = new SubjectAreaTreeProvider(subjectAreaService, layerService, workspaceRoot, semanticDir);
+  const tableLibraryProvider = new TableLibraryTreeProvider(
+    tableLibraryService,
+    subjectAreaService,
     workspaceRoot,
     semanticDir,
     () => layerService.getAllLayers(),
   );
   const editorProvider = new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     manifestService,
     ymlParserService,
     templateService,
     layerService,
     workspaceRoot,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
   editorProviderForFeedback = editorProvider;
 
@@ -985,7 +985,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   diagramsStatus.command = 'erdStudio.openDomain';
   context.subscriptions.push(diagramsStatus);
   const refreshDiagramsStatus = (): void => {
-    const count = domainService.listDomains(workspaceRoot, semanticDir).length;
+    const count = subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir).length;
     if (count === 0) {
       diagramsStatus.hide();
       return;
@@ -996,7 +996,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const refreshContextKeys = (): void => {
     void vscode.commands.executeCommand('setContext', 'erdStudio.hasSemanticDir', fs.existsSync(fullSemanticDirPath));
-    void vscode.commands.executeCommand('setContext', 'erdStudio.hasLogicalModelsDir', logicalModelService.dirExists());
+    void vscode.commands.executeCommand('setContext', 'erdStudio.hasLogicalModelsDir', tableLibraryService.dirExists());
     refreshDiagramsStatus();
   };
   refreshContextKeys();
@@ -1004,7 +1004,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // The one domain picker: straight to the only domain, a QuickPick when
   // there are several. Shared by openCanvas and Export Diagram.
   const pickDomainFile = async (
-    domains: ReturnType<DomainService['listDomains']>,
+    domains: ReturnType<SubjectAreaService['listSubjectAreas']>,
     placeHolder: string,
   ): Promise<string | undefined> => {
     if (domains.length <= 1) { return domains[0]?.filePath; }
@@ -1017,7 +1017,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // "Open a domain" (Welcome panel, status bar, palette): straight in when
   // there is one, a pick when there are several, the create flow when none.
   const openCanvas = async (): Promise<void> => {
-    const domains = domainService.listDomains(workspaceRoot, semanticDir);
+    const domains = subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
     if (domains.length === 0) {
       await vscode.commands.executeCommand(
         fs.existsSync(fullSemanticDirPath) ? 'erdStudio.createDomain' : 'erdStudio.setupSemanticDirectory',
@@ -1028,7 +1028,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!target) { return; }
     await vscode.commands.executeCommand('erdStudio.openDomain', target);
   };
-  telemetry.activation('project_found', fs.existsSync(fullSemanticDirPath), domainService.listDomains(workspaceRoot, semanticDir).length);
+  telemetry.activation('project_found', fs.existsSync(fullSemanticDirPath), subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir).length);
   recordDetectedAssistants();
 
   // Surface a broken layers.json once per distinct error. LayerService falls
@@ -1078,7 +1078,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           telemetry.feature(appeared);
         }
       }
-      await editorProvider.refreshAllOpenDomains();
+      await editorProvider.refreshAllOpenSubjectAreas();
 
       // Superseded by a newer file-change event during the await
       if (gen !== manifestChangeGen) { return; }
@@ -1101,7 +1101,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const retryGen = manifestChangeGen;
           try {
             manifestService.invalidate();
-            await editorProvider.refreshAllOpenDomains();
+            await editorProvider.refreshAllOpenSubjectAreas();
             // Superseded by a newer event during retry
             if (retryGen !== manifestChangeGen) { return; }
             if (!manifestService.isStale) {
@@ -1131,20 +1131,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // would say nothing new.
   const catalogChangedSubscription = fileWatcherService.onCatalogChanged(async () => {
     catalogService.invalidate();
-    await editorProvider.refreshAllOpenDomains();
+    await editorProvider.refreshAllOpenSubjectAreas();
   });
 
   // Semantic file changed externally → refresh tree view + model library
   const semanticChangedSubscription = fileWatcherService.onSemanticFileChanged(({ uri, created }) => {
     // A domain file ERD Studio did not write appeared: an AI assistant, a hand
     // edit or a git pull. createDomain / renameDomain write outside the own-write
-    // tracker, so they mark their paths in domainsCreatedHere instead.
-    if (created && !domainsCreatedHere.delete(uri.fsPath)) { telemetry.feature('domainCreatedExternal'); }
+    // tracker, so they mark their paths in subjectAreasCreatedHere instead.
+    if (created && !subjectAreasCreatedHere.delete(uri.fsPath)) { telemetry.feature('domainCreatedExternal'); }
     // A canvas showing "deleted or renamed" whose file is back redraws (#161).
-    editorProvider.syncDomainFilePresence();
-    treeProvider.invalidateDomain(uri.fsPath);
+    editorProvider.syncSubjectAreaFilePresence();
+    treeProvider.invalidateSubjectArea(uri.fsPath);
     treeProvider.refresh();
-    modelLibraryProvider.refresh();
+    tableLibraryProvider.refresh();
     // A pulled/created .erd-studio/ must reveal the view/title buttons without a reload
     refreshContextKeys();
   });
@@ -1154,8 +1154,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // refresh would send a second, identical domainLoaded and clear the user's
   // column selection), so the side effects the watcher used to drive are
   // issued here directly instead.
-  const editorWroteSubscription = editorProvider.onDidWriteDomain(({ uri, modelLibraryChanged }) => {
-    treeProvider.invalidateDomain(uri.fsPath);
+  const editorWroteSubscription = editorProvider.onDidWriteSubjectArea(({ uri, modelLibraryChanged }) => {
+    treeProvider.invalidateSubjectArea(uri.fsPath);
     treeProvider.refresh();
     // The Model Library lists a "N domains" count and the referencing domain
     // names per model, so ANY domain write can change what it shows — adding or
@@ -1163,7 +1163,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // a yml file. Refresh on every write; `modelLibraryChanged` only gates the
     // context keys, which turn on the view itself and can only change when a
     // file appears or disappears.
-    modelLibraryProvider.refresh();
+    tableLibraryProvider.refresh();
     if (modelLibraryChanged) {
       refreshContextKeys();
     }
@@ -1180,12 +1180,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const semanticDeletedSubscription = fileWatcherService.onSemanticFileDeleted(({ uris }) => {
     // An open canvas whose file is gone says so at once, instead of staying
     // editable until a refresh fails (#161).
-    editorProvider.syncDomainFilePresence();
+    editorProvider.syncSubjectAreaFilePresence();
     for (const uri of uris) {
-      treeProvider.invalidateDomain(uri.fsPath);
+      treeProvider.invalidateSubjectArea(uri.fsPath);
     }
     treeProvider.refresh();
-    modelLibraryProvider.refresh();
+    tableLibraryProvider.refresh();
     refreshContextKeys();
     const subject = uris.length === 1
       ? 'Subject area file deleted.'
@@ -1205,9 +1205,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // new layers; warn if the file is now unreadable.
   const layerConfigChangedSubscription = fileWatcherService.onLayerConfigChanged(() => {
     layerService.invalidateCache();
-    treeProvider.invalidateDomain();
+    treeProvider.invalidateSubjectArea();
     treeProvider.refresh();
-    modelLibraryProvider.refresh();
+    tableLibraryProvider.refresh();
     layerDecorationProvider.refresh();
     decorationProvider.refresh();
     refreshContextKeys();
@@ -1215,12 +1215,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   // Logical model file changed → refresh domains referencing that model + model library
-  const logicalModelChangedSubscription = fileWatcherService.onLogicalModelChanged(
+  const logicalModelChangedSubscription = fileWatcherService.onTableChanged(
     async ({ modelName }) => {
-      logicalModelService.invalidateCache(modelName);
-      await editorProvider.refreshDomainsReferencingModel(modelName);
+      tableLibraryService.invalidateCache(modelName);
+      await editorProvider.refreshSubjectAreasReferencingTable(modelName);
       treeProvider.refresh();
-      modelLibraryProvider.refresh();
+      tableLibraryProvider.refresh();
       // Re-evaluate context key so the Model Library view appears if logical-models/ was just created
       refreshContextKeys();
     },
@@ -1230,7 +1230,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const dbtYmlChangedSubscription = fileWatcherService.onDbtYmlChanged(
     async () => {
       ymlParserService.invalidate();
-      await editorProvider.refreshAllOpenDomains();
+      await editorProvider.refreshAllOpenSubjectAreas();
     },
   );
 
@@ -1312,7 +1312,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       });
       return vscode.Disposable.from(treeView, foldersChanged);
     })(),
-    vscode.window.registerCustomEditorProvider(DOMAIN_EDITOR_VIEW_TYPE, editorProvider, {
+    vscode.window.registerCustomEditorProvider(SUBJECT_AREA_EDITOR_VIEW_TYPE, editorProvider, {
       // Keep the webview (React tree, ELK worker, in-progress discrepancy /
       // sync-merge state) alive when the tab is hidden instead of tearing it
       // down and rebuilding from PersistedState on every tab switch.
@@ -1320,10 +1320,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.window.registerFileDecorationProvider(decorationProvider),
     vscode.window.registerFileDecorationProvider(layerDecorationProvider),
-    modelLibraryProvider,
+    tableLibraryProvider,
     (() => {
       return vscode.window.createTreeView('erdStudio.modelLibrary', {
-        treeDataProvider: modelLibraryProvider,
+        treeDataProvider: tableLibraryProvider,
         canSelectMany: false,
       });
     })(),
@@ -1344,7 +1344,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('erdStudio.openTrackedReport', (node?: MyReportNode) => {
       if (node?.report?.url) { void vscode.env.openExternal(vscode.Uri.parse(node.report.url)); }
     }),
-    vscode.commands.registerCommand('erdStudio.deleteLogicalModel', async (node: ModelLibraryNode | undefined) => {
+    vscode.commands.registerCommand('erdStudio.deleteLogicalModel', async (node: TableLibraryNode | undefined) => {
       if (!node || node.type !== 'model') {
         void vscode.window.showErrorMessage('Delete Table: No table selected. Right-click a table in the Table Library.');
         return;
@@ -1355,8 +1355,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         'Delete',
       );
       if (confirm === 'Delete') {
-        logicalModelService.deleteModel(node.name);
-        modelLibraryProvider.refresh();
+        try {
+          tableLibraryService.deleteTable(node.name);
+        } catch (err) {
+          // A file in v6's tables/ (#162) is read, never deleted, by this version.
+          void vscode.window.showErrorMessage(`Delete Table: ${err instanceof Error ? err.message : String(err)}`);
+          return;
+        }
+        tableLibraryProvider.refresh();
       }
     }),
     vscode.commands.registerCommand('erdStudio.selectDbtProject', (target?: unknown) =>
@@ -1364,24 +1370,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Move top-level logical-models/*.yml files into the folder of the one
     // layer whose domains use them (issue #76). Prompted, one WorkspaceEdit.
     vscode.commands.registerCommand('erdStudio.organizeModelLibrary', async () => {
-      if (!logicalModelService.dirExists()) {
+      if (!tableLibraryService.dirExists()) {
         void vscode.window.showInformationMessage('Organise Table Library: there is no logical-models/ folder yet.');
         return;
       }
-      const usage: DomainModelUsage[] = [];
-      for (const summary of domainService.listDomains(workspaceRoot, semanticDir)) {
+      const usage: SubjectAreaTableUsage[] = [];
+      for (const summary of subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir)) {
         try {
           const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as unknown;
-          usage.push({ layer: summary.layer, modelNames: getRawDomainModelNames(raw) });
+          usage.push({ layer: summary.layer, modelNames: getRawSubjectAreaTableNames(raw) });
         } catch {
           // An unreadable domain contributes no usage; its models stay put.
         }
       }
-      const modelsDir = logicalModelService.getModelsDir();
+      const modelsDir = tableLibraryService.getTablesDir();
       const plan = planOrganizeByLayer(
-        logicalModelService.listModelFiles(),
+        // Only logical-models/ is organised: v6's tables/ (#162) is never written.
+        tableLibraryService.listTableFiles().filter((e) => !e.library),
         usage,
-        (name, layer) => LogicalModelService.isModelFolderName(layer) ? path.join(modelsDir, layer, `${name}.yml`) : null,
+        (name, layer) => TableLibraryService.isTableFolderName(layer) ? path.join(modelsDir, layer, `${name}.yml`) : null,
         new Set(layerService.getAllLayers().map((l) => l.id)),
       );
       if (plan.moves.length === 0) {
@@ -1402,7 +1409,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       for (const move of plan.moves) {
         const folder = path.dirname(move.to);
         if (!fs.existsSync(folder)) newFolders.add(folder);
-        logicalModelService.ensureDir(move.to);
+        tableLibraryService.ensureDir(move.to);
         edit.renameFile(vscode.Uri.file(move.from), vscode.Uri.file(move.to), { overwrite: false });
       }
       if (!(await vscode.workspace.applyEdit(edit))) {
@@ -1428,8 +1435,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           if (fs.readdirSync(folder).length === 0) fs.rmdirSync(folder);
         } catch { /* already gone */ }
       }
-      logicalModelService.invalidateCache();
-      modelLibraryProvider.refresh();
+      tableLibraryService.invalidateCache();
+      tableLibraryProvider.refresh();
       void vscode.window.showInformationMessage(
         `Moved ${plan.moves.length} table file${plan.moves.length === 1 ? '' : 's'} into layer folders.`,
       );
@@ -1438,16 +1445,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // identities). Give it its own name — `{layer}_{name}` — with an alias that
     // keeps the table name, and repoint the domains of its layer at it.
     // Prompted, one WorkspaceEdit, one undo step.
-    vscode.commands.registerCommand('erdStudio.resolveDuplicateModel', async (arg?: ModelLibraryNode | string) => {
-      const entries = logicalModelService.listModelFiles();
-      const duplicates = entries.filter((e) => e.shadowedBy);
+    vscode.commands.registerCommand('erdStudio.resolveDuplicateModel', async (arg?: TableLibraryNode | string) => {
+      const entries = tableLibraryService.listTableFiles();
+      // A file in v6's tables/ (#162) is never renamed here: this version does not write it.
+      const duplicates = entries.filter((e) => e.shadowedBy && !e.library);
       const target = typeof arg === 'string' ? arg : arg?.type === 'model' ? arg.filePath : undefined;
       // Compare real paths: the tree hands over what the library listed, but a
       // warning or a caller may name the same file through a symlinked prefix.
       const realPath = (p: string): string => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
       let entry = target === undefined ? undefined : duplicates.find((e) => realPath(e.filePath) === realPath(target));
-      const modelsDir = logicalModelService.getModelsDir();
-      const libPath = (p: string): string => `logical-models/${path.relative(modelsDir, p).split(path.sep).join('/')}`;
+      const libPath = (p: string): string => tableLibraryService.libraryRelativePath(p);
       if (!entry) {
         if (duplicates.length === 0) {
           void vscode.window.showInformationMessage('Every table file in the library has its own name.');
@@ -1463,7 +1470,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const dup = entry;
 
       const model = (() => {
-        try { return parseLogicalModelText(fs.readFileSync(dup.filePath, 'utf-8'), dup.name); } catch { return null; }
+        try { return parseTableText(fs.readFileSync(dup.filePath, 'utf-8'), dup.name); } catch { return null; }
       })();
       if (!model) {
         void vscode.window.showErrorMessage(`${libPath(dup.filePath)} could not be read as a table file. Fix or rename it by hand.`);
@@ -1476,16 +1483,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         prompt: `Table names are unique, as dbt model names are. The warehouse table name stays "${model.alias || dup.name}" (set as the table's alias).`,
         value: suggestDuplicateName(dup.name, dup.folder, taken),
         ignoreFocusOut: true,
-        validateInput: (value) => validateModelName(value)
+        validateInput: (value) => validateTableName(value)
           ?? (taken.has(value.trim()) ? `"${value.trim()}" already exists in the Table Library.` : null),
       }))?.trim();
       if (!newName) return;
 
-      const references: DomainReference[] = [];
-      for (const summary of domainService.listDomains(workspaceRoot, semanticDir)) {
+      const references: SubjectAreaReference[] = [];
+      for (const summary of subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir)) {
         try {
           const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as unknown;
-          if (getRawDomainModelNames(raw).includes(dup.name)) {
+          if (getRawSubjectAreaTableNames(raw).includes(dup.name)) {
             references.push({ filePath: summary.filePath, domain: summary.domain, layer: summary.layer });
           }
         } catch {
@@ -1493,6 +1500,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
       }
       const plan = planDuplicateFix(dup.name, dup.folder, newName, model.alias, references);
+      const v6Diagram = plan.repoint.find((ref) => {
+        try { return detectSubjectAreaFormat(JSON.parse(fs.readFileSync(ref.filePath, 'utf-8'))) === 'v6'; } catch { return false; }
+      });
+      if (v6Diagram) {
+        void vscode.window.showErrorMessage(
+          `${path.relative(workspaceRoot, v6Diagram.filePath).split(path.sep).join('/')} would change too, and it uses the new file naming ` +
+          '(schemaVersion 6), which this version of ERD Studio reads but cannot edit yet. Nothing was changed.',
+        );
+        return;
+      }
       const newPath = path.join(path.dirname(dup.filePath), `${newName}.yml`);
       const choice = await vscode.window.showInformationMessage(
         `Rename the duplicate "${dup.name}" to "${newName}"?`,
@@ -1502,7 +1519,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (choice !== 'Rename') return;
 
       const edit = new vscode.WorkspaceEdit();
-      const yamlText = logicalModelService.serializeModelAt({ ...model, name: newName, alias: plan.alias }, dup.filePath);
+      const yamlText = tableLibraryService.serializeTableAt({ ...model, name: newName, alias: plan.alias }, dup.filePath);
       edit.createFile(vscode.Uri.file(newPath), { overwrite: false, contents: Buffer.from(yamlText, 'utf-8') });
       edit.deleteFile(vscode.Uri.file(dup.filePath), { ignoreIfNotExists: true });
       const domainDocs: vscode.TextDocument[] = [];
@@ -1510,7 +1527,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(ref.filePath));
         const text = doc.getText();
         const parsed = JSON.parse(text) as Record<string, unknown>;
-        if (!repointDomainModel(parsed, dup.name, newName)) continue;
+        if (!repointSubjectAreaTable(parsed, dup.name, newName)) continue;
         edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(text.length)), JSON.stringify(parsed, null, 2) + '\n');
         domainDocs.push(doc);
       }
@@ -1530,7 +1547,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         } else {
           unsaved.push(path.relative(workspaceRoot, doc.uri.fsPath).split(path.sep).join('/'));
         }
-        treeProvider.invalidateDomain(doc.uri.fsPath);
+        treeProvider.invalidateSubjectArea(doc.uri.fsPath);
       }
       if (unsaved.length > 0) {
         telemetry.error('saveFailed');
@@ -1540,11 +1557,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       ownWrites.recordWrite(newPath);
       ownWrites.recordDelete(dup.filePath);
-      logicalModelService.invalidateCache();
-      modelLibraryProvider.refresh();
+      tableLibraryService.invalidateCache();
+      tableLibraryProvider.refresh();
       treeProvider.refresh();
       selectorsService.scheduleRegenerate();
-      await editorProvider.refreshAllOpenDomains();
+      await editorProvider.refreshAllOpenSubjectAreas();
       void vscode.window.showInformationMessage(
         `${libPath(newPath)} is now its own table, "${newName}" (warehouse table: ${plan.alias}).` +
         (domainDocs.length ? ` Repointed ${domainDocs.length} subject area${domainDocs.length === 1 ? '' : 's'}.` : ''),
@@ -1556,21 +1573,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       moveRelationshipsToLibrary({
         workspaceRoot,
         semanticDir,
-        domainService,
-        logicalModelService,
+        subjectAreaService,
+        tableLibraryService,
         loadDbtKeyIndex: async () => dbtKeyIndexOf(
           await ymlParserService.loadYmlData(workspaceRoot, undefined),
           await manifestService.loadManifest(workspaceRoot).catch(() => undefined),
         ),
         onWritten: async (domainPaths) => {
-          for (const domainPath of domainPaths) treeProvider.invalidateDomain(domainPath);
-          modelLibraryProvider.refresh();
+          for (const domainPath of domainPaths) treeProvider.invalidateSubjectArea(domainPath);
+          tableLibraryProvider.refresh();
           treeProvider.refresh();
           selectorsService.scheduleRegenerate();
-          await editorProvider.refreshAllOpenDomains();
+          await editorProvider.refreshAllOpenSubjectAreas();
         },
       })),
-    vscode.commands.registerCommand('erdStudio.revealLogicalModel', (node: ModelLibraryNode | undefined) => {
+    vscode.commands.registerCommand('erdStudio.revealLogicalModel', (node: TableLibraryNode | undefined) => {
       if (!node || node.type !== 'model') {
         void vscode.window.showErrorMessage('Reveal in Explorer: No table selected. Right-click a table in the Table Library.');
         return;
@@ -1591,7 +1608,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await vscode.commands.executeCommand(
         'vscode.openWith',
         fileUri,
-        DOMAIN_EDITOR_VIEW_TYPE,
+        SUBJECT_AREA_EDITOR_VIEW_TYPE,
         { preview: true },
       );
       if (stage === 'physical') {
@@ -1612,22 +1629,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               await manifestService.loadManifest(workspaceRoot).catch(() => undefined),
             ))
             .catch(() => undefined);
-          return exportDomainFile(domainService, domainPath, format, dbtKeyIndex ? { dbtKeyIndex } : {});
+          return exportSubjectAreaFile(subjectAreaService, domainPath, format, dbtKeyIndex ? { dbtKeyIndex } : {});
         },
-        activeDomainPath: () => editorProvider.activeDomainPath(),
-        hasDiagrams: () => domainService.listDomains(workspaceRoot, semanticDir).length > 0,
-        pickDomain: async () => pickDomainFile(domainService.listDomains(workspaceRoot, semanticDir), 'Export which diagram?'),
+        activeDomainPath: () => editorProvider.activeSubjectAreaPath(),
+        hasDiagrams: () => subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir).length > 0,
+        pickDomain: async () => pickDomainFile(subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir), 'Export which diagram?'),
         defaultSaveFolder: workspaceRoot,
       }, arg)),
     vscode.commands.registerCommand(DRAW_FROM_DBT_COMMAND, async () => {
-      const existingDomains = () => domainService.listDomains(workspaceRoot, semanticDir);
+      const existingDomains = () => subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
       await drawFromDbt({
         workspaceRoot,
         semanticDir,
         modelPaths: dbtConfig.modelPaths,
         layerService,
-        domainService,
-        logicalModelService,
+        subjectAreaService,
+        tableLibraryService,
         loadDbt: async () => {
           const ymlData = await ymlParserService.loadYmlData(workspaceRoot);
           const manifest = await manifestService.loadManifest(workspaceRoot);
@@ -1635,17 +1652,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const catalog = await catalogService.loadCatalog(workspaceRoot);
           return { ymlData, manifest: manifestService.isMissing ? undefined : manifest, catalog };
         },
-        validateDomainName: (value, layer) => validateDomainSlug(value, layer, existingDomains()),
+        validateDomainName: (value, layer) => validateSubjectAreaSlug(value, layer, existingDomains()),
         onWritten: ({ domainPath, modelNames }) => {
           // Every file was recorded as an own write, so the watchers stay
           // quiet; issue their refreshes here, as createDomain does.
           layerService.invalidateCache();
-          treeProvider.invalidateDomain(domainPath);
+          treeProvider.invalidateSubjectArea(domainPath);
           treeProvider.refresh();
-          if (modelNames.length > 0) { modelLibraryProvider.refresh(); }
+          if (modelNames.length > 0) { tableLibraryProvider.refresh(); }
           // A new model file may be one an open diagram already references
           // (a placeholder until now); the model watcher skipped the own write.
-          for (const name of modelNames) { void editorProvider.refreshDomainsReferencingModel(name); }
+          for (const name of modelNames) { void editorProvider.refreshSubjectAreasReferencingTable(name); }
           layerDecorationProvider.refresh();
           decorationProvider.refresh();
           refreshContextKeys();
@@ -1674,13 +1691,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
 
         // Step 2: Get domain name
-        const existingDomains = domainService.listDomains(workspaceRoot, semanticDir);
+        const existingDomains = subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
         const domainSlug = await vscode.window.showInputBox({
           prompt: 'Enter subject area name (slug format)',
           placeHolder: 'e.g. customer-360, sales-analytics, orders',
           ignoreFocusOut: true,
           validateInput: (value: string) =>
-            validateDomainSlug(value, layer, existingDomains),
+            validateSubjectAreaSlug(value, layer, existingDomains),
         });
         if (!domainSlug) { return; }
         const slug = domainSlug.trim();
@@ -1733,8 +1750,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
 
         const emptyStage: StageData = { models: [], relationships: [] };
-        const domainData: UnifiedDomain = {
-          schemaVersion: CURRENT_SCHEMA_VERSION,
+        const domainData: UnifiedSubjectArea = {
+          schemaVersion: WRITTEN_SCHEMA_VERSION,
           domain: slug,
           layer,
           description: description.trim(),
@@ -1744,11 +1761,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         };
 
         try {
-          domainsCreatedHere.add(filePath);
+          subjectAreasCreatedHere.add(filePath);
           fs.writeFileSync(filePath, JSON.stringify(domainData, null, 2) + '\n', { encoding: 'utf-8', flag: 'wx' });
           telemetry.feature('domainCreated');
         } catch (err) {
-          domainsCreatedHere.delete(filePath);
+          subjectAreasCreatedHere.delete(filePath);
           if (err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST') {
             void vscode.window.showErrorMessage(`Subject area "${slug}" already exists in the ${layer} layer`);
             return;
@@ -1766,7 +1783,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await vscode.commands.executeCommand(
           'vscode.openWith',
           vscode.Uri.file(filePath),
-          DOMAIN_EDITOR_VIEW_TYPE,
+          SUBJECT_AREA_EDITOR_VIEW_TYPE,
         );
       },
     ),
@@ -1804,7 +1821,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         try {
           await vscode.workspace.fs.delete(fileUri);
           ownWrites.recordDelete(filePath);
-          treeProvider.invalidateDomain(filePath);
+          treeProvider.invalidateSubjectArea(filePath);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           void vscode.window.showErrorMessage(`Failed to delete subject area: ${msg}`);
@@ -1831,26 +1848,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const shouldProceed = await handleUnsavedChanges(oldFileUri, oldDomainName, 'renaming');
         if (!shouldProceed) { return; }
 
-        const existingDomains = domainService.listDomains(workspaceRoot, semanticDir);
+        const existingDomains = subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
         const newDomainSlug = await vscode.window.showInputBox({
           prompt: 'Enter new subject area name',
           value: oldDomainName,
           ignoreFocusOut: true,
           validateInput: (value: string) =>
-            validateDomainSlug(value, layer, existingDomains, oldDomainName),
+            validateSubjectAreaSlug(value, layer, existingDomains, oldDomainName),
         });
         if (!newDomainSlug) { return; }
         const newSlug = newDomainSlug.trim();
         if (newSlug === oldDomainName) { return; }
 
         // Read and update domain name in the unified file.
-        // Validate via DomainService, but rewrite the RAW document so v5 model
+        // Validate via SubjectAreaService, but rewrite the RAW document so v5 model
         // name references and unknown keys are preserved — re-serialising the
-        // resolved UnifiedDomain would inline model bodies into a v5 file.
+        // resolved UnifiedSubjectArea would inline model bodies into a v5 file.
         let renamedContent: string;
         try {
-          domainService.getDomain(oldFilePath);
-          renamedContent = renameDomainInRaw(fs.readFileSync(oldFilePath, 'utf-8'), newSlug);
+          subjectAreaService.getSubjectArea(oldFilePath);
+          renamedContent = renameSubjectAreaInRaw(fs.readFileSync(oldFilePath, 'utf-8'), newSlug);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           void vscode.window.showErrorMessage(`Failed to read subject area file: ${msg}`);
@@ -1865,7 +1882,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const newFileUri = vscode.Uri.file(newFilePath);
 
         const edit = new vscode.WorkspaceEdit();
-        domainsCreatedHere.add(newFilePath);
+        subjectAreasCreatedHere.add(newFilePath);
         edit.createFile(newFileUri, { overwrite: false, ignoreIfExists: false });
         edit.insert(newFileUri, new vscode.Position(0, 0), renamedContent);
         edit.deleteFile(oldFileUri, { ignoreIfNotExists: false });
@@ -1878,7 +1895,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         // Auto-open renamed domain
         selectorsService.scheduleRegenerate();
-        await vscode.commands.executeCommand('vscode.openWith', newFileUri, DOMAIN_EDITOR_VIEW_TYPE);
+        await vscode.commands.executeCommand('vscode.openWith', newFileUri, SUBJECT_AREA_EDITOR_VIEW_TYPE);
       },
     ),
     vscode.commands.registerCommand('erdStudio.refreshManifest', async () => {
@@ -1896,7 +1913,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           catalogService.invalidate();
           await manifestService.loadManifest(workspaceRoot);
           await ymlParserService.loadYmlData(workspaceRoot);
-          await editorProvider.refreshAllOpenDomains();
+          await editorProvider.refreshAllOpenSubjectAreas();
           if (manifestService.isMissing) {
             telemetry.featureOnce('manifestMissingRefresh');
             void vscode.window.showWarningMessage(
@@ -2007,7 +2024,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
-      const v4Count = migrationService.findV4Domains().length;
+      const v4Count = migrationService.findV4SubjectAreas().length;
       const confirm = await vscode.window.showWarningMessage(
         `Found ${v4Count} subject area file(s) using the legacy inline table format. ` +
         'Migration will extract tables to .erd-studio/logical-models/ and convert subject area files to use name references. ' +
@@ -2033,7 +2050,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void vscode.window.showInformationMessage(`Migration complete: ${details.join(', ')}.`);
 
       treeProvider.refresh();
-      await editorProvider.refreshAllOpenDomains();
+      await editorProvider.refreshAllOpenSubjectAreas();
       selectorsService.scheduleRegenerate();
     }),
     // F408: Set up semantic directory for new projects
@@ -2092,6 +2109,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             if (!value || !value.trim()) { return 'Layer name is required'; }
             if (!/^[a-z][a-z0-9_-]*$/.test(value.trim())) { return 'Must start with lowercase letter, contain only lowercase letters, numbers, hyphens, underscores'; }
             if (layerService.hasLayer(value.trim())) { return `Layer "${value.trim()}" already exists`; }
+            // Reserved for the table library's new folder (#162); a project that already has the layer keeps it.
+            if (value.trim() === TABLES_DIR) { return `"${TABLES_DIR}" is reserved for the Table Library's folder; pick another name`; }
             return undefined;
           },
         });
@@ -2252,7 +2271,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
         }
 
-        const domains = domainService.listDomains(workspaceRoot, semanticDir);
+        const domains = subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
         const layerDomains = domains.filter(d => d.layer === layerId);
         if (layerDomains.length > 0) {
           void vscode.window.showErrorMessage(
@@ -2444,7 +2463,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       helper: deriveAiHelperState(harness, cli, assistants),
       claude: detectClaude().availability,
       assistants,
-      domainCount: domainService.listDomains(workspaceRoot, semanticDir).length,
+      domainCount: subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir).length,
       project: {
         name: path.basename(workspaceRoot),
         relativePath: relative && !relative.startsWith('..') && !path.isAbsolute(relative)
@@ -2651,9 +2670,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     !firstRunNoticeShown &&
     !harnessPromptShown &&
     !context.workspaceState.get<boolean>(DIAGRAMS_NUDGE_SHOWN_KEY) &&
-    !hasOpenDomainCanvas()
+    !hasOpenSubjectAreaCanvas()
   ) {
-    const domains = domainService.listDomains(workspaceRoot, semanticDir);
+    const domains = subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
     const latest = mostRecentlyModified(domains);
     if (latest) {
       await context.workspaceState.update(DIAGRAMS_NUDGE_SHOWN_KEY, true);

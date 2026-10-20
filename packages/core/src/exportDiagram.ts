@@ -3,17 +3,17 @@
  * DBML. ERD Studio's own files (the model library and the domain JSON) stay
  * the only storage; nothing reads these exports back.
  *
- * Pure functions over a `DisplayDomain`, with no dependency beyond core
+ * Pure functions over a `DisplaySubjectArea`, with no dependency beyond core
  * itself, so every host — the extension, its CLI and any page that renders a
  * diagram with `@erd-studio/renderer` — produces the same text. Hosts pass
- * the logical (design) stage; the functions accept any `DisplayDomain`,
+ * the logical (design) stage; the functions accept any `DisplaySubjectArea`,
  * including one built by an older core, and never throw on it.
  *
  * The mapping of each format is documented at the top of `exportMermaid.ts`
  * and `exportDbml.ts`.
  */
 
-import type { DisplayDomain } from './types/display.js';
+import type { DisplaySubjectArea } from './types/display.js';
 import { toDbml } from './exportDbml.js';
 import { toMermaid } from './exportMermaid.js';
 
@@ -37,7 +37,7 @@ export const DIAGRAM_EXPORT_FILE_EXTENSIONS: Readonly<Record<DiagramExportFormat
  * same text. Throws only for a format that is not in
  * {@link DIAGRAM_EXPORT_FORMATS}.
  */
-export function exportDiagram(domain: DisplayDomain, format: DiagramExportFormat): string {
+export function exportDiagram(domain: DisplaySubjectArea, format: DiagramExportFormat): string {
   switch (format) {
     case 'mermaid':
       return toMermaid(domain);
@@ -61,7 +61,7 @@ const MAX_BASE_LENGTH = 100;
  * reserved word, and a format outside {@link DIAGRAM_EXPORT_FORMATS} the
  * extension `txt`.
  */
-export function diagramExportFileName(domain: Pick<DisplayDomain, 'domain'>, format: DiagramExportFormat): string {
+export function diagramExportFileName(domain: Pick<DisplaySubjectArea, 'domain'>, format: DiagramExportFormat): string {
   const raw = typeof domain?.domain === 'string' ? domain.domain : '';
   let base = raw
     // eslint-disable-next-line no-control-regex

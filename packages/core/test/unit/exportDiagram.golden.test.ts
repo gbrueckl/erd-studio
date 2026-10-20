@@ -9,7 +9,7 @@
  * a deliberate golden update — regenerate with UPDATE_GOLDEN=1 — plus a
  * CHANGELOG line.
  *
- * Fixtures load exactly as loadDisplayDomain.golden.test.ts loads them, so the
+ * Fixtures load exactly as loadDisplaySubjectArea.golden.test.ts loads them, so the
  * old on-disk shapes (v4 inline models, nameless columns, library
  * relationships, …) are exported too.
  */
@@ -18,7 +18,7 @@ import { beforeAll, describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { loadDisplayDomain } from '../../src/loadDisplayDomain';
+import { loadDisplaySubjectArea } from '../../src/loadDisplayDomain';
 import { DIAGRAM_EXPORT_FILE_EXTENSIONS, DIAGRAM_EXPORT_FORMATS, exportDiagram } from '../../src/exportDiagram';
 import { MERMAID_LOAD_TIMEOUT_MS, loadMermaidParsers, parseMermaid, readDbmlEverywhere } from '../exportParsers';
 
@@ -30,7 +30,7 @@ const GOLDEN_DIR = path.join(FIXTURES, 'golden');
 const UPDATE = process.env.UPDATE_GOLDEN === '1';
 
 /** Every fixture that loads (the errors/ project is the one that does not). */
-const DOMAIN_CASES: Record<string, string> = {
+const SUBJECT_AREA_CASES: Record<string, string> = {
   showcase: '.erd-studio/silver/showcase.json',
   'v4-inline': '.erd-studio/bronze/orders.json',
   'missing-model': '.erd-studio/silver/partial.json',
@@ -59,15 +59,16 @@ describe('diagram export goldens', () => {
   it('covers every fixture project that has a domain to load', () => {
     const projects = fs
       .readdirSync(FIXTURES, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && d.name !== 'golden' && d.name !== 'errors')
+      // naming-*: v6 and mixed copies of other projects, held to those projects' goldens (#181).
+      .filter((d) => d.isDirectory() && d.name !== 'golden' && d.name !== 'errors' && !d.name.startsWith('naming-'))
       .map((d) => d.name)
       .sort();
-    expect(Object.keys(DOMAIN_CASES).sort()).toEqual(projects);
+    expect(Object.keys(SUBJECT_AREA_CASES).sort()).toEqual(projects);
   });
 
-  describe.each(Object.entries(DOMAIN_CASES))('%s', (name, domainPath) => {
+  describe.each(Object.entries(SUBJECT_AREA_CASES))('%s', (name, domainPath) => {
     it.each(DIAGRAM_EXPORT_FORMATS)('matches the %s golden, which old and current parsers accept', async (format) => {
-      const domain = await loadDisplayDomain({
+      const domain = await loadDisplaySubjectArea({
         domainPath,
         readFile: fsReadFile(path.join(FIXTURES, name)),
         readOnly: false,

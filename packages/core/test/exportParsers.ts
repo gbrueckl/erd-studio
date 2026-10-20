@@ -35,7 +35,7 @@ import { Compiler, DEFAULT_ENTRY, MemoryProjectLayout } from '@dbml/parse';
 import { Parser as ParserV2 } from 'dbml-core-v2';
 import { Parser as ParserV24 } from 'dbml-core-v24';
 import { Parser as ParserV3 } from 'dbml-core-v3';
-import type { DisplayColumn, DisplayDomain, DisplayModel, DisplayRelationship } from '../src/types/display';
+import type { DisplayColumn, DisplaySubjectArea, DisplayTable, DisplayRelationship } from '../src/types/display';
 
 /** The parser versions the tests run, for messages and docs. */
 export const DBML_PARSERS = ['@dbml/parse 10.2.0', '@dbml/core 3.13.4', '@dbml/core 2.6.1', '@dbml/core 2.4.2'] as const;
@@ -257,7 +257,7 @@ export function col(name: string, dataType = 'int', extra: Partial<DisplayColumn
   return { name, dataType, description: '', isPrimaryKey: false, isForeignKey: false, isNaturalKey: false, ...extra };
 }
 
-export function model(name: string, columns: DisplayColumn[], extra: Partial<DisplayModel> = {}): DisplayModel {
+export function tableDef(name: string, columns: DisplayColumn[], extra: Partial<DisplayTable> = {}): DisplayTable {
   return { name, schema: '', description: '', columns, ...extra };
 }
 
@@ -272,7 +272,7 @@ export function rel(
   return { fromModel, fromColumn, toModel, toColumn, cardinality, ...extra };
 }
 
-export function domain(models: DisplayModel[], relationships: DisplayRelationship[] = [], extra: Partial<DisplayDomain> = {}): DisplayDomain {
+export function subjectArea(models: DisplayTable[], relationships: DisplayRelationship[] = [], extra: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'test',

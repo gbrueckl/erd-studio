@@ -31,16 +31,17 @@ this file is out of date: say so in the report.
 | The setup skill markdown (`src/harness/claude/erd-studio-setup/**`) | A new `references/*.md` must be listed in `src/services/harnessAssets.ts`. SKILL.md must stay under 500 lines. Both skill-folder variants come from the same source. | [CI] |
 | | Bump `HARNESS_VERSION`: the installed setup skill is version-marked. | [convention] |
 | The `erd-studio` CLI's output or flags | The setup skill text that reads that output (`SKILL.md`, `references/*.md`), and the CLI section of `CLAUDE.md` | [convention] |
-| A new on-disk shape the reader must accept | `detectDomainFormat()` stays the **only** detector. Never add a second one. | [convention] |
+| A new on-disk shape the reader must accept | `detectSubjectAreaFormat()` stays the **only** detector. Never add a second one. | [convention] |
 
 ## Packages: a shipped product (the Confluence app)
 
 | If the fix touches… | …then also | Tag |
 |---|---|---|
-| Anything under `packages/` | It's released to npm on merge to `main`. Treat each export, `ErdCanvas` props and the `DisplayDomain` shape as a contract. | [convention] |
+| Anything under `packages/` | It's released to npm on merge to `main`. Treat each export, `ErdCanvas` props and the `DisplaySubjectArea` shape as a contract. | [convention] |
+| | **The Confluence follow-up issue** in liam-machine/erd-studio-pro, so the app moves its exact pins (`cross-repo.md` A). The same applies to an on-disk format change. | [convention] |
 | A new `Display*` field | It must be **optional**, and the renderer must draw correctly when it's absent (an older cached core built it) | [convention] |
 | A removed or changed meaning of a `Display*` field | A breaking MINOR pinned in `packages/*/package.json`, and a Confluence cache-key note in the PR | [convention] |
-| What the host posts as a `DisplayDomain` | Goldens: `UPDATE_GOLDEN=1` **only** for an intended change, and say so in the PR | [CI] |
+| What the host posts as a `DisplaySubjectArea` | Goldens: `UPDATE_GOLDEN=1` **only** for an intended change, and say so in the PR | [CI] |
 | Export output (Mermaid or DBML) | The goldens, a CHANGELOG line, and portability: every parser in `readDbmlEverywhere`, and Mermaid 10.0.0 | [CI] |
 | Renderer CSS or TSX reading a new `--vscode-*` variable | The variable list in `packages/renderer/README.md` (a page embedding `ErdCanvas` must define it), **and** `dev-preview.html` in `CLAUDE.md` | [convention] |
 | A renderer component's affordances | Viewer mode: gate with `useIsViewer()` as `viewer ? … : <upstream expression>`. Update `ErdCanvas.viewer.test.tsx`. | [CI] |
@@ -55,10 +56,10 @@ this file is out of date: say so in the report.
 | A new setting | Read it through `getErdStudioSetting()`. If it can point a request at a host or key, use `"scope": "machine"` **and** `USER_SCOPED_SETTINGS`. Add it to the Settings table in `CLAUDE.md`. | [convention] |
 | A new webview ↔ host message | Both unions in `src/types/messages.ts`, a payload validator in `payloadValidation.ts`, a live sender **and** a handler, and an `EDIT_FEATURES` entry if it's an edit | [convention] |
 | | Is it safe on the physical stage? Only non-mutating messages join the allowlist in `SemanticEditorProvider`, and the list in `CLAUDE.md`. | [convention] |
-| A canvas edit | It goes through `applyDomainEdit` / `applyModelEdit` (one `WorkspaceEdit`, one undo step). Record `ownWrites` for watched files. | [convention] |
+| A canvas edit | It goes through `applySubjectAreaEdit` / `applyTableEdit` (one `WorkspaceEdit`, one undo step). Record `ownWrites` for watched files. | [convention] |
 | A relationship write | `planRelationshipWrite`, and the exhaustive checker (`test/unit/relationshipStateSpace.*`). New invariants go in `relationshipHealth.ts`. | [CI] |
 | A service the CLI or MCP server bundles | No `import 'vscode'` (`cli.noVscode.test.ts`, and the mcp-server CI job) | [CI] |
-| Comparison or diff logic | Only in `computeDomainDiff` / `buildSyncPlan`. The canvas and `erd-studio diff` must share one path. | [convention] |
+| Comparison or diff logic | Only in `computeSubjectAreaDiff` / `buildSyncPlan`. The canvas and `erd-studio diff` must share one path. | [convention] |
 | A new Welcome panel message | Its own union in `src/types/gettingStarted.ts`, `isGettingStartedToHost()`, and a sender plus a handler | [CI] |
 
 ## Telemetry and feedback
@@ -67,7 +68,7 @@ this file is out of date: say so in the report.
 |---|---|---|
 | A new telemetry feature or error key | `FEATURES` / `ERROR_CODES` in `telemetryPayload.ts` **and** the Worker's lists in `telemetry/src/index.js`, in the same order, plus `telemetry.json` | [CI] |
 | A new heartbeat field | Optional, additive, with `HEARTBEAT_VERSION` unchanged. A D1 migration if stored. The Worker deploys first (`deploy.yml` handles the order). | [convention] |
-| Text that can reach a filed issue or the model | It goes through `redactPaths()`. Never add a domain name or layer to `FeedbackDomainSummary`. | [CI] |
+| Text that can reach a filed issue or the model | It goes through `redactPaths()`. Never add a domain name or layer to `FeedbackSubjectAreaSummary`. | [CI] |
 | Feedback dialog kinds, copy or tiers | `FEEDBACK_COPY` in `src/types/feedback.ts`. Never re-declare copy in the webview. | [convention] |
 
 ## Packaging and release

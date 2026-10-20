@@ -13,21 +13,21 @@
  *
  * Every write goes through `planRelationshipWrite`, every read through core's
  * `mergeLibraryRelationships`, every Move through `planMoveToLibrary` /
- * `applyMoveToModel`, every drawing through the renderer's `transformDomain`
+ * `applyMoveToTable`, every drawing through the renderer's `transformSubjectArea`
  * — the code the extension runs.
  */
 
-import { canonicalRelationship, linkKey, mergeLibraryRelationships, toDisplayDomain } from '@erd-studio/core';
-import type { DisplayDomain } from '@erd-studio/core';
-import { transformDomain } from '@erd-studio/renderer/editor';
+import { canonicalRelationship, linkKey, mergeLibraryRelationships, toDisplaySubjectArea } from '@erd-studio/core';
+import type { DisplaySubjectArea } from '@erd-studio/core';
+import { transformSubjectArea } from '@erd-studio/renderer/editor';
 import type { FkFlowEdge } from '@erd-studio/renderer/editor';
 import {
-  applyMoveToModel, groupOf, moveTargets, planMoveToLibrary, planRelationshipWrite, removeColumnFromDomainRelationships,
+  applyMoveToTable, groupOf, moveTargets, planMoveToLibrary, planRelationshipWrite, removeColumnFromSubjectAreaRelationships,
   removeColumnRelationships, resolveConflict, usesLibraryRelationships,
 } from '../../src/services/libraryRelationships';
 import type { ConflictDefinition, MoveToLibraryPlan, RelationshipWriteOp } from '../../src/services/libraryRelationships';
 import { validateRelationshipEnds } from '../../src/providers/payloadValidation';
-import type { Cardinality, ColumnDef, ModelRelationship, Relationship, SemanticModel } from '../../src/types/semantic';
+import type { Cardinality, ColumnDef, TableRelationship, Relationship, SemanticTable } from '../../src/types/semantic';
 import { CARDS, SHORT, SWAP, clone, multisets } from './relationshipStateSpace.model';
 import type { Violation } from './relationshipStateSpace.model';
 
@@ -37,26 +37,26 @@ const DS: D[] = ['D1', 'D2', 'D3'];
 /** A world of any models: their columns, library entries, and three diagrams. */
 export interface GWorld {
   columns: Record<string, ColumnDef[]>;
-  lib: Record<string, ModelRelationship[]>;
+  lib: Record<string, TableRelationship[]>;
   dom: Record<D, Relationship[]>;
   domModels: Record<D, string[]>;
 }
 
 const col = (name: string, pk = false): ColumnDef => ({ name, dataType: 'string', description: '', ...(pk ? { isPrimaryKey: true } : {}) });
 
-export function gModels(w: GWorld, order = Object.keys(w.columns)): SemanticModel[] {
+export function gTables(w: GWorld, order = Object.keys(w.columns)): SemanticTable[] {
   return order.map((name) => ({ name, columns: clone(w.columns[name]), ...(w.lib[name].length > 0 ? { relationships: clone(w.lib[name]) } : {}) }));
 }
-const withModels = (w: GWorld, models: readonly SemanticModel[]): GWorld => {
+const withTables = (w: GWorld, models: readonly SemanticTable[]): GWorld => {
   const next = clone(w);
   for (const m of models) next.lib[m.name] = clone(m.relationships ?? []);
   return next;
 };
-const libraryMode = (w: GWorld): boolean => usesLibraryRelationships(gModels(w), DS.reduce((n, d) => n + w.dom[d].length, 0));
+const libraryMode = (w: GWorld): boolean => usesLibraryRelationships(gTables(w), DS.reduce((n, d) => n + w.dom[d].length, 0));
 
 export function gDraw(w: GWorld, d: D, reverse = false): Relationship[] {
   const order = reverse ? [...w.domModels[d]].reverse() : w.domModels[d];
-  const models = gModels(w, order);
+  const models = gTables(w, order);
   if (reverse) for (const m of models) m.relationships?.reverse();
   return mergeLibraryRelationships(models, clone(reverse ? [...w.dom[d]].reverse() : w.dom[d]));
 }
@@ -71,17 +71,17 @@ export function gStored(w: GWorld): Array<{ file: string; rel: Relationship }> {
 export interface GOutcome { world: GWorld; error?: string }
 
 export function gWrite(w: GWorld, op: RelationshipWriteOp, d: D = 'D1'): GOutcome {
-  const plan = planRelationshipWrite(op, { home: libraryMode(w) ? 'library' : 'domain', models: gModels(w), domainRelationships: clone(w.dom[d]) });
+  const plan = planRelationshipWrite(op, { home: libraryMode(w) ? 'library' : 'domain', models: gTables(w), domainRelationships: clone(w.dom[d]) });
   if (!plan.ok) return { world: w, error: plan.error };
-  const out = withModels(w, plan.changed);
+  const out = withTables(w, plan.changed);
   if (plan.domainRelationships) out.dom[d] = clone(plan.domainRelationships);
   return { world: out };
 }
 
 export function gMovePlan(w: GWorld, domainOrder: D[] = ['D1', 'D2', 'D3'], modelOrder = Object.keys(w.columns)): MoveToLibraryPlan {
   const domains = domainOrder.map((d) => ({ label: d, relationships: clone(w.dom[d]) })).filter((d) => d.relationships.length > 0);
-  const libraryModel = (name: string): SemanticModel | null => gModels(w).find((m) => m.name === name.toLowerCase()) ?? null;
-  return planMoveToLibrary(domains, libraryModel, gModels(w, modelOrder), () => false);
+  const libraryModel = (name: string): SemanticTable | null => gTables(w).find((m) => m.name === name.toLowerCase()) ?? null;
+  return planMoveToLibrary(domains, libraryModel, gTables(w, modelOrder), () => false);
 }
 
 export function gMoveApply(w: GWorld, plan0: MoveToLibraryPlan, picks: Array<ConflictDefinition | undefined>): GWorld {
@@ -89,8 +89,8 @@ export function gMoveApply(w: GWorld, plan0: MoveToLibraryPlan, picks: Array<Con
   plan0.conflicts.forEach((c, i) => { if (picks[i]) plan = resolveConflict(plan, c, picks[i]!); });
   let out = clone(w);
   for (const name of moveTargets(plan)) {
-    const copy = gModels(out).find((m) => m.name === name.toLowerCase())!;
-    if (applyMoveToModel(plan, copy)) out = withModels(out, [copy]);
+    const copy = gTables(out).find((m) => m.name === name.toLowerCase())!;
+    if (applyMoveToTable(plan, copy)) out = withTables(out, [copy]);
   }
   for (const d of DS) {
     const keys = plan.removeFromDomains.get(d);
@@ -308,11 +308,11 @@ function oneEdge(w: GWorld): Violation[] {
   const v: Violation[] = [];
   for (const d of ['D1', 'D2'] as const) {
     const drawn = gDraw(w, d);
-    const display: DisplayDomain = toDisplayDomain(
-      { schemaVersion: 5, domain: d, layer: 'silver', stage: 'logical', description: '', models: gModels(w, w.domModels[d]), relationships: drawn },
+    const display: DisplaySubjectArea = toDisplaySubjectArea(
+      { schemaVersion: 5, domain: d, layer: 'silver', stage: 'logical', description: '', models: gTables(w, w.domModels[d]), relationships: drawn },
       { viewConfig: {}, layerConfig: undefined, readOnly: false },
     );
-    const edges = transformDomain(display).edges.filter((e) => e.type === 'fk') as FkFlowEdge[];
+    const edges = transformSubjectArea(display).edges.filter((e) => e.type === 'fk') as FkFlowEdge[];
     const keysOf = (e: FkFlowEdge) => (e.data!.pairs ?? [{ fromColumn: e.data!.fromColumn, toColumn: e.data!.toColumn }])
       .map((p) => linkKey({ fromModel: e.data!.fromModel, fromColumn: p.fromColumn, toModel: e.data!.toModel, toColumn: p.toColumn }));
     const touching = edges.filter((e) => keysOf(e).some((k) => k === L || k === LX));
@@ -361,7 +361,7 @@ function groupHome(w: GWorld): string[] {
 const libraryAndD1 = (w: GWorld): Relationship[] => files(w).filter(([f]) => f.endsWith('.yml') || f === 'D1').flatMap(([, r]) => r);
 
 /** 1.6.7's save of fct.yml: only the four fields of the entries it can read survive (see mixed167.compositeKey.test.ts). */
-const save167 = (rels: ModelRelationship[]): ModelRelationship[] =>
+const save167 = (rels: TableRelationship[]): TableRelationship[] =>
   rels.map(({ fromColumn, toModel, toColumn, cardinality }) => ({ fromColumn, toModel, toColumn, cardinality }));
 
 /** Every check of one GROUP state: reads, each canvas edit from D1, 1.6.7's writes, and the Move. */
@@ -433,13 +433,13 @@ export function checkGroupState(copies: GroupCopy[]): Array<{ op: string; violat
   const libGroup = groupIn(gDraw(w, 'D1'));
   {
     // As handleRemoveColumn: the composite is read from the whole library, before the edit.
-    const library = gModels(w);
-    const models = gModels(w);
+    const library = gTables(w);
+    const models = gTables(w);
     const fct = models.find((m) => m.name === 'fct')!;
     removeColumnRelationships([fct], 'fct', 'k_x', library);
     removeColumnRelationships(models.filter((m) => m !== fct), 'fct', 'k_x', library);
-    const a = withModels(w, models);
-    a.dom.D1 = removeColumnFromDomainRelationships(a.dom.D1, 'fct', 'k_x', library);
+    const a = withTables(w, models);
+    a.dom.D1 = removeColumnFromSubjectAreaRelationships(a.dom.D1, 'fct', 'k_x', library);
     const v: Violation[] = [];
     if (libGroup && libraryAndD1(a).some((r) => linkKey(r) === L || linkKey(r) === LX)) v.push(['G6 column-removal-removes-group', 'a member survived']);
     results.push({ op: 'remove column fct.k_x', violations: v });

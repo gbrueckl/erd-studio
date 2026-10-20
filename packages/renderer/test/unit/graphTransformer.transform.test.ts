@@ -1,21 +1,21 @@
 /**
- * graphTransformer.transformDomain — DisplayDomain → React Flow nodes/edges:
+ * graphTransformer.transformDomain — DisplaySubjectArea → React Flow nodes/edges:
  * node data mapping, edge endpoint filtering, self-loops, annotations and the
  * discrepancy overlay (ghost nodes / edges). Complements graphTransformer.test.ts,
  * which covers handle-side selection geometry.
  */
 import { describe, expect, it } from 'vitest';
 
-import { transformDomain, type TransformResult } from '../../src/lib/graphTransformer';
-import type { DisplayColumn, DisplayDomain, DisplayModel, DisplayRelationship } from '@erd-studio/core';
+import { transformSubjectArea, type TransformResult } from '../../src/lib/graphTransformer';
+import type { DisplayColumn, DisplaySubjectArea, DisplayTable, DisplayRelationship } from '@erd-studio/core';
 import type { DiscrepancyReport } from '@erd-studio/core';
-import type { AnnotationFlowEdge, AnnotationFlowNode, FkFlowEdge, ModelFlowNode } from '../../src/types/graph';
+import type { AnnotationFlowEdge, AnnotationFlowNode, FkFlowEdge, TableFlowNode } from '../../src/types/graph';
 
 function column(name: string, overrides: Partial<DisplayColumn> = {}): DisplayColumn {
   return { name, dataType: 'string', description: '', isPrimaryKey: false, isForeignKey: false, isNaturalKey: false, ...overrides };
 }
 
-function model(name: string, overrides: Partial<DisplayModel> = {}): DisplayModel {
+function table(name: string, overrides: Partial<DisplayTable> = {}): DisplayTable {
   return { name, schema: 'silver', description: '', columns: [column(`${name}_id`, { isPrimaryKey: true })], ...overrides };
 }
 
@@ -23,7 +23,7 @@ function rel(fromModel: string, toModel: string, overrides: Partial<DisplayRelat
   return { fromModel, fromColumn: `${toModel}_id`, toModel, toColumn: `${toModel}_id`, cardinality: 'many-to-one', ...overrides };
 }
 
-function domain(overrides: Partial<DisplayDomain> = {}): DisplayDomain {
+function subjectArea(overrides: Partial<DisplaySubjectArea> = {}): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'orders',
@@ -36,23 +36,23 @@ function domain(overrides: Partial<DisplayDomain> = {}): DisplayDomain {
     readOnly: false,
     positionDraggable: true,
     ...overrides,
-  } as DisplayDomain;
+  } as DisplaySubjectArea;
 }
 
-const modelNodes = (r: TransformResult) => r.nodes.filter((n) => n.type === 'model') as ModelFlowNode[];
+const tableNodes = (r: TransformResult) => r.nodes.filter((n) => n.type === 'model') as TableFlowNode[];
 const annotationNodes = (r: TransformResult) => r.nodes.filter((n) => n.type === 'annotation') as AnnotationFlowNode[];
 const fkEdges = (r: TransformResult) => r.edges.filter((e) => e.type === 'fk') as FkFlowEdge[];
 const linkEdges = (r: TransformResult) => r.edges.filter((e) => e.type === 'annotationLink') as AnnotationFlowEdge[];
-const nodeById = (r: TransformResult, id: string) => modelNodes(r).find((n) => n.id === id)!;
+const nodeById = (r: TransformResult, id: string) => tableNodes(r).find((n) => n.id === id)!;
 
-describe('transformDomain nodes', () => {
+describe('transformSubjectArea nodes', () => {
   it('maps each model to a model node at its saved position, or the origin when unsaved', () => {
-    const result = transformDomain(domain({
-      models: [model('fact_order'), model('dim_customer')],
+    const result = transformSubjectArea(subjectArea({
+      models: [table('fact_order'), table('dim_customer')],
       viewConfig: { positions: { dim_customer: { x: 300, y: 40 } } },
     }));
 
-    expect(modelNodes(result).map((n) => n.id)).toEqual(['fact_order', 'dim_customer']);
+    expect(tableNodes(result).map((n) => n.id)).toEqual(['fact_order', 'dim_customer']);
     expect(nodeById(result, 'fact_order').position).toEqual({ x: 0, y: 0 });
     expect(nodeById(result, 'dim_customer').position).toEqual({ x: 300, y: 40 });
     const data = nodeById(result, 'dim_customer').data;
@@ -70,8 +70,8 @@ describe('transformDomain nodes', () => {
   });
 
   it('carries column flags and only the optional fields that are set', () => {
-    const result = transformDomain(domain({
-      models: [model('dim_customer', {
+    const result = transformSubjectArea(subjectArea({
+      models: [table('dim_customer', {
         columns: [
           column('customer_id', { isPrimaryKey: true, description: 'Surrogate key', scdType: 0 }),
           column('customer_nk', { isNaturalKey: true, scdType: 2, additiveType: 'non-additive', dataType: 'int' }),
@@ -87,12 +87,12 @@ describe('transformDomain nodes', () => {
   });
 
   it('flags stubs, rationale, grain, role, ghost and read-only on node data', () => {
-    const result = transformDomain(domain({
+    const result = transformSubjectArea(subjectArea({
       readOnly: true,
       stubColumns: ['fact_order'],
       models: [
-        model('fact_order', { rationale: { purpose: 'One row per order line' }, grain: 'order line', modelRole: 'transaction-fact' }),
-        model('dim_customer', { rationale: {}, existsInProject: false }),
+        table('fact_order', { rationale: { purpose: 'One row per order line' }, grain: 'order line', modelRole: 'transaction-fact' }),
+        table('dim_customer', { rationale: {}, existsInProject: false }),
       ],
       relationships: [rel('fact_order', 'dim_customer')],
     }));
@@ -116,11 +116,11 @@ describe('transformDomain nodes', () => {
   });
 
   it('carries physical provenance onto node data, and only when the host set it', () => {
-    const result = transformDomain(domain({
+    const result = transformSubjectArea(subjectArea({
       stage: 'physical',
       models: [
-        model('fact_order', { provenance: { columns: ['catalog', 'yml'], types: 'catalog' } }),
-        model('dim_customer'),
+        table('fact_order', { provenance: { columns: ['catalog', 'yml'], types: 'catalog' } }),
+        table('dim_customer'),
       ],
     }));
 
@@ -134,24 +134,24 @@ describe('transformDomain nodes', () => {
   });
 
   it('carries a model file load error onto node data, and only when the host set it (#110)', () => {
-    const result = transformDomain(domain({
-      models: [model('dim_broken', { columns: [], loadError: { kind: 'yamlScalar', line: 4 } }), model('dim_customer')],
+    const result = transformSubjectArea(subjectArea({
+      models: [table('dim_broken', { columns: [], loadError: { kind: 'yamlScalar', line: 4 } }), table('dim_customer')],
     }));
     expect(nodeById(result, 'dim_broken').data.loadError).toEqual({ kind: 'yamlScalar', line: 4 });
     expect(nodeById(result, 'dim_customer').data).not.toHaveProperty('loadError');
   });
 
   it('carries model and column meta for the hover cards, and drops an empty map', () => {
-    const result = transformDomain(domain({
+    const result = transformSubjectArea(subjectArea({
       models: [
-        model('dim_customer', {
+        table('dim_customer', {
           meta: { owner: 'crm-team' },
           columns: [
             column('customer_id', { meta: { source: 'CRM' } }),
             column('email', { meta: {} }),
           ],
         }),
-        model('dim_region', { meta: {} }),
+        table('dim_region', { meta: {} }),
       ],
     }));
 
@@ -163,10 +163,10 @@ describe('transformDomain nodes', () => {
   });
 });
 
-describe('transformDomain edges', () => {
+describe('transformSubjectArea edges', () => {
   it('creates one fk edge per relationship whose endpoints are both on the canvas', () => {
-    const result = transformDomain(domain({
-      models: [model('fact_order'), model('dim_customer')],
+    const result = transformSubjectArea(subjectArea({
+      models: [table('fact_order'), table('dim_customer')],
       relationships: [
         rel('fact_order', 'dim_customer', { fromColumn: 'customer_id', toColumn: 'customer_id' }),
         rel('fact_order', 'dim_missing'),
@@ -189,8 +189,8 @@ describe('transformDomain edges', () => {
   });
 
   it('carries a relationship role onto the edge it labels (#133)', () => {
-    const result = transformDomain(domain({
-      models: [model('fct_order'), model('dim_date')],
+    const result = transformSubjectArea(subjectArea({
+      models: [table('fct_order'), table('dim_date')],
       relationships: [
         rel('fct_order', 'dim_date', { fromColumn: 'order_date_key', toColumn: 'date_key', role: 'order date' }),
         rel('fct_order', 'dim_date', { fromColumn: 'ship_date_key', toColumn: 'date_key' }),
@@ -200,16 +200,16 @@ describe('transformDomain edges', () => {
   });
 
   it('picks handle sides from the relative node positions', () => {
-    const horizontal = transformDomain(domain({
-      models: [model('a'), model('b')],
+    const horizontal = transformSubjectArea(subjectArea({
+      models: [table('a'), table('b')],
       viewConfig: { positions: { a: { x: 0, y: 0 }, b: { x: 800, y: 0 } } },
       relationships: [rel('a', 'b')],
     }));
     expect(fkEdges(horizontal)[0].sourceHandle).toBe('node-right-src');
     expect(fkEdges(horizontal)[0].targetHandle).toBe('node-left-tgt');
 
-    const vertical = transformDomain(domain({
-      models: [model('a'), model('b')],
+    const vertical = transformSubjectArea(subjectArea({
+      models: [table('a'), table('b')],
       viewConfig: { positions: { a: { x: 0, y: 0 }, b: { x: 0, y: 900 } } },
       relationships: [rel('b', 'a')],
     }));
@@ -218,8 +218,8 @@ describe('transformDomain edges', () => {
   });
 
   it('routes self-referencing relationships via the top → right handles and flags them', () => {
-    const result = transformDomain(domain({
-      models: [model('dim_employee')],
+    const result = transformSubjectArea(subjectArea({
+      models: [table('dim_employee')],
       relationships: [rel('dim_employee', 'dim_employee', { fromColumn: 'manager_id', toColumn: 'employee_id' })],
     }));
 
@@ -230,10 +230,10 @@ describe('transformDomain edges', () => {
   });
 });
 
-describe('transformDomain annotations', () => {
+describe('transformSubjectArea annotations', () => {
   it('renders annotations as nodes and links them only to models that exist', () => {
-    const result = transformDomain(domain({
-      models: [model('dim_customer')],
+    const result = transformSubjectArea(subjectArea({
+      models: [table('dim_customer')],
       viewConfig: {
         annotations: [
           { id: 'n1', x: 10, y: 20, text: 'Conformed dimension', linkedModel: 'dim_customer' },
@@ -255,7 +255,7 @@ describe('transformDomain annotations', () => {
   });
 
   it('marks annotation nodes read-only on a read-only stage', () => {
-    const result = transformDomain(domain({
+    const result = transformSubjectArea(subjectArea({
       readOnly: true,
       viewConfig: { annotations: [{ id: 'n1', x: 0, y: 0, text: 'x' }] },
     }));
@@ -264,7 +264,7 @@ describe('transformDomain annotations', () => {
   });
 });
 
-describe('transformDomain discrepancy overlay', () => {
+describe('transformSubjectArea discrepancy overlay', () => {
   const report: DiscrepancyReport = {
     domain: 'orders',
     layer: 'silver',
@@ -283,14 +283,14 @@ describe('transformDomain discrepancy overlay', () => {
     summary: {} as DiscrepancyReport['summary'],
   };
 
-  const base = () => domain({
-    models: [model('fact_order'), model('dim_customer')],
+  const base = () => subjectArea({
+    models: [table('fact_order'), table('dim_customer')],
     relationships: [rel('fact_order', 'dim_customer')],
     viewConfig: { positions: { fact_order: { x: 0, y: 0 }, dim_customer: { x: 400, y: 0 }, dim_channel: { x: 5, y: 6 } } },
   });
 
   it('attaches discrepancy data and the compared stages to matched model nodes only', () => {
-    const result = transformDomain(base(), { discrepancyReport: report });
+    const result = transformSubjectArea(base(), { discrepancyReport: report });
 
     const fact = nodeById(result, 'fact_order').data;
     expect(fact.discrepancy).toBe(report.models[0]);
@@ -302,9 +302,9 @@ describe('transformDomain discrepancy overlay', () => {
   });
 
   it('adds ghost nodes for missing models, stacked above the canvas unless a position is saved', () => {
-    const result = transformDomain(base(), { discrepancyReport: report });
+    const result = transformSubjectArea(base(), { discrepancyReport: report });
 
-    expect(modelNodes(result).map((n) => n.id)).toEqual(['fact_order', 'dim_customer', 'dim_region', 'dim_channel']);
+    expect(tableNodes(result).map((n) => n.id)).toEqual(['fact_order', 'dim_customer', 'dim_region', 'dim_channel']);
     const region = nodeById(result, 'dim_region');
     expect(region.position).toEqual({ x: 50, y: -150 });
     expect(region.data).toMatchObject({ isGhost: true, ghostReason: 'missing-in-comparison', readOnly: true, isStub: false, columns: [], discrepancy: report.models[1] });
@@ -312,13 +312,13 @@ describe('transformDomain discrepancy overlay', () => {
   });
 
   it('marks existing edges with their relationship discrepancy status', () => {
-    const result = transformDomain(base(), { discrepancyReport: report });
+    const result = transformSubjectArea(base(), { discrepancyReport: report });
     const edge = fkEdges(result).find((e) => e.id === 'fk-fact_order-dim_customer_id-dim_customer-dim_customer_id')!;
     expect(edge.data?.discrepancyStatus).toBe('cardinality-mismatch');
   });
 
   it('adds ghost edges for missing relationships whose endpoints are on the canvas', () => {
-    const result = transformDomain(base(), { discrepancyReport: report });
+    const result = transformSubjectArea(base(), { discrepancyReport: report });
     const ghosts = fkEdges(result).filter((e) => e.id.startsWith('ghost-fk-'));
     expect(ghosts.map((e) => e.id)).toEqual(['ghost-fk-fact_order-region_id-dim_region-region_id']);
     expect(ghosts[0]).toMatchObject({ source: 'fact_order', target: 'dim_region' });
@@ -330,25 +330,25 @@ describe('transformDomain discrepancy overlay', () => {
     // comparison reports the same name 'missing' from the logical side. Without
     // the guard in the ghost loop these are two React Flow nodes with one id,
     // and the second one's position overwrites the first one's rect.
-    const result = transformDomain(domain({
+    const result = transformSubjectArea(subjectArea({
       stage: 'physical',
-      models: [model('fact_order'), model('dim_region', { existsInProject: false })],
+      models: [table('fact_order'), table('dim_region', { existsInProject: false })],
       viewConfig: { positions: { fact_order: { x: 0, y: 0 }, dim_region: { x: 900, y: 12 } } },
     }), { discrepancyReport: report });
 
-    const regions = modelNodes(result).filter((n) => n.id === 'dim_region');
+    const regions = tableNodes(result).filter((n) => n.id === 'dim_region');
     expect(regions).toHaveLength(1);
     expect(regions[0].position).toEqual({ x: 900, y: 12 });
     expect(regions[0].data.ghostReason).toBe('not-in-project');
-    expect(new Set(modelNodes(result).map((n) => n.id)).size).toBe(modelNodes(result).length);
+    expect(new Set(tableNodes(result).map((n) => n.id)).size).toBe(tableNodes(result).length);
   });
 
   it('distinguishes a disabled model from one that is simply absent', () => {
-    const result = transformDomain(domain({
+    const result = transformSubjectArea(subjectArea({
       stage: 'physical',
       models: [
-        model('dim_region', { existsInProject: false, missingReason: 'disabled' }),
-        model('dim_channel', { existsInProject: false, missingReason: 'absent' }),
+        table('dim_region', { existsInProject: false, missingReason: 'disabled' }),
+        table('dim_channel', { existsInProject: false, missingReason: 'absent' }),
       ],
     }));
 
@@ -357,51 +357,51 @@ describe('transformDomain discrepancy overlay', () => {
   });
 
   it('adds no ghosts and no discrepancy keys without a report', () => {
-    const result = transformDomain(base());
-    expect(modelNodes(result)).toHaveLength(2);
+    const result = transformSubjectArea(base());
+    expect(tableNodes(result)).toHaveLength(2);
     expect(fkEdges(result)).toHaveLength(1);
     expect(fkEdges(result)[0].data).not.toHaveProperty('discrepancyStatus');
     expect(nodeById(result, 'fact_order').data).not.toHaveProperty('discrepancySourceStage');
   });
 });
 
-describe('transformDomain — ends spelled in another case (#133 L4)', () => {
+describe('transformSubjectArea — ends spelled in another case (#133 L4)', () => {
   it('a relationship core has respelled produces an edge; the transformer itself matches exactly', async () => {
     const { mergeLibraryRelationships } = await import('@erd-studio/core');
     const written = { fromModel: 'Fact_Order', fromColumn: 'DIM_CUSTOMER_ID', toModel: 'dim_CUSTOMER', toColumn: 'Dim_Customer_Id', cardinality: 'many-to-one' as const };
-    const models = [model('fact_order', { columns: [column('dim_customer_id')] }), model('dim_customer')];
-    expect(fkEdges(transformDomain(domain({ models, relationships: [written] })))).toEqual([]);
+    const models = [table('fact_order', { columns: [column('dim_customer_id')] }), table('dim_customer')];
+    expect(fkEdges(transformSubjectArea(subjectArea({ models, relationships: [written] })))).toEqual([]);
     const drawn = mergeLibraryRelationships(models.map((m) => ({ ...m, columns: m.columns })), [written]);
-    const edges = fkEdges(transformDomain(domain({ models, relationships: drawn })));
+    const edges = fkEdges(transformSubjectArea(subjectArea({ models, relationships: drawn })));
     expect(edges.map((e) => [e.source, e.target])).toEqual([['fact_order', 'dim_customer']]);
   });
 });
 
-describe('transformDomain — self-references (#133 L3)', () => {
+describe('transformSubjectArea — self-references (#133 L3)', () => {
   it('two self-loops on one node get loopIndex 0 and 1, by edge id, and nest', () => {
-    const employee = model('employee', { columns: [column('employee_id', { isPrimaryKey: true }), column('manager_id'), column('mentor_id')] });
+    const employee = table('employee', { columns: [column('employee_id', { isPrimaryKey: true }), column('manager_id'), column('mentor_id')] });
     const loops = [
       { fromModel: 'employee', fromColumn: 'mentor_id', toModel: 'employee', toColumn: 'employee_id', cardinality: 'many-to-one' as const },
       { fromModel: 'employee', fromColumn: 'manager_id', toModel: 'employee', toColumn: 'employee_id', cardinality: 'many-to-one' as const },
     ];
-    const edges = fkEdges(transformDomain(domain({ models: [employee], relationships: loops })));
+    const edges = fkEdges(transformSubjectArea(subjectArea({ models: [employee], relationships: loops })));
     expect(edges.map((e) => [e.data!.fromColumn, e.data!.isSelfLoop, e.data!.loopIndex])).toEqual([
       ['mentor_id', true, 1],
       ['manager_id', true, 0],
     ]);
-    expect(fkEdges(transformDomain(domain({ models: [employee], relationships: [...loops].reverse() }))).find((e) => e.data!.fromColumn === 'mentor_id')!.data!.loopIndex).toBe(1);
+    expect(fkEdges(transformSubjectArea(subjectArea({ models: [employee], relationships: [...loops].reverse() }))).find((e) => e.data!.fromColumn === 'mentor_id')!.data!.loopIndex).toBe(1);
   });
 });
 
-describe('transformDomain — composite foreign keys (#133 L2)', () => {
-  const pit = model('pit_customer', { columns: [column('customer_hk'), column('as_of_date'), column('other')] });
-  const sat = model('sat_customer', { columns: [column('customer_hk'), column('load_date')] });
+describe('transformSubjectArea — composite foreign keys (#133 L2)', () => {
+  const pit = table('pit_customer', { columns: [column('customer_hk'), column('as_of_date'), column('other')] });
+  const sat = table('sat_customer', { columns: [column('customer_hk'), column('load_date')] });
   const member = (fromColumn: string, toColumn: string): DisplayRelationship =>
     ({ fromModel: 'pit_customer', fromColumn, toModel: 'sat_customer', toColumn, cardinality: 'many-to-one', compositeKey: 'fk_sat_customer', role: 'as of' });
 
   it('a group becomes one edge with its pairs and a joined id, in first-member order', () => {
     const single = { fromModel: 'pit_customer', fromColumn: 'other', toModel: 'sat_customer', toColumn: 'customer_hk', cardinality: 'many-to-one' as const };
-    const edges = fkEdges(transformDomain(domain({
+    const edges = fkEdges(transformSubjectArea(subjectArea({
       models: [pit, sat], relationships: [member('customer_hk', 'customer_hk'), single, member('as_of_date', 'load_date')],
     })));
     expect(edges.map((e) => e.id)).toEqual([
@@ -423,11 +423,11 @@ describe('transformDomain — composite foreign keys (#133 L2)', () => {
           pairs: [{ fromColumn: 'customer_hk', toColumn: 'customer_hk' }, { fromColumn: 'as_of_date', toColumn: 'load_date' }] },
       ],
     } as unknown as DiscrepancyReport;
-    const drawn = fkEdges(transformDomain(domain({ models: [pit, sat], relationships: [member('customer_hk', 'customer_hk'), member('as_of_date', 'load_date')] }), { discrepancyReport: report }));
+    const drawn = fkEdges(transformSubjectArea(subjectArea({ models: [pit, sat], relationships: [member('customer_hk', 'customer_hk'), member('as_of_date', 'load_date')] }), { discrepancyReport: report }));
     expect(drawn.map((e) => e.data!.discrepancyStatus)).toEqual(['extra']);
 
     const missing = { ...report, relationships: [{ ...report.relationships[0], status: 'missing', targetCardinality: 'many-to-one', compositeKey: 'fk_sat_customer' }] } as unknown as DiscrepancyReport;
-    const ghosts = fkEdges(transformDomain(domain({ models: [pit, sat] }), { discrepancyReport: missing }));
+    const ghosts = fkEdges(transformSubjectArea(subjectArea({ models: [pit, sat] }), { discrepancyReport: missing }));
     expect(ghosts.map((e) => [e.id, e.data!.pairs?.length, e.data!.discrepancyStatus])).toEqual([
       ['ghost-fk-pit_customer-customer_hk+as_of_date-sat_customer-customer_hk+load_date', 2, 'missing'],
     ]);

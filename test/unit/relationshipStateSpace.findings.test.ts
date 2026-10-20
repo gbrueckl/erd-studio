@@ -11,7 +11,7 @@ import * as path from 'path';
 import { linkKey, mergeLibraryRelationships } from '@erd-studio/core';
 import { _resetMockWorkspace } from '../__mocks__/vscode';
 import type { Relationship } from '../../src/types/semantic';
-import { libModels, movePlan, worldOf } from './relationshipStateSpace.model';
+import { libTables, movePlan, worldOf } from './relationshipStateSpace.model';
 import type { World } from './relationshipStateSpace.model';
 import { materialise, readBack, runRealMove, sendToProvider } from './relationshipStateSpace.harness';
 import type { Project } from './relationshipStateSpace.harness';
@@ -56,7 +56,7 @@ describe('exhaustive-check findings, fixed on the real code (#133)', () => {
       { where: 'dim', dir: 'df', card: 'many-to-one', upper: false },
       { where: 'fct', dir: 'fd', card: 'many-to-one', role: 'order date', upper: false },
     ], false);
-    expect(mergeLibraryRelationships(libModels(w), [])).toMatchObject([{ fromModel: 'fct', role: 'order date' }]);
+    expect(mergeLibraryRelationships(libTables(w), [])).toMatchObject([{ fromModel: 'fct', role: 'order date' }]);
     p = materialise(w);
     const { errors } = await sendToProvider(p, { type: 'updateRelationship', payload: { ...FD, cardinality: 'one-to-one' } });
     expect(errors).toEqual([]);
@@ -178,7 +178,7 @@ describe('exhaustive-check findings, fixed on the real code (#133)', () => {
     await runRealMove(p, []);
     const after = readBack(p, 'star');
     expect(copiesOfL(after)).toEqual(['fct.yml k→dim.k many-to-one "order date"']);
-    expect(mergeLibraryRelationships(libModels(after), after.dom.D1).find(L)?.role).toBe('order date');
+    expect(mergeLibraryRelationships(libTables(after), after.dom.D1).find(L)?.role).toBe('order date');
   });
 
   it('D1: a link stored twice in one diagram file is drawn once, from the same copy in either order', () => {
@@ -186,9 +186,9 @@ describe('exhaustive-check findings, fixed on the real code (#133)', () => {
       { where: 'D1', dir: 'fd', card: 'many-to-one', upper: false },
       { where: 'D1', dir: 'df', card: 'one-to-one', upper: false },
     ], false);
-    const drawn = mergeLibraryRelationships(libModels(w), w.dom.D1);
+    const drawn = mergeLibraryRelationships(libTables(w), w.dom.D1);
     expect(drawn).toHaveLength(1);
-    expect(mergeLibraryRelationships(libModels(w), [...w.dom.D1].reverse())).toEqual(drawn);
+    expect(mergeLibraryRelationships(libTables(w), [...w.dom.D1].reverse())).toEqual(drawn);
   });
 
   it('D1: re-keying a link a diagram file holds twice moves both copies', async () => {

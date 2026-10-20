@@ -11,16 +11,16 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { applyMoveToModel, moveTargets, planRelationshipWrite, resolveConflict, usesLibraryRelationships } from '../../src/services/libraryRelationships';
+import { applyMoveToTable, moveTargets, planRelationshipWrite, resolveConflict, usesLibraryRelationships } from '../../src/services/libraryRelationships';
 import type { RelationshipWriteInput, RelationshipWriteOp, MoveToLibraryPlan, ConflictDefinition } from '../../src/services/libraryRelationships';
 import { auditRelationshipWrite, checkLibraryRewrite } from '../../src/services/relationshipHealth';
-import type { SemanticModel } from '../../src/types/semantic';
+import type { SemanticTable } from '../../src/types/semantic';
 import {
-  clone, dbtIndex, describeState, libModels, libraryMode, movePlan, opsFor, pickSets, states, worldOf,
+  clone, dbtIndex, describeState, libTables, libraryMode, movePlan, opsFor, pickSets, states, worldOf,
 } from './relationshipStateSpace.model';
 import type { HostCall, World } from './relationshipStateSpace.model';
 import {
-  L, gDraw, gModels, gMovePlan, gPickSets, groupStates, groupWorld, selfStates, selfWorld, describeGroup, describeSelf,
+  L, gDraw, gTables, gMovePlan, gPickSets, groupStates, groupWorld, selfStates, selfWorld, describeGroup, describeSelf,
 } from './relationshipStateSpace.universes';
 import type { GWorld } from './relationshipStateSpace.universes';
 import { linkKey } from '@erd-studio/core';
@@ -42,17 +42,17 @@ function audit(op: RelationshipWriteOp, input: RelationshipWriteInput): string[]
 }
 
 /** The Move's rewrite of `models` under `plan`, checked as the command checks it. */
-function moveCheck(models: SemanticModel[], plan0: MoveToLibraryPlan, picks: Array<ConflictDefinition | undefined>): string[] {
+function moveCheck(models: SemanticTable[], plan0: MoveToLibraryPlan, picks: Array<ConflictDefinition | undefined>): string[] {
   let plan = plan0;
   plan0.conflicts.forEach((c, i) => { if (picks[i]) plan = resolveConflict(plan, c, picks[i]!); });
-  const before: SemanticModel[] = [];
-  const after: SemanticModel[] = [];
+  const before: SemanticTable[] = [];
+  const after: SemanticTable[] = [];
   for (const name of moveTargets(plan)) {
     const model = models.find((m) => m.name === name.toLowerCase());
     if (!model) continue;
-    const copy: SemanticModel = { ...clone(model), relationships: model.relationships ? clone(model.relationships) : undefined };
+    const copy: SemanticTable = { ...clone(model), relationships: model.relationships ? clone(model.relationships) : undefined };
     before.push(clone(model));
-    applyMoveToModel(plan, copy);
+    applyMoveToTable(plan, copy);
     after.push(copy);
   }
   return checkLibraryRewrite(before, after, [...plan.toLibrary, ...plan.rehome.map((r) => r.to)]);
@@ -72,7 +72,7 @@ describe('relationshipHealth — silent on every sound write (false-positive gua
         if (!op.call) continue;
         const d = op.call.d ?? 'D1';
         const input: RelationshipWriteInput = {
-          home: libraryMode(w) ? 'library' : 'domain', models: libModels(w), domainRelationships: clone(w.dom[d]), dbt: dbtIndex(w),
+          home: libraryMode(w) ? 'library' : 'domain', models: libTables(w), domainRelationships: clone(w.dom[d]), dbt: dbtIndex(w),
         };
         const broken = audit(plannerOp(op.call), input);
         if (broken === null) continue;
@@ -82,7 +82,7 @@ describe('relationshipHealth — silent on every sound write (false-positive gua
       const plan = movePlan(w);
       for (const picks of pickSets(plan)) {
         audited++;
-        const broken = moveCheck(libModels(w), plan, picks);
+        const broken = moveCheck(libTables(w), plan, picks);
         if (broken.length > 0) found.push(`${broken.join(',')} :: move :: ${describeState(s)}`);
       }
     }
@@ -91,14 +91,14 @@ describe('relationshipHealth — silent on every sound write (false-positive gua
   });
 
   const gHome = (w: GWorld): 'library' | 'domain' =>
-    (usesLibraryRelationships(gModels(w), w.dom.D1.length + w.dom.D2.length + w.dom.D3.length) ? 'library' : 'domain');
+    (usesLibraryRelationships(gTables(w), w.dom.D1.length + w.dom.D2.length + w.dom.D3.length) ? 'library' : 'domain');
 
   it('composite keys: ⇄, edit, delete, regroup, add and Move act on the group', () => {
     const found: string[] = [];
     let audited = 0;
     for (const copies of groupStates()) {
       const w = groupWorld(copies);
-      const input: RelationshipWriteInput = { home: gHome(w), models: gModels(w), domainRelationships: clone(w.dom.D1) };
+      const input: RelationshipWriteInput = { home: gHome(w), models: gTables(w), domainRelationships: clone(w.dom.D1) };
       const line = gDraw(w, 'D1').find((r) => linkKey(r) === L);
       const ops: Array<[string, RelationshipWriteOp]> = [];
       const pairX = { fromColumn: 'k_x', toColumn: 'k_x' };
@@ -122,7 +122,7 @@ describe('relationshipHealth — silent on every sound write (false-positive gua
       const plan = gMovePlan(w);
       for (const picks of gPickSets(plan)) {
         audited++;
-        const broken = moveCheck(gModels(w), plan, picks);
+        const broken = moveCheck(gTables(w), plan, picks);
         if (broken.length > 0) found.push(`${broken.join(',')} :: move :: ${describeGroup(copies)}`);
       }
     }
@@ -135,7 +135,7 @@ describe('relationshipHealth — silent on every sound write (false-positive gua
     let audited = 0;
     for (const { profile, copies } of selfStates()) {
       const w = selfWorld(profile, copies);
-      const input: RelationshipWriteInput = { home: gHome(w), models: gModels(w), domainRelationships: clone(w.dom.D1) };
+      const input: RelationshipWriteInput = { home: gHome(w), models: gTables(w), domainRelationships: clone(w.dom.D1) };
       const line = gDraw(w, 'D1').find((r) => r.fromModel === 'emp' && r.toModel === 'emp');
       const ops: Array<[string, RelationshipWriteOp]> = [];
       if (line) {
@@ -157,7 +157,7 @@ describe('relationshipHealth — silent on every sound write (false-positive gua
       const plan = gMovePlan(w);
       for (const picks of gPickSets(plan)) {
         audited++;
-        const broken = moveCheck(gModels(w), plan, picks);
+        const broken = moveCheck(gTables(w), plan, picks);
         if (broken.length > 0) found.push(`${broken.join(',')} :: move :: ${describeSelf(profile, copies)}`);
       }
     }

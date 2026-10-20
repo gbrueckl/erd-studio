@@ -25,7 +25,7 @@ Every released artifact follows [SemVer 2.0](https://semver.org), `MAJOR.MINOR.P
 - Never edit the root `version` by hand in a PR; the workflow owns it. A pin only moves the version forward, and resets to patch bumps after it ships.
 - Group user-facing notes under `## Added` / `## Changed` / `## Fixed` / `## Removed` ([Keep a Changelog](https://keepachangelog.com)). A PR with nothing user-visible may leave `## Unreleased` empty; the workflow then records the PR title.
 
-**Packages: pick the level by their public API**, meaning every export of each entry point, `ErdCanvas` props, exported types and the `DisplayDomain` shape.
+**Packages: pick the level by their public API**, meaning every export of each entry point, `ErdCanvas` props, exported types and the `DisplaySubjectArea` shape.
 - **While `0.x`** (now): a breaking change bumps **MINOR** (`0.1.x → 0.2.0`), and everything else bumps PATCH. Go to `1.0.0` once the API is stable and has an outside consumer. After that, use normal SemVer (breaking = MAJOR).
 - **Publishing is automatic** (`.github/workflows/publish-packages.yml`, on every push to `main` touching `packages/**`; logic in `scripts/release-packages.mjs`, tested by `test/unit/releasePackages.test.ts`). It runs compile, `build:packages` and the full test suite, then per package, in dependency order:
   - shipped files (everything under the package except `test/` and `vitest.config.ts`) changed since the git tag `<name>@<latest on npm>` → **PATCH** above `max(package.json, npm)`;

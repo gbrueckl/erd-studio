@@ -22,9 +22,9 @@ import * as vscode from 'vscode';
 
 import { SemanticEditorProvider, PHYSICAL_READ_ONLY_MESSAGE } from '../../src/providers/SemanticEditorProvider';
 import { setHostedAnalysisTargetForTests } from '../../src/services/feedbackAnalysisService';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
@@ -70,10 +70,10 @@ function makeDoc(fsPath: string) {
 /** Open the showcase canvas and wait for its first `domainLoaded`. */
 async function openShowcase(root: string) {
   const layerService = new LayerService(root, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
-  const selectorsService = new SelectorsService(domainService, root, '.erd-studio');
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  const selectorsService = new SelectorsService(subjectAreaService, root, '.erd-studio');
 
   const context = {
     extensionUri: vscode.Uri.file(REPO_ROOT),
@@ -86,14 +86,14 @@ async function openShowcase(root: string) {
 
   const provider = new SemanticEditorProvider(
     context,
-    domainService,
+    subjectAreaService,
     new ManifestService(),
     new YmlParserService(),
     new TemplateService(),
     layerService,
     root,
     selectorsService,
-    logicalModelService,
+    tableLibraryService,
   );
   provider.setReportTracking({ recordPending } as unknown as ReportTrackingService);
 

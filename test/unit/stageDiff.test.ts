@@ -1,5 +1,5 @@
 /**
- * computeDomainDiff — the one cross-stage comparison shared by the canvas and
+ * computeSubjectAreaDiff — the one cross-stage comparison shared by the canvas and
  * the CLI. Checks parity with the provider's previous orchestration (three
  * reads of the file, logical built by the canvas's builder) and that the
  * canvas's toggleDiscrepancy handler actually goes through it.
@@ -13,15 +13,15 @@ import * as vscode from 'vscode';
 
 vi.mock('../../src/services/stageDiff', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/services/stageDiff')>();
-  return { ...actual, computeDomainDiff: vi.fn(actual.computeDomainDiff) };
+  return { ...actual, computeSubjectAreaDiff: vi.fn(actual.computeSubjectAreaDiff) };
 });
 
-import { computeDomainDiff, otherStage } from '../../src/services/stageDiff';
-import { buildLogicalDisplayDomain } from '../../src/services/stageDisplay';
+import { computeSubjectAreaDiff, otherStage } from '../../src/services/stageDiff';
+import { buildLogicalDisplaySubjectArea } from '../../src/services/stageDisplay';
 import { compare } from '../../src/services/discrepancyService';
-import { DomainService } from '../../src/services/domainService';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { CatalogService } from '../../src/services/catalogService';
@@ -39,10 +39,10 @@ const SHOWCASE = path.join(FIXTURE_ROOT, '.erd-studio', 'silver', 'showcase.json
 
 function services(root: string) {
   const layerService = new LayerService(root, '.erd-studio');
-  const domainService = new DomainService(layerService);
-  const logicalModelService = new LogicalModelService(root, '.erd-studio');
-  domainService.setLogicalModelService(logicalModelService);
-  return { layerService, domainService, logicalModelService };
+  const subjectAreaService = new SubjectAreaService(layerService);
+  const tableLibraryService = new TableLibraryService(root, '.erd-studio');
+  subjectAreaService.setTableLibraryService(tableLibraryService);
+  return { layerService, subjectAreaService, tableLibraryService };
 }
 
 let manifest: ManifestData;
@@ -56,35 +56,35 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-  vi.mocked(computeDomainDiff).mockClear();
+  vi.mocked(computeSubjectAreaDiff).mockClear();
 });
 
 /** The provider's orchestration before the extraction, verbatim in shape. */
-function legacyDiff(domainService: DomainService, file: string, source: Stage, target: Stage) {
+function legacyDiff(subjectAreaService: SubjectAreaService, file: string, source: Stage, target: Stage) {
   const build = (stage: Stage) => {
-    const unified = domainService.getDomain(file);
+    const unified = subjectAreaService.getSubjectArea(file);
     if (stage === 'physical') {
-      return domainService.buildPhysicalDomain(unified, ymlData, manifest, catalog);
+      return subjectAreaService.buildPhysicalSubjectArea(unified, ymlData, manifest, catalog);
     }
-    const domain = domainService.getDomainStage(file);
-    return buildLogicalDisplayDomain(domain, unified.viewConfig, unified.stubColumns);
+    const domain = subjectAreaService.getSubjectAreaStage(file);
+    return buildLogicalDisplaySubjectArea(domain, unified.viewConfig, unified.stubColumns);
   };
   const s = build(source);
   const t = build(target);
-  const unified = domainService.getDomain(file);
+  const unified = subjectAreaService.getSubjectArea(file);
   return compare(s, t, new Set(unified.stubColumns ?? []));
 }
 
-describe('computeDomainDiff', () => {
+describe('computeSubjectAreaDiff', () => {
   it('otherStage flips logical and physical', () => {
     expect(otherStage('logical')).toBe('physical');
     expect(otherStage('physical')).toBe('logical');
   });
 
   it.each<Stage>(['logical', 'physical'])('matches the previous orchestration from %s on showcase', (source) => {
-    const { domainService } = services(FIXTURE_ROOT);
-    const result = computeDomainDiff({ domainService, ymlData, manifest, catalog }, SHOWCASE, source);
-    expect(result.report).toEqual(legacyDiff(domainService, SHOWCASE, source, otherStage(source)));
+    const { subjectAreaService } = services(FIXTURE_ROOT);
+    const result = computeSubjectAreaDiff({ subjectAreaService, ymlData, manifest, catalog }, SHOWCASE, source);
+    expect(result.report).toEqual(legacyDiff(subjectAreaService, SHOWCASE, source, otherStage(source)));
     expect(result.report.sourceStage).toBe(source);
     expect(result.report.targetStage).toBe(otherStage(source));
     expect(result.source.stage).toBe(source);
@@ -93,8 +93,8 @@ describe('computeDomainDiff', () => {
   });
 
   it('produces a non-trivial showcase report', () => {
-    const { domainService } = services(FIXTURE_ROOT);
-    const { report } = computeDomainDiff({ domainService, ymlData, manifest, catalog }, SHOWCASE, 'logical');
+    const { subjectAreaService } = services(FIXTURE_ROOT);
+    const { report } = computeSubjectAreaDiff({ subjectAreaService, ymlData, manifest, catalog }, SHOWCASE, 'logical');
     expect(report.domain).toBe('showcase');
     expect(report.summary.totalModels).toBeGreaterThan(0);
     expect(report.models.map((m) => m.name)).toContain('dim_customer');
@@ -105,12 +105,12 @@ describe('computeDomainDiff', () => {
     try {
       fs.cpSync(FIXTURE_ROOT, tmp, { recursive: true });
       const file = path.join(tmp, '.erd-studio', 'silver', 'showcase.json');
-      const { domainService } = services(tmp);
-      const before = computeDomainDiff({ domainService, ymlData, manifest, catalog }, file, 'logical').report;
+      const { subjectAreaService } = services(tmp);
+      const before = computeSubjectAreaDiff({ subjectAreaService, ymlData, manifest, catalog }, file, 'logical').report;
       const json = JSON.parse(fs.readFileSync(file, 'utf-8'));
       json.stubColumns = json.logical.models;
       fs.writeFileSync(file, JSON.stringify(json));
-      const after = computeDomainDiff({ domainService, ymlData, manifest, catalog }, file, 'logical').report;
+      const after = computeSubjectAreaDiff({ subjectAreaService, ymlData, manifest, catalog }, file, 'logical').report;
       // Stubbed models hide their missing (physical-only) columns.
       expect(after.summary.missingColumns).toBeLessThanOrEqual(before.summary.missingColumns);
       expect(after.models.flatMap((m) => m.columns).some((c) => c.status === 'missing')).toBe(false);
@@ -120,27 +120,27 @@ describe('computeDomainDiff', () => {
   });
 
   it('diffs a v4 domain file without throwing', () => {
-    const { domainService } = services(FIXTURE_ROOT);
+    const { subjectAreaService } = services(FIXTURE_ROOT);
     const file = path.join(FIXTURE_ROOT, '.erd-studio', 'gold', 'finance.json');
-    const { report, unified } = computeDomainDiff({ domainService, ymlData, manifest, catalog }, file, 'logical');
+    const { report, unified } = computeSubjectAreaDiff({ subjectAreaService, ymlData, manifest, catalog }, file, 'logical');
     expect(unified.schemaVersion).toBe(4);
     expect(report.models).toEqual([]);
   });
 
   it('propagates a missing domain file as an error', () => {
-    const { domainService } = services(FIXTURE_ROOT);
-    expect(() => computeDomainDiff(
-      { domainService, ymlData, manifest }, path.join(FIXTURE_ROOT, '.erd-studio', 'silver', 'nope.json'), 'logical',
+    const { subjectAreaService } = services(FIXTURE_ROOT);
+    expect(() => computeSubjectAreaDiff(
+      { subjectAreaService, ymlData, manifest }, path.join(FIXTURE_ROOT, '.erd-studio', 'silver', 'nope.json'), 'logical',
     )).toThrow(/not found/);
   });
 });
 
 describe('SemanticEditorProvider.handleToggleDiscrepancy', () => {
-  it('goes through computeDomainDiff and posts its report', async () => {
+  it('goes through computeSubjectAreaDiff and posts its report', async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stage-diff-provider-'));
     try {
       fs.cpSync(FIXTURE_ROOT, tmp, { recursive: true });
-      const { layerService, domainService, logicalModelService } = services(tmp);
+      const { layerService, subjectAreaService, tableLibraryService } = services(tmp);
       const context = {
         extensionUri: vscode.Uri.file(REPO_ROOT),
         globalStorageUri: vscode.Uri.file(path.join(tmp, '.global-storage')),
@@ -150,8 +150,8 @@ describe('SemanticEditorProvider.handleToggleDiscrepancy', () => {
         subscriptions: [],
       } as unknown as import('vscode').ExtensionContext;
       const provider = new SemanticEditorProvider(
-        context, domainService, new ManifestService(), new YmlParserService(), new TemplateService(),
-        layerService, tmp, new SelectorsService(domainService, tmp, '.erd-studio'), logicalModelService,
+        context, subjectAreaService, new ManifestService(), new YmlParserService(), new TemplateService(),
+        layerService, tmp, new SelectorsService(subjectAreaService, tmp, '.erd-studio'), tableLibraryService,
       );
 
       const file = path.join(tmp, '.erd-studio', 'silver', 'showcase.json');
@@ -176,7 +176,7 @@ describe('SemanticEditorProvider.handleToggleDiscrepancy', () => {
         { timeout: 4000 },
       );
 
-      const spy = vi.mocked(computeDomainDiff);
+      const spy = vi.mocked(computeSubjectAreaDiff);
       expect(spy).toHaveBeenCalledTimes(1);
       const [, domainPath, source, target] = spy.mock.calls[0];
       expect(domainPath).toBe(file);

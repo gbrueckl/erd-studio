@@ -2,7 +2,7 @@
  * badgeLabels — the abbreviations and symbols the canvas stamps on nodes and
  * columns, and the prose that decodes them.
  *
- * These live here rather than in ModelNode because the Legend explains exactly
+ * These live here rather than in TableNode because the Legend explains exactly
  * this vocabulary. Two copies of "WH means the warehouse catalog" is two things
  * to keep in step, and the legend is precisely the copy nobody edits when the
  * node changes. Both ends import these maps, so a new source or a renamed chip

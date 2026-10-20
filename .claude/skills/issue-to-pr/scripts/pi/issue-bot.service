@@ -4,5 +4,5 @@ Description=/issue-to-pr runner: take one GitHub issue labelled issue-to-pr
 [Service]
 Type=oneshot
 ExecStart=%h/issue-bot/run.sh
-TimeoutStartSec=5h
+TimeoutStartSec=7h
 Nice=5

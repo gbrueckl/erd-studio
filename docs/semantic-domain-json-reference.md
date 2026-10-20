@@ -36,7 +36,7 @@ There are two stages. **Logical** is the editable stage stored in the subject ar
 - **The same warehouse table name in two layers** is two tables with the same `alias`: `silver/silver_date.yml` and `gold/gold_date.yml`, both `alias: date` — the pattern a dbt project uses for two `date` tables (unique dbt model names, `alias` + `schema` for the relation). The canvas labels each node `date`, or `silver.date` / `gold.date` when both are on one canvas.
 - **Folders are opt-in per project.** A library uses layer folders once any table file sits in a folder named after a layer in `layers.json` (or while it is empty); a hand-made folder such as `Staging/` does not count. Then a new table created from a canvas is written to the folder of the layer of the subject area it is added to (`gold/reporting.json` → `logical-models/gold/`). A flat library stays flat: new files go to the top level until someone runs **ERD Studio: Organise Table Library by Layer**. Opting in is a team decision — a teammate on ERD Studio before 1.2.0 only reads the top level and would see tables in folders as missing. A rename keeps the file in its folder.
 - **Organise Table Library by Layer** moves each file into the folder of the one layer whose subject areas reference it: top-level files, and files sitting in *another* layer's folder (the subject areas that use it moved layer). A table used by several layers, or by none, stays where it is. Folders that are not a layer in `layers.json` (a hand-made `Staging/`, or a layer id since removed) are never touched and are named in the confirmation. Re-running it is always safe.
-- Hosts that cannot list directories (the `@erd-studio/core` `loadDisplayDomain` viewer) probe the top level, then every layer folder alphabetically (the extension's order), so they see only folders named after a layer.
+- Hosts that cannot list directories (the `@erd-studio/core` `loadDisplaySubjectArea` viewer) probe the top level, then every layer folder alphabetically (the extension's order), so they see only folders named after a layer.
 
 The base directory name (`.erd-studio`) is configurable via the `erdStudio.semanticDir` setting.
 
@@ -86,16 +86,46 @@ One JSON file per subject area. The file and its `domain` field keep the old nam
 
 ### Format detection and supported versions
 
-The extension decides how to read a file with a single detector (`detectDomainFormat` in `packages/core/src/types/semantic.ts`). Every reader and writer uses the same rules:
+The extension decides how to read a file with a single detector (`detectSubjectAreaFormat` in `packages/core/src/types/semantic.ts`). Every reader and writer uses the same rules:
 
 | Format | Shape | Behaviour |
 |--------|-------|-----------|
-| `v5` | `schemaVersion: 5`, `logical.models` is all strings (or empty) | Current format. Fully supported. |
+| `v6` | `schemaVersion: 6`, `logical.tables` is all strings (or empty), the v6 names throughout | **Read, not written yet** ([below](#schema-v6-the-table-naming-read-only)). The canvas shows it read-only. |
+| `v5` | `schemaVersion: 5`, `logical.models` is all strings (or empty) | Current format, and the one ERD Studio writes. Fully supported. |
 | `v4` | `schemaVersion: 4`, `logical.models` is all inline table objects | Deprecated but still loads. On activation the extension prompts to run **ERD Studio: Migrate Subject Areas to the Central Table Library**, which extracts each object to `logical-models/{layer}/{name}.yml` (the subject area's layer folder; the top level when the library already holds flat files, or when several layers inline the table) and replaces it with its name. |
 | `hybrid` | `schemaVersion: 5` with inline objects, a mix of strings and objects, or entries that are neither | **Rejected** with an error pointing at the migration command. Migration repairs it (inline objects are extracted — existing YAML files are never overwritten). |
+| `hybrid` (names) | v5 and v6 names in one file (`logical.models` beside `logical.tables`, or `domain` beside `subjectArea`), v6 names under `schemaVersion` 5 (an older reader would draw it empty), or v5 names under `schemaVersion` 6 | **Rejected** with an error naming the mix. The migration leaves it alone; keep one set of names. `erd-studio doctor` gives it a `fix-subject-area-naming` step. |
 | `legacy` | `schemaVersion` below 4, and/or a top-level `models` array instead of `logical` | **Rejected** with an error. Migration lifts `models`/`relationships` under `logical`, drops `stage`, and converts to v5. |
 
 Never produce hybrid or legacy files. When adding a table to a subject area, add its **name string** to `logical.models` and create the YAML file if it does not exist.
+
+A `schemaVersion` higher than the extension reads (7 and up, today) is refused with "Please update the extension", never drawn as an empty diagram.
+
+### Schema v6: the table naming (read-only)
+
+Schema v6 ([#162](https://github.com/liam-machine/erd-studio/issues/162)) renames every on-disk key that names a *model* or a *domain*. ERD Studio reads it (from the release after 1.6.8) but does not write it yet: keep writing v5. A later release adds the migration and writes v6.
+
+| v5 (still read) | v6 |
+|---|---|
+| `.erd-studio/logical-models/` | `.erd-studio/tables/` (top level or one folder down, as before) |
+| `logical.models` | `logical.tables` |
+| `domain` (top-level field) | `subjectArea` |
+| `fromModel` / `toModel` (subject area JSON; `toModel` in table YAML) | `fromTable` / `toTable` |
+| `modelRole` (table YAML) | `tableRole` |
+| `linkedModel` (an annotation in `viewConfig.annotations`) | `linkedTable` |
+| `schemaVersion: 5` | `schemaVersion: 6` |
+
+Unchanged: `modelFolder` (it is dbt's `models/` path filter), the `.erd-studio/{layer}/{name}.json` path, `layers.json`, templates, and every other key.
+
+- **Reading.** A v6 file is read into exactly what its v5 twin reads into, so the canvas, `erd-studio diff` / `export` and the Confluence viewer show the same diagram. A table YAML is read by key, wherever it is: `tableRole` and `toTable` win over `modelRole` and `toModel` when a file writes both.
+- **Library lookup.** `logical-models/` first (top level, then each folder alphabetically), then `tables/` in the same order. The Confluence viewer, which cannot list folders, probes the same paths.
+- **Mixed projects** (both folders, or v5 and v6 subject area files side by side) read everything. A table name found in both folders (ignoring case) is a **conflict**: the `logical-models/` copy is used, the canvas warns, and `erd-studio doctor` lists it under `erd.namingConflicts` with a `resolve-naming-conflicts` step. Keep one of the two files.
+- **Nothing writes v6 yet.** A v6 subject area opens read-only, saying why. An edit that would write a file in `tables/` (or a v6 subject area another edit would change, such as a rename) is refused by name, and **Move Relationships to Table Library**, **Organise Table Library by Layer**, **Give Duplicate Table Its Own Name**, **Rename Subject Area** and the v4 migration never touch the v6 files. New tables still go to `logical-models/`.
+- **A layer called `tables`.** A project made before v6 may already have one. `tables/` is a **layer folder**, never the library, when `layers.json` lists a layer with id `tables` or the folder holds a subject area file (`tables/*.json`), and it is never the library until it holds a table file (so an empty `tables` layer folder stays a layer); it keeps loading as before, the project stays on the v5 naming, and `erd-studio doctor` says `file naming v5 (tables/ is a layer folder)`.
+- **Don't mix the names in one file.** A `logical-models/` YAML that uses a v6 key (`tableRole`, `toTable`) is read, but ERD Studio refuses to edit it, since the v6 key would win over the one it writes. An empty `tables/` folder does not count: `tables/` is the library once it holds a table file. **Add Layer** refuses the id `tables`.
+- **Case.** A name that differs only in case between the two folders is a conflict like any other, and the extension reads the `logical-models/` copy on every file system. The Confluence viewer cannot list folders, so it probes exact file names and may read the other copy on a case-sensitive host: resolve the conflict.
+- **The project's naming.** `erd-studio doctor` reports `erd.naming`: `v5`, `v6` or `mixed` (core's `detectProjectNaming`), from the folders and subject area files on disk.
+- **Older versions** (1.6.8 and earlier) refuse a v6 subject area with "Please update the extension"; they do not see a `tables/` library at all, so a table that lives only there is missing for them. A team moves to v6 together.
 
 <a id="model-files-erd-studiological-modelsfoldernameyml"></a>
 
@@ -142,7 +172,7 @@ columns:
 | `alias` | string | No | Warehouse table name when it differs from `name` — dbt's `alias` config. A plain identifier (letters, digits, underscores; case kept). `name` stays the identity everywhere; the canvas shows the alias, qualified by `schema` when two tables on one canvas share it. Set from the detail panel's **Warehouse name** row. |
 | `description` | string | No | Human-readable description. |
 | `grain` | string | No | Grain statement: "One row per ___". |
-| `modelRole` | string | No | Role in the warehouse architecture. See ModelRole enum. |
+| `modelRole` | string | No | Role in the warehouse architecture. See TableRole enum. |
 | `columns` | array | No | Array of `ColumnDef`. |
 | `rationale` | object | No | Design rationale. Omit entirely if empty. |
 | `meta` | map | No | Free-form, dbt-style metadata (owner, source system, lineage…). See [Metadata](#metadata-meta). Omit entirely if empty. |
@@ -168,7 +198,7 @@ Tables are defined once and can be referenced from several subject areas. Editin
 
 **`data_type` (still read).** A column whose type is spelled the way dbt's schema.yml spells it, `data_type:`, is read as `dataType` (#144). When a column has both keys, `dataType` wins whenever it holds a value (even `""`); `data_type` is used only when `dataType` is absent or null. ERD Studio writes `dataType` only: the next time it writes that table's file — any canvas edit to that table or to a relationship stored in it (including one Draw from dbt or Add Existing Table adds there, and a rename elsewhere that reaches it); moving nodes and **Move Relationships to Table Library** leave the file's columns as written — it renames each `data_type` the reader used to `dataType` in place (its value and comment unchanged; an empty `dataType:` beside it is dropped), and leaves a `data_type` that sits beside a `dataType` holding a value alone. When the empty `dataType` (its key or value) or the `data_type` key carries a YAML anchor (`dataType: &x`), neither key is renamed or dropped — an alias such as `*x` would lose its anchor or change meaning — and the column's type is written to `data_type`, where the reader takes it from. `erd-studio doctor` lists the files and columns that use it (`erd.dataTypeAliasFiles[].columns`), and separately the columns where `data_type` sits beside a winning `dataType` and is ignored (`.ignored`) — those stay listed until the `data_type` is deleted — and the anchored ones kept as written (`.anchored`). Write `dataType`; the JSON schema still flags `data_type` as an unknown key.
 
-### ModelRole Enum
+### TableRole Enum
 
 | Value | Use Case |
 |-------|----------|
@@ -538,13 +568,13 @@ The association uses the default `.erd-studio` directory. With a custom `erdStud
 name: dim_customer
 ```
 
-The schemas describe the current format (`schemaVersion` 5) and still accept a version 4 subject area until it is migrated. A subject area that mixes table names with inline table objects is flagged, because it does not open. The schemas are slightly stricter than the reader: a quoted `scdType: "1"` or `isPrimaryKey: yes` still loads, but is flagged, so hand edits end up in the form the canvas writes.
+The schemas describe the current format (`schemaVersion` 5) and still accept a version 4 subject area until it is migrated. They do not describe v6 yet (it is read, not written; its schemas come with the release that writes it), so a hand-written v6 file is flagged. A subject area that mixes table names with inline table objects is flagged, because it does not open. The schemas are slightly stricter than the reader: a quoted `scdType: "1"` or `isPrimaryKey: yes` still loads, but is flagged, so hand edits end up in the form the canvas writes.
 
 Red Hat YAML matches paths with dot-folders skipped, so a project inside a hidden folder (`~/.work/shop/…`) gets no table file validation from the built-in association; map it in `yaml.schemas` instead.
 
 ## Validation Rules
 
-1. `schemaVersion` must be `5`. Versions below 4 and top-level `models` arrays are rejected; version 4 is accepted only until migrated.
+1. Write `schemaVersion` `5`. Versions below 4 and top-level `models` arrays are rejected; version 4 is accepted only until migrated; version 6 is read (see [Schema v6](#schema-v6-the-table-naming-read-only)) but not written yet.
 2. `layer` must match an `id` in `layers.json`.
 3. Every entry in `logical.models` must be a string. Mixed string/object arrays are rejected.
 4. Each referenced table should have a `logical-models/{name}.yml` or `logical-models/{folder}/{name}.yml`; a missing file renders as a placeholder with a warning.

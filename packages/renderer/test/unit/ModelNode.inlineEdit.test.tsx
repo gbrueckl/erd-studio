@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * ModelNode inline column editing — scdType / additiveType forwarding.
+ * TableNode inline column editing — scdType / additiveType forwarding.
  *
  * Regression for H13: double-clicking a column name or data type on the canvas
  * and committing an edit must post an `updateColumn` payload that still carries
@@ -53,8 +53,8 @@ vi.mock('../../src/store/editorStore', () => ({
 // Fixtures
 // ---------------------------------------------------------------------------
 
-import { ModelNode } from '../../src/components/Graph/ModelNode';
-import type { ModelFlowNode, ColumnDisplay } from '../../src/types/graph';
+import { TableNode } from '../../src/components/Graph/ModelNode';
+import type { TableFlowNode, ColumnDisplay } from '../../src/types/graph';
 
 const scdColumn: ColumnDisplay = {
   name: 'customer_name',
@@ -76,7 +76,7 @@ const plainColumn: ColumnDisplay = {
 };
 
 function renderNode(columns: ColumnDisplay[]) {
-  const data: ModelFlowNode['data'] = {
+  const data: TableFlowNode['data'] = {
     modelName: 'dim_customer',
     stage: 'logical',
     layer: 'silver',
@@ -84,7 +84,7 @@ function renderNode(columns: ColumnDisplay[]) {
     isStub: false,
     readOnly: false,
   };
-  const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+  const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
   return render(<Node data={data} selected={false} />);
 }
 
@@ -106,7 +106,7 @@ beforeEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ModelNode inline edit forwards scdType / additiveType', () => {
+describe('TableNode inline edit forwards scdType / additiveType', () => {
   it('inline rename keeps scdType and additiveType in the updateColumn payload', () => {
     renderNode([scdColumn]);
 

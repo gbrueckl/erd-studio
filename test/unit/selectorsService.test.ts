@@ -6,20 +6,20 @@ import { parse as yamlParse } from 'yaml';
 
 import { SelectorsService } from '../../src/services/selectorsService';
 import type { SelectorsServiceHooks, SkipInfo } from '../../src/services/selectorsService';
-import type { DomainService } from '../../src/services/domainService';
+import type { SubjectAreaService } from '../../src/services/domainService';
 
-interface FakeDomain {
+interface FakeSubjectArea {
   domain: string;
   layer: string;
   filePath: string;
   models: string[];
 }
 
-function fakeDomainService(domains: FakeDomain[]): DomainService {
+function fakeSubjectAreaService(domains: FakeSubjectArea[]): SubjectAreaService {
   return {
-    listDomains: () =>
+    listSubjectAreas: () =>
       domains.map((d) => ({ domain: d.domain, layer: d.layer, filePath: d.filePath })),
-    getDomain: (filePath: string) => {
+    getSubjectArea: (filePath: string) => {
       const found = domains.find((d) => d.filePath === filePath);
       if (!found) { throw new Error(`Not found: ${filePath}`); }
       return {
@@ -34,7 +34,7 @@ function fakeDomainService(domains: FakeDomain[]): DomainService {
         viewConfig: {},
       };
     },
-  } as unknown as DomainService;
+  } as unknown as SubjectAreaService;
 }
 
 interface ParsedSelectors {
@@ -67,7 +67,7 @@ describe('SelectorsService', () => {
 
   it('emits one selector per non-empty domain with snake_case names', () => {
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         {
           domain: 'customer-360',
           layer: 'silver',
@@ -104,7 +104,7 @@ describe('SelectorsService', () => {
 
   it('references a conformed dimension in every domain that owns it', () => {
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         {
           domain: 'customer-360',
           layer: 'silver',
@@ -133,7 +133,7 @@ describe('SelectorsService', () => {
 
   it('skips empty domains entirely', () => {
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'placeholder', layer: 'silver', filePath: '/dummy/silver/placeholder.json', models: [] },
         { domain: 'real', layer: 'silver', filePath: '/dummy/silver/real.json', models: ['dim_real'] },
       ]),
@@ -151,7 +151,7 @@ describe('SelectorsService', () => {
 
   it('writes a header documenting the merge contract', () => {
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['m1'] },
       ]),
       tmpDir,
@@ -165,7 +165,7 @@ describe('SelectorsService', () => {
 
   it('sanitizes non-alphanumeric characters in layer and domain names', () => {
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         {
           domain: 'customer 360',
           layer: 'v2.0',
@@ -189,7 +189,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'new', layer: 'silver', filePath: '/x/silver/new.json', models: ['dim_new'] },
       ]),
       tmpDir,
@@ -221,7 +221,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -253,7 +253,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -282,7 +282,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -311,7 +311,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'new', layer: 'silver', filePath: '/x/silver/new.json', models: ['dim_new'] },
       ]),
       tmpDir,
@@ -342,7 +342,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -369,7 +369,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -399,7 +399,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -429,7 +429,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -449,10 +449,10 @@ describe('SelectorsService', () => {
   // Edge cases ----------------------------------------------------------------
 
   it('does NOT create selectors.yml in a project with no domains (noop)', () => {
-    const svc = new SelectorsService(fakeDomainService([]), tmpDir, '.erd-studio');
+    const svc = new SelectorsService(fakeSubjectAreaService([]), tmpDir, '.erd-studio');
     const onWritten = vi.fn();
     const onSkipped = vi.fn();
-    const svcWithHooks = new SelectorsService(fakeDomainService([]), tmpDir, '.erd-studio', { onWritten, onSkipped });
+    const svcWithHooks = new SelectorsService(fakeSubjectAreaService([]), tmpDir, '.erd-studio', { onWritten, onSkipped });
 
     expect(svc.regenerate().status).toBe('noop');
     expect(svcWithHooks.regenerate().status).toBe('noop');
@@ -463,7 +463,7 @@ describe('SelectorsService', () => {
 
   it('does NOT create selectors.yml when every domain is empty', () => {
     const svc = new SelectorsService(
-      fakeDomainService([{ domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: [] }]),
+      fakeSubjectAreaService([{ domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: [] }]),
       tmpDir,
       '.erd-studio',
     );
@@ -490,7 +490,7 @@ describe('SelectorsService', () => {
         '',
       ].join('\n'),
     );
-    const svc = new SelectorsService(fakeDomainService([]), tmpDir, '.erd-studio');
+    const svc = new SelectorsService(fakeSubjectAreaService([]), tmpDir, '.erd-studio');
     const result = svc.regenerate();
     expect(result.status).toBe('written');
     const parsed = readSelectors(tmpDir);
@@ -499,7 +499,7 @@ describe('SelectorsService', () => {
 
   it('writes a fresh file when no selectors.yml exists yet', () => {
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['m1'] },
       ]),
       tmpDir,
@@ -513,7 +513,7 @@ describe('SelectorsService', () => {
   it('treats an empty selectors.yml as no user content and writes a fresh file', () => {
     writeSelectors(tmpDir, '');
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['m1'] },
       ]),
       tmpDir,
@@ -538,7 +538,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -563,7 +563,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -590,7 +590,7 @@ describe('SelectorsService', () => {
     const onSkipped = vi.fn();
     const onWritten = vi.fn();
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -622,7 +622,7 @@ describe('SelectorsService', () => {
 
     const onSkipped = vi.fn();
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -645,7 +645,7 @@ describe('SelectorsService', () => {
 
     const onSkipped = vi.fn();
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -675,7 +675,7 @@ describe('SelectorsService', () => {
     const isFileDirtyInEditor = vi.fn().mockReturnValue(true);
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -707,7 +707,7 @@ describe('SelectorsService', () => {
     const isFileDirtyInEditor = vi.fn().mockReturnValue(false);
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -725,7 +725,7 @@ describe('SelectorsService', () => {
     const onSkipped = vi.fn();
     const onWritten = vi.fn();
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -744,7 +744,7 @@ describe('SelectorsService', () => {
   it('de-duplicates generated names when two domains sanitise to the same selector', () => {
     const collisions: Array<{ requestedName: string; assignedName: string; domain: string; conflictsWith: string }> = [];
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'customer-360', layer: 'silver', filePath: '/x/silver/customer-360.json', models: ['dim_customer'] },
         { domain: 'customer_360', layer: 'silver', filePath: '/x/silver/customer_360.json', models: ['fct_orders'] },
       ]),
@@ -773,7 +773,7 @@ describe('SelectorsService', () => {
 
   it('keeps suffixed names stable across regenerates (idempotent with a collision)', () => {
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'a-b', layer: 'silver', filePath: '/x/silver/a-b.json', models: ['m1'] },
         { domain: 'a_b', layer: 'silver', filePath: '/x/silver/a_b.json', models: ['m2'] },
       ]),
@@ -804,7 +804,7 @@ describe('SelectorsService', () => {
     );
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -834,7 +834,7 @@ describe('SelectorsService', () => {
 
     const collisions: Array<{ conflictsWith: string }> = [];
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,
@@ -860,7 +860,7 @@ describe('SelectorsService', () => {
     const onWritten = vi.fn();
 
     const svc = new SelectorsService(
-      fakeDomainService([
+      fakeSubjectAreaService([
         { domain: 'd', layer: 'silver', filePath: '/x/silver/d.json', models: ['dim_d'] },
       ]),
       tmpDir,

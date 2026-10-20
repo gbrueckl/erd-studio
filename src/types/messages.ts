@@ -27,9 +27,9 @@
  * it writes a user setting, not a domain file.
  */
 
-import type { DisplayDomain } from './display';
+import type { DisplaySubjectArea } from './display';
 import type { DiscrepancyReport } from './discrepancy';
-import type { AnnotationColor, Cardinality, DesignModel, Stage } from './semantic';
+import type { AnnotationColor, Cardinality, DesignTable, Stage } from './semantic';
 import type { ColumnPair } from '@erd-studio/core';
 import type { GroundTruth } from './syncPlan';
 import type {
@@ -99,7 +99,7 @@ export type {
  */
 export interface DomainLoadedMessage {
   type: 'domainLoaded';
-  payload: DisplayDomain;
+  payload: DisplaySubjectArea;
   /** Whether the user has already dismissed the welcome modal (persisted in globalState). */
   welcomeDismissed?: boolean;
   /**
@@ -166,7 +166,7 @@ export interface ErrorMessage {
  */
 export interface StageDataMessage {
   type: 'stageData';
-  payload: DisplayDomain;
+  payload: DisplaySubjectArea;
   requestId?: number;
   /** Same contract as `DomainLoadedMessage.manifestMissing`. */
   manifestMissing?: boolean;
@@ -290,7 +290,7 @@ export interface ReadyMessage {
  */
 export interface AddModelMessage {
   type: 'addModel';
-  payload: DesignModel;
+  payload: DesignTable;
 }
 
 /**
@@ -393,7 +393,7 @@ export interface AddExistingModelMessage {
 }
 
 /** Most models one `addExistingModels` request may add (the dialog's "Select all" stops here). */
-export const ADD_EXISTING_MODELS_LIMIT = 200;
+export const ADD_EXISTING_TABLES_LIMIT = 200;
 
 /**
  * Add several picked models to the domain in one edit (#160): the Add
@@ -401,7 +401,7 @@ export const ADD_EXISTING_MODELS_LIMIT = 200;
  * referenced; dbt-only ones are seeded into the library, as with
  * `addExistingModel`. Names already in the domain are skipped. One
  * WorkspaceEdit, one undo step. v5 domains only; at most
- * {@link ADD_EXISTING_MODELS_LIMIT} names.
+ * {@link ADD_EXISTING_TABLES_LIMIT} names.
  */
 export interface AddExistingModelsMessage {
   type: 'addExistingModels';
@@ -524,7 +524,7 @@ export interface ViewFileMessage {
  * Summary of the domain shown on the canvas, carried on the feedback messages
  * so the host can build diagnostics without re-reading the document.
  */
-export interface FeedbackDomainSummary {
+export interface FeedbackSubjectAreaSummary {
   stage: string;
   modelCount: number;
   relationshipCount: number;
@@ -541,7 +541,7 @@ export interface RequestFeedbackContextMessage {
     /** Recent errors the webview observed (oldest → newest). */
     webviewErrors?: string[];
     /** Summary of the domain shown on the canvas, for the diagnostics chips. */
-    domain?: FeedbackDomainSummary;
+    domain?: FeedbackSubjectAreaSummary;
   };
 }
 
@@ -595,7 +595,7 @@ export interface SetFeedbackProviderMessage {
      * the host does not keep the dialog's copy of them.
      */
     webviewErrors?: string[];
-    domain?: FeedbackDomainSummary;
+    domain?: FeedbackSubjectAreaSummary;
   };
 }
 
@@ -618,7 +618,7 @@ export interface SubmitFeedbackMessage {
     regressionOf?: number;
     commentOnIssue?: number;
     /** Summary of the domain shown on the canvas, for diagnostics. */
-    domain?: FeedbackDomainSummary;
+    domain?: FeedbackSubjectAreaSummary;
   };
 }
 
@@ -636,7 +636,7 @@ export interface CopyFeedbackReportMessage {
     steps?: string;
     includeDiagnostics: boolean;
     webviewErrors?: string[];
-    domain?: FeedbackDomainSummary;
+    domain?: FeedbackSubjectAreaSummary;
   };
 }
 

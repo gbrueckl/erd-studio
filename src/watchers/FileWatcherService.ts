@@ -33,8 +33,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { LOGICAL_MODELS_DIR } from '../services/logicalModelService';
-import { NON_DOMAIN_DIRS } from '../services/domainService';
+import { LOGICAL_MODELS_DIR, TABLES_DIR } from '../services/logicalModelService';
+import { NON_SUBJECT_AREA_DIRS } from '../services/domainService';
 import { LAYERS_CONFIG_FILE } from '../services/layerService';
 import { OwnWriteTracker, ownWrites } from '../services/ownWriteTracker';
 import {
@@ -75,7 +75,7 @@ export function classifySemanticPath(
     return 'other';
   }
   const [dir, file] = segments;
-  if (dir.startsWith('.') || NON_DOMAIN_DIRS.has(dir) || !file.endsWith('.json') || file.startsWith('.')) {
+  if (dir.startsWith('.') || NON_SUBJECT_AREA_DIRS.has(dir) || !file.endsWith('.json') || file.startsWith('.')) {
     return 'other';
   }
   return 'domain';
@@ -93,7 +93,7 @@ export class FileWatcherService implements vscode.Disposable {
   private readonly _onSemanticFileChanged = new vscode.EventEmitter<{ uri: vscode.Uri; created?: boolean }>();
   private readonly _onSemanticFileDeleted = new vscode.EventEmitter<{ uris: vscode.Uri[] }>();
   private readonly _onLayerConfigChanged = new vscode.EventEmitter<void>();
-  private readonly _onLogicalModelChanged = new vscode.EventEmitter<{ uri: vscode.Uri; modelName: string }>();
+  private readonly _onTableChanged = new vscode.EventEmitter<{ uri: vscode.Uri; modelName: string }>();
   private readonly _onDbtYmlChanged = new vscode.EventEmitter<void>();
   private readonly _onProjectConfigChanged = new vscode.EventEmitter<void>();
 
@@ -117,7 +117,7 @@ export class FileWatcherService implements vscode.Disposable {
   /** Fires when {semanticDir}/layers.json is created, modified or deleted externally. */
   readonly onLayerConfigChanged = this._onLayerConfigChanged.event;
   /** Fires when a YAML model file in {semanticDir}/logical-models/ (or one of its layer folders) changes. */
-  readonly onLogicalModelChanged = this._onLogicalModelChanged.event;
+  readonly onTableChanged = this._onTableChanged.event;
   /** Fires when any dbt schema .yml/.yaml file under models/ changes. */
   readonly onDbtYmlChanged = this._onDbtYmlChanged.event;
   /** Fires when target-path or model-paths change in dbt_project.yml. */
@@ -146,7 +146,7 @@ export class FileWatcherService implements vscode.Disposable {
     this.setupArtifactWatcher();
     this.setupSemanticWatcher();
     this.setupProjectConfigWatcher();
-    this.setupLogicalModelWatcher();
+    this.setupTableWatcher();
     this.setupDbtSourceWatcher();
   }
 
@@ -346,10 +346,11 @@ export class FileWatcherService implements vscode.Disposable {
    * Moving a file between folders arrives as a delete + create of the same
    * model name, which the per-name debounce folds into one event.
    */
-  private setupLogicalModelWatcher(): void {
+  private setupTableWatcher(): void {
     const pattern = new vscode.RelativePattern(
       this.workspaceRoot,
-      `${this.semanticDir}/${LOGICAL_MODELS_DIR}/**/*.yml`,
+      // v6's `tables/` library too (#162); a `tables` layer folder holds no yml.
+      `${this.semanticDir}/{${LOGICAL_MODELS_DIR},${TABLES_DIR}}/**/*.yml`,
     );
     const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
@@ -361,7 +362,7 @@ export class FileWatcherService implements vscode.Disposable {
           return;
         }
         console.log(`[FileWatcherService] Logical model changed: ${modelName}`);
-        this.safeFireEvent(() => this._onLogicalModelChanged.fire({ uri, modelName }));
+        this.safeFireEvent(() => this._onTableChanged.fire({ uri, modelName }));
       });
     };
 
@@ -481,7 +482,7 @@ export class FileWatcherService implements vscode.Disposable {
     this._onSemanticFileChanged.dispose();
     this._onSemanticFileDeleted.dispose();
     this._onLayerConfigChanged.dispose();
-    this._onLogicalModelChanged.dispose();
+    this._onTableChanged.dispose();
     this._onDbtYmlChanged.dispose();
     this._onProjectConfigChanged.dispose();
   }

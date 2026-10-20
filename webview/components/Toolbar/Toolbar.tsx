@@ -29,8 +29,8 @@ import {
   type LayoutDirection,
 } from '../../lib/elkLayout';
 import { StageTabs } from './StageTabs';
-import { matchesModelSearch } from '@erd-studio/renderer/editor';
-import type { ModelFlowNode, FkFlowEdge, AnnotationFlowNode, AnnotationFlowEdge } from '@erd-studio/renderer/editor';
+import { matchesTableSearch } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, FkFlowEdge, AnnotationFlowNode, AnnotationFlowEdge } from '@erd-studio/renderer/editor';
 import type { Stage } from '../../../src/types/semantic';
 import type { WebviewMessage } from '../../hooks/useMessageBus';
 import './Toolbar.css';
@@ -58,7 +58,7 @@ const LAYER_ABBREV_FALLBACK: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 interface ToolbarProps {
-  nodes: (ModelFlowNode | AnnotationFlowNode)[];
+  nodes: (TableFlowNode | AnnotationFlowNode)[];
   edges: (FkFlowEdge | AnnotationFlowEdge)[];
   /** Whether all columns are currently expanded. */
   allExpanded: boolean;
@@ -156,7 +156,7 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
     if (!searchQuery.trim()) return [];
     const query = searchQuery.toLowerCase();
     return nodes
-      .filter((node) => node.type === 'model' && matchesModelSearch(node.data as ModelFlowNode['data'], query))
+      .filter((node) => node.type === 'model' && matchesTableSearch(node.data as TableFlowNode['data'], query))
       .map((node) => node.id);
   }, [searchQuery, nodes]);
 
@@ -440,7 +440,7 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
     try {
       const sp = SPACING_PRESETS[spacingPreset];
       // Filter to model nodes/FK edges only — annotations are exempt from auto-layout.
-      const modelNodes = nodes.filter((n): n is import('@erd-studio/renderer/editor').ModelFlowNode => n.type === 'model');
+      const modelNodes = nodes.filter((n): n is import('@erd-studio/renderer/editor').TableFlowNode => n.type === 'model');
       const fkEdges = edges.filter((e): e is import('@erd-studio/renderer/editor').FkFlowEdge => e.type === 'fk');
       const effectiveBound = partitionStrategy === 'auto'
         ? detectLayerBound(modelNodes.length)
@@ -696,7 +696,7 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
                 <div className="toolbar__lp-section">
                   <span className="toolbar__lp-label">Grouping</span>
                   {(() => {
-                    const modelOnly = nodes.filter((n): n is ModelFlowNode => n.type === 'model');
+                    const modelOnly = nodes.filter((n): n is TableFlowNode => n.type === 'model');
                     const fkOnly = edges.filter((e): e is FkFlowEdge => e.type === 'fk');
                     const resolved = partitionStrategy === 'auto' ? detectStrategy(modelOnly, fkOnly) : null;
                     return (
@@ -724,7 +724,7 @@ export function Toolbar({ nodes, edges, allExpanded, onExpandAll, onCollapseAll 
                   })()}
                   <span className="toolbar__lp-desc">
                     {partitionStrategy === 'auto' ? (() => {
-                      const r = detectStrategy(nodes.filter((n): n is ModelFlowNode => n.type === 'model'), edges.filter((e): e is FkFlowEdge => e.type === 'fk'));
+                      const r = detectStrategy(nodes.filter((n): n is TableFlowNode => n.type === 'model'), edges.filter((e): e is FkFlowEdge => e.type === 'fk'));
                       return r === 'role'
                         ? 'Using Table type — your tables have roles assigned.'
                         : r === 'depth'

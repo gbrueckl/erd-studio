@@ -5,10 +5,10 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { allSelections, buildSyncPlan, countSyncPlanActions } from '../../src/services/syncPlanBuilder';
-import { computeDomainDiff } from '../../src/services/stageDiff';
-import { DomainService } from '../../src/services/domainService';
+import { computeSubjectAreaDiff } from '../../src/services/stageDiff';
+import { SubjectAreaService } from '../../src/services/domainService';
 import { LayerService } from '../../src/services/layerService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 import { ManifestService } from '../../src/services/manifestService';
 import { YmlParserService } from '../../src/services/ymlParserService';
 import { TemplateService } from '../../src/services/templateService';
@@ -171,6 +171,17 @@ describe('buildSyncPlan', () => {
     expect(plan.modelContext.dim_missing.logicalModelPath).toBe('.erd-studio/logical-models/dim_missing.yml');
   });
 
+  it('names a table file in v6\'s tables/ library where it is (#181)', () => {
+    const files: Record<string, string | null> = { fct_order: 'tables/gold/fct_order.yml', dim_customer: 'logical-models/dim_customer.yml', dim_missing: null };
+    const plan = buildSyncPlan(report(), allSelections(report(), 'physical'), {
+      ...ctx, modelFolder: () => 'gold', tableLibraryFile: (n) => files[n] ?? null,
+    });
+    expect(plan.modelContext.fct_order.logicalModelPath).toBe('.erd-studio/tables/gold/fct_order.yml');
+    expect(plan.modelContext.dim_customer.logicalModelPath).toBe('.erd-studio/logical-models/dim_customer.yml');
+    // No file: where a new one goes, still logical-models/ (nothing writes tables/ yet).
+    expect(plan.modelContext.dim_missing.logicalModelPath).toBe('.erd-studio/logical-models/gold/dim_missing.yml');
+  });
+
   it('resolves types stage-absolutely when compared from physical', () => {
     const r = report('physical');
     const plan = buildSyncPlan(r, { 'col:fct_order:amount': 'physical' }, ctx);
@@ -185,9 +196,9 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
     try {
       fs.cpSync(FIXTURE_ROOT, tmp, { recursive: true });
       const layerService = new LayerService(tmp, '.erd-studio');
-      const domainService = new DomainService(layerService);
-      const logicalModelService = new LogicalModelService(tmp, '.erd-studio');
-      domainService.setLogicalModelService(logicalModelService);
+      const subjectAreaService = new SubjectAreaService(layerService);
+      const tableLibraryService = new TableLibraryService(tmp, '.erd-studio');
+      subjectAreaService.setTableLibraryService(tableLibraryService);
       const manifestService = new ManifestService();
       const ymlParserService = new YmlParserService();
       const context = {
@@ -199,8 +210,8 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
         subscriptions: [],
       } as unknown as import('vscode').ExtensionContext;
       const provider = new SemanticEditorProvider(
-        context, domainService, manifestService, ymlParserService, new TemplateService(),
-        layerService, tmp, new SelectorsService(domainService, tmp, '.erd-studio'), logicalModelService,
+        context, subjectAreaService, manifestService, ymlParserService, new TemplateService(),
+        layerService, tmp, new SelectorsService(subjectAreaService, tmp, '.erd-studio'), tableLibraryService,
       );
 
       const file = path.join(tmp, '.erd-studio', 'silver', 'showcase.json');
@@ -237,8 +248,8 @@ describe('SemanticEditorProvider.handleGenerateSyncPlan parity', () => {
       expect(written).toEqual(JSON.parse(JSON.stringify(expected)));
       expect(posted().find((m) => m.type === 'syncPlanGenerated')!.payload.totalActions).toBe(countSyncPlanActions(expected));
 
-      // And the CLI route — computeDomainDiff + allSelections — sees the same report.
-      const cli = computeDomainDiff({ domainService, ymlData, manifest }, file, 'logical');
+      // And the CLI route — computeSubjectAreaDiff + allSelections — sees the same report.
+      const cli = computeSubjectAreaDiff({ subjectAreaService, ymlData, manifest }, file, 'logical');
       expect(cli.report).toEqual(shown);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });

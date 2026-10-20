@@ -17,9 +17,9 @@
 import { create } from 'zustand';
 import type { Viewport } from '@xyflow/react';
 import { createCanvasSlice, type CanvasActions, type CanvasSet, type CanvasState, type CanvasStoreApi } from '@erd-studio/renderer/store';
-import type { DisplayDomain, ManifestModelPreview } from '../../src/types/display';
+import type { DisplaySubjectArea, ManifestModelPreview } from '../../src/types/display';
 import type { DiscrepancyReport } from '../../src/types/discrepancy';
-import type { ModelTemplate, Stage } from '../../src/types/semantic';
+import type { TableTemplate, Stage } from '../../src/types/semantic';
 import type { GroundTruth } from '../../src/types/syncPlan';
 import type { ErrorMessage } from '../../src/types/messages';
 import type {
@@ -92,7 +92,7 @@ export interface EditorState extends CanvasState {
   /** The domain file holds unresolved git merge conflicts (#145); false unless the host said so. */
   errorMergeConflict: boolean;
   /** Available model templates loaded from semantic/templates/*.json. */
-  templates: ModelTemplate[];
+  templates: TableTemplate[];
   /** Manifest models available to add to this domain (not already in domain). @deprecated Use existingModels. */
   manifestModels: ManifestModelPreview[];
   /** Internal: registered search focus function (not persisted). */
@@ -186,7 +186,7 @@ export interface EditorActions extends CanvasActions {
   /** Hide the logical "Run dbt parse" hint at once (the host persists it). */
   dismissManifestHint: () => void;
   setError: (error: string | null, kind?: ErrorMessage['payload']['kind'], mergeConflict?: boolean) => void;
-  setTemplates: (templates: ModelTemplate[]) => void;
+  setTemplates: (templates: TableTemplate[]) => void;
   setManifestModels: (models: ManifestModelPreview[]) => void;
   /** Register a function to focus the search input (called by Toolbar on mount). */
   registerSearchFocus: (focusFn: (() => void) | null) => void;
@@ -247,8 +247,8 @@ export interface EditorActions extends CanvasActions {
  * addresses.
  */
 function samePhysicalSources(
-  a: DisplayDomain['physicalSources'],
-  b: DisplayDomain['physicalSources'],
+  a: DisplaySubjectArea['physicalSources'],
+  b: DisplaySubjectArea['physicalSources'],
 ): boolean {
   if (!a || !b) { return !a && !b; }
   return a.yml === b.yml && a.manifest === b.manifest && a.catalog === b.catalog;

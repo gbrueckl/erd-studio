@@ -11,8 +11,8 @@ import * as path from 'path';
 
 import { classifySemanticPath } from '../../src/watchers/FileWatcherService';
 import { LayerService } from '../../src/services/layerService';
-import { DomainService } from '../../src/services/domainService';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { SubjectAreaService } from '../../src/services/domainService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const APPROACH = '# How we model\n\nKimball dimensional modelling.\n\n- Facts at the lowest grain\n';
@@ -49,19 +49,19 @@ describe('.erd-studio/modelling-approach.md is ignored by the extension', () => 
 
   it('adds no layer, domain or model, with or without layers.json', () => {
     const layerService = new LayerService(root, '.erd-studio');
-    const domainService = new DomainService(layerService);
-    domainService.setLogicalModelService(new LogicalModelService(root, '.erd-studio'));
+    const subjectAreaService = new SubjectAreaService(layerService);
+    subjectAreaService.setTableLibraryService(new TableLibraryService(root, '.erd-studio'));
     const layersBefore = layerService.detectLayersFromFilesystem().map((l) => l.id);
-    const domainsBefore = domainService.listDomains(root, '.erd-studio');
+    const domainsBefore = subjectAreaService.listSubjectAreas(root, '.erd-studio');
     expect(domainsBefore.length).toBeGreaterThan(0);
 
     fs.writeFileSync(path.join(semantic, 'modelling-approach.md'), APPROACH);
 
     const layers = new LayerService(root, '.erd-studio');
-    const domains = new DomainService(layers);
-    domains.setLogicalModelService(new LogicalModelService(root, '.erd-studio'));
+    const domains = new SubjectAreaService(layers);
+    domains.setTableLibraryService(new TableLibraryService(root, '.erd-studio'));
     expect(layers.detectLayersFromFilesystem().map((l) => l.id)).toEqual(layersBefore);
-    expect(domains.listDomains(root, '.erd-studio')).toEqual(domainsBefore);
+    expect(domains.listSubjectAreas(root, '.erd-studio')).toEqual(domainsBefore);
     expect(layers.getLoadError()).toBeNull();
 
     // Without layers.json the filesystem scan decides the layers: still only directories.
@@ -73,8 +73,8 @@ describe('.erd-studio/modelling-approach.md is ignored by the extension', () => 
 
   it('is not listed as a logical model', () => {
     fs.writeFileSync(path.join(semantic, 'modelling-approach.md'), APPROACH);
-    const models = new LogicalModelService(root, '.erd-studio');
-    const names = models.listModelNames();
+    const models = new TableLibraryService(root, '.erd-studio');
+    const names = models.listTableNames();
     expect(names).not.toContain('modelling-approach');
     expect(names.every((n) => /^[a-z][a-z0-9_]*$/.test(n))).toBe(true);
   });

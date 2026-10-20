@@ -5,11 +5,11 @@
 
 export type {
   ManifestModelPreview,
-  ExistingModelPreview,
+  ExistingTablePreview,
   DisplayColumn,
   PhysicalColumnSource,
   PhysicalProvenance,
-  DisplayModel,
+  DisplayTable,
   DisplayRelationship,
-  DisplayDomain,
+  DisplaySubjectArea,
 } from '@erd-studio/core';

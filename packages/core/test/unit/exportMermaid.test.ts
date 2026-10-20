@@ -8,13 +8,13 @@
 import { beforeAll, describe, it, expect } from 'vitest';
 
 import { toMermaid, mermaidName, mermaidType } from '../../src/exportMermaid';
-import type { DisplayDomain } from '../../src/types/display';
-import { MERMAID_LOAD_TIMEOUT_MS, col, deepFreeze, domain, loadMermaidParsers, model, parseMermaid, parseMermaidOldest, rel } from '../exportParsers';
+import type { DisplaySubjectArea } from '../../src/types/display';
+import { MERMAID_LOAD_TIMEOUT_MS, col, deepFreeze, subjectArea, loadMermaidParsers, tableDef, parseMermaid, parseMermaidOldest, rel } from '../exportParsers';
 
 // Load both Mermaid releases here, outside any test's timeout (#152).
 beforeAll(loadMermaidParsers, MERMAID_LOAD_TIMEOUT_MS);
 
-async function exportAndParse(d: DisplayDomain) {
+async function exportAndParse(d: DisplaySubjectArea) {
   const text = toMermaid(deepFreeze(d));
   const parsed = await parseMermaid(text);
   return { text, parsed };
@@ -22,7 +22,7 @@ async function exportAndParse(d: DisplayDomain) {
 
 describe('toMermaid', () => {
   it('opens with erDiagram, then the version line and the left-out list', async () => {
-    const { text } = await exportAndParse(domain([model('a', [col('id')])], [], { domain: 'sales', layer: 'gold', description: 'Line one\nline two' }));
+    const { text } = await exportAndParse(subjectArea([tableDef('a', [col('id')])], [], { domain: 'sales', layer: 'gold', description: 'Line one\nline two' }));
     const lines = text.split('\n');
     expect(lines[0]).toBe('erDiagram');
     expect(lines[1]).toBe('%% erd-studio mermaid-export v1');
@@ -44,14 +44,14 @@ describe('toMermaid', () => {
   });
 
   it('parses an empty domain', async () => {
-    const { parsed } = await exportAndParse(domain([]));
+    const { parsed } = await exportAndParse(subjectArea([]));
     expect(parsed.entities).toEqual([]);
   });
 
   it('draws a model as a quoted entity with typed, keyed, commented attributes', async () => {
     const { parsed } = await exportAndParse(
-      domain([
-        model('dim_customer', [
+      subjectArea([
+        tableDef('dim_customer', [
           col('customer_key', 'INT', { isPrimaryKey: true, description: 'Surrogate key', scdType: 0 }),
           col('customer_id', 'VARCHAR', { isNaturalKey: true }),
           col('parent_key', 'INT', { isForeignKey: true }),
@@ -76,8 +76,8 @@ describe('toMermaid', () => {
 
   it('carries the model-level fields as %% lines above the entity', async () => {
     const { text } = await exportAndParse(
-      domain([
-        model('fct_order', [col('id', 'int', { meta: { pii: 'no', tags: ['a'] } })], {
+      subjectArea([
+        tableDef('fct_order', [col('id', 'int', { meta: { pii: 'no', tags: ['a'] } })], {
           schema: 'gold',
           alias: 'orders',
           modelRole: 'transaction-fact',
@@ -115,7 +115,7 @@ describe('toMermaid', () => {
     ['many-to-many', 'ZERO_OR_MORE', 'ZERO_OR_MORE', '}o--o{'],
   ] as const)('draws a %s relationship', async (cardinality, cardA, cardB, connector) => {
     const { text, parsed } = await exportAndParse(
-      domain([model('f', [col('d_key')]), model('d', [col('d_key', 'int', { isPrimaryKey: true })])], [rel('f.d_key', 'd.d_key', cardinality)]),
+      subjectArea([tableDef('f', [col('d_key')]), tableDef('d', [col('d_key', 'int', { isPrimaryKey: true })])], [rel('f.d_key', 'd.d_key', cardinality)]),
     );
     expect(text).toContain(`  %% f.d_key -> d.d_key, ${cardinality}\n  "f" ${connector} "d" : "d_key"`);
     expect(parsed.relationships).toEqual([{ from: 'f', to: 'd', label: 'd_key', cardA, cardB }]);
@@ -123,8 +123,8 @@ describe('toMermaid', () => {
 
   it('labels a relationship with its role, and a one-to-many with the to end\'s column', async () => {
     const { parsed } = await exportAndParse(
-      domain(
-        [model('f', [col('ship_date'), col('order_date')]), model('d', [col('date_key')])],
+      subjectArea(
+        [tableDef('f', [col('ship_date'), col('order_date')]), tableDef('d', [col('date_key')])],
         [rel('f.ship_date', 'd.date_key', 'many-to-one', { role: 'ship "date"' }), rel('d.date_key', 'f.order_date', 'one-to-many')],
       ),
     );
@@ -133,8 +133,8 @@ describe('toMermaid', () => {
 
   it('folds a composite foreign key into one relationship naming every column', async () => {
     const { text, parsed } = await exportAndParse(
-      domain(
-        [model('pit', [col('hk'), col('as_of')]), model('sat', [col('hk'), col('load_date')])],
+      subjectArea(
+        [tableDef('pit', [col('hk'), col('as_of')]), tableDef('sat', [col('hk'), col('load_date')])],
         [
           rel('pit.hk', 'sat.hk', 'many-to-one', { compositeKey: 'fk_sat' }),
           rel('pit.as_of', 'sat.load_date', 'many-to-one', { compositeKey: 'fk_sat' }),
@@ -147,15 +147,15 @@ describe('toMermaid', () => {
 
   it('draws a self-reference', async () => {
     const { parsed } = await exportAndParse(
-      domain([model('employee', [col('id', 'int', { isPrimaryKey: true }), col('manager_id')])], [rel('employee.manager_id', 'employee.id', 'many-to-one', { role: 'manager' })]),
+      subjectArea([tableDef('employee', [col('id', 'int', { isPrimaryKey: true }), col('manager_id')])], [rel('employee.manager_id', 'employee.id', 'many-to-one', { role: 'manager' })]),
     );
     expect(parsed.relationships).toEqual([{ from: 'employee', to: 'employee', label: 'manager', cardA: 'ONLY_ONE', cardB: 'ZERO_OR_MORE' }]);
   });
 
   it('leaves out, with a reason, links it cannot draw — exactly as the DBML export does', async () => {
     const { text, parsed } = await exportAndParse(
-      domain(
-        [model('a', [col('x'), col('y')]), model('b', [col('x')]), model('empty', [])],
+      subjectArea(
+        [tableDef('a', [col('x'), col('y')]), tableDef('b', [col('x')]), tableDef('empty', [])],
         [
           rel('a.x', 'gone.x'),
           rel('a.nope', 'b.x'),
@@ -180,7 +180,7 @@ describe('toMermaid', () => {
 
   it('draws a model with no columns, or an unreadable file, as an empty entity', async () => {
     const { text, parsed } = await exportAndParse(
-      domain([model('raw_refunds', []), model('broken', [], { loadError: { kind: 'yamlIndent', line: 5 } })]),
+      subjectArea([tableDef('raw_refunds', []), tableDef('broken', [], { loadError: { kind: 'yamlIndent', line: 5 } })]),
     );
     expect(text).toContain('  %%   no columns yet');
     expect(text).toContain('  %%   its table file could not be read (yamlIndent, line 5)');
@@ -195,16 +195,16 @@ describe('toMermaid', () => {
   // `one`, `to`, `u` in 10.x), so the rule is "always quote", not "quote keywords".
   it('quotes keyword-like and unusual entity names so every Mermaid release reads them', async () => {
     const names = ['end', 'style', 'classDef', 'class', 'direction', 'title', 'erDiagram', 'PK', 'one', 'to', 'u', '1abc', 'my ent', 'café', 'say "hi"'];
-    const { parsed } = await exportAndParse(domain(names.map((n) => model(n, [col('id')]))));
+    const { parsed } = await exportAndParse(subjectArea(names.map((n) => tableDef(n, [col('id')]))));
     expect(parsed.entities.map((e) => e.name)).toEqual(names.map((n) => n.replace(/"/g, "'")));
   });
 
   // Inside quotes Mermaid reads no `%` or `\` in an entity name (10.0.0 and 12.0.0 alike), and
-  // these names reach a DisplayDomain from old v4 inline files and hand edits.
+  // these names reach a DisplaySubjectArea from old v4 inline files and hand edits.
   it('writes %, \\ and " in an entity name as _, / and \', which every release reads, and gives the original', async () => {
     const { text, parsed } = await exportAndParse(
-      domain(
-        [model('x\\y', [col('id')]), model('a%b', [col('id')]), model('p%%q', [col('id')]), model('end\\', [col('id')]), model('ok', [col('id')])],
+      subjectArea(
+        [tableDef('x\\y', [col('id')]), tableDef('a%b', [col('id')]), tableDef('p%%q', [col('id')]), tableDef('end\\', [col('id')]), tableDef('ok', [col('id')])],
         [rel('a%b.id', 'x\\y.id')],
       ),
     );
@@ -217,7 +217,7 @@ describe('toMermaid', () => {
 
   it('leaves out a model whose entity name an earlier model took, and the relationships that join it', async () => {
     const { text, parsed } = await exportAndParse(
-      domain([model('a_b', [col('id')]), model('a%b', [col('k')]), model('c', [col('id')])], [rel('a%b.k', 'c.id'), rel('a_b.id', 'c.id')]),
+      subjectArea([tableDef('a_b', [col('id')]), tableDef('a%b', [col('k')]), tableDef('c', [col('id')])], [rel('a%b.k', 'c.id'), rel('a_b.id', 'c.id')]),
     );
     expect(text).toContain('  %% Not exported: a%b is written as "a_b", the name of an earlier entity.');
     expect(text).toContain('  %% Not exported: a%b.k -> c.id (a table it joins is not exported).');
@@ -233,8 +233,8 @@ describe('toMermaid', () => {
   it('breaks up %% in every piece of free text, so no directive or comment can form', async () => {
     const directive = '%%{init: {"theme":"dark"}}%%';
     const { text } = await exportAndParse(
-      domain(
-        [model('a', [col('id', 'int', { description: `col ${directive}`, meta: { note: directive } })], { description: `Note ${directive} here`, grain: '%%' }), model('b', [col('id')])],
+      subjectArea(
+        [tableDef('a', [col('id', 'int', { description: `col ${directive}`, meta: { note: directive } })], { description: `Note ${directive} here`, grain: '%%' }), tableDef('b', [col('id')])],
         [rel('a.id', 'b.id', 'many-to-one', { role: '%% c' })],
         { domain: `d ${directive}`, description: directive, viewConfig: { annotations: [{ id: 'n', text: directive, x: 0, y: 0 }] } },
       ),
@@ -251,13 +251,13 @@ describe('toMermaid', () => {
   // a column description made 10.0.0 refuse the whole diagram, and `a~b~c` made 12.0.0 refuse it too.
   it('writes ~ in column comments as ∼, which every release reads as text', async () => {
     const { text, parsed } = await exportAndParse(
-      domain(
-        [model('a', [
+      subjectArea(
+        [tableDef('a', [
           col('id', 'int', { description: 'about ~100 rows, ~5 per day' }),
           col('x', 'int', { description: 'x ~ y ~ z' }),
           col('y', 'int', { description: 'a~b~c' }),
           col('z', 'int', { description: '~' }),
-        ]), model('b', [col('id')])],
+        ]), tableDef('b', [col('id')])],
         [rel('a.id', 'b.id', 'many-to-one', { role: 'a~b~c' })],
       ),
     );
@@ -268,8 +268,8 @@ describe('toMermaid', () => {
 
   it('reduces types and names to tokens every Mermaid release reads, keeping the originals in the comment', async () => {
     const { parsed } = await exportAndParse(
-      domain([
-        model('t', [
+      subjectArea([
+        tableDef('t', [
           col('ts', 'timestamp(6) without time zone'),
           col('st', 'STRUCT<a INT64>'),
           col('arr', 'int[]'),
@@ -313,7 +313,7 @@ describe('toMermaid', () => {
 
   it('puts sticky notes at the end as comments', async () => {
     const { text } = await exportAndParse(
-      domain([model('a', [col('id')])], [], {
+      subjectArea([tableDef('a', [col('id')])], [], {
         viewConfig: {
           positions: { a: { x: 10, y: 20 } },
           annotations: [
@@ -333,7 +333,7 @@ describe('toMermaid', () => {
     expect(text).not.toContain('pink');
   });
 
-  it('accepts a DisplayDomain from an older core: only required fields, odd values, duplicates', async () => {
+  it('accepts a DisplaySubjectArea from an older core: only required fields, odd values, duplicates', async () => {
     const old = {
       schemaVersion: 5,
       domain: 'old',
@@ -350,7 +350,7 @@ describe('toMermaid', () => {
       viewConfig: {},
       readOnly: false,
       positionDraggable: true,
-    } as unknown as DisplayDomain;
+    } as unknown as DisplaySubjectArea;
     const { text, parsed } = await exportAndParse(old);
     expect(text).toContain('  %% Not exported: a is listed more than once; exported once.');
     expect(text).toContain('  %% Not exported: table 3 has no name.');
@@ -359,13 +359,13 @@ describe('toMermaid', () => {
   });
 
   it('does not throw on a domain with no arrays at all', async () => {
-    const text = toMermaid({ domain: 'x' } as unknown as DisplayDomain);
+    const text = toMermaid({ domain: 'x' } as unknown as DisplaySubjectArea);
     expect(text.split('\n').slice(0, 2)).toEqual(['erDiagram', '%% erd-studio mermaid-export v1']);
     await parseMermaid(text);
   });
 
   it('is deterministic', () => {
-    const d = domain([model('a', [col('id')]), model('b', [col('a_id')])], [rel('b.a_id', 'a.id')]);
+    const d = subjectArea([tableDef('a', [col('id')]), tableDef('b', [col('a_id')])], [rel('b.a_id', 'a.id')]);
     expect(toMermaid(d)).toBe(toMermaid(JSON.parse(JSON.stringify(d))));
   });
 });

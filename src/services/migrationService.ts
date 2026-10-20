@@ -4,7 +4,7 @@
  * v4 → v5 migration:
  *   - Extracts inline model objects from domain files
  *   - Creates YAML model files in .erd-studio/logical-models/
- *   - Converts domain logical.models from SemanticModel[] to string[]
+ *   - Converts domain logical.models from SemanticTable[] to string[]
  *   - Bumps schemaVersion to 5
  *
  * Conflict resolution: when the same model exists in multiple v4 domains
@@ -15,35 +15,35 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { LogicalModelService } from './logicalModelService';
+import { TableLibraryService } from './logicalModelService';
 import { LayerService } from './layerService';
 import { keepLineEndings } from './lineEndings';
-import type { SemanticModel, Relationship, ViewConfig } from '../types/semantic';
-import { CURRENT_SCHEMA_VERSION, detectDomainFormat, getRawDomainModelNames } from '../types/semantic';
+import type { SemanticTable, Relationship, ViewConfig } from '../types/semantic';
+import { WRITTEN_SCHEMA_VERSION, detectSubjectAreaFormat, getRawSubjectAreaTableNames, mixesTableNaming } from '../types/semantic';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface V4DomainFile {
+interface V4SubjectAreaFile {
   schemaVersion: number;
   domain: string;
   layer: string;
   description?: string;
   modelFolder?: string;
   logical: {
-    models: SemanticModel[];
+    models: SemanticTable[];
     relationships: Relationship[];
   };
   viewConfig?: ViewConfig;
 }
 
 /**
- * Inline SemanticModel objects from a raw domain document, whether they live
+ * Inline SemanticTable objects from a raw domain document, whether they live
  * under `logical.models` (v4 / hybrid) or a legacy top-level `models` array.
  * String entries (v5 name references) are ignored.
  */
-function inlineModelsOf(raw: unknown): SemanticModel[] {
+function inlineTablesOf(raw: unknown): SemanticTable[] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
   const obj = raw as Record<string, unknown>;
   const logicalModels = (obj.logical as Record<string, unknown> | undefined)?.models;
@@ -53,8 +53,8 @@ function inlineModelsOf(raw: unknown): SemanticModel[] {
       ? obj.models
       : [];
   return source.filter(
-    (m): m is SemanticModel =>
-      !!m && typeof m === 'object' && !Array.isArray(m) && typeof (m as SemanticModel).name === 'string',
+    (m): m is SemanticTable =>
+      !!m && typeof m === 'object' && !Array.isArray(m) && typeof (m as SemanticTable).name === 'string',
   );
 }
 
@@ -93,9 +93,9 @@ function safeLstat(p: string): fs.Stats | null {
  * Every ERD Studio domain file has one, of every vintage, so this is what
  * separates a domain from an unrelated `.json` a user happens to keep in a
  * layer directory. Migration must never restructure a file that fails this
- * test, no matter what `detectDomainFormat` would call it.
+ * test, no matter what `detectSubjectAreaFormat` would call it.
  */
-export function isDomainDocument(parsed: unknown): boolean {
+export function isSubjectAreaDocument(parsed: unknown): boolean {
   return (
     typeof parsed === 'object' &&
     parsed !== null &&
@@ -105,9 +105,9 @@ export function isDomainDocument(parsed: unknown): boolean {
 }
 
 /** True when the file parses as JSON with a `schemaVersion` field (a domain file). */
-function looksLikeDomainFile(filePath: string): boolean {
+function looksLikeSubjectAreaFile(filePath: string): boolean {
   try {
-    return isDomainDocument(JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown);
+    return isSubjectAreaDocument(JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown);
   } catch {
     return false;
   }
@@ -164,7 +164,7 @@ export function findLegacySemanticDir(
       if (!f.endsWith('.json')) return false;
       const filePath = path.join(sub, f);
       const fileStat = safeLstat(filePath);
-      return !!fileStat && fileStat.isFile() && looksLikeDomainFile(filePath);
+      return !!fileStat && fileStat.isFile() && looksLikeSubjectAreaFile(filePath);
     });
   });
   return hasLayerWithDomains ? legacy : null;
@@ -192,7 +192,7 @@ export class MigrationService {
   constructor(
     private readonly workspaceRoot: string,
     private readonly layerService: LayerService,
-    private readonly logicalModelService: LogicalModelService,
+    private readonly tableLibraryService: TableLibraryService,
     /** Semantic directory relative to workspaceRoot (the `erdStudio.semanticDir` setting). */
     private readonly semanticDir: string = DEFAULT_SEMANTIC_DIR,
   ) {}
@@ -207,12 +207,12 @@ export class MigrationService {
    * - `hybrid` files (schemaVersion 5 with inline objects, or mixed entries)
    * - `legacy` pre-v4 files (schemaVersion < 4 or top-level `models`)
    *
-   * Uses the shared {@link detectDomainFormat} so this agrees with DomainService,
-   * but only for files that {@link isDomainDocument} recognises as domain files
+   * Uses the shared {@link detectSubjectAreaFormat} so this agrees with SubjectAreaService,
+   * but only for files that {@link isSubjectAreaDocument} recognises as domain files
    * (a numeric `schemaVersion`) — an unrelated `.json` a user keeps in a layer
    * directory is never a migration candidate, however it happens to be shaped.
    */
-  findV4Domains(): string[] {
+  findV4SubjectAreas(): string[] {
     const semanticDir = path.join(this.workspaceRoot, this.semanticDir);
     if (!fs.existsSync(semanticDir)) {
       return [];
@@ -235,13 +235,16 @@ export class MigrationService {
           // guard any parseable .json in a layer directory that happens to have
           // a top-level `models` array would be classified 'legacy' and
           // silently restructured.
-          if (!isDomainDocument(parsed)) continue;
-          const format = detectDomainFormat(parsed);
+          if (!isSubjectAreaDocument(parsed)) continue;
+          const format = detectSubjectAreaFormat(parsed);
+          // A v5 / v6 naming mix (#162) is a hand-edit to undo, not inline
+          // tables to move: the v5 migration would write v5 keys into it.
+          if (format === 'hybrid' && mixesTableNaming(parsed)) continue;
           if (format === 'hybrid' || format === 'legacy') {
             v4Paths.push(filePath);
           } else if (format === 'v4') {
             // Only v4 files that actually carry inline models need converting
-            const models = (parsed as V4DomainFile).logical?.models ?? [];
+            const models = (parsed as V4SubjectAreaFile).logical?.models ?? [];
             if (models.length > 0) {
               v4Paths.push(filePath);
             }
@@ -259,7 +262,7 @@ export class MigrationService {
    * Returns true if any v4 domain files exist that need migration.
    */
   needsMigration(): boolean {
-    return this.findV4Domains().length > 0;
+    return this.findV4SubjectAreas().length > 0;
   }
 
   // -------------------------------------------------------------------------
@@ -284,7 +287,7 @@ export class MigrationService {
    *    the "richest" version (most design annotations) is kept.
    */
   migrate(): MigrationResult {
-    const v4Paths = this.findV4Domains();
+    const v4Paths = this.findV4SubjectAreas();
     const result: MigrationResult = {
       domainsConverted: 0,
       modelsCreated: 0,
@@ -296,10 +299,10 @@ export class MigrationService {
     }
 
     // Ensure logical-models directory exists
-    this.logicalModelService.ensureDir();
+    this.tableLibraryService.ensureDir();
 
     // Phase 1: Extract all models across all domains, resolve conflicts
-    const allModels = new Map<string, { model: SemanticModel; sources: string[] }>();
+    const allModels = new Map<string, { model: SemanticTable; sources: string[] }>();
 
     for (const filePath of v4Paths) {
       try {
@@ -308,7 +311,7 @@ export class MigrationService {
 
         // Inline objects only — string entries (hybrid files) already live in
         // logical-models/ and must not be overwritten with a placeholder.
-        for (const model of inlineModelsOf(parsed)) {
+        for (const model of inlineTablesOf(parsed)) {
           if (!model.name) continue;
 
           const existing = allModels.get(model.name);
@@ -335,15 +338,15 @@ export class MigrationService {
     // Decided once, before anything is written: layer folders only when the
     // library already uses them or is empty — a flat library stays flat.
     const layerIds = new Set(this.layerService.getAllLayers().map((l) => l.id));
-    const useFolders = this.logicalModelService.groupsByFolder(layerIds);
+    const useFolders = this.tableLibraryService.groupsByFolder(layerIds);
     for (const [name, { model, sources }] of allModels) {
-      if (!this.logicalModelService.modelExists(name)) {
+      if (!this.tableLibraryService.tableExists(name)) {
         // The domain's layer is its parent directory name.
         const layers = new Set(sources.map((source) => path.basename(path.dirname(source))));
         const only = layers.size === 1 ? [...layers][0] : undefined;
         // Never create a folder for a directory that is not a configured layer.
         const folder = useFolders && only !== undefined && layerIds.has(only) ? only : undefined;
-        this.logicalModelService.saveModel(model, folder);
+        this.tableLibraryService.saveTable(model, folder);
         result.modelsCreated++;
       }
     }
@@ -357,7 +360,7 @@ export class MigrationService {
         // Convert models (inline objects and/or existing name strings) to a
         // de-duplicated list of name references. Handles legacy top-level
         // `models` as well as `logical.models`.
-        const modelNames = Array.from(new Set(getRawDomainModelNames(parsed)));
+        const modelNames = Array.from(new Set(getRawSubjectAreaTableNames(parsed)));
 
         // Legacy (pre-v4) layout: lift top-level models/relationships into
         // a `logical` section and drop the obsolete `stage` field.
@@ -372,7 +375,7 @@ export class MigrationService {
         delete parsed.relationships;
         delete parsed.stage;
 
-        parsed.schemaVersion = CURRENT_SCHEMA_VERSION;
+        parsed.schemaVersion = WRITTEN_SCHEMA_VERSION;
         logical.models = modelNames;
         parsed.logical = logical;
         if (!parsed.viewConfig || typeof parsed.viewConfig !== 'object') {
@@ -399,7 +402,7 @@ export class MigrationService {
    * Compute a "richness" score for a model definition.
    * Higher score = more design annotations = better candidate for the canonical version.
    */
-  private richness(model: SemanticModel): number {
+  private richness(model: SemanticTable): number {
     let score = 0;
     const columns = model.columns ?? [];
 

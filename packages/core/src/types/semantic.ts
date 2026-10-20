@@ -15,8 +15,29 @@ export type Layer = string;
 /** The two design stages of a domain. */
 export type Stage = 'logical' | 'physical';
 
-/** The current schema version written by this extension. */
-export const CURRENT_SCHEMA_VERSION = 5;
+/**
+ * The newest schema version this version of core reads. A file declaring a
+ * higher one is refused with "Please update the extension" rather than read
+ * as an empty diagram. Writers use {@link WRITTEN_SCHEMA_VERSION}.
+ */
+export const CURRENT_SCHEMA_VERSION = 6;
+
+/**
+ * Schema v6 (#162): the table naming. `tables/` for the library,
+ * `logical.tables`, `subjectArea`, `fromTable` / `toTable`, `tableRole` and
+ * `linkedTable`. Read alongside v5; nothing writes it yet.
+ */
+export const TABLE_NAMING_SCHEMA_VERSION = 6;
+
+/** Schema v5: model name references into the central `logical-models/` library. */
+export const LIBRARY_SCHEMA_VERSION = 5;
+
+/**
+ * The schema version the extension writes into a new or migrated subject
+ * area. Still v5: every writer emits v5 keys, so stamping a higher number
+ * would make a half-v6 file.
+ */
+export const WRITTEN_SCHEMA_VERSION = LIBRARY_SCHEMA_VERSION;
 
 /** Previous schema version (inline models). */
 export const LEGACY_SCHEMA_VERSION = 4;
@@ -76,7 +97,7 @@ export interface ColumnDef {
  * Classifies a model's role in the data warehouse architecture.
  * Maps to entity types from dimensional modelling methodology.
  */
-export type ModelRole =
+export type TableRole =
   | 'conformed-dim'        // Shared dimension reused across domains
   | 'domain-dim'           // New dimension specific to this domain
   | 'transaction-fact'     // Discrete event fact
@@ -118,7 +139,7 @@ export interface Rationale {
  * The stage is determined by the section (logical) within
  * the unified domain file, not by a field on the model.
  */
-export interface SemanticModel {
+export interface SemanticTable {
   name: string;
   /** Schema the model will be materialised in. */
   schema?: string;
@@ -139,7 +160,7 @@ export interface SemanticModel {
   /** Grain statement — "One row per ___". The single most critical design decision. */
   grain?: string;
   /** Model's role in the data warehouse architecture (e.g. conformed-dim, transaction-fact). */
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
   /** Free-form structured metadata (dbt-style `meta:`). */
   meta?: Meta;
   /**
@@ -147,22 +168,22 @@ export interface SemanticModel {
    * (issue #126) so every domain holding both ends draws the same edge. Read
    * from `logical-models/*.yml` only — never from inline v4 models.
    */
-  relationships?: ModelRelationship[];
+  relationships?: TableRelationship[];
 }
 
 /**
  * The placeholder a host puts in a stage's `models` for a model whose file
  * exists but could not be read. Runtime-only: `loadError` is never written to
- * a model file, which is why it is not a field of {@link SemanticModel} (the
+ * a model file, which is why it is not a field of {@link SemanticTable} (the
  * on-disk shape).
  */
-export interface UnreadableModelPlaceholder extends SemanticModel {
-  loadError: ModelLoadError;
+export interface UnreadableTablePlaceholder extends SemanticTable {
+  loadError: TableLoadError;
 }
 
-/** The load error carried by an {@link UnreadableModelPlaceholder}, if `model` is one. */
-export function modelLoadErrorOf(model: SemanticModel): ModelLoadError | undefined {
-  const candidate = (model as Partial<UnreadableModelPlaceholder>).loadError;
+/** The load error carried by an {@link UnreadableTablePlaceholder}, if `model` is one. */
+export function tableLoadErrorOf(model: SemanticTable): TableLoadError | undefined {
+  const candidate = (model as Partial<UnreadableTablePlaceholder>).loadError;
   return candidate && typeof candidate === 'object' ? candidate : undefined;
 }
 
@@ -172,7 +193,7 @@ export function modelLoadErrorOf(model: SemanticModel): ModelLoadError | undefin
  * written twice in one block — the last value is used, as dbt's PyYAML does,
  * and the file stays refused for writing until one copy is removed.
  */
-export interface ModelLoadWarning {
+export interface TableLoadWarning {
   kind: 'yamlDuplicateKey';
   /** The key written twice, as the file spells it (the first one found). */
   key: string;
@@ -180,14 +201,14 @@ export interface ModelLoadWarning {
   line: number;
 }
 
-/** A model read from a file with a {@link ModelLoadWarning}. */
-export interface ModelWithLoadWarning extends SemanticModel {
-  loadWarning: ModelLoadWarning;
+/** A model read from a file with a {@link TableLoadWarning}. */
+export interface TableWithLoadWarning extends SemanticTable {
+  loadWarning: TableLoadWarning;
 }
 
 /** The load warning carried by a model read from a flawed file, if any. */
-export function modelLoadWarningOf(model: SemanticModel): ModelLoadWarning | undefined {
-  const candidate = (model as Partial<ModelWithLoadWarning>).loadWarning;
+export function tableLoadWarningOf(model: SemanticTable): TableLoadWarning | undefined {
+  const candidate = (model as Partial<TableWithLoadWarning>).loadWarning;
   return candidate && typeof candidate === 'object' ? candidate : undefined;
 }
 
@@ -196,7 +217,7 @@ export function modelLoadWarningOf(model: SemanticModel): ModelLoadWarning | und
  * the YAML parser's error code (never its message), so it is safe to branch on
  * in the UI and to count in usage telemetry.
  */
-export type ModelLoadErrorKind =
+export type TableLoadErrorKind =
   | 'read'
   | 'yamlIndent'
   | 'yamlScalar'
@@ -208,8 +229,8 @@ export type ModelLoadErrorKind =
  * A model file that exists but is broken, as the canvas shows it. Carries no
  * parser message (which may quote the file) — only the kind and the position.
  */
-export interface ModelLoadError {
-  kind: ModelLoadErrorKind;
+export interface TableLoadError {
+  kind: TableLoadErrorKind;
   /** 1-based line of the error, when the parser reported one. */
   line?: number;
   /**
@@ -223,13 +244,13 @@ export interface ModelLoadError {
 /**
  * A model definition used when creating new models via addModel message.
  */
-export interface DesignModel {
+export interface DesignTable {
   name: string;
   schema?: string;
   description: string;
   columns: ColumnDef[];
   /** Model's role in the data warehouse architecture. Auto-suggested from template. */
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +291,7 @@ export interface Relationship {
  * The from-model is the "many" (foreign-key) side — `canonicalRelationship`
  * turns a `one-to-many` round before it is stored (issue #133).
  */
-export type ModelRelationship = Omit<Relationship, 'fromModel'>;
+export type TableRelationship = Omit<Relationship, 'fromModel'>;
 
 // ---------------------------------------------------------------------------
 // View configuration
@@ -327,7 +348,7 @@ export interface ViewConfig {
 
 /** The models and relationships for a design stage. */
 export interface StageData {
-  models: SemanticModel[];
+  models: SemanticTable[];
   relationships: Relationship[];
 }
 
@@ -336,7 +357,7 @@ export interface StageData {
 // ---------------------------------------------------------------------------
 
 /** A full semantic domain as stored in JSON. */
-export interface SemanticDomain {
+export interface SemanticSubjectArea {
   schemaVersion: number;
   domain: string;
   layer: Layer;
@@ -349,7 +370,7 @@ export interface SemanticDomain {
    * Undefined or null means no filter (show all models).
    */
   modelFolder?: string;
-  models: SemanticModel[];
+  models: SemanticTable[];
   relationships: Relationship[];
 }
 
@@ -360,7 +381,7 @@ export interface SemanticDomain {
  * logical stage data. Physical stage is derived at runtime from
  * the logical models projected through the dbt manifest.
  */
-export interface UnifiedDomain {
+export interface UnifiedSubjectArea {
   schemaVersion: number;
   domain: string;
   layer: Layer;
@@ -395,17 +416,17 @@ export interface StageDataV5 {
  * Unified domain file format (v5).
  *
  * Same as v4 but `logical.models` contains model name strings instead of
- * inline SemanticModel objects. Models are stored centrally in
+ * inline SemanticTable objects. Models are stored centrally in
  * .erd-studio/logical-models/{name}.yml.
  */
-export interface UnifiedDomainV5 {
+export interface UnifiedSubjectAreaV5 {
   schemaVersion: number;
   domain: string;
   layer: Layer;
   description: string;
   modelFolder?: string;
   logical: StageDataV5;
-  /** See UnifiedDomain.stubColumns. */
+  /** See UnifiedSubjectArea.stubColumns. */
   stubColumns?: string[];
   viewConfig: ViewConfig;
 }
@@ -414,14 +435,14 @@ export interface UnifiedDomainV5 {
  * Raw on-disk domain format — may be v4 (inline models) or v5 (model references).
  * Used during parsing before version detection.
  */
-export interface RawDomainFile {
+export interface RawSubjectAreaFile {
   schemaVersion: number;
   domain: string;
   layer: Layer;
   description?: string;
   modelFolder?: string;
   logical: {
-    models: SemanticModel[] | string[];
+    models: SemanticTable[] | string[];
     relationships: Relationship[];
   };
   viewConfig?: ViewConfig;
@@ -430,33 +451,79 @@ export interface RawDomainFile {
 /**
  * On-disk format of a raw (JSON.parse'd) domain document.
  *
+ * - `v6`     — `logical.tables` is an array of table name strings, under the v6
+ *              naming (`subjectArea`, `fromTable` / `toTable`, the `tables/` library).
+ *              Read and normalised to the in-memory shape; not written yet (#162).
  * - `v5`     — `logical.models` is an array of model name strings (central model store).
- * - `v4`     — `logical.models` is an array of inline SemanticModel objects (deprecated,
+ * - `v4`     — `logical.models` is an array of inline SemanticTable objects (deprecated,
  *              migratable via "ERD Studio: Migrate Subject Areas to the Central Table Library").
  * - `hybrid` — the document contradicts itself: `schemaVersion >= 5` with inline model
- *              objects, a mix of strings and objects, or entries that are neither.
+ *              objects, a mix of strings and objects, entries that are neither, or
+ *              v5 and v6 names in one file.
  *              Must be repaired (migration) before it can be loaded or edited.
  * - `legacy` — pre-v4 layout: `schemaVersion < 4` and/or a top-level `models` array
  *              instead of a `logical` section. Not supported by the editor.
  */
-export type DomainFormat = 'v4' | 'v5' | 'hybrid' | 'legacy';
+export type SubjectAreaFormat = 'v4' | 'v5' | 'v6' | 'hybrid' | 'legacy';
+
+/** The formats whose `logical` list holds table names resolved through the library (v5 and v6). */
+export function usesTableLibrary(format: SubjectAreaFormat): format is 'v5' | 'v6' {
+  return format === 'v5' || format === 'v6';
+}
+
+function plainObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+/**
+ * Whether a raw domain document uses any of the v6 names (`logical.tables`,
+ * `subjectArea`) or the v5 ones (`logical.models`, `domain`). Only the keys
+ * a file is recognised by: relationship and annotation keys are read either
+ * way by the normaliser.
+ */
+function namingKeys(obj: Record<string, unknown>): { v5: boolean; v6: boolean } {
+  const logical = plainObject(obj.logical);
+  return {
+    v5: (logical !== undefined && 'models' in logical) || 'domain' in obj,
+    v6: (logical !== undefined && 'tables' in logical) || 'subjectArea' in obj,
+  };
+}
+
+/**
+ * Whether a raw domain document mixes the v5 and v6 namings: it uses a v6
+ * name (`logical.tables`, `subjectArea`) at all, or the v5 names under
+ * `schemaVersion` 6 or more. A `hybrid` file that does is a hand-edit to undo
+ * (its error says which key or number to change), not an inline-table file
+ * the v5 migration repairs.
+ */
+export function mixesTableNaming(raw: unknown): boolean {
+  const obj = plainObject(raw);
+  if (obj === undefined) return false;
+  const naming = namingKeys(obj);
+  const version = typeof obj.schemaVersion === 'number' ? obj.schemaVersion : undefined;
+  return naming.v6 || (naming.v5 && version !== undefined && version >= TABLE_NAMING_SCHEMA_VERSION);
+}
 
 /**
  * Single source of truth for domain file format detection.
  *
- * Every reader/writer of domain JSON (DomainService, SemanticEditorProvider,
- * ModelLibraryTreeProvider, MigrationService) must use this so that a file is
+ * Every reader/writer of domain JSON (SubjectAreaService, SemanticEditorProvider,
+ * TableLibraryTreeProvider, MigrationService) must use this so that a file is
  * never read as one format and written as another.
  *
  * Rules (in order):
  * 1. `schemaVersion < 4` or a top-level `models` array → `legacy`
- * 2. Any `logical.models` entry that is neither a string nor a plain object,
+ * 2. v5 and v6 names in one file, or v6 names under `schemaVersion < 6` (an
+ *    older reader would ignore them and draw an empty diagram), or v5 names
+ *    under `schemaVersion >= 6` → `hybrid`
+ * 3. `schemaVersion >= 6` → `v6` when every `logical.tables` entry is a string, else `hybrid`
+ * 4. Any `logical.models` entry that is neither a string nor a plain object,
  *    or a mix of strings and objects → `hybrid`
- * 3. All entries are objects: `hybrid` if `schemaVersion >= 5`, else `v4`
- * 4. All entries are strings → `v5` (content wins over a stale schemaVersion)
- * 5. Empty `logical.models`: `v5` if `schemaVersion >= 5`, else `v4`
+ * 5. All entries are objects: `hybrid` if `schemaVersion >= 5`, else `v4`
+ * 6. All entries are strings → `v5` (content wins over a stale schemaVersion)
+ * 7. Empty `logical.models`: `v5` if `schemaVersion >= 5`, else `v4`
  */
-export function detectDomainFormat(raw: unknown): DomainFormat {
+export function detectSubjectAreaFormat(raw: unknown): SubjectAreaFormat {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return 'legacy';
   }
@@ -466,11 +533,20 @@ export function detectDomainFormat(raw: unknown): DomainFormat {
   if (version !== undefined && version < LEGACY_SCHEMA_VERSION) return 'legacy';
   if (Array.isArray(obj.models)) return 'legacy';
 
-  const logical = obj.logical;
-  const models: unknown[] =
-    logical && typeof logical === 'object' && !Array.isArray(logical) && Array.isArray((logical as Record<string, unknown>).models)
-      ? ((logical as Record<string, unknown>).models as unknown[])
-      : [];
+  const naming = namingKeys(obj);
+  const tableNaming = version !== undefined && version >= TABLE_NAMING_SCHEMA_VERSION;
+  if ((naming.v5 && naming.v6) || (naming.v6 && !tableNaming) || (naming.v5 && tableNaming)) {
+    return 'hybrid';
+  }
+
+  const logical = plainObject(obj.logical);
+  if (tableNaming) {
+    const tables = logical?.tables;
+    if (tables === undefined) return 'v6';
+    return Array.isArray(tables) && tables.every((entry) => typeof entry === 'string') ? 'v6' : 'hybrid';
+  }
+
+  const models: unknown[] = Array.isArray(logical?.models) ? logical.models as unknown[] : [];
 
   let strings = 0;
   let objects = 0;
@@ -486,32 +562,60 @@ export function detectDomainFormat(raw: unknown): DomainFormat {
 
   if (strings > 0 && objects > 0) return 'hybrid';
   if (objects > 0) {
-    return version !== undefined && version >= CURRENT_SCHEMA_VERSION ? 'hybrid' : 'v4';
+    return version !== undefined && version >= LIBRARY_SCHEMA_VERSION ? 'hybrid' : 'v4';
   }
   if (strings > 0) return 'v5';
-  return version !== undefined && version >= CURRENT_SCHEMA_VERSION ? 'v5' : 'v4';
+  return version !== undefined && version >= LIBRARY_SCHEMA_VERSION ? 'v5' : 'v4';
 }
 
 /**
  * Human-readable explanation for a domain format the editor cannot load,
- * including the remediation. Returns null for `v4` and `v5`.
+ * including the remediation. Returns null for `v4`, `v5` and `v6`. Pass the
+ * raw document to name a v5 / v6 naming mix rather than the inline-table one.
  */
-export function describeUnsupportedDomainFormat(format: DomainFormat, filePath: string): string | null {
+export function describeUnsupportedSubjectAreaFormat(format: SubjectAreaFormat, filePath: string, raw?: unknown): string | null {
   switch (format) {
     case 'legacy':
       return (
         `Subject area file ${filePath} uses a pre-v${LEGACY_SCHEMA_VERSION} layout ` +
         `(schemaVersion < ${LEGACY_SCHEMA_VERSION} or a top-level "models" array) that is no longer supported. ` +
         'Run "ERD Studio: Migrate Subject Areas to the Central Table Library" to convert it, or move "models"/"relationships" ' +
-        `under a "logical" section and set "schemaVersion" to ${CURRENT_SCHEMA_VERSION}.`
+        `under a "logical" section and set "schemaVersion" to ${WRITTEN_SCHEMA_VERSION}.`
       );
-    case 'hybrid':
+    case 'hybrid': {
+      const obj = plainObject(raw);
+      if (obj) {
+        const naming = namingKeys(obj);
+        const version = obj.schemaVersion;
+        if (naming.v5 && naming.v6) {
+          return (
+            `Subject area file ${filePath} mixes the v5 names ("logical.models", "domain") with the v6 names ` +
+            '("logical.tables", "subjectArea"). Keep one set: the v6 names with "schemaVersion": 6, or the v5 names with "schemaVersion": 5.'
+          );
+        }
+        if (naming.v6) {
+          return (
+            `Subject area file ${filePath} uses the v6 names ("logical.tables", "subjectArea") but declares schemaVersion ${String(version)}. ` +
+            `Set "schemaVersion" to ${TABLE_NAMING_SCHEMA_VERSION}, or rename the keys back to "logical.models" and "domain".`
+          );
+        }
+        if (naming.v5 && typeof version === 'number' && version >= TABLE_NAMING_SCHEMA_VERSION) {
+          return (
+            `Subject area file ${filePath} declares schemaVersion ${version} but uses the v5 names ("logical.models", "domain"). ` +
+            `Set "schemaVersion" to ${LIBRARY_SCHEMA_VERSION}, or rename the keys to "logical.tables" and "subjectArea".`
+          );
+        }
+        if (typeof version === 'number' && version >= TABLE_NAMING_SCHEMA_VERSION) {
+          return `Subject area file ${filePath} has a "logical.tables" entry that is not a table name string.`;
+        }
+      }
       return (
         `Subject area file ${filePath} mixes inline table objects with table name references ` +
-        `(or declares schemaVersion ${CURRENT_SCHEMA_VERSION} with inline tables). ` +
+        `(or declares schemaVersion ${LIBRARY_SCHEMA_VERSION} with inline tables). ` +
         'Run "ERD Studio: Migrate Subject Areas to the Central Table Library" to repair it, or edit the file so every entry in ' +
         '"logical.models" is a table name string.'
       );
+    }
     default:
       return null;
   }
@@ -520,17 +624,20 @@ export function describeUnsupportedDomainFormat(format: DomainFormat, filePath: 
 /**
  * Extract model names from a raw domain document regardless of its format.
  * String entries are used as-is; inline objects contribute their `name`;
- * anything else is skipped. Legacy top-level `models` arrays are honoured.
+ * anything else is skipped. v6's `logical.tables` and legacy top-level
+ * `models` arrays are honoured.
  */
-export function getRawDomainModelNames(raw: unknown): string[] {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
-  const obj = raw as Record<string, unknown>;
-  const logicalModels = (obj.logical as Record<string, unknown> | undefined)?.models;
-  const source: unknown[] = Array.isArray(logicalModels)
-    ? logicalModels
-    : Array.isArray(obj.models)
-      ? obj.models
-      : [];
+export function getRawSubjectAreaTableNames(raw: unknown): string[] {
+  const obj = plainObject(raw);
+  if (!obj) return [];
+  const logical = plainObject(obj.logical);
+  const source: unknown[] = Array.isArray(logical?.tables)
+    ? logical.tables as unknown[]
+    : Array.isArray(logical?.models)
+      ? logical.models as unknown[]
+      : Array.isArray(obj.models)
+        ? obj.models
+        : [];
 
   const names: string[] = [];
   for (const entry of source) {
@@ -546,19 +653,61 @@ export function getRawDomainModelNames(raw: unknown): string[] {
 /**
  * Type guard: returns true if the domain file uses v5 format (model name references).
  *
- * @deprecated Use {@link detectDomainFormat} — it distinguishes `hybrid` and
+ * @deprecated Use {@link detectSubjectAreaFormat} — it distinguishes `hybrid` and
  * `legacy` documents that this boolean cannot express.
  */
-export function isDomainV5(raw: RawDomainFile): boolean {
-  return detectDomainFormat(raw) === 'v5';
+export function isSubjectAreaV5(raw: RawSubjectAreaFile): boolean {
+  return detectSubjectAreaFormat(raw) === 'v5';
+}
+
+// ---------------------------------------------------------------------------
+// Project naming (v5 vs v6)
+// ---------------------------------------------------------------------------
+
+/**
+ * The file naming a project uses (#162): `v5` (`logical-models/`,
+ * `logical.models`, …), `v6` (`tables/`, `logical.tables`, …) or `mixed`
+ * when the project holds both. The single answer to "which names does this
+ * project write?" once v6 can be written; until then it is reported only.
+ */
+export type ProjectNaming = 'v5' | 'v6' | 'mixed';
+
+/** What {@link detectProjectNaming} decides from: what a host found on disk. */
+export interface ProjectNamingEvidence {
+  /** `{semanticDir}/logical-models/` exists. */
+  hasLogicalModelsDir: boolean;
+  /**
+   * `{semanticDir}/tables/` exists and is the table library, not a layer
+   * folder (a project made before v6 may have a layer called `tables`; the
+   * host decides, see the extension's `tablesDirIsLayer`).
+   */
+  hasTablesLibrary: boolean;
+  /** The format of every subject area file in the project. */
+  subjectAreaFormats: Iterable<SubjectAreaFormat>;
+}
+
+/**
+ * The project's naming, from what is on disk. A project with nothing in
+ * either naming (a new one) is `v5`. Files that cannot load (`hybrid`,
+ * `legacy`) say nothing either way.
+ */
+export function detectProjectNaming(evidence: ProjectNamingEvidence): ProjectNaming {
+  let v5 = evidence.hasLogicalModelsDir;
+  let v6 = evidence.hasTablesLibrary;
+  for (const format of evidence.subjectAreaFormats) {
+    if (format === 'v4' || format === 'v5') v5 = true;
+    else if (format === 'v6') v6 = true;
+  }
+  if (v5 && v6) return 'mixed';
+  return v6 ? 'v6' : 'v5';
 }
 
 // ---------------------------------------------------------------------------
 // Summary (lightweight, for tree view listing)
 // ---------------------------------------------------------------------------
 
-/** Lightweight summary returned by listDomains — avoids parsing full JSON. */
-export interface DomainSummary {
+/** Lightweight summary returned by listSubjectAreas — avoids parsing full JSON. */
+export interface SubjectAreaSummary {
   /** Domain slug (filename without extension). */
   domain: string;
   /** Layer derived from parent directory name. */
@@ -583,7 +732,7 @@ export interface DomainSummary {
  * - {left} = left entity name (bridge templates only)
  * - {right} = right entity name (bridge templates only)
  */
-export interface ModelTemplate {
+export interface TableTemplate {
   /** Unique template identifier (e.g., "dimension", "fact", "bridge"). */
   id: string;
   /** Display label in the UI (e.g., "Dimension", "Fact Table"). */

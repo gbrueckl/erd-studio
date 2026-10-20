@@ -2,7 +2,7 @@
  * A teammate on ERD Studio 1.6.7 and a composite foreign key (#133 L2): the
  * design's §5 proofs, run. 1.6.7's writer is simulated from its source
  * (`git show v1.6.7:…`): `readRelationships` keeps an entry only with string
- * fromColumn / toModel / toColumn and reads those four fields; `modelToPlain`
+ * fromColumn / toModel / toColumn and reads those four fields; `tableToPlain`
  * writes back exactly those four; `syncMap` replaces the whole
  * `relationships:` node whenever it differs from that (an extra key on any
  * entry is a difference). Domain-file handlers rewrite the entry they touch
@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import { isSeq, parseDocument } from 'yaml';
 
-import { linkKey, mergeLibraryRelationships, parseLogicalModelText } from '@erd-studio/core';
+import { linkKey, mergeLibraryRelationships, parseTableText } from '@erd-studio/core';
 import type { Relationship } from '@erd-studio/core';
 
 type Entry167 = { fromColumn: string; toModel: string; toColumn: string; cardinality: string };
@@ -78,7 +78,7 @@ const PAIRS = [
 
 /** What this version draws from a pit_customer.yml text. */
 function drawn(text: string): Relationship[] {
-  return mergeLibraryRelationships([parseLogicalModelText(text, 'pit_customer')!, SAT], []);
+  return mergeLibraryRelationships([parseTableText(text, 'pit_customer')!, SAT], []);
 }
 
 describe('a composite foreign key and a teammate on 1.6.7 (#133 L2, §5)', () => {
@@ -111,7 +111,7 @@ describe('a composite foreign key and a teammate on 1.6.7 (#133 L2, §5)', () =>
     // 1.6.7 handleEditRelationship: the edited entry becomes a fresh object.
     const after = own.map((r, i) => (i === 0 ? { fromModel: r.fromModel, fromColumn: r.fromColumn, toModel: r.toModel, toColumn: r.toColumn, cardinality: 'one-to-one' } : r));
     const warnings: string[] = [];
-    const lines = mergeLibraryRelationships([parseLogicalModelText(PIT_YML.slice(0, PIT_YML.indexOf('relationships:')), 'pit_customer')!, SAT],
+    const lines = mergeLibraryRelationships([parseTableText(PIT_YML.slice(0, PIT_YML.indexOf('relationships:')), 'pit_customer')!, SAT],
       after as unknown as Relationship[], 'd.json', (m) => warnings.push(m));
     expect(lines.map(linkKey).sort()).toEqual(PAIRS);
     expect(lines.every((r) => r.compositeKey === undefined)).toBe(true);

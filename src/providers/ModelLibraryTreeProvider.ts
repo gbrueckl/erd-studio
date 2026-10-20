@@ -1,5 +1,5 @@
 /**
- * ModelLibraryTreeProvider — VS Code TreeDataProvider for the Model Library sidebar.
+ * TableLibraryTreeProvider — VS Code TreeDataProvider for the Model Library sidebar.
  *
  * Shows the model YAML files in .erd-studio/logical-models/. A library with
  * no sub-folders is a flat alphabetical list, exactly as before layer folders
@@ -18,16 +18,16 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type { LogicalModelService, ModelFileEntry, ModelFileError } from '../services/logicalModelService';
-import type { DomainService } from '../services/domainService';
+import type { TableLibraryService, TableFileEntry, TableFileError } from '../services/logicalModelService';
+import type { SubjectAreaService } from '../services/domainService';
 import type { LayerConfig } from '../types/layer';
-import { getRawDomainModelNames } from '../types/semantic';
+import { getRawSubjectAreaTableNames } from '../types/semantic';
 
 // ---------------------------------------------------------------------------
 // Tree element type
 // ---------------------------------------------------------------------------
 
-export interface ModelLibraryModelNode {
+export interface TableLibraryTableNode {
   readonly type: 'model';
   readonly name: string;
   readonly filePath: string;
@@ -36,19 +36,23 @@ export interface ModelLibraryModelNode {
   readonly folder?: string;
   /** Path of the file that wins the lookup when this one is a duplicate. */
   readonly shadowedBy?: string;
+  /** In v6's `tables/` library (#181): read, never changed here, so it offers no actions. */
+  readonly library?: 'tables';
   /** What is wrong in the file, so the problem stays visible after its one warning (#164). */
-  readonly fileError?: Pick<ModelFileError, 'kind' | 'line' | 'mergeConflict' | 'readable' | 'key'>;
+  readonly fileError?: Pick<TableFileError, 'kind' | 'line' | 'mergeConflict' | 'readable' | 'key'>;
 }
 
-export interface ModelLibraryFolderNode {
+export interface TableLibraryFolderNode {
   readonly type: 'folder';
-  /** Folder name under logical-models/ (normally a layer id). */
+  /** Folder name under logical-models/ (normally a layer id); `''` for the top of v6's `tables/`. */
   readonly folder: string;
   readonly filePath: string;
-  readonly children: ModelLibraryModelNode[];
+  readonly children: TableLibraryTableNode[];
+  /** Set for a folder of v6's `tables/` library (#181), read but not written by this version. */
+  readonly library?: 'tables';
 }
 
-export type ModelLibraryNode = ModelLibraryModelNode | ModelLibraryFolderNode;
+export type TableLibraryNode = TableLibraryTableNode | TableLibraryFolderNode;
 
 /** Layer ids that have their own contributed colour (`erdStudio.layer.{id}`). */
 const LAYER_COLOR_IDS = new Set(['bronze', 'silver', 'gold', 'platinum']);
@@ -57,13 +61,13 @@ const LAYER_COLOR_IDS = new Set(['bronze', 'silver', 'gold', 'platinum']);
 // Provider
 // ---------------------------------------------------------------------------
 
-export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLibraryNode> {
-  private readonly _onDidChangeTreeData = new vscode.EventEmitter<ModelLibraryNode | undefined>();
+export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLibraryNode> {
+  private readonly _onDidChangeTreeData = new vscode.EventEmitter<TableLibraryNode | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   constructor(
-    private readonly logicalModelService: LogicalModelService,
-    private readonly domainService: DomainService,
+    private readonly tableLibraryService: TableLibraryService,
+    private readonly subjectAreaService: SubjectAreaService,
     private readonly projectPath: string,
     private readonly semanticDir: string,
     /** Configured layers, for ordering and labelling folders. Optional. */
@@ -74,9 +78,22 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  getTreeItem(element: ModelLibraryNode): vscode.TreeItem {
+  getTreeItem(element: TableLibraryNode): vscode.TreeItem {
     if (element.type === 'folder') {
       return this.folderItem(element);
+    }
+
+    // A `tables/` copy of a name `logical-models/` also has (#181): reported, with no fix to offer.
+    if (element.shadowedBy && element.library) {
+      const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+      item.contextValue = 'logicalModelReadOnly';
+      item.iconPath = new vscode.ThemeIcon('error');
+      item.description = '(also in logical-models — ignored)';
+      item.tooltip = `"${element.name}" has a file in both the old and the new table folder. Subject areas use:\n${element.shadowedBy}\n\n` +
+        'This copy in tables/ is ignored. Keep one of the two files.';
+      item.resourceUri = vscode.Uri.file(element.filePath);
+      item.command = { command: 'vscode.open', title: 'Open Table', arguments: [item.resourceUri] };
+      return item;
     }
 
     if (element.shadowedBy) {
@@ -97,7 +114,8 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
     const isOrphan = element.referencingDomains.length === 0;
     const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
 
-    item.contextValue = 'logicalModel';
+    // Delete acts on the file, and a `tables/` file is not changed by this version (#181).
+    item.contextValue = element.library ? 'logicalModelReadOnly' : 'logicalModel';
     item.iconPath = new vscode.ThemeIcon(isOrphan ? 'warning' : 'symbol-class');
 
     if (element.fileError) {
@@ -125,23 +143,24 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
     return item;
   }
 
-  getChildren(element?: ModelLibraryNode): ModelLibraryNode[] | undefined {
+  getChildren(element?: TableLibraryNode): TableLibraryNode[] | undefined {
     if (element) {
       return element.type === 'folder' ? element.children : undefined;
     }
 
-    if (!this.logicalModelService.dirExists()) return [];
+    if (!this.tableLibraryService.dirExists()) return [];
 
     const usageMap = this.buildUsageMap();
-    const toNode = (entry: ModelFileEntry): ModelLibraryModelNode => {
+    const toNode = (entry: TableFileEntry): TableLibraryTableNode => {
       // Through the service's mtime cache, so an unchanged library is not re-parsed.
-      const error = entry.shadowedBy ? null : this.logicalModelService.getModelFileError(entry.name);
+      const error = entry.shadowedBy ? null : this.tableLibraryService.getTableFileError(entry.name);
       return {
         type: 'model',
         name: entry.name,
         filePath: entry.filePath,
         referencingDomains: entry.shadowedBy ? [] : usageMap.get(entry.name) ?? [],
         folder: entry.folder,
+        ...(entry.library ? { library: entry.library } : {}),
         ...(entry.shadowedBy ? { shadowedBy: entry.shadowedBy } : {}),
         ...(error ? {
           fileError: {
@@ -154,33 +173,42 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
         } : {}),
       };
     };
-    const byName = (a: ModelLibraryModelNode, b: ModelLibraryModelNode): number => a.name.localeCompare(b.name);
+    const byName = (a: TableLibraryTableNode, b: TableLibraryTableNode): number => a.name.localeCompare(b.name);
 
-    const entries = this.logicalModelService.listModelFiles();
-    const topLevel = entries.filter(e => e.folder === '').map(toNode).sort(byName);
+    const entries = this.tableLibraryService.listTableFiles();
+    const topLevel = entries.filter(e => e.folder === '' && !e.library).map(toNode).sort(byName);
 
-    const grouped = new Map<string, ModelLibraryModelNode[]>();
+    // Folders of logical-models/, then of v6's tables/ (#181) — its top level
+    // included — so the two libraries never merge into one folder.
+    const grouped = new Map<string, TableLibraryTableNode[]>();
     for (const entry of entries) {
-      if (entry.folder === '') continue;
-      const list = grouped.get(entry.folder) ?? [];
+      if (entry.folder === '' && !entry.library) continue;
+      const key = `${entry.library ?? ''}\0${entry.folder}`;
+      const list = grouped.get(key) ?? [];
       list.push(toNode(entry));
-      grouped.set(entry.folder, list);
+      grouped.set(key, list);
     }
     // No folders in use: the flat list users had before layer folders.
     if (grouped.size === 0) return topLevel;
 
     const layerOrder = new Map(this.getLayers().map((l, i) => [l.id, i]));
-    const folders = [...grouped.keys()].sort((a, b) => {
-      const ia = layerOrder.get(a) ?? Number.MAX_SAFE_INTEGER;
-      const ib = layerOrder.get(b) ?? Number.MAX_SAFE_INTEGER;
-      return ia !== ib ? ia - ib : a.localeCompare(b);
+    const rank = (folder: string): number => (folder === '' ? -1 : layerOrder.get(folder) ?? Number.MAX_SAFE_INTEGER);
+    const keys = [...grouped.keys()].map((key) => {
+      const [library, folder] = key.split('\0');
+      return { key, library: library === 'tables' ? 'tables' as const : undefined, folder };
+    }).sort((a, b) => {
+      if (!!a.library !== !!b.library) return a.library ? 1 : -1;
+      const ia = rank(a.folder);
+      const ib = rank(b.folder);
+      return ia !== ib ? ia - ib : a.folder.localeCompare(b.folder);
     });
-    const modelsDir = this.logicalModelService.getModelsDir();
-    const folderNodes: ModelLibraryFolderNode[] = folders.map(folder => ({
+    const modelsDir = this.tableLibraryService.getTablesDir();
+    const folderNodes: TableLibraryFolderNode[] = keys.map(({ key, library, folder }) => ({
       type: 'folder',
       folder,
-      filePath: path.join(modelsDir, folder),
-      children: grouped.get(folder)!.sort(byName),
+      filePath: library ? path.join(path.dirname(modelsDir), library, folder) : path.join(modelsDir, folder),
+      children: grouped.get(key)!.sort(byName),
+      ...(library ? { library } : {}),
     }));
     return [...folderNodes, ...topLevel];
   }
@@ -192,8 +220,8 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
   /** A model whose file needs fixing: marked, explained, and opened at the line. */
   private fileErrorItem(
     item: vscode.TreeItem,
-    element: ModelLibraryModelNode,
-    error: NonNullable<ModelLibraryModelNode['fileError']>,
+    element: TableLibraryTableNode,
+    error: NonNullable<TableLibraryTableNode['fileError']>,
   ): vscode.TreeItem {
     const at = error.line !== undefined ? ` — line ${error.line}` : '';
     if (error.readable) {
@@ -216,10 +244,11 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
     return item;
   }
 
-  private folderItem(element: ModelLibraryFolderNode): vscode.TreeItem {
+  private folderItem(element: TableLibraryFolderNode): vscode.TreeItem {
     const layer = this.getLayers().find(l => l.id === element.folder);
-    const item = new vscode.TreeItem(layer?.label ?? element.folder, vscode.TreeItemCollapsibleState.Expanded);
-    item.id = `erdStudio.modelLibrary.folder:${element.folder}`;
+    const label = element.library && element.folder === '' ? `${element.library}/` : layer?.label ?? element.folder;
+    const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Expanded);
+    item.id = `erdStudio.modelLibrary.folder:${element.library ? `${element.library}/` : ''}${element.folder}`;
     item.contextValue = 'logicalModelFolder';
     const colorId = LAYER_COLOR_IDS.has(element.folder) ? element.folder : layer ? 'custom' : undefined;
     item.iconPath = colorId
@@ -227,6 +256,12 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
       : new vscode.ThemeIcon('folder');
     const count = element.children.length;
     item.description = `${count} ${count === 1 ? 'table' : 'tables'}`;
+    if (element.library) {
+      const where = `${element.library}/${element.folder ? `${element.folder}/` : ''}`;
+      if (element.folder) item.description += ` · ${element.library}/`;
+      item.tooltip = `${where} — the new file naming, which this version of ERD Studio reads but cannot edit yet`;
+      return item;
+    }
     item.tooltip = layer
       ? `logical-models/${element.folder}/ — tables created in ${layer.label} subject areas`
       : `logical-models/${element.folder}/`;
@@ -239,14 +274,14 @@ export class ModelLibraryTreeProvider implements vscode.TreeDataProvider<ModelLi
    */
   private buildUsageMap(): Map<string, string[]> {
     const map = new Map<string, string[]>();
-    const summaries = this.domainService.listDomains(this.projectPath, this.semanticDir);
+    const summaries = this.subjectAreaService.listSubjectAreas(this.projectPath, this.semanticDir);
 
     for (const summary of summaries) {
       try {
         const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as unknown;
         // Format-agnostic: honours v4 inline objects, v5 name strings, and
         // (for usage counting only) hybrid/legacy documents awaiting migration.
-        const modelNames = getRawDomainModelNames(raw);
+        const modelNames = getRawSubjectAreaTableNames(raw);
 
         for (const name of modelNames) {
           const existing = map.get(name);

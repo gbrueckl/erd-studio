@@ -19,7 +19,7 @@ vi.mock('../../webview/store/editorStore', () => ({
 
 import { PhysicalSourceNotice } from '../../webview/components/Canvas/PhysicalSourceNotice';
 
-function setDomain(overrides: Record<string, unknown> = {}) {
+function setSubjectArea(overrides: Record<string, unknown> = {}) {
   storeState.domain = {
     stage: 'physical',
     physicalSources: { yml: true, manifest: false, catalog: false },
@@ -29,7 +29,7 @@ function setDomain(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   Object.assign(storeState, { physicalSourceNoticeDismissed: false, dismissPhysicalSourceNotice });
-  setDomain();
+  setSubjectArea();
 });
 
 afterEach(() => {
@@ -66,7 +66,7 @@ describe('PhysicalSourceNotice', () => {
     ['a catalog', { physicalSources: { yml: true, manifest: false, catalog: true } }],
     ['the logical stage', { stage: 'logical', physicalSources: undefined }],
   ])('renders nothing with %s', (_label, overrides) => {
-    setDomain(overrides);
+    setSubjectArea(overrides);
     const { container } = render(<PhysicalSourceNotice />);
     expect(container.innerHTML).toBe('');
   });

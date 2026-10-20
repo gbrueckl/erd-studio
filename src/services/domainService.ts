@@ -1,44 +1,45 @@
 /**
- * DomainService — reads semantic domain JSON files from disk.
+ * SubjectAreaService — reads semantic domain JSON files from disk.
  *
  * Domain files live at {dbt_project}/.erd-studio/{layer}/{domain}.json
- * Each file is a UnifiedDomain containing logical stage data.
+ * Each file is a UnifiedSubjectArea containing logical stage data.
  *
  * Physical domains are not stored on disk — they are derived at runtime
  * by projecting a logical domain's model list through the dbt manifest
- * via buildPhysicalDomain().
+ * via buildPhysicalSubjectArea().
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 
 import {
-  DomainFileError,
-  NON_DOMAIN_DIRS,
-  buildUnifiedDomain,
+  SubjectAreaFileError,
+  NON_SUBJECT_AREA_DIRS,
+  buildUnifiedSubjectArea,
   compositeGroupProblem,
+  detectSubjectAreaFormat,
   groupKey,
   linkKey,
-  parseDomainJson,
+  parseSubjectAreaJson,
   toLogicalStage,
-  validateDomainDocument,
+  validateSubjectAreaDocument,
 } from '@erd-studio/core';
 import type { DbtKeyIndex } from '@erd-studio/core';
-import type { DomainSummary, SemanticDomain, UnifiedDomain } from '../types/semantic';
-import type { DisplayDomain, DisplayModel, DisplayColumn, DisplayRelationship, PhysicalColumnSource } from '../types/display';
+import type { SubjectAreaSummary, SemanticSubjectArea, UnifiedSubjectArea } from '../types/semantic';
+import type { DisplaySubjectArea, DisplayTable, DisplayColumn, DisplayRelationship, PhysicalColumnSource } from '../types/display';
 import type { CompositeForeignKey, ManifestData } from '../types/manifest';
 import type { CatalogData, CatalogColumn } from '../types/catalog';
 import type { YmlData } from '../types/ymlData';
 import type { Cardinality } from '../types/semantic';
 import type { LayerService } from './layerService';
-import type { LogicalModelService } from './logicalModelService';
+import type { TableLibraryService } from './logicalModelService';
 import { normaliseName } from './nameUtils';
 import { catalogNodeFor, resolveColumnType } from './columnTypes';
 
 // The pure domain parsing lives in @erd-studio/core; these are re-exported so
 // existing imports of this module keep working.
-export { DomainFileError, NON_DOMAIN_DIRS } from '@erd-studio/core';
-export type { DomainFileErrorReason } from '@erd-studio/core';
+export { SubjectAreaFileError, NON_SUBJECT_AREA_DIRS } from '@erd-studio/core';
+export type { SubjectAreaFileErrorReason } from '@erd-studio/core';
 
 /**
  * Minimal relationship test shape accepted by derivePhysicalRelationships().
@@ -64,14 +65,14 @@ const DEFAULT_SEMANTIC_DIR = '.erd-studio';
  * exists for the custom editor, which is handed a document whose path the
  * `**​/.erd-studio/*​/*.json` selector has already placed.
  */
-export function isDomainFilePath(fsPath: string): boolean {
+export function isSubjectAreaFilePath(fsPath: string): boolean {
   const file = path.basename(fsPath);
   const dir = path.basename(path.dirname(fsPath));
   return (
     file.endsWith('.json') &&
     !file.startsWith('.') &&
     !dir.startsWith('.') &&
-    !NON_DOMAIN_DIRS.has(dir)
+    !NON_SUBJECT_AREA_DIRS.has(dir)
   );
 }
 
@@ -88,33 +89,40 @@ const SOURCE_AUTHORITY: readonly PhysicalColumnSource[] = ['catalog', 'yml', 'ma
 /**
  * Rewrite the `domain` slug in the raw text of a domain file.
  *
- * Operates on the parsed JSON document rather than DomainService's resolved
- * UnifiedDomain so that v5 model name references, `stubColumns`, and any
+ * Operates on the parsed JSON document rather than SubjectAreaService's resolved
+ * UnifiedSubjectArea so that v5 model name references, `stubColumns`, and any
  * unknown keys survive byte-for-byte (apart from re-indentation). Used by the
  * Rename Domain command.
  */
-export function renameDomainInRaw(rawText: string, newSlug: string): string {
+export function renameSubjectAreaInRaw(rawText: string, newSlug: string): string {
   const parsed = JSON.parse(rawText) as unknown;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Subject area file does not contain a JSON object');
   }
   const doc = parsed as Record<string, unknown>;
+  // A v6 file names its subject area `subjectArea` (#162); writing `domain`
+  // beside it would make a file no version reads. Not written yet.
+  if (detectSubjectAreaFormat(doc) === 'v6') {
+    throw new Error(
+      'This subject area file uses the new file naming (schemaVersion 6), which this version of ERD Studio reads but cannot edit yet.',
+    );
+  }
   doc.domain = newSlug;
   return JSON.stringify(doc, null, 2) + '\n';
 }
 
-export class DomainService {
-  private logicalModelService: LogicalModelService | null = null;
+export class SubjectAreaService {
+  private tableLibraryService: TableLibraryService | null = null;
 
   constructor(private readonly layerService: LayerService) {}
 
   /**
-   * Set the LogicalModelService for resolving v5 model references.
-   * Called after construction since DomainService may be instantiated before
-   * LogicalModelService is available (circular dependency avoidance).
+   * Set the TableLibraryService for resolving v5 model references.
+   * Called after construction since SubjectAreaService may be instantiated before
+   * TableLibraryService is available (circular dependency avoidance).
    */
-  setLogicalModelService(service: LogicalModelService): void {
-    this.logicalModelService = service;
+  setTableLibraryService(service: TableLibraryService): void {
+    this.tableLibraryService = service;
   }
 
   /**
@@ -124,14 +132,14 @@ export class DomainService {
    * Directory structure:
    *   .erd-studio/{layer}/*.json
    */
-  listDomains(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): DomainSummary[] {
+  listSubjectAreas(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): SubjectAreaSummary[] {
     const basePath = path.join(projectPath, semanticDir);
 
     if (!fs.existsSync(basePath)) {
       return [];
     }
 
-    const summaries: DomainSummary[] = [];
+    const summaries: SubjectAreaSummary[] = [];
     const layers = this.layerService.getAllLayers();
 
     for (const layerConfig of layers) {
@@ -176,9 +184,9 @@ export class DomainService {
    * merge conflict) but whose text shows a non-empty `"relationships": [`
    * counts as one, so a broken file cannot switch the project's mode.
    */
-  countDomainFileRelationships(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): number {
+  countSubjectAreaFileRelationships(projectPath: string, semanticDir = DEFAULT_SEMANTIC_DIR): number {
     let count = 0;
-    for (const summary of this.listDomains(projectPath, semanticDir)) {
+    for (const summary of this.listSubjectAreas(projectPath, semanticDir)) {
       let text: string;
       try {
         text = fs.readFileSync(summary.filePath, 'utf-8');
@@ -197,20 +205,20 @@ export class DomainService {
   }
 
   /**
-   * Read and parse a domain JSON file, returning a UnifiedDomain.
+   * Read and parse a domain JSON file, returning a UnifiedSubjectArea.
    *
-   * Every failure before validation is raised as a `DomainFileError` so
+   * Every failure before validation is raised as a `SubjectAreaFileError` so
    * callers can tell a file that is momentarily unreadable (empty or truncated
    * because something is writing it right now) from one that is genuinely
-   * wrong. See `DomainFileError` for why that distinction is load-bearing.
+   * wrong. See `SubjectAreaFileError` for why that distinction is load-bearing.
    *
    * `dbtKeyIndex` is dbt's key evidence (#133 L1): with it, a link stored
    * twice with no key flagged is drawn from the copy dbt's tests orient. The
    * canvas and the diff pass it; callers that only list or count need not.
    */
-  getDomain(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): UnifiedDomain {
+  getSubjectArea(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): UnifiedSubjectArea {
     if (!fs.existsSync(filePath)) {
-      throw new DomainFileError('missing', filePath, `Subject area file not found: ${filePath}`);
+      throw new SubjectAreaFileError('missing', filePath, `Subject area file not found: ${filePath}`);
     }
 
     let raw: string;
@@ -218,23 +226,23 @@ export class DomainService {
       raw = fs.readFileSync(filePath, 'utf-8');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new DomainFileError('unreadable', filePath, `Failed to read subject area file: ${message}`);
+      throw new SubjectAreaFileError('unreadable', filePath, `Failed to read subject area file: ${message}`);
     }
 
-    // Empty / invalid JSON (DomainFileError), then validation and repair
-    // (DomainValidationError, warnings) — shared with every other host.
-    const { obj, format } = validateDomainDocument(parseDomainJson(raw, filePath), filePath);
-    return buildUnifiedDomain(obj, format, {
+    // Empty / invalid JSON (SubjectAreaFileError), then validation and repair
+    // (SubjectAreaValidationError, warnings) — shared with every other host.
+    const { obj, format } = validateSubjectAreaDocument(parseSubjectAreaJson(raw, filePath), filePath);
+    return buildUnifiedSubjectArea(obj, format, {
       filePath,
       domainNameFallback: path.basename(filePath, '.json'),
       parentDirName: path.basename(path.dirname(filePath)),
       layers: this.layerService,
-      getModel: this.logicalModelService
-        ? (name) => this.logicalModelService!.getModel(name)
+      getModel: this.tableLibraryService
+        ? (name) => this.tableLibraryService!.getTable(name)
         : undefined,
-      getModelError: this.logicalModelService
+      getModelError: this.tableLibraryService
         ? (name) => {
-          const error = this.logicalModelService!.getModelFileError(name);
+          const error = this.tableLibraryService!.getTableFileError(name);
           return error
             ? {
               kind: error.kind,
@@ -250,27 +258,27 @@ export class DomainService {
   }
 
   /**
-   * Extract the logical stage from a UnifiedDomain, returning a SemanticDomain.
+   * Extract the logical stage from a UnifiedSubjectArea, returning a SemanticSubjectArea.
    *
-   * Physical stage is not supported here — use buildPhysicalDomain() instead.
+   * Physical stage is not supported here — use buildPhysicalSubjectArea() instead.
    */
-  getDomainStage(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): SemanticDomain {
-    return DomainService.toLogicalStage(this.getDomain(filePath, options));
+  getSubjectAreaStage(filePath: string, options: { dbtKeyIndex?: DbtKeyIndex } = {}): SemanticSubjectArea {
+    return SubjectAreaService.toLogicalStage(this.getSubjectArea(filePath, options));
   }
 
   /**
-   * Project an already-read `UnifiedDomain` onto its logical stage.
+   * Project an already-read `UnifiedSubjectArea` onto its logical stage.
    *
-   * Pure, and separate from `getDomainStage` so a caller holding a
-   * `UnifiedDomain` does not have to read the file a second time — a second
+   * Pure, and separate from `getSubjectAreaStage` so a caller holding a
+   * `UnifiedSubjectArea` does not have to read the file a second time — a second
    * read is a second chance to catch the file mid-replacement.
    */
-  static toLogicalStage(unified: UnifiedDomain): SemanticDomain {
+  static toLogicalStage(unified: UnifiedSubjectArea): SemanticSubjectArea {
     return toLogicalStage(unified);
   }
 
   /**
-   * Build a physical DisplayDomain by projecting a unified domain's logical
+   * Build a physical DisplaySubjectArea by projecting a unified domain's logical
    * stage through what exists in the dbt project.
    *
    * Physical domains are not stored on disk — they are derived at runtime.
@@ -334,12 +342,12 @@ export class DomainService {
    *
    * Uses the global viewConfig for positions so layout is consistent across all stages.
    */
-  buildPhysicalDomain(
-    unifiedDomain: UnifiedDomain,
+  buildPhysicalSubjectArea(
+    unifiedDomain: UnifiedSubjectArea,
     ymlData: YmlData,
     manifest?: ManifestData,
     catalog?: CatalogData,
-  ): DisplayDomain {
+  ): DisplaySubjectArea {
     const logicalStage = unifiedDomain.logical;
     const physicalModelNames = new Set<string>();
 
@@ -358,7 +366,7 @@ export class DomainService {
       ? indexByRelation([...catalog.byUniqueId.values()].filter(n => n.resourceType === 'model'), n => relationKey(n.schema, n.relationName))
       : undefined;
 
-    const models: DisplayModel[] = logicalStage.models.map(model => {
+    const models: DisplayTable[] = logicalStage.models.map(model => {
         const byName = manifest?.models.get(model.name) ?? manifestIndex?.get(normaliseName(model.name));
         const knownByName = !!byName || !!ymlData.models.get(model.name)
           || !!ymlIndex.get(normaliseName(model.name)) || !!ymlData.sourceFiles?.get(normaliseName(model.name));
@@ -564,11 +572,11 @@ export class DomainService {
     const mergedForeignKeys = mergeCompositeForeignKeys(ymlData.compositeForeignKeys, manifest?.compositeForeignKeys);
 
     const relationships = derivePhysicalRelationships(
-      renameTestModels(mergedRelationshipTests, resolvedViaRelation),
+      renameTestTables(mergedRelationshipTests, resolvedViaRelation),
       physicalModelNames,
       renameMapKeys(mergedUniqueColumns, resolvedViaRelation),
       renameMapKeys(mergedCompositeGroups, resolvedViaRelation),
-      renameTestModels(mergedForeignKeys, resolvedViaRelation),
+      renameTestTables(mergedForeignKeys, resolvedViaRelation),
     );
 
     return {
@@ -869,7 +877,7 @@ function physicalAlias(
 }
 
 /** Rewrite relationship test endpoints named in `renames` (normalised dbt name → logical name). */
-function renameTestModels<T extends { fromModel: string; toModel: string }>(tests: T[], renames: Map<string, string>): T[] {
+function renameTestTables<T extends { fromModel: string; toModel: string }>(tests: T[], renames: Map<string, string>): T[] {
   if (renames.size === 0) { return tests; }
   return tests.map(t => ({
     ...t,

@@ -5,7 +5,7 @@
 
 import type { Relationship } from './types/semantic.js';
 import { keyEvidenceOf } from './keyEvidence.js';
-import type { DbtKeyIndex, KeyedModel } from './keyEvidence.js';
+import type { DbtKeyIndex, KeyedTable } from './keyEvidence.js';
 
 type Ends = Pick<Relationship, 'fromModel' | 'fromColumn' | 'toModel' | 'toColumn'>;
 
@@ -27,7 +27,7 @@ export function sameLink(a: Ends, b: Ends): boolean {
 }
 
 /** The parts of a model `respellRelationship` reads. */
-interface SpelledModel {
+interface SpelledTable {
   name: string;
   columns?: ReadonlyArray<{ name?: unknown }>;
 }
@@ -39,7 +39,7 @@ interface SpelledModel {
  * match first, then without case. An end that matches nothing keeps its
  * written spelling. Returns `rel` itself when nothing changes.
  */
-export function respellRelationship<T extends Ends>(rel: T, models: readonly SpelledModel[]): T {
+export function respellRelationship<T extends Ends>(rel: T, models: readonly SpelledTable[]): T {
   const lower = (s: string): string => s.toLowerCase();
   const spell = (modelName: string, column: string): [string, string] => {
     const model = models.find((m) => m.name === modelName) ?? models.find((m) => lower(m.name) === lower(modelName));
@@ -110,7 +110,7 @@ export function reverseRelationship<T extends Relationship>(rel: T): T {
  */
 export function contradictsKeys(
   rel: Relationship,
-  modelOf: (name: string) => KeyedModel | null | undefined,
+  modelOf: (name: string) => KeyedTable | null | undefined,
   dbt?: DbtKeyIndex,
 ): boolean {
   return contradictsKeysOf([rel], modelOf, dbt);
@@ -124,7 +124,7 @@ export function contradictsKeys(
  */
 export function contradictsKeysOf(
   members: readonly Relationship[],
-  modelOf: (name: string) => KeyedModel | null | undefined,
+  modelOf: (name: string) => KeyedTable | null | undefined,
   dbt?: DbtKeyIndex,
 ): boolean {
   if (members.length === 0 || members.some((m) => m.cardinality !== 'many-to-one')) return false;
@@ -144,7 +144,7 @@ export function contradictsKeysOf(
  */
 export function keysContradictedRelationships<T extends Relationship>(
   relationships: readonly T[],
-  modelOf: (name: string) => KeyedModel | null | undefined,
+  modelOf: (name: string) => KeyedTable | null | undefined,
   dbt?: DbtKeyIndex,
 ): Set<T> {
   const lower = (s: string): string => s.toLowerCase();
@@ -180,7 +180,7 @@ export function backwardsRelationshipNote(
 }
 
 /** A model as key evidence reads it, named so dbt evidence can be looked up for it. */
-const named = (model: KeyedModel | null | undefined, name: string): KeyedModel => (model ? { ...model, name: model.name ?? name } : { name });
+const named = (model: KeyedTable | null | undefined, name: string): KeyedTable => (model ? { ...model, name: model.name ?? name } : { name });
 
 /**
  * Where a relationship belongs, by its cardinality and its keys: the
@@ -189,7 +189,7 @@ const named = (model: KeyedModel | null | undefined, name: string): KeyedModel =
  */
 export function keyedRelationship<T extends Relationship>(
   rel: T,
-  modelOf: (name: string) => KeyedModel | null | undefined,
+  modelOf: (name: string) => KeyedTable | null | undefined,
   dbt?: DbtKeyIndex,
 ): T {
   const canonical = canonicalRelationship(rel);

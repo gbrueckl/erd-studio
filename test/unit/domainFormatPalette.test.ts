@@ -3,12 +3,12 @@ import * as path from 'path';
 
 import { describe, it, expect } from 'vitest';
 
-import { describeUnsupportedDomainFormat } from '../../src/types/semantic';
+import { describeUnsupportedSubjectAreaFormat } from '../../src/types/semantic';
 
-// The rest of describeUnsupportedDomainFormat's tests live with the function in
+// The rest of describeUnsupportedSubjectAreaFormat's tests live with the function in
 // packages/core/test/unit/domainFormat.test.ts. This one reads the extension's
 // package.json (the command palette entry), so it stays with the extension.
-describe('describeUnsupportedDomainFormat', () => {
+describe('describeUnsupportedSubjectAreaFormat', () => {
   it('names the file and the migration command for legacy and hybrid', () => {
     // The remediation must quote the command exactly as the palette shows it,
     // otherwise searching the palette for the quoted string finds nothing.
@@ -19,10 +19,10 @@ describe('describeUnsupportedDomainFormat', () => {
     const paletteEntry = `${command.category}: ${command.title}`;
     expect(paletteEntry).toBe('ERD Studio: Migrate Subject Areas to the Central Table Library');
 
-    const legacy = describeUnsupportedDomainFormat('legacy', '/p.json')!;
+    const legacy = describeUnsupportedSubjectAreaFormat('legacy', '/p.json')!;
     expect(legacy).toContain('/p.json');
     expect(legacy).toContain(`"${paletteEntry}"`);
-    const hybrid = describeUnsupportedDomainFormat('hybrid', '/p.json')!;
+    const hybrid = describeUnsupportedSubjectAreaFormat('hybrid', '/p.json')!;
     expect(hybrid).toContain('/p.json');
     expect(hybrid).toContain(`"${paletteEntry}"`);
   });

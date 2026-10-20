@@ -1302,9 +1302,9 @@ describe('trySampleProject', () => {
 describe('canvas openGettingStarted', () => {
   it('runs erdStudio.showGettingStarted, including on the read-only physical stage', async () => {
     const { SemanticEditorProvider, PHYSICAL_READ_ONLY_MESSAGE } = await import('../../src/providers/SemanticEditorProvider');
-    const { DomainService } = await import('../../src/services/domainService');
+    const { SubjectAreaService } = await import('../../src/services/domainService');
     const { LayerService } = await import('../../src/services/layerService');
-    const { LogicalModelService } = await import('../../src/services/logicalModelService');
+    const { TableLibraryService } = await import('../../src/services/logicalModelService');
     const { ManifestService } = await import('../../src/services/manifestService');
     const { YmlParserService } = await import('../../src/services/ymlParserService');
     const { TemplateService } = await import('../../src/services/templateService');
@@ -1313,19 +1313,19 @@ describe('canvas openGettingStarted', () => {
     const root = path.join(tmp, 'project');
     fs.cpSync(path.join(REPO_ROOT, 'test', 'fixtures', 'dbt-project'), root, { recursive: true });
     const layerService = new LayerService(root, '.erd-studio');
-    const domainService = new DomainService(layerService);
-    const logicalModelService = new LogicalModelService(root, '.erd-studio');
-    domainService.setLogicalModelService(logicalModelService);
+    const subjectAreaService = new SubjectAreaService(layerService);
+    const tableLibraryService = new TableLibraryService(root, '.erd-studio');
+    subjectAreaService.setTableLibraryService(tableLibraryService);
     const provider = new SemanticEditorProvider(
       makeContext(),
-      domainService,
+      subjectAreaService,
       new ManifestService(),
       new YmlParserService(),
       new TemplateService(),
       layerService,
       root,
-      new SelectorsService(domainService, root, '.erd-studio'),
-      logicalModelService,
+      new SelectorsService(subjectAreaService, root, '.erd-studio'),
+      tableLibraryService,
     );
     const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
     const text = fs.readFileSync(file, 'utf-8');

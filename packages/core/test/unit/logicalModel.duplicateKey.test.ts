@@ -6,10 +6,10 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { parseLogicalModelText } from '../../src/logicalModel';
-import { classifyModelLoadError } from '../../src/domain';
-import { loadDisplayDomain } from '../../src/loadDisplayDomain';
-import { modelLoadWarningOf } from '../../src/types/semantic';
+import { parseTableText } from '../../src/logicalModel';
+import { classifyTableLoadError } from '../../src/domain';
+import { loadDisplaySubjectArea } from '../../src/loadDisplayDomain';
+import { tableLoadWarningOf } from '../../src/types/semantic';
 
 const COLUMN_DUP = [
   'name: dim_x',
@@ -25,55 +25,55 @@ const TOP_DUP = ['name: dim_x', 'description: first', 'columns: []', 'descriptio
 describe('a key written twice in a model file (#164)', () => {
   it('still throws DUPLICATE_KEY by default', () => {
     let thrown: unknown;
-    try { parseLogicalModelText(COLUMN_DUP, 'dim_x'); } catch (err) { thrown = err; }
-    expect(classifyModelLoadError(thrown)).toMatchObject({ kind: 'yamlDuplicateKey', line: 6 });
+    try { parseTableText(COLUMN_DUP, 'dim_x'); } catch (err) { thrown = err; }
+    expect(classifyTableLoadError(thrown)).toMatchObject({ kind: 'yamlDuplicateKey', line: 6 });
   });
 
   it('reads the last copy under a column, with a warning naming the key and its line', () => {
-    const model = parseLogicalModelText(COLUMN_DUP, 'dim_x', { duplicateKeys: 'last' })!;
+    const model = parseTableText(COLUMN_DUP, 'dim_x', { duplicateKeys: 'last' })!;
     expect(model.columns?.[0].description).toBe('second');
-    expect(modelLoadWarningOf(model)).toEqual({ kind: 'yamlDuplicateKey', key: 'description', line: 6 });
+    expect(tableLoadWarningOf(model)).toEqual({ kind: 'yamlDuplicateKey', key: 'description', line: 6 });
   });
 
   it('reads the last copy at the top level', () => {
-    const model = parseLogicalModelText(TOP_DUP, 'dim_x', { duplicateKeys: 'last' })!;
+    const model = parseTableText(TOP_DUP, 'dim_x', { duplicateKeys: 'last' })!;
     expect(model.description).toBe('second');
-    expect(modelLoadWarningOf(model)).toEqual({ kind: 'yamlDuplicateKey', key: 'description', line: 4 });
+    expect(tableLoadWarningOf(model)).toEqual({ kind: 'yamlDuplicateKey', key: 'description', line: 4 });
   });
 
   it('names the duplicate that comes first in the file', () => {
     const text = ['name: dim_x', 'grain: a', 'grain: b', 'columns:', '  - name: id', '    name: id2', 'grain: c', ''].join('\n');
-    const model = parseLogicalModelText(text, 'dim_x', { duplicateKeys: 'last' })!;
+    const model = parseTableText(text, 'dim_x', { duplicateKeys: 'last' })!;
     expect(model.grain).toBe('c');
-    expect(modelLoadWarningOf(model)).toEqual({ kind: 'yamlDuplicateKey', key: 'grain', line: 3 });
+    expect(tableLoadWarningOf(model)).toEqual({ kind: 'yamlDuplicateKey', key: 'grain', line: 3 });
   });
 
   it('leaves a clean file without a warning', () => {
-    const model = parseLogicalModelText('name: dim_x\ndescription: one\n', 'dim_x', { duplicateKeys: 'last' })!;
-    expect(modelLoadWarningOf(model)).toBeUndefined();
+    const model = parseTableText('name: dim_x\ndescription: one\n', 'dim_x', { duplicateKeys: 'last' })!;
+    expect(tableLoadWarningOf(model)).toBeUndefined();
     expect('loadWarning' in model).toBe(false);
   });
 
   it('still throws any other YAML error, even beside a duplicate key', () => {
     const text = 'name: dim_x\ndescription: a\ndescription: b\ngrain: "unterminated\n';
-    expect(() => parseLogicalModelText(text, 'dim_x', { duplicateKeys: 'last' })).toThrow();
+    expect(() => parseTableText(text, 'dim_x', { duplicateKeys: 'last' })).toThrow();
   });
 
   it('still reports unresolved merge conflicts as such', () => {
     const text = 'name: dim_x\n<<<<<<< HEAD\ndescription: a\n=======\ndescription: b\n>>>>>>> branch\n';
     let thrown: unknown;
-    try { parseLogicalModelText(text, 'dim_x', { duplicateKeys: 'last' }); } catch (err) { thrown = err; }
-    expect(classifyModelLoadError(thrown)).toMatchObject({ mergeConflict: true });
+    try { parseTableText(text, 'dim_x', { duplicateKeys: 'last' }); } catch (err) { thrown = err; }
+    expect(classifyTableLoadError(thrown)).toMatchObject({ mergeConflict: true });
   });
 
-  it('loadDisplayDomain draws the model, with the last value and a loadWarning', async () => {
+  it('loadDisplaySubjectArea draws the model, with the last value and a loadWarning', async () => {
     const files: Record<string, string> = {
       '.erd-studio/silver/sales.json': JSON.stringify({
         schemaVersion: 5, domain: 'sales', layer: 'silver', logical: { models: ['dim_x'], relationships: [] },
       }),
       '.erd-studio/logical-models/dim_x.yml': COLUMN_DUP,
     };
-    const domain = await loadDisplayDomain({
+    const domain = await loadDisplaySubjectArea({
       domainPath: '.erd-studio/silver/sales.json',
       readFile: async (p) => files[p] ?? null,
       readOnly: true,

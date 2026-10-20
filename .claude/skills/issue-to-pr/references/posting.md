@@ -43,8 +43,8 @@ or flagged.
 | Item | Status | Where / why |
 |---|---|---|
 | e.g. `HARNESS_VERSION` bump + fixture harness regen | ✅ done | `src/services/harnessService.ts:30`, `test/fixtures/…` |
-| e.g. same parse in `src/cli/diff.ts` | ➖ ruled out | the CLI goes through `computeDomainDiff`, already fixed there |
-| e.g. Confluence app cache key | ⚠️ flagged | new optional `DisplayModel` field; no bump needed, but noting it |
+| e.g. same parse in `src/cli/diff.ts` | ➖ ruled out | the CLI goes through `computeSubjectAreaDiff`, already fixed there |
+| e.g. Confluence app cache key | ⚠️ flagged | new optional `DisplayTable` field; no bump needed, but noting it |
 
 ## Deliberately not changed
 <the boundary: what a reviewer might worry this touched, and why it didn't>

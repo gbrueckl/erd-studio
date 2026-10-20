@@ -26,10 +26,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { VALID_CARDINALITIES, linkKey, normaliseCompositeKey, normaliseRelationshipRole, parseLogicalModelText } from '@erd-studio/core';
+import { VALID_CARDINALITIES, linkKey, normaliseCompositeKey, normaliseRelationshipRole, parseTableText } from '@erd-studio/core';
 import { dirtyFiles } from '../providers/dirtyDocuments';
 import {
-  applyMoveToModel,
+  applyMoveToTable,
   describeConflictDefinition,
   describeLeftAlone,
   describeMovePlan,
@@ -39,23 +39,23 @@ import {
 } from '../services/libraryRelationships';
 import type { ConflictDefinition } from '../services/libraryRelationships';
 import type { DbtKeyIndex } from '@erd-studio/core';
-import { relationshipsRewriteLoses, setDomainRelationships, setYamlRelationships } from '../services/minimalEdits';
+import { relationshipsRewriteLoses, setSubjectAreaRelationships, setYamlRelationships } from '../services/minimalEdits';
 import { ownWrites } from '../services/ownWriteTracker';
 import { telemetry } from '../services/telemetryService';
 import { checkLibraryRewrite, moveUsage } from '../services/relationshipHealth';
-import { detectDomainFormat } from '../types/semantic';
-import type { Relationship, SemanticModel } from '../types/semantic';
-import type { DomainService } from '../services/domainService';
-import type { LogicalModelService } from '../services/logicalModelService';
+import { detectSubjectAreaFormat } from '../types/semantic';
+import type { Relationship, SemanticTable } from '../types/semantic';
+import type { SubjectAreaService } from '../services/domainService';
+import type { TableLibraryService } from '../services/logicalModelService';
 
 const TITLE = 'Move Relationships to Table Library';
 
 export interface MoveRelationshipsDeps {
   workspaceRoot: string;
   semanticDir: string;
-  domainService: Pick<DomainService, 'listDomains'>;
-  logicalModelService: Pick<LogicalModelService, 'getModel' | 'listModels' | 'modelPath' | 'invalidateCache' | 'getModelsDir'>
-    & Partial<Pick<LogicalModelService, 'findModelNameIgnoringCase'>>;
+  subjectAreaService: Pick<SubjectAreaService, 'listSubjectAreas'>;
+  tableLibraryService: Pick<TableLibraryService, 'getTable' | 'listTables' | 'tablePath' | 'invalidateCache' | 'getTablesDir'>
+    & Partial<Pick<TableLibraryService, 'findTableNameIgnoringCase' | 'hasTablesLibrary'>>;
   /** Refresh the trees, open canvases and selectors once the files are written. */
   onWritten: (domainPaths: string[]) => Promise<void>;
   /** Test seam: how one file is written. Defaults to {@link writeFileAtomic}. */
@@ -65,7 +65,7 @@ export interface MoveRelationshipsDeps {
 }
 
 /** A v5 domain file's models and own relationships, as read from disk. */
-export interface DomainRelationships {
+export interface SubjectAreaRelationships {
   /** `{layer}/{domain}`, as the user knows it. */
   label: string;
   filePath: string;
@@ -74,16 +74,16 @@ export interface DomainRelationships {
 }
 
 /** Every readable v5 domain file's models and `logical.relationships`. */
-export function readDomainRelationships(
-  domainService: Pick<DomainService, 'listDomains'>,
+export function readSubjectAreaRelationships(
+  subjectAreaService: Pick<SubjectAreaService, 'listSubjectAreas'>,
   workspaceRoot: string,
   semanticDir: string,
-): DomainRelationships[] {
-  const domains: DomainRelationships[] = [];
-  for (const summary of domainService.listDomains(workspaceRoot, semanticDir)) {
+): SubjectAreaRelationships[] {
+  const domains: SubjectAreaRelationships[] = [];
+  for (const summary of subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir)) {
     try {
       const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as Record<string, unknown>;
-      if (detectDomainFormat(raw) !== 'v5') continue;
+      if (detectSubjectAreaFormat(raw) !== 'v5') continue;
       const logical = raw.logical as { models?: unknown; relationships?: unknown } | undefined;
       const models = (Array.isArray(logical?.models) ? logical!.models : []).filter((m): m is string => typeof m === 'string');
       const relationships = (Array.isArray(logical?.relationships) ? logical!.relationships : [])
@@ -103,6 +103,18 @@ export function readDomainRelationships(
     }
   }
   return domains;
+}
+
+/** Whether the project has v6's `tables/` library or any subject area file in the v6 naming (#162). */
+function usesTableNaming(deps: MoveRelationshipsDeps): boolean {
+  if (deps.tableLibraryService.hasTablesLibrary?.()) return true;
+  return deps.subjectAreaService.listSubjectAreas(deps.workspaceRoot, deps.semanticDir).some((summary) => {
+    try {
+      return detectSubjectAreaFormat(JSON.parse(fs.readFileSync(summary.filePath, 'utf-8'))) === 'v6';
+    } catch {
+      return false;
+    }
+  });
 }
 
 /**
@@ -157,26 +169,36 @@ export async function moveRelationshipsToLibrary(deps: MoveRelationshipsDeps): P
 }
 
 async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
-  const { workspaceRoot, semanticDir, domainService, logicalModelService } = deps;
+  const { workspaceRoot, semanticDir, subjectAreaService, tableLibraryService } = deps;
   const writeFile = deps.writeFile ?? writeFileAtomic;
   telemetry.feature('relMoveStarted');
+  // The move writes v5 keys. A project holding any of the new file naming
+  // (#162: `tables/`, a schemaVersion 6 diagram) is read but not written by
+  // this version, and a half-moved project would be worse than an unmoved one.
+  if (usesTableNaming(deps)) {
+    void vscode.window.showInformationMessage(
+      `${TITLE}: this project uses the new file naming (tables/, schemaVersion 6), which this version of ERD Studio ` +
+      'reads but cannot edit yet. Nothing was changed.',
+    );
+    return;
+  }
   // Read the library fresh: a cached copy may predate an edit made on disk.
-  logicalModelService.invalidateCache();
-  const domains = readDomainRelationships(domainService, workspaceRoot, semanticDir)
+  tableLibraryService.invalidateCache();
+  const domains = readSubjectAreaRelationships(subjectAreaService, workspaceRoot, semanticDir)
     .filter((d) => d.relationships.length > 0);
 
   // One object per model, whatever the spelling an entry uses (#133 L4):
   // `Dim_Customer` reaches dim_customer.yml on a case-sensitive file system,
   // and both spellings in one plan edit the same copy.
-  const models = new Map<string, SemanticModel | null>();
-  const libraryModel = (name: string): SemanticModel | null => {
+  const models = new Map<string, SemanticTable | null>();
+  const libraryModel = (name: string): SemanticTable | null => {
     const key = name.toLowerCase();
-    if (!models.has(key)) models.set(key, logicalModelService.getModel(logicalModelService.findModelNameIgnoringCase?.(name) ?? name));
+    if (!models.has(key)) models.set(key, tableLibraryService.getTable(tableLibraryService.findTableNameIgnoringCase?.(name) ?? name));
     return models.get(key) ?? null;
   };
   /** The model's file, by its real name. */
-  const pathOf = (name: string): string => logicalModelService.modelPath(libraryModel(name)?.name ?? name);
-  const libraryRoot = path.dirname(logicalModelService.getModelsDir());
+  const pathOf = (name: string): string => tableLibraryService.tablePath(libraryModel(name)?.name ?? name);
+  const libraryRoot = path.dirname(tableLibraryService.getTablesDir());
   const relPath = (filePath: string): string => path.relative(libraryRoot, filePath).split(path.sep).join('/');
   const fileOf = (model: string): string => relPath(pathOf(model));
   // A file whose relationships list holds comments, YAML anchors or unreadable entries is
@@ -196,7 +218,7 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
   };
   // dbt's tests orient links between models that flag no key (#133 L1).
   const dbt = deps.loadDbtKeyIndex ? await deps.loadDbtKeyIndex().catch(() => undefined) : undefined;
-  let plan = planMoveToLibrary(domains, libraryModel, logicalModelService.listModels(), locked, { dbt });
+  let plan = planMoveToLibrary(domains, libraryModel, tableLibraryService.listTables(), locked, { dbt });
   if (plan.removeFromDomains.size === 0 && plan.conflicts.length === 0 && plan.rehome.length === 0) {
     telemetry.feature('relMoveNothingToMove');
     const leftAlone = describeLeftAlone(plan, fileOf);
@@ -288,21 +310,21 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
   // while — changing only its relationships.
   const writes: Array<{ filePath: string; original: string; text: string }> = [];
   // Every target file as read and as it will be written, for the self-check below.
-  const readModels: SemanticModel[] = [];
-  const nextModels: SemanticModel[] = [];
+  const readModels: SemanticTable[] = [];
+  const nextModels: SemanticTable[] = [];
   for (const target of moveTargets(plan)) {
     const name = libraryModel(target)?.name ?? target;
-    const filePath = logicalModelService.modelPath(name);
+    const filePath = tableLibraryService.tablePath(name);
     const original = fs.readFileSync(filePath, 'utf-8');
     if (relationshipsRewriteLoses(original)) {
       throw new Error(`${relPath(filePath)} changed while the dialog was open (its relationships list now has comments, YAML anchors or entries it cannot read). Nothing was changed.`);
     }
-    const model = parseLogicalModelText(original, name);
+    const model = parseTableText(original, name);
     if (!model) throw new Error(`${relPath(filePath)} could not be read as a table file.`);
-    const copy: SemanticModel = { ...model, relationships: model.relationships ? [...model.relationships] : undefined };
+    const copy: SemanticTable = { ...model, relationships: model.relationships ? [...model.relationships] : undefined };
     readModels.push(model);
     nextModels.push(copy);
-    if (!applyMoveToModel(plan, copy)) continue;
+    if (!applyMoveToTable(plan, copy)) continue;
     const text = setYamlRelationships(original, copy.relationships ?? []);
     if (text !== original) writes.push({ filePath, original, text });
   }
@@ -317,7 +339,7 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
       && ['fromModel', 'fromColumn', 'toModel', 'toColumn'].every((k) => typeof (r as Record<string, unknown>)[k] === 'string');
     const kept = current.filter((r) => !isRelationship(r) || !keys.has(linkKey(r)));
     if (kept.length === current.length) continue;
-    const text = setDomainRelationships(original, kept);
+    const text = setSubjectAreaRelationships(original, kept);
     if (text === original) continue;
     writes.push({ filePath: domain.filePath, original, text });
     domainPaths.push(domain.filePath);
@@ -347,7 +369,7 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
           unrestored.push(relPath(done.filePath));
         }
       }
-      logicalModelService.invalidateCache();
+      tableLibraryService.invalidateCache();
       telemetry.error('relMoveWriteFailed');
       if (unrestored.length > 0) telemetry.error('relMoveRestoreFailed');
       void vscode.window.showErrorMessage(
@@ -364,7 +386,7 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
     ownWrites.recordWrite(write.filePath);
   }
 
-  logicalModelService.invalidateCache();
+  tableLibraryService.invalidateCache();
   try {
     await deps.onWritten(domainPaths);
   } catch (err) {

@@ -17,9 +17,9 @@ import {
   surveyFeatures,
   surveyLibrary,
 } from '../../src/services/relationshipHealth';
-import type { HealthModel, RelationshipSnapshot } from '../../src/services/relationshipHealth';
+import type { HealthTable, RelationshipSnapshot } from '../../src/services/relationshipHealth';
 import { ERROR_CODES, FEATURES } from '../../src/services/telemetryPayload';
-import type { ColumnDef, ModelRelationship, Relationship, SemanticModel } from '../../src/types/semantic';
+import type { ColumnDef, TableRelationship, Relationship, SemanticTable } from '../../src/types/semantic';
 
 const col = (name: string, key?: 'pk' | 'nk'): ColumnDef => ({
   name, dataType: 'string', description: '',
@@ -30,19 +30,19 @@ const col = (name: string, key?: 'pk' | 'nk'): ColumnDef => ({
 /** A star: `fct.k → dim.k`, plus a bystander `fct.k2 → dim.k` with a role. */
 const DIM_COLS = [col('k', 'pk'), col('k_x'), col('name')];
 const FCT_COLS = [col('id', 'pk'), col('k'), col('k_x'), col('k2')];
-const dim = (relationships?: ModelRelationship[], columns = DIM_COLS): SemanticModel =>
+const dim = (relationships?: TableRelationship[], columns = DIM_COLS): SemanticTable =>
   ({ name: 'dim', columns, ...(relationships ? { relationships } : {}) });
-const fct = (relationships?: ModelRelationship[], columns = FCT_COLS): SemanticModel =>
+const fct = (relationships?: TableRelationship[], columns = FCT_COLS): SemanticTable =>
   ({ name: 'fct', columns, ...(relationships ? { relationships } : {}) });
 
 const L: Relationship = { fromModel: 'fct', fromColumn: 'k', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one' };
-const L_ENTRY: ModelRelationship = { fromColumn: 'k', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one' };
-const BYSTANDER: ModelRelationship = { fromColumn: 'k2', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one', role: 'ship date' };
+const L_ENTRY: TableRelationship = { fromColumn: 'k', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one' };
+const BYSTANDER: TableRelationship = { fromColumn: 'k2', toModel: 'dim', toColumn: 'k', cardinality: 'many-to-one', role: 'ship date' };
 /** L read from the dimension: the same link. */
 const L_FROM_DIM: Relationship = { fromModel: 'dim', fromColumn: 'k', toModel: 'fct', toColumn: 'k', cardinality: 'one-to-many' };
-const DIM_ENTRY_1M: ModelRelationship = { fromColumn: 'k', toModel: 'fct', toColumn: 'k', cardinality: 'one-to-many' };
+const DIM_ENTRY_1M: TableRelationship = { fromColumn: 'k', toModel: 'fct', toColumn: 'k', cardinality: 'one-to-many' };
 
-const lib = (models: SemanticModel[], domainRelationships: Relationship[] = []): RelationshipSnapshot =>
+const lib = (models: SemanticTable[], domainRelationships: Relationship[] = []): RelationshipSnapshot =>
   ({ home: 'library', models, domainRelationships });
 const add = (drawn: Relationship, extra: Partial<Extract<RelationshipWriteOp, { kind: 'add' }>> = {}): RelationshipWriteOp => ({ kind: 'add', drawn, ...extra });
 const update = (ends: Relationship): RelationshipWriteOp => ({ kind: 'update', ends, cardinality: ends.cardinality });
@@ -114,7 +114,7 @@ describe('checkRelationshipWrite — add / ⇄ / edit', () => {
 });
 
 describe('checkRelationshipWrite — composite keys act on the group', () => {
-  const G = (card: Relationship['cardinality'] = 'many-to-one', ck = 'fk_dim'): ModelRelationship[] => [
+  const G = (card: Relationship['cardinality'] = 'many-to-one', ck = 'fk_dim'): TableRelationship[] => [
     { ...L_ENTRY, cardinality: card, compositeKey: ck },
     { fromColumn: 'k_x', toModel: 'dim', toColumn: 'k_x', cardinality: card, compositeKey: ck },
   ];
@@ -188,7 +188,7 @@ describe('checkRelationshipWrite — delete and other links', () => {
 });
 
 describe('auditRelationshipWrite — the real planner', () => {
-  const input = (models: SemanticModel[], domainRelationships: Relationship[] = []): RelationshipWriteInput =>
+  const input = (models: SemanticTable[], domainRelationships: Relationship[] = []): RelationshipWriteInput =>
     ({ home: 'library', models, domainRelationships });
   const audit = (op: RelationshipWriteOp, inp: RelationshipWriteInput) => auditRelationshipWrite(op, inp, planRelationshipWrite(op, inp));
 
@@ -197,7 +197,7 @@ describe('auditRelationshipWrite — the real planner', () => {
     expect(audit(add({ ...L, role: 'order date' }), input([dim(), fct()])).usage).toEqual(['relRoleSet']);
     const dimKx = dim(undefined, [col('k', 'pk'), col('k_x', 'pk'), col('name')]);
     expect(audit(add(L, { extraPairs: [{ fromColumn: 'k_x', toColumn: 'k_x' }] }), input([dimKx, fct()]))).toEqual({ broken: [], usage: ['relComposite'] });
-    const emp: SemanticModel = { name: 'emp', columns: [col('id', 'pk'), col('mgr')] };
+    const emp: SemanticTable = { name: 'emp', columns: [col('id', 'pk'), col('mgr')] };
     expect(audit(add({ fromModel: 'emp', fromColumn: 'mgr', toModel: 'emp', toColumn: 'id', cardinality: 'many-to-one' }), input([emp])).usage).toEqual(['relSelfReference']);
   });
 
@@ -235,7 +235,7 @@ describe('checkLibraryRewrite and moveUsage — the Move', () => {
     expect(checkLibraryRewrite(before, [dim([]), fct([L_ENTRY])], [L])).toEqual(['otherLost']);
     expect(checkLibraryRewrite(before, [dim([]), fct([BYSTANDER, L_ENTRY, L_ENTRY])], [L])).toEqual(['notCanonical', 'duplicateInFile']);
     expect(checkLibraryRewrite(before, [dim([]), fct([BYSTANDER])], [L])).toEqual(['notCanonical', 'otherLost']);
-    const group: ModelRelationship[] = [{ ...L_ENTRY, compositeKey: 'fk_dim' }, { fromColumn: 'k_x', toModel: 'dim', toColumn: 'k_x', cardinality: 'many-to-one', compositeKey: 'fk_dim' }];
+    const group: TableRelationship[] = [{ ...L_ENTRY, compositeKey: 'fk_dim' }, { fromColumn: 'k_x', toModel: 'dim', toColumn: 'k_x', cardinality: 'many-to-one', compositeKey: 'fk_dim' }];
     expect(checkLibraryRewrite([dim(), fct(group)], [dim(), fct([group[0], { ...group[1], compositeKey: undefined }])], [])).toEqual(['groupBroken']);
     expect(checkLibraryRewrite(null as never, [], [])).toEqual(['checkFailed']);
   });
@@ -270,7 +270,7 @@ describe('surveyLibrary', () => {
   });
 
   it('counts a many-to-one stored backwards only where the keys say so (contradictsKeys)', () => {
-    const entry: ModelRelationship = { fromColumn: 'k', toModel: 'fct', toColumn: 'k', cardinality: 'many-to-one' };
+    const entry: TableRelationship = { fromColumn: 'k', toModel: 'fct', toColumn: 'k', cardinality: 'many-to-one' };
     const dimK = [col('k', 'pk'), col('name')];
     expect(surveyLibrary([dim([entry], dimK), fct()], []).backwards).toBe(1);
     expect(surveyLibrary([dim([entry], dimK), fct(undefined, [col('id'), col('k')])], []).backwards).toBe(0);
@@ -315,7 +315,7 @@ describe('surveyLibrary', () => {
   });
 
   it('stays linear on a large library', () => {
-    const models: SemanticModel[] = [];
+    const models: SemanticTable[] = [];
     for (let i = 0; i < 2000; i++) {
       models.push({
         name: `m${i}`, columns: [col('id', 'pk'), col('ref')],
@@ -343,7 +343,7 @@ describe('no name reaches the output', () => {
   it('returns only codes and counts, whatever the models and columns are called', () => {
     const names = ['acme_payroll', 'employee_salary_band', 'patient_diagnosis', 'ssn_hash', 'Secret Project Falcon', 'customer_email'];
     const [a, b, c, d, e, f] = names;
-    const models: HealthModel[] = [
+    const models: HealthTable[] = [
       { name: a, columns: [col(d, 'pk'), col(f)], relationships: [{ fromColumn: f, toModel: b, toColumn: c, cardinality: 'one-to-many', role: e, compositeKey: e }] },
       { name: b, columns: [col(c, 'pk')], relationships: [{ fromColumn: c, toModel: a, toColumn: f, cardinality: 'many-to-one', role: e }, { fromColumn: c, toModel: 'ghost_' + e, toColumn: d, cardinality: 'many-to-one' }] },
     ];
@@ -357,7 +357,7 @@ describe('no name reaches the output', () => {
     const out = JSON.stringify([
       survey, surveyFeatures(survey), broken, invariantErrorCodes(broken),
       relationshipWriteUsage(op, before, after),
-      auditRelationshipWrite(op, { home: 'library', models: models as SemanticModel[], domainRelationships: domain }, planRelationshipWrite(op, { home: 'library', models: models as SemanticModel[], domainRelationships: domain })),
+      auditRelationshipWrite(op, { home: 'library', models: models as SemanticTable[], domainRelationships: domain }, planRelationshipWrite(op, { home: 'library', models: models as SemanticTable[], domainRelationships: domain })),
       checkLibraryRewrite(models, after.models, [domain[0]]),
       checkRelationshipWrite(null as never, null as never, null as never),
     ]);

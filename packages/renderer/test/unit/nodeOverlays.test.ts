@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { applyNodeOverlays, type OverlayState } from '../../src/lib/nodeOverlays';
-import type { ModelFlowNode, FkFlowEdge, AnnotationFlowNode } from '../../src/types/graph';
+import type { TableFlowNode, FkFlowEdge, AnnotationFlowNode } from '../../src/types/graph';
 
-function makeNode(id: string, extra: Partial<ModelFlowNode['data']> = {}): ModelFlowNode {
+function makeNode(id: string, extra: Partial<TableFlowNode['data']> = {}): TableFlowNode {
   return {
     id,
     type: 'model',
@@ -73,7 +73,7 @@ describe('applyNodeOverlays', () => {
     expect(result.nodes[1]).toBe(b);
     // c is not connected → new object with dimmed true
     expect(result.nodes[2]).not.toBe(c);
-    expect((result.nodes[2] as ModelFlowNode).data.dimmed).toBe(true);
+    expect((result.nodes[2] as TableFlowNode).data.dimmed).toBe(true);
     // measured is preserved on the rebuilt node
     expect(result.nodes[2].measured).toEqual({ width: 280, height: 120 });
 
@@ -90,7 +90,7 @@ describe('applyNodeOverlays', () => {
       ...baseState,
       selectedEdge: 'fk-a-b',
     });
-    const dimmedNodes = result.nodes.map((n) => (n as ModelFlowNode).data.dimmed ?? false);
+    const dimmedNodes = result.nodes.map((n) => (n as TableFlowNode).data.dimmed ?? false);
     expect(dimmedNodes).toEqual([false, false, true]);
     expect((result.edges[0] as FkFlowEdge).data?.dimmed ?? false).toBe(false);
     expect((result.edges[1] as FkFlowEdge).data?.dimmed).toBe(true);
@@ -105,8 +105,8 @@ describe('applyNodeOverlays', () => {
     };
     const nodes = [makeNode('dim_customer'), makeNode('fct_orders'), ann];
     const result = applyNodeOverlays(nodes, [], { ...baseState, searchQuery: 'CUST' });
-    expect((result.nodes[0] as ModelFlowNode).data.dimmed).toBe(false);
-    expect((result.nodes[1] as ModelFlowNode).data.dimmed).toBe(true);
+    expect((result.nodes[0] as TableFlowNode).data.dimmed).toBe(false);
+    expect((result.nodes[1] as TableFlowNode).data.dimmed).toBe(true);
     expect(result.nodes[2]).toBe(ann);
   });
 
@@ -116,16 +116,16 @@ describe('applyNodeOverlays', () => {
       ...baseState,
       isExpanded: (id) => id === 'b',
     });
-    expect((result.nodes[0] as ModelFlowNode).data.isExpanded).toBe(false);
-    expect((result.nodes[1] as ModelFlowNode).data.isExpanded).toBe(true);
-    expect((result.nodes[1] as ModelFlowNode).data.onToggleExpansion).toBe(toggle);
+    expect((result.nodes[0] as TableFlowNode).data.isExpanded).toBe(false);
+    expect((result.nodes[1] as TableFlowNode).data.isExpanded).toBe(true);
+    expect((result.nodes[1] as TableFlowNode).data.onToggleExpansion).toBe(toggle);
   });
 
   it('clears dimming again when selection is removed', () => {
     const nodes = [makeNode('a'), makeNode('b')];
     const selected = applyNodeOverlays(nodes, [], { ...baseState, selectedNode: 'a' });
-    expect((selected.nodes[1] as ModelFlowNode).data.dimmed).toBe(true);
+    expect((selected.nodes[1] as TableFlowNode).data.dimmed).toBe(true);
     const cleared = applyNodeOverlays(selected.nodes, [], baseState);
-    expect((cleared.nodes[1] as ModelFlowNode).data.dimmed).toBe(false);
+    expect((cleared.nodes[1] as TableFlowNode).data.dimmed).toBe(false);
   });
 });
