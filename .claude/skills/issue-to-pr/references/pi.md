@@ -32,7 +32,8 @@ push and a logged-in browser all work here.
 
 Report to Liam in the final message of the run (it lands in the run log) and in the PR body.
 Nobody reads the transcript live. The runner sends him a Telegram message for each outcome, so
-don't send one yourself.
+don't send one yourself. His replies go to the ERD Studio session on the Pi
+(`scripts/pi/steward.md`), which reads your run log and PR to act on them.
 
 **Confluence follow-up.** If the fix changes anything the Confluence app consumes (see
 `cross-repo.md`), raise or update the follow-up issue in erd-studio-pro after the PR opens, and
