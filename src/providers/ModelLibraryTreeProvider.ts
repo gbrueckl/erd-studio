@@ -84,7 +84,8 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
     }
 
     // A `tables/` copy of a name `logical-models/` also has (#181): reported, with no fix to offer.
-    if (element.shadowedBy && element.library) {
+    // A duplicate within `tables/` itself (#182) is an ordinary one, below.
+    if (element.shadowedBy && element.library && this.isInV5Library(element.shadowedBy)) {
       const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
       item.contextValue = 'logicalModelReadOnly';
       item.iconPath = new vscode.ThemeIcon('error');
@@ -114,8 +115,7 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
     const isOrphan = element.referencingDomains.length === 0;
     const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
 
-    // Delete acts on the file, and a `tables/` file is not changed by this version (#181).
-    item.contextValue = element.library ? 'logicalModelReadOnly' : 'logicalModel';
+    item.contextValue = 'logicalModel';
     item.iconPath = new vscode.ThemeIcon(isOrphan ? 'warning' : 'symbol-class');
 
     if (element.fileError) {
@@ -217,6 +217,12 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
   // Private helpers
   // -------------------------------------------------------------------------
 
+  /** Whether `filePath` is in `logical-models/` (the v5 library). */
+  private isInV5Library(filePath: string): boolean {
+    const rel = path.relative(path.resolve(this.tableLibraryService.getTablesDir()), path.resolve(filePath));
+    return !rel.startsWith('..') && !path.isAbsolute(rel);
+  }
+
   /** A model whose file needs fixing: marked, explained, and opened at the line. */
   private fileErrorItem(
     item: vscode.TreeItem,
@@ -256,15 +262,9 @@ export class TableLibraryTreeProvider implements vscode.TreeDataProvider<TableLi
       : new vscode.ThemeIcon('folder');
     const count = element.children.length;
     item.description = `${count} ${count === 1 ? 'table' : 'tables'}`;
-    if (element.library) {
-      const where = `${element.library}/${element.folder ? `${element.folder}/` : ''}`;
-      if (element.folder) item.description += ` · ${element.library}/`;
-      item.tooltip = `${where} — the new file naming, which this version of ERD Studio reads but cannot edit yet`;
-      return item;
-    }
-    item.tooltip = layer
-      ? `logical-models/${element.folder}/ — tables created in ${layer.label} subject areas`
-      : `logical-models/${element.folder}/`;
+    const where = `${element.library ?? 'logical-models'}/${element.folder ? `${element.folder}/` : ''}`;
+    if (element.library && element.folder) item.description += ` · ${element.library}/`;
+    item.tooltip = layer ? `${where} — tables created in ${layer.label} subject areas` : where;
     return item;
   }
 

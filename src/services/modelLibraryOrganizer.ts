@@ -52,13 +52,14 @@ export interface OrganizePlan {
 
 /**
  * Build the plan. `layerIds` are the configured layers (layers.json);
- * `targetPath(name, layer)` returns where a moved file goes, or null when
- * `layer` cannot be a folder name (the model then stays put, as if shared).
+ * `targetPath(name, layer, from)` returns where the file at `from` goes, or
+ * null when `layer` cannot be a folder name (the model then stays put, as if
+ * shared).
  */
 export function planOrganizeByLayer(
   entries: readonly TableFileEntry[],
   usage: readonly SubjectAreaTableUsage[],
-  targetPath: (name: string, layer: string) => string | null,
+  targetPath: (name: string, layer: string, from: string) => string | null,
   layerIds: ReadonlySet<string> = new Set(usage.map(u => u.layer)),
 ): OrganizePlan {
   const layersByModel = new Map<string, Set<string>>();
@@ -97,7 +98,7 @@ export function planOrganizeByLayer(
     }
     const layer = layers[0];
     if (entry.folder === layer) continue; // already in the right place
-    const to = targetPath(entry.name, layer);
+    const to = targetPath(entry.name, layer, entry.filePath);
     if (to === null) {
       if (!inLayerFolder) shared.push({ name: entry.name, layers });
       continue;

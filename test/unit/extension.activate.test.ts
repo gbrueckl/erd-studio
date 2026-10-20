@@ -590,14 +590,14 @@ describe('erdStudio.organizeModelLibrary (issue #76)', () => {
     expect(fs.readdirSync(lib()).sort()).toEqual(before);
   });
 
-  it('explains when there is no logical-models/ folder yet', async () => {
+  it('explains when there is no Table Library folder yet', async () => {
     fs.rmSync(lib(), { recursive: true, force: true });
     await activate(context);
     const info = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined as never);
 
     await vscode.commands.executeCommand('erdStudio.organizeModelLibrary');
 
-    expect(info).toHaveBeenCalledWith('Organise Table Library: there is no logical-models/ folder yet.');
+    expect(info).toHaveBeenCalledWith('Organise Table Library: there is no Table Library folder yet.');
   });
 });
 
@@ -1147,18 +1147,21 @@ describe('erdStudio.drawFromDbt', () => {
     expect((input.mock.calls[0][0] as { prompt: string }).prompt).toContain('Silver layer');
     expect(fs.existsSync(path.join(erd(), 'layers.json'))).toBe(true);
     const domainPath = path.join(erd(), 'silver', 'silver.json');
+    // A new project is written in the v6 naming (#182).
     const domain = JSON.parse(fs.readFileSync(domainPath, 'utf-8')) as {
-      schemaVersion: number; layer: string; logical: { models: string[]; relationships: unknown[] }; viewConfig: unknown;
+      schemaVersion: number; subjectArea: string; layer: string; logical: { tables: string[]; relationships: unknown[] }; viewConfig: unknown;
     };
-    expect(domain.schemaVersion).toBe(5);
+    expect(domain.schemaVersion).toBe(6);
+    expect(domain.subjectArea).toBe('silver');
     expect(domain.layer).toBe('silver');
     expect(domain.viewConfig).toEqual({}); // fresh: the canvas lays it out on first open
-    expect(domain.logical.models.length).toBeGreaterThan(1);
-    expect(domain.logical.models).not.toContain('dim_region'); // a .sql with no columns to copy
-    // An empty library is grouped by layer from the start.
-    for (const model of domain.logical.models) {
-      expect(fs.existsSync(path.join(lib(), 'silver', `${model}.yml`)), model).toBe(true);
+    expect(domain.logical.tables.length).toBeGreaterThan(1);
+    expect(domain.logical.tables).not.toContain('dim_region'); // a .sql with no columns to copy
+    // An empty library is grouped by layer from the start, in tables/.
+    for (const model of domain.logical.tables) {
+      expect(fs.existsSync(path.join(erd(), 'tables', 'silver', `${model}.yml`)), model).toBe(true);
     }
+    expect(fs.existsSync(lib())).toBe(false);
     expect(opened()).toHaveLength(1);
     expect(String((opened()[0][1] as { fsPath: string }).fsPath)).toBe(domainPath);
     expect(opened()[0][2]).toBe(SUBJECT_AREA_EDITOR_VIEW_TYPE);

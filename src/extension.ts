@@ -36,7 +36,10 @@ import { TableLibraryTreeProvider, type TableLibraryNode } from './providers/Mod
 import { describeOrganizePlan, planOrganizeByLayer, type SubjectAreaTableUsage } from './services/modelLibraryOrganizer';
 import { describeDuplicateFix, planDuplicateFix, repointSubjectAreaTable, suggestDuplicateName, type SubjectAreaReference } from './services/duplicateModelResolver';
 import { validateTableName } from './providers/payloadValidation';
-import { parseTableText } from '@erd-studio/core';
+import { normaliseSubjectAreaDocument, parseTableText, toTableNamingDocument } from '@erd-studio/core';
+import { rewriteJsonScalars } from './services/minimalEdits';
+import { migrateToTableNaming, planProjectNamingMigration } from './commands/migrateNaming';
+import { projectNamingOf } from './services/projectNaming';
 import { SUBJECT_AREA_EDITOR_VIEW_TYPE, hasOpenSubjectAreaCanvas, saveAllAndReload } from './services/recoveryService';
 import { submitFeedback } from './services/feedbackService';
 import { clearFeedbackApiKey, setFeedbackApiKey } from './services/feedbackAnalysisService';
@@ -393,6 +396,7 @@ export const NO_LEGACY_ALIAS = new Set([
   'erdStudio.resolveDuplicateModel',
   'erdStudio.moveRelationshipsToLibrary',
   'erdStudio.exportDiagram',
+  'erdStudio.migrateToTableNaming',
 ]);
 
 /**
@@ -929,7 +933,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const result = migrationService.migrate();
         const details: string[] = [];
         if (result.domainsConverted > 0) details.push(`${result.domainsConverted} subject area(s) converted`);
-        if (result.modelsCreated > 0) details.push(`${result.modelsCreated} table file(s) created in logical-models/`);
+        if (result.modelsCreated > 0) details.push(`${result.modelsCreated} table file(s) created in the Table Library`);
         if (result.mergeConflicts.length > 0) details.push(`${result.mergeConflicts.length} merge conflict(s) resolved (richest version kept)`);
         vscode.window.showInformationMessage(`Migration complete: ${details.join(', ')}.`);
         selectorsService.scheduleRegenerate();
@@ -996,7 +1000,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const refreshContextKeys = (): void => {
     void vscode.commands.executeCommand('setContext', 'erdStudio.hasSemanticDir', fs.existsSync(fullSemanticDirPath));
-    void vscode.commands.executeCommand('setContext', 'erdStudio.hasLogicalModelsDir', tableLibraryService.dirExists());
+    // A project that writes the v6 naming (#182) makes `tables/` with its first
+    // table, so the view shows from setup on, not only once a table exists.
+    void vscode.commands.executeCommand('setContext', 'erdStudio.hasLogicalModelsDir',
+      tableLibraryService.dirExists() || (fs.existsSync(fullSemanticDirPath) && tableLibraryService.writesTableNaming()));
     refreshDiagramsStatus();
   };
   refreshContextKeys();
@@ -1274,6 +1281,64 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
   });
 
+  /** "Migrate Subject Areas to the Central Table Library": v4 → v5, prompted. True when it ran. */
+  const migrateToV5 = async (): Promise<boolean> => {
+    const v4Count = migrationService.findV4SubjectAreas().length;
+    const confirm = await vscode.window.showWarningMessage(
+      `Found ${v4Count} subject area file(s) using the legacy inline table format. ` +
+      'Migration will extract tables to the Table Library and convert subject area files to use name references. ' +
+      'This cannot be undone automatically.',
+      'Migrate Now',
+      'Cancel',
+    );
+
+    if (confirm !== 'Migrate Now') return false;
+
+    let result: ReturnType<typeof migrationService.migrate>;
+    try {
+      result = migrationService.migrate();
+    } catch (err) {
+      telemetry.error('migrationFailed');
+      throw err;
+    }
+    telemetry.feature('migrateV5');
+    const details: string[] = [];
+    if (result.domainsConverted > 0) details.push(`${result.domainsConverted} subject area(s) converted`);
+    if (result.modelsCreated > 0) details.push(`${result.modelsCreated} table file(s) created in the Table Library`);
+    if (result.mergeConflicts.length > 0) details.push(`${result.mergeConflicts.length} merge conflict(s) resolved`);
+    void vscode.window.showInformationMessage(`Migration complete: ${details.join(', ')}.`);
+
+    treeProvider.refresh();
+    await editorProvider.refreshAllOpenSubjectAreas();
+    selectorsService.scheduleRegenerate();
+    return true;
+  };
+
+  /** "Migrate to the New File Naming" (#182): v5 → v6, prompted. */
+  const migrateNaming = () => migrateToTableNaming({
+    workspaceRoot,
+    semanticDir,
+    subjectAreaService,
+    tableLibraryService,
+    version: currentVersion,
+    migrateToV5,
+    holdRefreshes: () => editorProvider.holdRefreshes(),
+    onMigrated: async (paths) => {
+      for (const p of paths) treeProvider.invalidateSubjectArea(p);
+      refreshContextKeys();
+      tableLibraryProvider.refresh();
+      treeProvider.refresh();
+      selectorsService.scheduleRegenerate();
+      await editorProvider.refreshAllOpenSubjectAreas();
+    },
+  });
+  editorProvider.setNamingMigration(
+    () => planProjectNamingMigration({ workspaceRoot, semanticDir, subjectAreaService, tableLibraryService }),
+    () => projectNamingOf(path.join(workspaceRoot, semanticDir), tableLibraryService),
+    async () => (await migrateNaming()) === 'migrated',
+    currentVersion,
+  );
+
   context.subscriptions.push(
     { dispose() { clearTimeout(manifestRetryTimeout); } },
     configChangedSubscription,
@@ -1358,7 +1423,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         try {
           tableLibraryService.deleteTable(node.name);
         } catch (err) {
-          // A file in v6's tables/ (#162) is read, never deleted, by this version.
           void vscode.window.showErrorMessage(`Delete Table: ${err instanceof Error ? err.message : String(err)}`);
           return;
         }
@@ -1371,7 +1435,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // layer whose domains use them (issue #76). Prompted, one WorkspaceEdit.
     vscode.commands.registerCommand('erdStudio.organizeModelLibrary', async () => {
       if (!tableLibraryService.dirExists()) {
-        void vscode.window.showInformationMessage('Organise Table Library: there is no logical-models/ folder yet.');
+        void vscode.window.showInformationMessage('Organise Table Library: there is no Table Library folder yet.');
         return;
       }
       const usage: SubjectAreaTableUsage[] = [];
@@ -1385,10 +1449,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       const modelsDir = tableLibraryService.getTablesDir();
       const plan = planOrganizeByLayer(
-        // Only logical-models/ is organised: v6's tables/ (#162) is never written.
-        tableLibraryService.listTableFiles().filter((e) => !e.library),
+        tableLibraryService.listTableFiles(),
         usage,
-        (name, layer) => TableLibraryService.isTableFolderName(layer) ? path.join(modelsDir, layer, `${name}.yml`) : null,
+        // Each file is organised within its own library: `logical-models/` or v6's `tables/` (#182).
+        (name, layer, from) => TableLibraryService.isTableFolderName(layer)
+          ? path.join(tableLibraryService.isTableNamingFile(from) ? path.join(path.dirname(modelsDir), TABLES_DIR) : modelsDir, layer, `${name}.yml`)
+          : null,
         new Set(layerService.getAllLayers().map((l) => l.id)),
       );
       if (plan.moves.length === 0) {
@@ -1447,8 +1513,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Prompted, one WorkspaceEdit, one undo step.
     vscode.commands.registerCommand('erdStudio.resolveDuplicateModel', async (arg?: TableLibraryNode | string) => {
       const entries = tableLibraryService.listTableFiles();
-      // A file in v6's tables/ (#162) is never renamed here: this version does not write it.
-      const duplicates = entries.filter((e) => e.shadowedBy && !e.library);
+      // A duplicate within one library (#182: `tables/` too). A `tables/` copy of a
+      // name `logical-models/` also has is the migration's conflict, not fixed here (#181).
+      const duplicates = entries.filter((e) => e.shadowedBy && (!e.library || tableLibraryService.isTableNamingFile(e.shadowedBy)));
       const target = typeof arg === 'string' ? arg : arg?.type === 'model' ? arg.filePath : undefined;
       // Compare real paths: the tree hands over what the library listed, but a
       // warning or a caller may name the same file through a symlinked prefix.
@@ -1500,16 +1567,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
       }
       const plan = planDuplicateFix(dup.name, dup.folder, newName, model.alias, references);
-      const v6Diagram = plan.repoint.find((ref) => {
-        try { return detectSubjectAreaFormat(JSON.parse(fs.readFileSync(ref.filePath, 'utf-8'))) === 'v6'; } catch { return false; }
-      });
-      if (v6Diagram) {
-        void vscode.window.showErrorMessage(
-          `${path.relative(workspaceRoot, v6Diagram.filePath).split(path.sep).join('/')} would change too, and it uses the new file naming ` +
-          '(schemaVersion 6), which this version of ERD Studio reads but cannot edit yet. Nothing was changed.',
-        );
-        return;
-      }
       const newPath = path.join(path.dirname(dup.filePath), `${newName}.yml`);
       const choice = await vscode.window.showInformationMessage(
         `Rename the duplicate "${dup.name}" to "${newName}"?`,
@@ -1526,9 +1583,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       for (const ref of plan.repoint) {
         const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(ref.filePath));
         const text = doc.getText();
-        const parsed = JSON.parse(text) as Record<string, unknown>;
+        const raw = JSON.parse(text) as Record<string, unknown>;
+        // A v6 diagram (#182) is repointed under its v5 keys and written back in v6.
+        const v6 = detectSubjectAreaFormat(raw) === 'v6';
+        const parsed = v6 ? normaliseSubjectAreaDocument(raw) : raw;
         if (!repointSubjectAreaTable(parsed, dup.name, newName)) continue;
-        edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(text.length)), JSON.stringify(parsed, null, 2) + '\n');
+        const fileObject = v6 ? toTableNamingDocument(parsed) : parsed;
+        const next = rewriteJsonScalars(text, fileObject) ?? JSON.stringify(fileObject, null, 2) + '\n';
+        edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(text.length)), next);
         domainDocs.push(doc);
       }
       if (!(await vscode.workspace.applyEdit(edit))) {
@@ -1762,7 +1824,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         try {
           subjectAreasCreatedHere.add(filePath);
-          fs.writeFileSync(filePath, JSON.stringify(domainData, null, 2) + '\n', { encoding: 'utf-8', flag: 'wx' });
+          // In the naming the project writes (#182): v6 for a new or migrated project.
+          const fileData = tableLibraryService.writesTableNaming()
+            ? toTableNamingDocument(domainData as unknown as Record<string, unknown>)
+            : domainData;
+          fs.writeFileSync(filePath, JSON.stringify(fileData, null, 2) + '\n', { encoding: 'utf-8', flag: 'wx' });
           telemetry.feature('domainCreated');
         } catch (err) {
           subjectAreasCreatedHere.delete(filePath);
@@ -2023,36 +2089,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void vscode.window.showInformationMessage('All subject area files already use the v5 central Table Library format.');
         return;
       }
-
-      const v4Count = migrationService.findV4SubjectAreas().length;
-      const confirm = await vscode.window.showWarningMessage(
-        `Found ${v4Count} subject area file(s) using the legacy inline table format. ` +
-        'Migration will extract tables to .erd-studio/logical-models/ and convert subject area files to use name references. ' +
-        'This cannot be undone automatically.',
-        'Migrate Now',
-        'Cancel',
-      );
-
-      if (confirm !== 'Migrate Now') return;
-
-      let result: ReturnType<typeof migrationService.migrate>;
-      try {
-        result = migrationService.migrate();
-      } catch (err) {
-        telemetry.error('migrationFailed');
-        throw err;
-      }
-      telemetry.feature('migrateV5');
-      const details: string[] = [];
-      if (result.domainsConverted > 0) details.push(`${result.domainsConverted} subject area(s) converted`);
-      if (result.modelsCreated > 0) details.push(`${result.modelsCreated} table file(s) created in logical-models/`);
-      if (result.mergeConflicts.length > 0) details.push(`${result.mergeConflicts.length} merge conflict(s) resolved`);
-      void vscode.window.showInformationMessage(`Migration complete: ${details.join(', ')}.`);
-
-      treeProvider.refresh();
-      await editorProvider.refreshAllOpenSubjectAreas();
-      selectorsService.scheduleRegenerate();
+      // v4 → v5, then on to the new file naming (#182), so nobody goes through two prompts.
+      if (await migrateToV5()) await migrateNaming();
     }),
+    vscode.commands.registerCommand('erdStudio.migrateToTableNaming', async () => { await migrateNaming(); }),
+
     // F408: Set up semantic directory for new projects
     vscode.commands.registerCommand(
       'erdStudio.setupSemanticDirectory',
@@ -2073,9 +2114,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
           }
 
-          // Create logical-models directory
+          // A new project writes the v6 naming (#182): its tables/ library is
+          // made with the first table (an empty one would read as a layer
+          // folder). Only a project already on the v5 naming gets logical-models/.
           const logicalModelsDir = path.join(fullSemanticDir, 'logical-models');
-          if (!fs.existsSync(logicalModelsDir)) {
+          if (!tableLibraryService.writesTableNaming() && !fs.existsSync(logicalModelsDir)) {
             fs.mkdirSync(logicalModelsDir, { recursive: true });
           }
 

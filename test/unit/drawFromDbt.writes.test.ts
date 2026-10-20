@@ -57,6 +57,8 @@ function deps(): DrawFromDbtDeps {
 beforeEach(() => {
   _resetMockWorkspace();
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-draw-writes-'));
+  // A v5 project: its library folder exists (a project with none writes v6, #182).
+  fs.mkdirSync(path.join(tmp, '.erd-studio', 'logical-models'), { recursive: true });
   lms = new TableLibraryService(tmp);
   lms.ensureDir();
   fctPath = lms.tablePath('fct_order');

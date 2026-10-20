@@ -1,12 +1,12 @@
 # Subject Area and Table File Reference
 
-> On screen ERD Studio says **table**, **Table Library** and **subject area**; the files and keys below keep their older names (`logical-models/`, `logical.models`, `fromModel`, the subject area file's `domain` field). The [glossary](glossary.md) maps one to the other.
+> On screen ERD Studio says **table**, **Table Library** and **subject area**. The files say so too in a project on the new file naming, schema v6 (`tables/`, `logical.tables`, `fromTable`, `subjectArea`); a project that has not migrated keeps the older names (`logical-models/`, `logical.models`, `fromModel`, `domain`). This page uses the older names in its examples; [Schema v6](#schema-v6-the-table-naming) maps each one, and the [glossary](glossary.md) maps them to the words on screen.
 
-> Context document for AI agents generating ERD Studio subject area files. Describes the **schemaVersion 5** format written by the current extension. The authoritative, always-current copy of this guidance is the `SCHEMA_CONTENT` string in `src/services/harnessService.ts` (installed into a project via "ERD Studio: Install AI Coding Harness").
+> Context document for AI agents generating ERD Studio subject area files. Describes the format written by the current extension: **schemaVersion 6** or **5**, as `erd-studio doctor`'s `erd.naming` says. The authoritative, always-current copy of this guidance is the `SCHEMA_CONTENT` string in `src/services/harnessService.ts` (installed into a project via "ERD Studio: Install AI Coding Harness").
 
 ## File Layout
 
-ERD Studio keeps a **central Table Library**. Each table is a YAML file in `.erd-studio/logical-models/` (at the top level or one folder down); subject area JSON files reference tables **by name** and hold the layout. Relationships are defined once, in the YAML of the table holding the foreign key, and drawn by every subject area holding both tables — or, in a project that keeps them per subject area, in each subject area JSON (see [Where relationships live](#where-relationships-live)).
+ERD Studio keeps a **central Table Library**. Each table is a YAML file in `.erd-studio/logical-models/` — `.erd-studio/tables/` in the v6 naming — (at the top level or one folder down); subject area JSON files reference tables **by name** and hold the layout. Relationships are defined once, in the YAML of the table holding the foreign key, and drawn by every subject area holding both tables — or, in a project that keeps them per subject area, in each subject area JSON (see [Where relationships live](#where-relationships-live)).
 
 ```
 .erd-studio/
@@ -90,7 +90,7 @@ The extension decides how to read a file with a single detector (`detectSubjectA
 
 | Format | Shape | Behaviour |
 |--------|-------|-----------|
-| `v6` | `schemaVersion: 6`, `logical.tables` is all strings (or empty), the v6 names throughout | **Read, not written yet** ([below](#schema-v6-the-table-naming-read-only)). The canvas shows it read-only. |
+| `v6` | `schemaVersion: 6`, `logical.tables` is all strings (or empty), the v6 names throughout | **Read and written** ([below](#schema-v6-the-table-naming)): the naming a new or migrated project writes. |
 | `v5` | `schemaVersion: 5`, `logical.models` is all strings (or empty) | Current format, and the one ERD Studio writes. Fully supported. |
 | `v4` | `schemaVersion: 4`, `logical.models` is all inline table objects | Deprecated but still loads. On activation the extension prompts to run **ERD Studio: Migrate Subject Areas to the Central Table Library**, which extracts each object to `logical-models/{layer}/{name}.yml` (the subject area's layer folder; the top level when the library already holds flat files, or when several layers inline the table) and replaces it with its name. |
 | `hybrid` | `schemaVersion: 5` with inline objects, a mix of strings and objects, or entries that are neither | **Rejected** with an error pointing at the migration command. Migration repairs it (inline objects are extracted — existing YAML files are never overwritten). |
@@ -101,11 +101,13 @@ Never produce hybrid or legacy files. When adding a table to a subject area, add
 
 A `schemaVersion` higher than the extension reads (7 and up, today) is refused with "Please update the extension", never drawn as an empty diagram.
 
-### Schema v6: the table naming (read-only)
+<a id="schema-v6-the-table-naming-read-only"></a>
 
-Schema v6 ([#162](https://github.com/liam-machine/erd-studio/issues/162)) renames every on-disk key that names a *model* or a *domain*. ERD Studio reads it (from the release after 1.6.8) but does not write it yet: keep writing v5. A later release adds the migration and writes v6.
+### Schema v6: the table naming
 
-| v5 (still read) | v6 |
+Schema v6 ([#162](https://github.com/liam-machine/erd-studio/issues/162)) renames every on-disk key that names a *model* or a *domain*. ERD Studio reads it from the release after 1.6.9 ([#181](https://github.com/liam-machine/erd-studio/issues/181)) and writes it from the release after that ([#182](https://github.com/liam-machine/erd-studio/issues/182)). **Write the naming `erd-studio doctor` reports** (`erd.naming`): a v5 project keeps writing v5 until it migrates; a v6 project, a mixed one and a new one write v6.
+
+| v5 (still read, and written by a v5 project) | v6 |
 |---|---|
 | `.erd-studio/logical-models/` | `.erd-studio/tables/` (top level or one folder down, as before) |
 | `logical.models` | `logical.tables` |
@@ -119,13 +121,14 @@ Unchanged: `modelFolder` (it is dbt's `models/` path filter), the `.erd-studio/{
 
 - **Reading.** A v6 file is read into exactly what its v5 twin reads into, so the canvas, `erd-studio diff` / `export` and the Confluence viewer show the same diagram. A table YAML is read by key, wherever it is: `tableRole` and `toTable` win over `modelRole` and `toModel` when a file writes both.
 - **Library lookup.** `logical-models/` first (top level, then each folder alphabetically), then `tables/` in the same order. The Confluence viewer, which cannot list folders, probes the same paths.
-- **Mixed projects** (both folders, or v5 and v6 subject area files side by side) read everything. A table name found in both folders (ignoring case) is a **conflict**: the `logical-models/` copy is used, the canvas warns, and `erd-studio doctor` lists it under `erd.namingConflicts` with a `resolve-naming-conflicts` step. Keep one of the two files.
-- **Nothing writes v6 yet.** A v6 subject area opens read-only, saying why. An edit that would write a file in `tables/` (or a v6 subject area another edit would change, such as a rename) is refused by name, and **Move Relationships to Table Library**, **Organise Table Library by Layer**, **Give Duplicate Table Its Own Name**, **Rename Subject Area** and the v4 migration never touch the v6 files. New tables still go to `logical-models/`.
-- **A layer called `tables`.** A project made before v6 may already have one. `tables/` is a **layer folder**, never the library, when `layers.json` lists a layer with id `tables` or the folder holds a subject area file (`tables/*.json`), and it is never the library until it holds a table file (so an empty `tables` layer folder stays a layer); it keeps loading as before, the project stays on the v5 naming, and `erd-studio doctor` says `file naming v5 (tables/ is a layer folder)`.
-- **Don't mix the names in one file.** A `logical-models/` YAML that uses a v6 key (`tableRole`, `toTable`) is read, but ERD Studio refuses to edit it, since the v6 key would win over the one it writes. An empty `tables/` folder does not count: `tables/` is the library once it holds a table file. **Add Layer** refuses the id `tables`.
+- **Writing.** Every edit keeps the naming its file already uses: a v6 subject area is written back in v6, a v5 one in v5, and a table file in `tables/` (or one that already uses a v6 key) gets v6 keys, so a key the edit adds (a role, a relationship) is written as `tableRole` / `toTable`. New tables go to `tables/` and new subject areas are written in v6 when the project's naming is `v6` or `mixed`, or when the project has no table library yet; a v5 project's go to `logical-models/` in v5, byte for byte as before. **Move Relationships to Table Library**, **Organise Table Library by Layer** (within each folder), **Give Duplicate Table Its Own Name**, **Rename Subject Area**, **Delete Table** and **Draw from dbt** do the same.
+- **The migration.** **ERD Studio: Migrate to the New File Naming** moves a v5 project to v6 in one undoable step (**Edit > Undo** straight after, while an editor is open, restores every file byte for byte; after that, use source control): every table file from `logical-models/` to `tables/` (a folder one level down moves with its files), and in each file only the renamed keys and `schemaVersion` change — comments, key order, quoting, anchors, unknown keys, number text, line endings and every relationship as stored (`one-to-many`, a backwards `many-to-one`) are kept. A second run has nothing to do. It shows the whole plan first and refuses, saying why, a project with a layer called `tables`, a table name in both folders, two files whose paths differ only in case, and a subject area file that does not load. A subject area still in v4 with inline tables goes through **Migrate Subject Areas to the Central Table Library** first, which carries straight on into the new naming (a v4 file with no inline table is renamed in place). `erd-studio doctor` previews it under `erd.namingMigration`; the CLI never runs it. Opening a canvas on a v5 or mixed project offers it once a session (**Review the Migration…**, **Not Now**, **Don't Ask Again**), before any other offer on that open; nothing is written without the user's choice.
+- **Mixed projects** (both folders, or v5 and v6 subject area files side by side) read everything and write v6 for new files. A table name found in both folders (ignoring case) is a **conflict**: the `logical-models/` copy is used, the canvas warns, and `erd-studio doctor` lists it under `erd.namingConflicts` with a `resolve-naming-conflicts` step. Keep one of the two files.
+- **A layer called `tables`.** A project made before v6 may already have one. `tables/` is a **layer folder**, never the library, when `layers.json` lists a layer with id `tables` or the folder holds a subject area file (`tables/*.json`), and it is never the library until it holds a table file (so an empty `tables` layer folder stays a layer); it keeps loading as before, the project stays on the v5 naming, and `erd-studio doctor` says `file naming v5 (tables/ is a layer folder)`. The migration refuses until that layer is renamed. **Add Layer** refuses the id `tables`.
+- **Don't mix the names in one file.** A table YAML holding both `modelRole` and `tableRole` (or both `toModel` and `toTable` in one relationship) is read — the v6 key wins — but ERD Studio refuses to edit it until one is removed. An empty `tables/` folder does not count: `tables/` is the library once it holds a table file.
 - **Case.** A name that differs only in case between the two folders is a conflict like any other, and the extension reads the `logical-models/` copy on every file system. The Confluence viewer cannot list folders, so it probes exact file names and may read the other copy on a case-sensitive host: resolve the conflict.
-- **The project's naming.** `erd-studio doctor` reports `erd.naming`: `v5`, `v6` or `mixed` (core's `detectProjectNaming`), from the folders and subject area files on disk.
-- **Older versions** (1.6.8 and earlier) refuse a v6 subject area with "Please update the extension"; they do not see a `tables/` library at all, so a table that lives only there is missing for them. A team moves to v6 together.
+- **The project's naming.** `erd-studio doctor` reports `erd.naming`: `v5`, `v6` or `mixed` (core's `detectProjectNaming`), from the folders and subject area files on disk. An empty `logical-models/` keeps a project v5 unless `tables/` is the library; a project with neither folder is `v6`.
+- **Older versions.** 1.6.9 and earlier refuse a v6 subject area with "Please update the extension"; they do not see a `tables/` library at all, so a table that lives only there is missing for them. Teammates need the release that reads v6 before a project migrates, so a team moves to v6 together.
 
 <a id="model-files-erd-studiological-modelsfoldernameyml"></a>
 
@@ -568,15 +571,15 @@ The association uses the default `.erd-studio` directory. With a custom `erdStud
 name: dim_customer
 ```
 
-The schemas describe the current format (`schemaVersion` 5) and still accept a version 4 subject area until it is migrated. They do not describe v6 yet (it is read, not written; its schemas come with the release that writes it), so a hand-written v6 file is flagged. A subject area that mixes table names with inline table objects is flagged, because it does not open. The schemas are slightly stricter than the reader: a quoted `scdType: "1"` or `isPrimaryKey: yes` still loads, but is flagged, so hand edits end up in the form the canvas writes.
+The schemas describe both namings — `schemaVersion` 6 with the v6 keys and `tables/` YAML, and `schemaVersion` 5 with the v5 keys — and still accept a version 4 subject area until it is migrated. A file mixing the two namings is flagged, because it does not open. A subject area that mixes table names with inline table objects is flagged, because it does not open. The schemas are slightly stricter than the reader: a quoted `scdType: "1"` or `isPrimaryKey: yes` still loads, but is flagged, so hand edits end up in the form the canvas writes.
 
 Red Hat YAML matches paths with dot-folders skipped, so a project inside a hidden folder (`~/.work/shop/…`) gets no table file validation from the built-in association; map it in `yaml.schemas` instead.
 
 ## Validation Rules
 
-1. Write `schemaVersion` `5`. Versions below 4 and top-level `models` arrays are rejected; version 4 is accepted only until migrated; version 6 is read (see [Schema v6](#schema-v6-the-table-naming-read-only)) but not written yet.
+1. Write `schemaVersion` `6` with the v6 names, or `5` with the v5 names, as `erd-studio doctor`'s `erd.naming` says (see [Schema v6](#schema-v6-the-table-naming)). Versions below 4 and top-level `models` arrays are rejected; version 4 is accepted only until migrated.
 2. `layer` must match an `id` in `layers.json`.
-3. Every entry in `logical.models` must be a string. Mixed string/object arrays are rejected.
+3. Every entry in `logical.models` (v6: `logical.tables`) must be a string. Mixed string/object arrays are rejected.
 4. Each referenced table should have a `logical-models/{name}.yml` or `logical-models/{folder}/{name}.yml`; a missing file renders as a placeholder with a warning.
 5. Relationship identity `(fromModel, fromColumn, toModel, toColumn)` must be unique, in either direction, and both tables should be in `logical.models`.
 6. `viewConfig` must be at the root of the document.

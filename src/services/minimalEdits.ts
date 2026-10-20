@@ -8,9 +8,9 @@
  */
 
 import { isAlias, isMap, isPair, isScalar, isSeq, parseDocument, stringify, visit } from 'yaml';
-import type { Node, Pair } from 'yaml';
+import type { Node, Pair, YAMLMap } from 'yaml';
 
-import { VALID_CARDINALITIES, normaliseCompositeKey, normaliseRelationshipRole } from '@erd-studio/core';
+import { VALID_CARDINALITIES, detectSubjectAreaFormat, normaliseCompositeKey, normaliseRelationshipRole, toTableNamingDocument } from '@erd-studio/core';
 
 import type { TableRelationship, Relationship } from '../types/semantic';
 import { detectEol, keepLineEndings } from './lineEndings';
@@ -65,13 +65,16 @@ function detectSeqIndent(text: string, pairs: readonly Pair[]): number {
   return 2;
 }
 
-function renderYamlBlock(relationships: readonly TableRelationship[], indent: number, eol: string): string {
+/** The key a table file names a relationship's far end with: v6's `toTable` (#182), else `toModel`. */
+const toKeyOf = (tableNaming: boolean): string => (tableNaming ? 'toTable' : 'toModel');
+
+function renderYamlBlock(relationships: readonly TableRelationship[], indent: number, eol: string, tableNaming: boolean): string {
   const dash = ' '.repeat(indent);
   const body = ' '.repeat(indent + 2);
   const lines = ['relationships:'];
   for (const r of relationships) {
     lines.push(`${dash}- fromColumn: ${yamlScalar(r.fromColumn)}`);
-    lines.push(`${body}toModel: ${yamlScalar(r.toModel)}`);
+    lines.push(`${body}${toKeyOf(tableNaming)}: ${yamlScalar(r.toModel)}`);
     lines.push(`${body}toColumn: ${yamlScalar(r.toColumn)}`);
     lines.push(`${body}cardinality: ${yamlScalar(r.cardinality)}`);
     if (r.role) lines.push(`${body}role: ${yamlScalar(r.role)}`);
@@ -80,7 +83,15 @@ function renderYamlBlock(relationships: readonly TableRelationship[], indent: nu
   return lines.join(eol);
 }
 
-const ENTRY_KEYS = new Set(['fromColumn', 'toModel', 'toColumn', 'cardinality', 'role', 'compositeKey']);
+/** Whether a table file's root uses a v6 key (#162): `tableRole`, or a relationship's `toTable`. */
+function usesV6TableKeys(root: YAMLMap): boolean {
+  const keyed = (map: YAMLMap, key: string): boolean => map.items.some((p) => isScalar(p.key) && p.key.value === key);
+  if (keyed(root, 'tableRole')) return true;
+  const list = root.items.find((p) => isScalar(p.key) && p.key.value === 'relationships')?.value;
+  return isSeq(list) && list.items.some((item) => isMap(item) && keyed(item, 'toTable'));
+}
+
+const ENTRY_KEYS = new Set(['fromColumn', 'toModel', 'toTable', 'toColumn', 'cardinality', 'role', 'compositeKey']);
 
 /**
  * Whether re-rendering `text`'s `relationships:` block would lose something:
@@ -101,7 +112,9 @@ export function relationshipsRewriteLoses(text: string): boolean {
   const list: unknown = (pair.value as Node).toJSON() ?? [];
   return commented || !Array.isArray(list) || list.some((entry: Record<string, unknown> | null) =>
     !entry || typeof entry !== 'object' || Object.keys(entry).some((k) => !ENTRY_KEYS.has(k))
-    || ['fromColumn', 'toModel', 'toColumn'].some((k) => typeof entry[k] !== 'string' || entry[k] === '')
+    // One far end, in either naming (#182): both would read as `toTable` alone.
+    || ('toModel' in entry && 'toTable' in entry)
+    || ['fromColumn', 'toTable' in entry ? 'toTable' : 'toModel', 'toColumn'].some((k) => typeof entry[k] !== 'string' || entry[k] === '')
     || !VALID_CARDINALITIES.has(entry.cardinality as never)
     || (entry.role !== undefined && normaliseRelationshipRole(entry.role) !== entry.role)
     || (entry.compositeKey !== undefined && normaliseCompositeKey(entry.compositeKey) !== entry.compositeKey));
@@ -114,12 +127,18 @@ export function relationshipsRewriteLoses(text: string): boolean {
  * unchanged. Line endings follow the file's own (CRLF stays CRLF); a BOM is
  * kept. Throws if `text` is not a YAML mapping.
  */
-export function setYamlRelationships(text: string, relationships: readonly TableRelationship[]): string {
+export function setYamlRelationships(
+  text: string,
+  relationships: readonly TableRelationship[],
+  /** Write v6's `toTable` (#182); by default, whichever naming the file already uses. */
+  tableNaming?: boolean,
+): string {
   const { bom, body } = splitBom(text);
   const doc = parseDocument(body);
   if (doc.errors.length > 0) throw new Error(`setYamlRelationships: ${doc.errors[0].message}`);
   const root = doc.contents;
   if (!isMap(root)) throw new Error('setYamlRelationships: the table file is not a YAML mapping');
+  const v6 = tableNaming ?? usesV6TableKeys(root);
 
   if (root.flow) {
     // `{ name: x, columns: [...] }` on one line: there is no block to splice
@@ -127,7 +146,7 @@ export function setYamlRelationships(text: string, relationships: readonly Table
     // any assistant; supported only so the move does not fail on it.
     if (relationships.length === 0) doc.delete('relationships');
     else doc.set('relationships', relationships.map((r) => ({
-      fromColumn: r.fromColumn, toModel: r.toModel, toColumn: r.toColumn, cardinality: r.cardinality,
+      fromColumn: r.fromColumn, [toKeyOf(v6)]: r.toModel, toColumn: r.toColumn, cardinality: r.cardinality,
       ...(r.role ? { role: r.role } : {}),
       ...(r.compositeKey ? { compositeKey: r.compositeKey } : {}),
     })));
@@ -137,7 +156,7 @@ export function setYamlRelationships(text: string, relationships: readonly Table
   const pairs = root.items.filter(isPair) as Pair[];
   const eol = detectEol(body);
   const endsWithEol = body.endsWith('\n');
-  const block = renderYamlBlock(relationships, detectSeqIndent(body, pairs), eol);
+  const block = renderYamlBlock(relationships, detectSeqIndent(body, pairs), eol, v6);
   const existing = pairs.find((p) => isScalar(p.key) && p.key.value === 'relationships');
 
   if (!existing) {
@@ -281,6 +300,12 @@ function renderJsonArray(
 export function setSubjectAreaRelationships(text: string, relationships: readonly Relationship[]): string {
   const { bom, body } = splitBom(text);
   const parsed: unknown = JSON.parse(body);
+  // A v6 file (#182) keeps its own keys: `fromTable` / `toTable`, next to `logical.tables`.
+  const v6 = detectSubjectAreaFormat(parsed) === 'v6';
+  if (v6) {
+    const renamed = toTableNamingDocument({ logical: { relationships } }).logical as { relationships: Relationship[] };
+    relationships = renamed.relationships;
+  }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('setSubjectAreaRelationships: the subject area file is not a JSON object');
   }
@@ -316,7 +341,7 @@ export function setSubjectAreaRelationships(text: string, relationships: readonl
       + body.slice(logical.close);
   }
 
-  const anchor = logical.members.find((m) => m.key === 'models') ?? logical.members[logical.members.length - 1];
+  const anchor = logical.members.find((m) => m.key === (v6 ? 'tables' : 'models')) ?? logical.members[logical.members.length - 1];
   const separator = body.slice(anchor.keyEnd, anchor.valueStart);
   const anchorIndent = indentIfFirstOnLine(body, anchor.keyStart);
   const rendered = renderJsonArray(relationships, anchorIndent, unit, eol);
@@ -396,4 +421,26 @@ export function rewriteJsonScalars(text: string, updated: unknown): string | nul
     out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
   }
   return bom + out;
+}
+
+/**
+ * Return `text` (a JSON object) with `"key": value` added as its first
+ * member, laid out like the member after it (or on its own line in the
+ * file's indent), every other byte unchanged. Null when `text` is not a JSON
+ * object or already has the key.
+ */
+export function insertFirstJsonMember(text: string, key: string, value: unknown): string | null {
+  const { bom, body } = splitBom(text);
+  const open = skipWs(body, 0);
+  if (body[open] !== '{') return null;
+  const { members, close } = scanObject(body, open);
+  if (members.some((m) => m.key === key)) return null;
+  const member = `${JSON.stringify(key)}: ${JSON.stringify(value)}`;
+  if (members.length === 0) {
+    return bom + body.slice(0, open + 1) + member + body.slice(close);
+  }
+  const first = members[0];
+  // Everything between `{` and the first key (a line break and indent, or a space) goes before the new member too.
+  const lead = body.slice(open + 1, first.keyStart);
+  return bom + body.slice(0, open + 1) + lead + member + ',' + body.slice(open + 1);
 }

@@ -26,7 +26,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { VALID_CARDINALITIES, linkKey, normaliseCompositeKey, normaliseRelationshipRole, parseTableText } from '@erd-studio/core';
+import { VALID_CARDINALITIES, linkKey, normaliseCompositeKey, normaliseRelationshipRole, normaliseSubjectAreaDocument, parseTableText } from '@erd-studio/core';
 import { dirtyFiles } from '../providers/dirtyDocuments';
 import {
   applyMoveToTable,
@@ -55,7 +55,7 @@ export interface MoveRelationshipsDeps {
   semanticDir: string;
   subjectAreaService: Pick<SubjectAreaService, 'listSubjectAreas'>;
   tableLibraryService: Pick<TableLibraryService, 'getTable' | 'listTables' | 'tablePath' | 'invalidateCache' | 'getTablesDir'>
-    & Partial<Pick<TableLibraryService, 'findTableNameIgnoringCase' | 'hasTablesLibrary'>>;
+    & Partial<Pick<TableLibraryService, 'findTableNameIgnoringCase' | 'hasTablesLibrary' | 'isTableNamingFile'>>;
   /** Refresh the trees, open canvases and selectors once the files are written. */
   onWritten: (domainPaths: string[]) => Promise<void>;
   /** Test seam: how one file is written. Defaults to {@link writeFileAtomic}. */
@@ -64,7 +64,7 @@ export interface MoveRelationshipsDeps {
   loadDbtKeyIndex?: () => Promise<DbtKeyIndex>;
 }
 
-/** A v5 domain file's models and own relationships, as read from disk. */
+/** A v5 or v6 domain file's models and own relationships, as read from disk (v6 under its v5 keys, #182). */
 export interface SubjectAreaRelationships {
   /** `{layer}/{domain}`, as the user knows it. */
   label: string;
@@ -73,7 +73,7 @@ export interface SubjectAreaRelationships {
   relationships: Relationship[];
 }
 
-/** Every readable v5 domain file's models and `logical.relationships`. */
+/** Every readable v5 and v6 domain file's models and `logical.relationships`. */
 export function readSubjectAreaRelationships(
   subjectAreaService: Pick<SubjectAreaService, 'listSubjectAreas'>,
   workspaceRoot: string,
@@ -82,8 +82,10 @@ export function readSubjectAreaRelationships(
   const domains: SubjectAreaRelationships[] = [];
   for (const summary of subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir)) {
     try {
-      const raw = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as Record<string, unknown>;
-      if (detectSubjectAreaFormat(raw) !== 'v5') continue;
+      const file = JSON.parse(fs.readFileSync(summary.filePath, 'utf-8')) as Record<string, unknown>;
+      const format = detectSubjectAreaFormat(file);
+      if (format !== 'v5' && format !== 'v6') continue;
+      const raw = format === 'v6' ? normaliseSubjectAreaDocument(file) : file;
       const logical = raw.logical as { models?: unknown; relationships?: unknown } | undefined;
       const models = (Array.isArray(logical?.models) ? logical!.models : []).filter((m): m is string => typeof m === 'string');
       const relationships = (Array.isArray(logical?.relationships) ? logical!.relationships : [])
@@ -103,18 +105,6 @@ export function readSubjectAreaRelationships(
     }
   }
   return domains;
-}
-
-/** Whether the project has v6's `tables/` library or any subject area file in the v6 naming (#162). */
-function usesTableNaming(deps: MoveRelationshipsDeps): boolean {
-  if (deps.tableLibraryService.hasTablesLibrary?.()) return true;
-  return deps.subjectAreaService.listSubjectAreas(deps.workspaceRoot, deps.semanticDir).some((summary) => {
-    try {
-      return detectSubjectAreaFormat(JSON.parse(fs.readFileSync(summary.filePath, 'utf-8'))) === 'v6';
-    } catch {
-      return false;
-    }
-  });
 }
 
 /**
@@ -172,16 +162,6 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
   const { workspaceRoot, semanticDir, subjectAreaService, tableLibraryService } = deps;
   const writeFile = deps.writeFile ?? writeFileAtomic;
   telemetry.feature('relMoveStarted');
-  // The move writes v5 keys. A project holding any of the new file naming
-  // (#162: `tables/`, a schemaVersion 6 diagram) is read but not written by
-  // this version, and a half-moved project would be worse than an unmoved one.
-  if (usesTableNaming(deps)) {
-    void vscode.window.showInformationMessage(
-      `${TITLE}: this project uses the new file naming (tables/, schemaVersion 6), which this version of ERD Studio ` +
-      'reads but cannot edit yet. Nothing was changed.',
-    );
-    return;
-  }
   // Read the library fresh: a cached copy may predate an edit made on disk.
   tableLibraryService.invalidateCache();
   const domains = readSubjectAreaRelationships(subjectAreaService, workspaceRoot, semanticDir)
@@ -325,7 +305,8 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
     readModels.push(model);
     nextModels.push(copy);
     if (!applyMoveToTable(plan, copy)) continue;
-    const text = setYamlRelationships(original, copy.relationships ?? []);
+    // A file in `tables/` is written in the v6 naming (#182); otherwise in whichever the file uses.
+    const text = setYamlRelationships(original, copy.relationships ?? [], tableLibraryService.isTableNamingFile?.(filePath) || undefined);
     if (text !== original) writes.push({ filePath, original, text });
   }
   const domainPaths: string[] = [];
@@ -333,7 +314,9 @@ async function runMove(deps: MoveRelationshipsDeps): Promise<void> {
     const keys = plan.removeFromDomains.get(domain.label);
     if (!keys) continue;
     const original = fs.readFileSync(domain.filePath, 'utf-8');
-    const raw = JSON.parse(original) as { logical?: { relationships?: unknown } };
+    const parsed = JSON.parse(original) as Record<string, unknown>;
+    // A v6 file (#182) is read under its v5 keys; setSubjectAreaRelationships writes it back in v6.
+    const raw = (detectSubjectAreaFormat(parsed) === 'v6' ? normaliseSubjectAreaDocument(parsed) : parsed) as { logical?: { relationships?: unknown } };
     const current = Array.isArray(raw.logical?.relationships) ? raw.logical!.relationships as Relationship[] : [];
     const isRelationship = (r: unknown): r is Relationship => !!r && typeof r === 'object'
       && ['fromModel', 'fromColumn', 'toModel', 'toColumn'].every((k) => typeof (r as Record<string, unknown>)[k] === 'string');

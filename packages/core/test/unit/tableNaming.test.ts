@@ -17,6 +17,7 @@ import {
   describeUnsupportedSubjectAreaFormat,
   detectProjectNaming,
   detectSubjectAreaFormat,
+  writesTableNaming,
   getRawSubjectAreaTableNames,
   mixesTableNaming,
   usesTableLibrary,
@@ -194,7 +195,8 @@ describe('model yml in the v6 naming', () => {
 
 describe('detectProjectNaming', () => {
   it.each([
-    [{ hasLogicalModelsDir: false, hasTablesLibrary: false, subjectAreaFormats: [] }, 'v5'],
+    // A new project writes v6 (#182).
+    [{ hasLogicalModelsDir: false, hasTablesLibrary: false, subjectAreaFormats: [] }, 'v6'],
     [{ hasLogicalModelsDir: true, hasTablesLibrary: false, subjectAreaFormats: ['v5', 'v4'] }, 'v5'],
     [{ hasLogicalModelsDir: false, hasTablesLibrary: true, subjectAreaFormats: ['v6'] }, 'v6'],
     [{ hasLogicalModelsDir: false, hasTablesLibrary: false, subjectAreaFormats: ['v6'] }, 'v6'],
@@ -202,8 +204,11 @@ describe('detectProjectNaming', () => {
     [{ hasLogicalModelsDir: false, hasTablesLibrary: true, subjectAreaFormats: ['v5', 'v6'] }, 'mixed'],
     // Files that cannot load say nothing either way.
     [{ hasLogicalModelsDir: false, hasTablesLibrary: true, subjectAreaFormats: ['hybrid', 'legacy'] }, 'v6'],
+    [{ hasLogicalModelsDir: false, hasTablesLibrary: false, subjectAreaFormats: ['hybrid'] }, 'v6'],
+    [{ hasLogicalModelsDir: true, hasTablesLibrary: false, subjectAreaFormats: ['hybrid'] }, 'v5'],
   ] as const)('%o is %s', (evidence, naming) => {
     expect(detectProjectNaming(evidence)).toBe(naming);
+    expect(writesTableNaming(detectProjectNaming(evidence))).toBe(naming !== 'v5');
   });
 });
 

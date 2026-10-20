@@ -431,8 +431,8 @@ describe('DisplaySubjectArea golden output (extension host)', () => {
   // #181: the same projects in the v6 file naming (`tables/`, `logical.tables`,
   // `subjectArea`, `fromTable` / `toTable`, `tableRole`) and half-way between
   // the two draw exactly what the v5 goldens pin. Only `schemaVersion` (the
-  // file's own) and `readOnly` (nothing writes v6 yet) differ. These fixtures
-  // have no goldens of their own: the v5 ones are the expectation.
+  // file's own) differs; since #182 a v6 canvas is editable like a v5 one.
+  // These fixtures have no goldens of their own: the v5 ones are the expectation.
   describe.each([
     ['naming-v6/showcase', 'silver/showcase.json', 'showcase', 6],
     ['naming-v6/library-relationships', 'gold/sales.json', 'library-relationships', 6],
@@ -440,7 +440,6 @@ describe('DisplaySubjectArea golden output (extension host)', () => {
     ['naming-mixed/library-relationships', 'gold/sales_v5.json', 'library-relationships', 5],
   ] as const)('%s %s draws the %s golden', (project, relative, golden, schemaVersion) => {
     const root = path.join(FIXTURES, project);
-    const v6 = schemaVersion === 6;
 
     it('posts the v5 DisplaySubjectArea', async () => {
       const posted = await sendSubjectAreaData(buildHost(root), subjectAreaFile(root, relative));
@@ -448,7 +447,7 @@ describe('DisplaySubjectArea golden output (extension host)', () => {
       const expected = readGolden(`${golden}.host.json`) as { payload: Record<string, unknown> };
       expect(normalise(posted[0], root)).toEqual({
         ...expected,
-        payload: { ...expected.payload, schemaVersion, readOnly: v6 },
+        payload: { ...expected.payload, schemaVersion },
       });
     });
 
@@ -458,7 +457,7 @@ describe('DisplaySubjectArea golden output (extension host)', () => {
     });
   });
 
-  describe('a v6 subject area is read-only (#181)', () => {
+  describe('a v6 subject area is written in v6 (#182)', () => {
     let tmpRoot: string;
 
     beforeEach(() => {
@@ -470,21 +469,21 @@ describe('DisplaySubjectArea golden output (extension host)', () => {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     });
 
-    it('opens with a model missing its position and writes nothing', async () => {
+    it('opens with a model missing its position, and saves it into the v6 file under the v6 keys', async () => {
       const file = subjectAreaFile(tmpRoot, 'silver/showcase.json');
       const doc = JSON.parse(fs.readFileSync(file, 'utf-8'));
       delete doc.viewConfig.positions.dim_task;
-      const before = JSON.stringify(doc, null, 2) + '\n';
-      fs.writeFileSync(file, before);
+      fs.writeFileSync(file, JSON.stringify(doc, null, 2) + '\n');
       const posted = await sendSubjectAreaData(buildHost(tmpRoot), file, { persistPositions: true, persistDocument: true });
-      expect(posted).toHaveLength(1);
-      expect(posted[0].type).toBe('domainLoaded');
-      const payload = posted[0].payload as { readOnly: boolean; viewConfig: { positions: Record<string, unknown> } };
-      expect(payload.readOnly).toBe(true);
-      // Placed for this paint only.
-      expect(payload.viewConfig.positions.dim_task).toBeDefined();
-      expect(_appliedEdits).toHaveLength(0);
-      expect(fs.readFileSync(file, 'utf-8')).toBe(before);
+      expect(posted[posted.length - 1].type).toBe('domainLoaded');
+      const payload = posted[posted.length - 1].payload as { readOnly: boolean; viewConfig: { positions: Record<string, unknown> } };
+      expect(payload.readOnly).toBe(false);
+      expect(_appliedEdits).toHaveLength(1);
+      const after = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      // Only the new position: the file keeps the v6 keys, in their order.
+      expect(after.viewConfig.positions.dim_task).toEqual(payload.viewConfig.positions.dim_task);
+      delete after.viewConfig.positions.dim_task;
+      expect(JSON.stringify(after)).toBe(JSON.stringify(doc));
     });
   });
 

@@ -16,7 +16,8 @@ import * as path from 'path';
 import { Document, Pair, YAMLMap, YAMLSeq, parseDocument, isAlias, isMap, isNode, isPair, isScalar, isSeq, visit } from 'yaml';
 import type { Alias, Node, Scalar, ScalarTag, Tags } from 'yaml';
 
-import { LAYERS_CONFIG_FILE, LOGICAL_MODELS_DIR, RATIONALE_KEYS, TABLES_DIR, classifyTableLoadError, tableLoadWarningOf, parseTableText } from '@erd-studio/core';
+import { LAYERS_CONFIG_FILE, LOGICAL_MODELS_DIR, RATIONALE_KEYS, TABLES_DIR, classifyTableLoadError, tableLoadWarningOf, parseTableText, writesTableNaming } from '@erd-studio/core';
+import { projectNamingOf } from './projectNaming';
 import type { TableLoadErrorKind } from '@erd-studio/core';
 import type { ColumnDef, TableRelationship, SemanticTable } from '../types/semantic';
 import type { YmlModelInfo } from '../types/ymlData';
@@ -280,9 +281,10 @@ export class DuplicateKeyWriteRefused extends Error {
 }
 
 /**
- * A write to a table file in v6's `tables/` library (#162). This version
- * reads the v6 naming but writes only v5, and a v5 key written into a v6
- * file would make a file that is neither: the edit is refused, by name.
+ * A write to a table file that holds a key in both namings (#162) —
+ * `modelRole` and `tableRole`, or a relationship's `toModel` and `toTable`.
+ * Only the v6 one is read, so which one an edit should change is the
+ * user's call: refused, by file and key.
  */
 export class TableNamingWriteRefused extends Error {
   constructor(message: string) {
@@ -291,18 +293,49 @@ export class TableNamingWriteRefused extends Error {
   }
 }
 
-/** The first v6 key (#162) a table file's root map uses — `tableRole`, or a relationship's `toTable` — or null. */
-function tableNamingKeyIn(root: YAMLMap): string | null {
-  if (root.items.some((pair) => keyIs(pair, 'tableRole'))) return 'tableRole';
+/** The v6 name of each table file key the naming renames (#162), at the root and in a relationship entry. */
+const V6_TABLE_KEYS: Readonly<Record<string, string>> = { modelRole: 'tableRole' };
+const V6_RELATIONSHIP_KEYS: Readonly<Record<string, string>> = { fromModel: 'fromTable', toModel: 'toTable' };
+
+/** Each map whose keys the naming renames: the root, and every `relationships:` entry. */
+function namingMaps(root: YAMLMap): Array<{ map: YAMLMap; keys: Readonly<Record<string, string>> }> {
+  const maps = [{ map: root, keys: V6_TABLE_KEYS }];
   const relationships = root.items.find((pair) => keyIs(pair, 'relationships'))?.value;
   if (isSeq(relationships)) {
     for (const item of relationships.items) {
-      if (!isMap(item)) continue;
-      // Only `toTable` is read (the from end is the file's own table), so only it can win over what this writes.
-      if (item.items.some((pair) => keyIs(pair, 'toTable'))) return 'toTable';
+      if (isMap(item)) maps.push({ map: item, keys: V6_RELATIONSHIP_KEYS });
     }
   }
-  return null;
+  return maps;
+}
+
+/** Whether a table file's root map uses a v6 key (#162): `tableRole`, or a relationship's `fromTable` / `toTable`. */
+function usesTableNamingKeys(root: YAMLMap): boolean {
+  return namingMaps(root).some(({ map, keys }) =>
+    Object.values(keys).some((v6) => map.items.some((pair) => keyIs(pair, v6))));
+}
+
+/**
+ * Rename the naming's keys of a table file in place (#182), keeping each
+ * key's style and comments: `toV5` before a save edits it under the keys
+ * this service manages, `toV6` after, so a v6 file is written in v6. Throws
+ * {@link TableNamingWriteRefused} for a map holding a key in both namings.
+ */
+function renameNamingKeys(root: YAMLMap, direction: 'toV5' | 'toV6', file: string): void {
+  for (const { map, keys } of namingMaps(root)) {
+    for (const [v5, v6] of Object.entries(keys)) {
+      const [from, to] = direction === 'toV5' ? [v6, v5] : [v5, v6];
+      const pair = map.items.find((p) => keyIs(p, from));
+      if (!pair) continue;
+      if (map.items.some((p) => keyIs(p, to))) {
+        throw new TableNamingWriteRefused(
+          `${file} holds both "${v5}" and "${v6}", so ERD Studio cannot tell which one to change. Remove "${v5}" (only "${v6}" is read), then try again.`,
+        );
+      }
+      if (isScalar(pair.key)) setScalarValue(pair.key, to);
+      else pair.key = to;
+    }
+  }
 }
 
 export class TableLibraryService {
@@ -362,10 +395,10 @@ export class TableLibraryService {
     return hasTablesLibrary(this.semanticRoot);
   }
 
-  /** Whether `filePath` is inside v6's `tables/` library, which is never written. */
+  /** Whether `filePath` is inside v6's `tables/` library (not a layer folder of that name), whose files are written in v6 (#182). */
   isTableNamingFile(filePath: string): boolean {
     const rel = path.relative(path.resolve(this.v6TablesDir), path.resolve(filePath));
-    return !rel.startsWith('..') && !path.isAbsolute(rel) && this.hasTablesLibrary();
+    return !rel.startsWith('..') && !path.isAbsolute(rel) && !tablesDirIsLayer(this.semanticRoot);
   }
 
   /**
@@ -390,13 +423,42 @@ export class TableLibraryService {
     }
   }
 
-  /** Throws {@link TableNamingWriteRefused} when `filePath` is in `tables/`. */
-  refuseTableNamingWrite(filePath: string, name: string): void {
-    if (!this.isTableNamingFile(filePath)) return;
-    throw new TableNamingWriteRefused(
-      `Can't change "${name}": its file ${this.libraryRelativePath(filePath)} uses the new file naming (tables/), ` +
-        'which this version of ERD Studio reads but cannot edit yet.',
-    );
+  /** Whether `logical-models/` holds a table file (an empty leftover folder says nothing, #182). */
+  hasV5TableFiles(): boolean {
+    return this.listTableFiles().some((e) => !e.library);
+  }
+
+  /** Whether `logical-models/` exists, empty or not. */
+  hasV5Folder(): boolean {
+    return fs.existsSync(this.tablesDir);
+  }
+
+  /**
+   * Whether a new table file goes to `tables/` in the v6 naming (#182): the
+   * project's naming (`projectNamingOf`) is `v6` — a new, empty project too —
+   * or `mixed`. A v5 project keeps writing `logical-models/` until it migrates.
+   */
+  writesTableNaming(): boolean {
+    // Read paths ask too (a missing table's would-be path), so a burst of
+    // them scans the subject areas once; any write or invalidation re-asks.
+    const now = Date.now();
+    if (this.namingMemo === undefined || now - this.namingMemo.at > 1000) {
+      this.namingMemo = { at: now, v6: writesTableNaming(projectNamingOf(this.semanticRoot, this)) };
+    }
+    return this.namingMemo.v6;
+  }
+
+  /** {@link writesTableNaming}'s last answer, briefly. */
+  private namingMemo: { at: number; v6: boolean } | undefined;
+
+  /** The library new table files are created in (see {@link writesTableNaming}). */
+  private newTablesDir(): string {
+    return this.writesTableNaming() && !tablesDirIsLayer(this.semanticRoot) ? this.v6TablesDir : this.tablesDir;
+  }
+
+  /** The folder name (`tables` or `logical-models`) new table files are created in, as sync plans report it. */
+  newTableLibraryDirName(): string {
+    return this.newTablesDir() === this.v6TablesDir ? TABLES_DIR : LOGICAL_MODELS_DIR;
   }
 
   /** Every table name with a file in both `logical-models/` and `tables/`, ignoring case. */
@@ -411,6 +473,7 @@ export class TableLibraryService {
    * to clear everything (e.g. after a bulk change on disk).
    */
   invalidateCache(name?: string): void {
+    this.namingMemo = undefined;
     if (name === undefined) {
       this.cache.clear();
       return;
@@ -466,10 +529,11 @@ export class TableLibraryService {
   }
 
   /**
-   * Check if the logical-models directory exists.
+   * Whether the project has a table library folder: `logical-models/`, or
+   * v6's `tables/` (#182) when it is not a layer folder.
    */
   dirExists(): boolean {
-    return fs.existsSync(this.tablesDir);
+    return fs.existsSync(this.tablesDir) || (fs.existsSync(this.v6TablesDir) && !tablesDirIsLayer(this.semanticRoot));
   }
 
   /**
@@ -478,11 +542,17 @@ export class TableLibraryService {
    * folder as well; a path outside the library is refused.
    */
   ensureDir(forFile?: string): void {
-    const root = path.resolve(this.tablesDir);
-    const dir = forFile === undefined ? root : path.dirname(path.resolve(forFile));
-    const rel = path.relative(root, dir);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) {
-      throw new Error(`Refusing to create ${dir}: outside the logical-models directory.`);
+    const inside = (root: string, dir: string): boolean => {
+      const rel = path.relative(root, dir);
+      return !rel.startsWith('..') && !path.isAbsolute(rel);
+    };
+    const target = forFile === undefined ? undefined : path.dirname(path.resolve(forFile));
+    // Either library (#182): a v6 project's files are created in `tables/`.
+    const root = [this.tablesDir, this.v6TablesDir].map((d) => path.resolve(d)).find((d) => target !== undefined && inside(d, target))
+      ?? path.resolve(this.newTablesDir());
+    const dir = target ?? root;
+    if (!inside(root, dir)) {
+      throw new Error(`Refusing to create ${dir}: outside the Table Library.`);
     }
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -758,7 +828,6 @@ export class TableLibraryService {
    */
   saveTable(model: SemanticTable, folder?: string): void {
     const filePath = this.tablePath(model.name, folder);
-    this.refuseTableNamingWrite(filePath, model.name);
     this.ensureDir(filePath);
     this.writeAtomic(filePath, this.renderTable(model, filePath));
   }
@@ -796,7 +865,6 @@ export class TableLibraryService {
    * document generated from the model. Line endings follow the file's own.
    */
   private renderTable(model: SemanticTable, filePath: string): string {
-    this.refuseTableNamingWrite(filePath, model.name);
     const existing = this.loadEditableDocument(filePath);
     // A model read from a file with a key written twice is never written, even
     // when that key is `name:` and so points the write at another file (#164).
@@ -809,7 +877,12 @@ export class TableLibraryService {
     }
     const doc = existing ?? new Document(this.tableToPlain(model));
     if (isMap(doc.contents)) {
+      // A v6 file (#182) — in `tables/`, or using a v6 key — is edited under
+      // the keys this service manages and written back in v6.
+      const v6 = this.isTableNamingFile(filePath) || (existing !== null && usesTableNamingKeys(doc.contents));
+      if (v6) renameNamingKeys(doc.contents, 'toV5', this.libraryRelativePath(filePath));
       this.applyTable(doc, doc.contents, model, filePath);
+      if (v6) renameNamingKeys(doc.contents, 'toV6', this.libraryRelativePath(filePath));
     }
     return keepLineEndings(doc.toString(STRINGIFY_OPTIONS), this.readExisting(filePath));
   }
@@ -840,6 +913,7 @@ export class TableLibraryService {
     }
     this.ownWriteTracker.recordWrite(filePath);
     this.cache.delete(filePath);
+    this.namingMemo = undefined;
   }
 
   /**
@@ -847,7 +921,6 @@ export class TableLibraryService {
    */
   deleteTable(name: string): void {
     const filePath = this.tablePath(name);
-    this.refuseTableNamingWrite(filePath, name);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
       this.ownWriteTracker.recordDelete(filePath);
@@ -877,12 +950,10 @@ export class TableLibraryService {
     // Carry the existing document (comments, key order, extra keys) across
     // to the new file rather than regenerating it from the parsed model.
     // The renamed file stays in the folder the old one was in.
-    const folder = this.tableFolder(oldName) ?? '';
     const oldPath = this.tablePath(oldName);
-    this.refuseTableNamingWrite(oldPath, oldName);
     const oldText = this.readExisting(oldPath);
     const doc = this.loadEditableDocument(oldPath);
-    const target = this.tablePath(newName, folder);
+    const target = this.renamedTablePath(oldName, newName);
     this.ensureDir(target);
     if (doc) {
       doc.set('name', newName);
@@ -992,11 +1063,25 @@ export class TableLibraryService {
   }
 
   /**
+   * Where `fromName`'s file goes when it is renamed to `newName`: the same
+   * library and folder (#182), so a rename in a mixed project never moves a
+   * `logical-models/` file into `tables/`. Throws on an unsafe name.
+   */
+  renamedTablePath(fromName: string, newName: string): string {
+    const from = this.findTableFile(fromName);
+    if (from === null) return this.tablePath(newName);
+    const existing = this.findTableFile(newName);
+    if (existing !== null && path.resolve(existing) !== path.resolve(from)) return existing;
+    const library = this.isTableNamingFile(from) ? this.v6TablesDir : this.tablesDir;
+    return this.newTablePath(newName, this.tableFolder(fromName) || undefined, library);
+  }
+
+  /**
    * The path of the file that holds `name`, or null when no file does.
    * Throws on a name that is not path-safe (like {@link tablePath}).
    */
   findTableFile(name: string): string | null {
-    const topLevel = this.newTablePath(name);
+    const topLevel = this.newTablePath(name, undefined, this.tablesDir);
     if (fs.existsSync(topLevel)) {
       return topLevel;
     }
@@ -1006,8 +1091,8 @@ export class TableLibraryService {
         return candidate;
       }
     }
-    // Then v6's `tables/` (#162), in the same order. Only ever read: new
-    // files still go to `logical-models/` (newTablePath). Checked file by
+    // Then v6's `tables/` (#162), in the same order; a project that writes
+    // v6 creates its new files there (newTablePath, #182). Checked file by
     // file, so a lookup costs a few stats, never a scan of the library.
     const v6Dir = path.resolve(this.v6TablesDir);
     if (!fs.existsSync(v6Dir)) {
@@ -1047,19 +1132,19 @@ export class TableLibraryService {
    * (see TABLE_FOLDER_PATTERN) nor an existing library folder is ignored and
    * the top level used instead.
    */
-  private newTablePath(name: string, folder?: string): string {
+  private newTablePath(name: string, folder?: string, libraryDir: string = this.newTablesDir()): string {
     if (typeof name !== 'string' || !name.trim() || name.includes('/') || name.includes('\\') || name.includes('..')) {
       throw new Error(`Invalid table name "${String(name)}": must not contain path separators.`);
     }
-    const modelsDir = path.resolve(this.tablesDir);
+    const modelsDir = path.resolve(libraryDir);
     const resolved = path.resolve(modelsDir, `${name}.yml`);
     if (path.dirname(resolved) !== modelsDir) {
-      throw new Error(`Invalid table name "${name}": resolves outside the logical-models directory.`);
+      throw new Error(`Invalid table name "${name}": resolves outside the Table Library.`);
     }
     // A layer-shaped name may be created; any folder already in the library
     // (listed by readdir, so it cannot hold a separator) may be written into —
     // that is what keeps a renamed file in a hand-made `Staging/` folder.
-    if (folder && (TableLibraryService.isTableFolderName(folder) || this.listFolders().includes(folder))) {
+    if (folder && (TableLibraryService.isTableFolderName(folder) || this.listFoldersOf(modelsDir).includes(folder))) {
       return path.join(modelsDir, folder, `${name}.yml`);
     }
     return resolved;
@@ -1109,15 +1194,6 @@ export class TableLibraryService {
     }
     if (doc.errors.length > 0 || !isMap(doc.contents)) {
       return null;
-    }
-    // A v6 key (#162) wins over the v5 one this writer would set, so the
-    // edit would be lost on the next read: refused instead.
-    const v6Key = tableNamingKeyIn(doc.contents);
-    if (v6Key) {
-      throw new TableNamingWriteRefused(
-        `Can't change this table: its file ${this.libraryRelativePath(filePath)} uses the new file naming ("${v6Key}"), ` +
-          'which this version of ERD Studio reads but cannot edit yet.',
-      );
     }
     SOURCE_TEXT.set(doc, text);
     return doc;

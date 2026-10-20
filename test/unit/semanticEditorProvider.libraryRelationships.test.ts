@@ -80,6 +80,8 @@ async function createHarness(ownRelationships: Relationship[] = []): Promise<Har
   const selectorsService = new SelectorsService(subjectAreaService, root, semanticDir);
   vi.spyOn(selectorsService, 'scheduleRegenerate').mockImplementation(() => undefined);
 
+  // A v5 project: its library folder exists before the first table is saved (#182).
+  fs.mkdirSync(path.join(root, semanticDir, 'logical-models'), { recursive: true });
   for (const model of [FCT_ORDER, DIM_CUSTOMER, DIM_DATE]) tableLibraryService.saveTable(model);
 
   const domainDir = path.join(root, semanticDir, 'silver');

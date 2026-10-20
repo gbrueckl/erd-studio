@@ -25,7 +25,8 @@ export const CURRENT_SCHEMA_VERSION = 6;
 /**
  * Schema v6 (#162): the table naming. `tables/` for the library,
  * `logical.tables`, `subjectArea`, `fromTable` / `toTable`, `tableRole` and
- * `linkedTable`. Read alongside v5; nothing writes it yet.
+ * `linkedTable`. Read alongside v5, and written by a project that uses it
+ * (#182: see `detectProjectNaming`).
  */
 export const TABLE_NAMING_SCHEMA_VERSION = 6;
 
@@ -33,9 +34,10 @@ export const TABLE_NAMING_SCHEMA_VERSION = 6;
 export const LIBRARY_SCHEMA_VERSION = 5;
 
 /**
- * The schema version the extension writes into a new or migrated subject
- * area. Still v5: every writer emits v5 keys, so stamping a higher number
- * would make a half-v6 file.
+ * The schema version of a subject area written under the v5 keys: a v5
+ * project's new files, and the v4 → v5 migration. A project that writes
+ * the v6 naming stamps {@link TABLE_NAMING_SCHEMA_VERSION} instead, through
+ * `toTableNamingDocument` (#182), so no file mixes the two.
  */
 export const WRITTEN_SCHEMA_VERSION = LIBRARY_SCHEMA_VERSION;
 
@@ -453,7 +455,8 @@ export interface RawSubjectAreaFile {
  *
  * - `v6`     — `logical.tables` is an array of table name strings, under the v6
  *              naming (`subjectArea`, `fromTable` / `toTable`, the `tables/` library).
- *              Read and normalised to the in-memory shape; not written yet (#162).
+ *              Read and normalised to the in-memory shape; written back by
+ *              `toTableNamingDocument` (#182).
  * - `v5`     — `logical.models` is an array of model name strings (central model store).
  * - `v4`     — `logical.models` is an array of inline SemanticTable objects (deprecated,
  *              migratable via "ERD Studio: Migrate Subject Areas to the Central Table Library").
@@ -668,7 +671,8 @@ export function isSubjectAreaV5(raw: RawSubjectAreaFile): boolean {
  * The file naming a project uses (#162): `v5` (`logical-models/`,
  * `logical.models`, …), `v6` (`tables/`, `logical.tables`, …) or `mixed`
  * when the project holds both. The single answer to "which names does this
- * project write?" once v6 can be written; until then it is reported only.
+ * project write?" (#182): a `v5` project keeps writing v5 until it
+ * migrates; a `v6` or `mixed` one writes v6.
  */
 export type ProjectNaming = 'v5' | 'v6' | 'mixed';
 
@@ -688,8 +692,9 @@ export interface ProjectNamingEvidence {
 
 /**
  * The project's naming, from what is on disk. A project with nothing in
- * either naming (a new one) is `v5`. Files that cannot load (`hybrid`,
- * `legacy`) say nothing either way.
+ * either naming (a new one) is `v6`, the naming ERD Studio writes since
+ * #182 (before it, `v5`). Files that cannot load (`hybrid`, `legacy`) say
+ * nothing either way.
  */
 export function detectProjectNaming(evidence: ProjectNamingEvidence): ProjectNaming {
   let v5 = evidence.hasLogicalModelsDir;
@@ -699,7 +704,12 @@ export function detectProjectNaming(evidence: ProjectNamingEvidence): ProjectNam
     else if (format === 'v6') v6 = true;
   }
   if (v5 && v6) return 'mixed';
-  return v6 ? 'v6' : 'v5';
+  return v5 ? 'v5' : 'v6';
+}
+
+/** Whether a project in `naming` writes the v6 names (#182): every one but a pure `v5` project. */
+export function writesTableNaming(naming: ProjectNaming): boolean {
+  return naming !== 'v5';
 }
 
 // ---------------------------------------------------------------------------

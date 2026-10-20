@@ -252,6 +252,8 @@ describe('MigrationService (domain format → v5)', () => {
 
   beforeEach(() => {
     workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-migration-v5-'));
+    // A v5 project: its library folder exists (a project with none writes v6, #182).
+    fs.mkdirSync(path.join(workspaceRoot, '.erd-studio', 'logical-models'), { recursive: true });
     fs.mkdirSync(path.join(workspaceRoot, '.erd-studio'), { recursive: true });
     const layerService = new LayerService(workspaceRoot);
     lms = new TableLibraryService(workspaceRoot);

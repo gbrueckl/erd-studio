@@ -27,7 +27,7 @@ export type { FileState, HarnessStatus, RecommendedInstallResult } from '../type
 // ---------------------------------------------------------------------------
 
 /** Version of the harness content. Bump when SCHEMA_CONTENT or generators change. */
-export const HARNESS_VERSION = '31';
+export const HARNESS_VERSION = '32';
 
 const VERSION_MARKER_PREFIX = '<!-- erd-studio-harness:';
 const VERSION_MARKER_SUFFIX = ' -->';
@@ -137,6 +137,28 @@ const SCHEMA_CONTENT = `# ERD Studio — AI Data Modeling Guide
 
 ERD Studio uses a **central model store** architecture. Model definitions are YAML files in \`.erd-studio/logical-models/\` (at the top level, or one folder down in a per-layer folder). Domain JSON files reference models by name and hold the layout. Relationships are defined once, in the YAML of the model holding the foreign key (the "many" side), and every domain holding both models draws them — or, in a project that still keeps them per domain, in each domain JSON (see \`Where relationships live\`).
 
+## File naming: v5 or v6 — use the one \`erd-studio doctor\` reports
+
+A project's files use one of two namings for the same format. **Before writing any \`.erd-studio\` file, run \`erd-studio doctor --json\` and read \`erd.naming\`**, then write every file in that naming:
+
+| What | v5 naming (\`naming: v5\`) | v6 naming (\`naming: v6\` or \`mixed\`, and a new project) |
+|------|------|------|
+| Table (model) library folder | \`.erd-studio/logical-models/\` | \`.erd-studio/tables/\` |
+| Subject area (domain) file \`schemaVersion\` | \`5\` | \`6\` |
+| Its slug key | \`domain\` | \`subjectArea\` |
+| Its list of table names | \`logical.models\` | \`logical.tables\` |
+| A relationship's ends (subject area JSON) | \`fromModel\` / \`toModel\` | \`fromTable\` / \`toTable\` |
+| A relationship's far end (table YAML) | \`toModel\` | \`toTable\` |
+| A table's role (table YAML) | \`modelRole\` | \`tableRole\` |
+| An annotation's linked table | \`linkedModel\` | \`linkedTable\` |
+
+Everything else — \`layer\`, \`modelFolder\` (the dbt \`models/\` path filter), \`viewConfig\`, \`positions\`, columns, keys, the subject area file's path \`.erd-studio/{layer}/{name}.json\` — is the same in both. **The examples below use the v5 names; in a v6 project write the v6 name from this table instead.**
+
+- \`naming: v5\` → write the v5 names, and create new table files in \`logical-models/\`.
+- \`naming: v6\`, \`mixed\` (a project half-way through the move), or no \`.erd-studio/\` yet → write the v6 names, and create new table files in \`tables/\`. In a mixed project, edit an existing file in the naming it already uses.
+- **Never mix the two in one file** (\`schemaVersion: 6\` with \`domain\`, or \`logical.tables\` beside \`logical.models\`): such a file does not open. A YAML file holding both \`modelRole\` and \`tableRole\` cannot be edited on the canvas; only the v6 key is read.
+- **Never move files between \`logical-models/\` and \`tables/\` yourself.** The user moves a project with **ERD Studio: Migrate to the New File Naming**, one undoable step; doctor's \`erd.namingMigration\` previews it. ERD Studio versions before the one that wrote v6 cannot open v6 files, so the move is the user's decision, never yours.
+
 ## Architecture Overview
 
 \`\`\`
@@ -200,7 +222,7 @@ The **Model Library** panel in the ERD Studio sidebar shows all YAML files in \`
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| \`schemaVersion\` | Yes | Must be \`5\` |
+| \`schemaVersion\` | Yes | \`5\` in the v5 naming, \`6\` in the v6 naming (see "File naming" above) |
 | \`domain\` | Yes | Domain slug (matches filename without \`.json\`) |
 | \`layer\` | Yes | Layer name matching parent directory (e.g. \`silver\`, \`gold\`) |
 | \`description\` | No | Human-readable domain description |

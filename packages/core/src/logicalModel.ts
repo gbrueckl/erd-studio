@@ -21,8 +21,8 @@ export const LOGICAL_MODELS_DIR = 'logical-models';
 
 /**
  * The v6 name of the table library (`.erd-studio/tables/`, #162). Read
- * alongside `logical-models/`, which is searched first; nothing writes here
- * yet. A project made before v6 may have a layer called `tables`, so a
+ * alongside `logical-models/`, which is searched first; a project that
+ * writes the v6 naming creates its table files here (#182). A project made before v6 may have a layer called `tables`, so a
  * host that can list directories checks before treating it as the library.
  */
 export const TABLES_DIR = 'tables';

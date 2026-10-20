@@ -64,7 +64,7 @@ export interface DrawFromDbtDeps {
   subjectAreaService: Pick<SubjectAreaService, 'listSubjectAreas' | 'countSubjectAreaFileRelationships'>;
   tableLibraryService: Pick<
     TableLibraryService,
-    'tableExists' | 'saveTable' | 'serializeTable' | 'groupsByFolder' | 'deleteTable' | 'listTables' | 'getTable' | 'hasUnreadableRelationships' | 'tablePath' | 'getTablesDir'
+    'tableExists' | 'saveTable' | 'serializeTable' | 'groupsByFolder' | 'deleteTable' | 'listTables' | 'getTable' | 'hasUnreadableRelationships' | 'tablePath' | 'getTablesDir' | 'writesTableNaming'
   >;
   /** Schema yml, manifest and catalog; each may be undefined (no yml, never compiled, no `dbt docs generate`). */
   loadDbt: () => Promise<{ ymlData?: YmlData; manifest?: ManifestData; catalog?: CatalogData }>;
@@ -219,6 +219,8 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
   // Writes start here. A project with no ERD folder yet gets the default
   // layers.json first, exactly as Set Up Semantic Domains Directory writes it.
   const written: string[] = [];
+  // Asked before any table file lands: the diagram is written in the naming the project writes (#182).
+  const tableNaming = tableLibraryService.writesTableNaming();
   try {
     if (!fs.existsSync(path.join(workspaceRoot, semanticDir))) {
       await layerService.saveConfig(layerService.getAllLayers());
@@ -237,7 +239,7 @@ async function runDrawFromDbt(deps: DrawFromDbtDeps): Promise<DrawFromDbtResult 
       modelNames: draft.modelNames,
       relationships: routed.kept,
     });
-    fs.writeFileSync(domainPath, serializeDraftSubjectAreaDocument(doc), { encoding: 'utf-8', flag: 'wx' });
+    fs.writeFileSync(domainPath, serializeDraftSubjectAreaDocument(doc, tableNaming), { encoding: 'utf-8', flag: 'wx' });
     ownWrites.recordWrite(domainPath);
     // Existing library models that gained a relationship, once the diagram is on disk.
     for (const model of routed.changed) {

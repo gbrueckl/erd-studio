@@ -219,7 +219,7 @@ export function AddExistingTableDialog() {
                 </>
               ) : (
                 <>
-                  Add <code>.yml</code> schema files to your dbt project, create tables in <code>.erd-studio/logical-models/</code>, or run <code>dbt compile</code>.
+                  Add <code>.yml</code> schema files to your dbt project, add tables to the Table Library, or run <code>dbt compile</code>.
                 </>
               )}
             </p>

@@ -13,8 +13,11 @@ import * as path from 'path';
 
 import type { FileState } from '../types/harness';
 import { redactPaths } from '../types/feedback';
-import { detectProjectNaming, detectSubjectAreaFormat, mixesTableNaming, usesTableLibrary } from '../types/semantic';
-import type { ProjectNaming, SubjectAreaFormat } from '../types/semantic';
+import { detectSubjectAreaFormat, mixesTableNaming, usesTableLibrary } from '../types/semantic';
+import type { ProjectNaming } from '../types/semantic';
+import { projectNamingOf } from '../services/projectNaming';
+import { describeNamingMigration, planNamingMigration } from '../services/namingMigration';
+import { readNamingMigrationInput } from '../services/namingMigrationFiles';
 import { tablesDirIsLayer, TABLES_DIR } from '../services/logicalModelService';
 import { normaliseName } from '../services/nameUtils';
 import { SubjectAreaFileError } from '../services/domainService';
@@ -101,9 +104,26 @@ export interface DoctorResult extends Envelope {
     /**
      * The file naming the project uses (#162): `v5` (`logical-models/`,
      * `logical.models`), `v6` (`tables/`, `logical.tables`, schemaVersion 6)
-     * or `mixed`. Assistants write files in the naming reported here.
+     * or `mixed`. Assistants write files in the naming reported here: a v5
+     * project writes v5 until it migrates; a `mixed` one, and a new one with
+     * no library folder yet, writes v6 (#182).
      */
     naming: ProjectNaming;
+    /**
+     * What "ERD Studio: Migrate to the New File Naming" would change (#182),
+     * when the project is not already v6. The CLI only describes it: the
+     * migration runs in VS Code, as one undoable edit.
+     */
+    namingMigration?: {
+      /** Table files it would move from `logical-models/` to `tables/`. */
+      moves: number;
+      /** Subject area files whose keys it would rename. */
+      rewrites: number;
+      /** Why it would refuse (empty when it can run); a v4 file means "Migrate to v5" first. */
+      refusals: string[];
+      /** The plan in words, as the VS Code dialog shows it. */
+      preview: string;
+    };
     /**
      * `.erd-studio/tables/` is a layer folder made before v6 (it holds
      * subject area files, or layers.json lists a `tables` layer), so it is
@@ -230,6 +250,12 @@ async function probe(
   return { result: await probeDbt(candidates, run), checked: true, untrusted };
 }
 
+/** The naming migration's plan (#182), as doctor reports it. */
+function namingMigrationPreview(ctx: CliContext): NonNullable<DoctorResult['erd']['namingMigration']> {
+  const plan = planNamingMigration(readNamingMigrationInput(ctx.root, ctx.semanticDir, ctx.subjectAreaService, ctx.tableLibraryService));
+  return { moves: plan.moves.length, rewrites: plan.rewrites.length, refusals: [...plan.refusals], preview: describeNamingMigration(plan) };
+}
+
 function erdSummary(ctx: CliContext): DoctorResult['erd'] {
   const semanticRoot = path.join(ctx.root, ctx.semanticDir);
   const exists = fs.existsSync(semanticRoot);
@@ -237,18 +263,16 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
     return {
       semanticDirExists: false, layers: [], domains: 0, logicalModels: 0, domainFormatIssues: [], unreadableModelFiles: [],
       conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
-      naming: 'v5', tablesFolderIsLayer: false, namingConflicts: [],
+      naming: 'v6', tablesFolderIsLayer: false, namingConflicts: [],
     };
   }
   const domains = ctx.subjectAreaService.listSubjectAreas(ctx.root, ctx.semanticDir);
   const issues: DoctorResult['erd']['domainFormatIssues'] = [];
   const conflicted: ConflictedSubjectAreaFile[] = [];
-  const formats: SubjectAreaFormat[] = [];
   for (const d of domains) {
     try {
       const raw = parseSubjectAreaJson(fs.readFileSync(d.filePath, 'utf-8'), d.filePath);
       const format = detectSubjectAreaFormat(raw);
-      formats.push(format);
       // A file mixing the v5 and v6 names (#162) is a hand-edit to undo, not one the migration repairs.
       const namingMix = format === 'hybrid' && mixesTableNaming(raw);
       if (!usesTableLibrary(format)) { issues.push({ file: relPath(ctx.root, d.filePath), format, ...(namingMix ? { namingMix: true as const } : {}) }); }
@@ -272,18 +296,16 @@ function erdSummary(ctx: CliContext): DoctorResult['erd'] {
       aliased.push({ name: entry.name, file: relPath(ctx.root, entry.filePath), columns, ignored, anchored });
     }
   }
+  // The extension's own answer (#182), so doctor and the canvas never disagree.
+  const naming = projectNamingOf(semanticRoot, ctx.tableLibraryService);
   return {
     backwardsRelationships: backwardsRelationshipsOf(ctx, domains.map((d) => d.filePath).filter((f) => !issues.some((i) => i.file === relPath(ctx.root, f)))),
     semanticDirExists: true,
     layers: ctx.layerService.getValidLayerIds(),
     domains: domains.length,
     logicalModels: ctx.tableLibraryService.listTableNames().length,
-    naming: detectProjectNaming({
-      // A folder counts once it holds a table file, as `tables/` does (an empty leftover says nothing).
-      hasLogicalModelsDir: ctx.tableLibraryService.listTableFiles().some((e) => !e.library),
-      hasTablesLibrary: ctx.tableLibraryService.hasTablesLibrary(),
-      subjectAreaFormats: formats,
-    }),
+    naming,
+    ...(naming === 'v6' ? {} : { namingMigration: namingMigrationPreview(ctx) }),
     tablesFolderIsLayer: fs.existsSync(path.join(semanticRoot, TABLES_DIR)) && tablesDirIsLayer(semanticRoot),
     namingConflicts: ctx.tableLibraryService.tableNamingConflicts()
       .map((c) => ({ name: c.name, kept: relPath(ctx.root, c.kept), ignored: relPath(ctx.root, c.ignored) })),
@@ -527,7 +549,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
       erd: {
         semanticDirExists: false, layers: [], domains: 0, logicalModels: 0, domainFormatIssues: [], unreadableModelFiles: [],
         conflictedDomainFiles: [], dataTypeAliasFiles: [], backwardsRelationships: [],
-        naming: 'v5', tablesFolderIsLayer: false, namingConflicts: [],
+        naming: 'v6', tablesFolderIsLayer: false, namingConflicts: [],
       },
       harness: { schemaSkill: 'missing', setupSkill: 'missing', version: harnessVersion },
     };

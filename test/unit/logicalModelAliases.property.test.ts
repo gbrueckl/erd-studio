@@ -157,6 +157,8 @@ describe('a save over YAML anchors and aliases (#157, randomised)', () => {
 
   beforeAll(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-alias-prop-'));
+    // A v5 project: its library folder exists (a project with none writes v6, #182).
+    fs.mkdirSync(path.join(tempDir, '.erd-studio', 'logical-models'), { recursive: true });
     service = new TableLibraryService(tempDir);
     service.ensureDir();
     file = service.tablePath('fct_order');
