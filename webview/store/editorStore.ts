@@ -91,6 +91,11 @@ export interface EditorState extends CanvasState {
   errorKind: ErrorMessage['payload']['kind'] | null;
   /** The domain file holds unresolved git merge conflicts (#145); false unless the host said so. */
   errorMergeConflict: boolean;
+  /**
+   * The domain file is empty or not valid JSON (#186), with where the JSON
+   * mistake is when the host located it; null unless the host said so.
+   */
+  errorFileProblem: { problem: 'empty' | 'syntax'; line?: number; column?: number } | null;
   /** Available model templates loaded from semantic/templates/*.json. */
   templates: TableTemplate[];
   /** Manifest models available to add to this domain (not already in domain). @deprecated Use existingModels. */
@@ -185,7 +190,12 @@ export interface EditorActions extends CanvasActions {
   setManifestMissing: (missing: boolean) => void;
   /** Hide the logical "Run dbt parse" hint at once (the host persists it). */
   dismissManifestHint: () => void;
-  setError: (error: string | null, kind?: ErrorMessage['payload']['kind'], mergeConflict?: boolean) => void;
+  setError: (
+    error: string | null,
+    kind?: ErrorMessage['payload']['kind'],
+    mergeConflict?: boolean,
+    fileProblem?: EditorState['errorFileProblem'],
+  ) => void;
   setTemplates: (templates: TableTemplate[]) => void;
   setManifestModels: (models: ManifestModelPreview[]) => void;
   /** Register a function to focus the search input (called by Toolbar on mount). */
@@ -273,6 +283,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set) => ({
   error: null,
   errorKind: null,
   errorMergeConflict: false,
+  errorFileProblem: null,
   templates: [],
   manifestModels: [],
   _searchFocusFn: null,
@@ -314,7 +325,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set) => ({
   dismissPhysicalSourceNotice: () => set({ physicalSourceNoticeDismissed: true }),
   setManifestMissing: (missing) => set({ manifestMissing: missing }),
   dismissManifestHint: () => set({ manifestHintDismissed: true }),
-  setError: (error, kind, mergeConflict) => set((state) => {
+  setError: (error, kind, mergeConflict, fileProblem) => set((state) => {
     // The "deleted or renamed" screen (#161) stands until a fresh domain
     // arrives: a later host error (a refused edit, a failed physical refresh)
     // would otherwise turn it back into a toast over the stale canvas.
@@ -323,6 +334,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set) => ({
       error,
       errorKind: error === null ? null : (kind ?? null),
       errorMergeConflict: error !== null && mergeConflict === true,
+      errorFileProblem: error === null ? null : (fileProblem ?? null),
     };
   }),
   setTemplates: (templates) => set({ templates }),
@@ -399,6 +411,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set) => ({
     error: null,
     errorKind: null,
     errorMergeConflict: false,
+    errorFileProblem: null,
     // The notice gets to speak again only when the artifacts behind the stage
     // actually changed. setDomain is NOT only a host payload — usePositionPersistence
     // calls it locally to merge optimistic positions after a drag — so resetting

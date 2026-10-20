@@ -46,6 +46,7 @@ function makeDoc(fsPath: string) {
     isDirty: false,
     isClosed: false,
     getText: () => text,
+    get lineCount() { return text.split('\n').length; },
     positionAt: (offset: number) => ({ offset }),
     save: vi.fn(async () => true),
     _setText: (t: string) => { text = t; },
@@ -156,11 +157,12 @@ describe('a domain file caught mid-write', () => {
 
     await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 20 });
     const payload = errors(panel)[0].payload;
-    expect(payload.message).toContain('Subject area file is empty');
-    // Not the parser's "Unexpected end of JSON input", which reads as
-    // corruption when the file is simply blank.
-    expect(payload.message).not.toContain('Unexpected end of JSON input');
+    // Plain words and a project-relative path (#186), not the parser's
+    // "Unexpected end of JSON input", which reads as corruption when the
+    // file is simply blank.
+    expect(payload.message).toBe('.erd-studio/silver/showcase.json has no content.');
     expect(payload.kind).toBe('domain-file');
+    expect(payload.fileProblem).toBe('empty');
     expect(types(panel)).not.toContain('domainLoaded');
   });
 
@@ -284,6 +286,100 @@ describe('a domain file with unresolved git merge conflicts (#145)', () => {
     expect(err.transient).toBe(false);
     expect(classifySubjectAreaLoadFailure(err)).toBe('conflict');
     expect(subjectAreaLoadErrorCode('conflict')).toBe('domainLoadConflict');
+  });
+});
+
+describe('a domain file with a JSON mistake (#186)', () => {
+  /** showcase.json with a trailing comma after its last top-level property. */
+  function withTrailingComma(file: string): { line: number; column: number } {
+    const lines = JSON.stringify(JSON.parse(fs.readFileSync(file, 'utf-8')), null, 2).split('\n');
+    const last = lines.length - 2;
+    lines[last] += ',';
+    fs.writeFileSync(file, lines.join('\n'));
+    return { line: last + 1, column: lines[last].length };
+  }
+
+  it('says where the mistake is, project-relative, and never the absolute path or the parser', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    const at = withTrailingComma(file);
+
+    const { panel } = await open(root, file);
+    panel._simulateMessage({ type: 'ready' });
+
+    await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 20 });
+    const payload = errors(panel)[0].payload;
+    expect(payload).toEqual({
+      message: `.erd-studio/silver/showcase.json has a mistake at line ${at.line}, column ${at.column}: `
+        + 'there is a comma after the last item, before a closing } or ].',
+      kind: 'domain-file',
+      fileProblem: 'syntax',
+      line: at.line,
+      column: at.column,
+    });
+    expect(JSON.stringify(payload)).not.toContain(root);
+    expect(payload.message).not.toMatch(/position|JSON at|Expected/);
+  });
+
+  it('posts a second mistake elsewhere in the file, so Open at Line follows it', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    const real = fs.readFileSync(file, 'utf-8');
+    withTrailingComma(file);
+
+    const { doc, panel } = await open(root, file);
+    panel._simulateMessage({ type: 'ready' });
+    await vi.waitFor(() => expect(errors(panel)).toHaveLength(1), { timeout: 4000, interval: 20 });
+
+    // The user fixes that one and leaves another: a missing comma on line 3.
+    const lines = JSON.stringify(JSON.parse(real), null, 2).split('\n');
+    lines[2] = lines[2].replace(/,$/, '');
+    fs.writeFileSync(file, lines.join('\n'));
+    doc._setText(lines.join('\n'));
+    await vscode._fireDidChangeTextDocument(doc);
+
+    await vi.waitFor(() => expect(errors(panel)).toHaveLength(2), { timeout: 4000, interval: 20 });
+    expect(errors(panel)[1].payload).toMatchObject({ fileProblem: 'syntax', line: 3, column: lines[2].length + 1 });
+  });
+
+  it('refuses a canvas edit to the broken file with the same plain sentence', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    const real = fs.readFileSync(file, 'utf-8');
+    const { doc, panel } = await open(root, file);
+    panel._simulateMessage({ type: 'ready' });
+    await vi.waitFor(() => expect(types(panel)).toContain('domainLoaded'), { timeout: 4000, interval: 20 });
+
+    const at = withTrailingComma(file);
+    doc._setText(fs.readFileSync(file, 'utf-8'));
+    panel._simulateMessage({ type: 'updatePositions', payload: { positions: { fct_task_event: { x: 1, y: 2 } } } });
+
+    await vi.waitFor(() => expect(errors(panel).length).toBeGreaterThan(0), { timeout: 4000, interval: 20 });
+    const text = errors(panel).map((e) => e.payload.message).join('\n');
+    expect(text).toContain(`.erd-studio/silver/showcase.json has a mistake at line ${at.line}, column ${at.column}`);
+    expect(text).not.toContain(root);
+    expect(real).not.toBe(fs.readFileSync(file, 'utf-8'));
+  });
+
+  it('opens the file at the mistake for `viewFile` with a position, and as before without one', async () => {
+    const file = path.join(root, '.erd-studio', 'silver', 'showcase.json');
+    const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    const { panel } = await open(root, file);
+
+    panel._simulateMessage({ type: 'viewFile', payload: { line: 4, column: 7 } });
+    await vi.waitFor(() => expect(executeCommand).toHaveBeenCalledWith(
+      'vscode.openWith', expect.anything(), 'default', { selection: new vscode.Range(new vscode.Position(3, 6), new vscode.Position(3, 6)) },
+    ), { timeout: 4000, interval: 10 });
+
+    // The toolbar's View JSON, and a payload that does not validate, open it as they always did.
+    executeCommand.mockClear();
+    panel._simulateMessage({ type: 'viewFile' });
+    panel._simulateMessage({ type: 'viewFile', payload: { line: 0 } });
+    await vi.waitFor(() => expect(executeCommand).toHaveBeenCalledTimes(2), { timeout: 4000, interval: 10 });
+    for (const call of executeCommand.mock.calls) expect(call).toEqual(['vscode.openWith', expect.anything(), 'default']);
+  });
+
+  it('names a file outside the project by its name only, but keeps a folder that merely starts with two dots', () => {
+    const shown = (fsPath: string) => (buildProvider(root) as any).shownSubjectAreaPath(fsPath) as string;
+    expect(shown(path.join(root, '..', 'elsewhere', 'showcase.json'))).toBe('showcase.json');
+    expect(shown(path.join(root, '..erd', 'silver', 'showcase.json'))).toBe('..erd/silver/showcase.json');
   });
 });
 

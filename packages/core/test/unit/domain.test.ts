@@ -9,6 +9,7 @@ import {
   classifyTableLoadError,
   describeTableLoadError,
   parseSubjectAreaJson,
+  locateJsonSyntaxError,
   resolveSubjectAreaLayer,
   toLogicalStage,
   validateSubjectAreaDocument,
@@ -104,6 +105,100 @@ describe('parseSubjectAreaJson', () => {
     expect(caught).toBeInstanceOf(SubjectAreaFileError);
     expect((caught as SubjectAreaFileError).reason).toBe('invalid-json');
     expect((caught as SubjectAreaFileError).message.startsWith(`Invalid JSON in subject area file ${FILE}: `)).toBe(true);
+  });
+});
+
+describe('where an invalid-json domain file goes wrong (#186)', () => {
+  const caught = (raw: string): SubjectAreaFileError => {
+    try {
+      parseSubjectAreaJson(raw, FILE);
+    } catch (err) {
+      return err as SubjectAreaFileError;
+    }
+    throw new Error('did not throw');
+  };
+  const lines = (...l: string[]): string => l.join('\n');
+  const where = (err: SubjectAreaFileError) => ({ line: err.line, column: err.column, problem: err.syntaxProblem });
+
+  it('points at a trailing comma, not at the bracket the parser stopped on', () => {
+    expect(where(caught(lines('{', '  "schemaVersion": 5,', '  "layer": "gold",', '}'))))
+      .toEqual({ line: 3, column: 18, problem: 'trailing-comma' });
+    expect(where(caught('{"models": ["a", "b",]}'))).toEqual({ line: 1, column: 21, problem: 'trailing-comma' });
+    expect(where(caught('{"a": 1,}'))).toEqual({ line: 1, column: 8, problem: 'trailing-comma' });
+  });
+
+  it('points just after the value a comma is missing from, on its own line', () => {
+    expect(where(caught(lines('{', '  "schemaVersion": 5', '  "layer": "gold"', '}'))))
+      .toEqual({ line: 2, column: 21, problem: 'missing-comma' });
+  });
+
+  it('points at the end of a file that stops before the JSON does', () => {
+    expect(where(caught(lines('{', '  "schemaVersion": 5,', '  "layer": "go'))))
+      .toEqual({ line: 3, column: 15, problem: 'truncated' });
+    expect(where(caught(lines('{', '  "models": [', '')))).toEqual({ line: 2, column: 14, problem: 'truncated' });
+  });
+
+  it('counts CRLF line endings as one line break', () => {
+    expect(where(caught('{\r\n  "a": 1,\r\n}'))).toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+  });
+
+  it('reads a file that starts with a byte order mark, which the text editor hides', () => {
+    expect(parseSubjectAreaJson('\ufeff{"schemaVersion": 5}', FILE)).toEqual({ schemaVersion: 5 });
+  });
+
+  it('locates a mistake in a file with a byte order mark as the text editor shows it', () => {
+    expect(where(caught('\ufeff{\n  "a": 1,\n}'))).toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+    expect(where(caught('\ufeff{"a": 1, "b": 2,}'))).toEqual({ line: 1, column: 16, problem: 'trailing-comma' });
+  });
+
+  it('calls a mistake a missing comma only where a comma could go', () => {
+    // A missing colon, in the words an older V8 (Node 18, VS Code 1.85) uses.
+    expect(locateJsonSyntaxError('{"a" "b": 1}', 'Unexpected string in JSON at position 5')?.problem).toBe('unexpected');
+    // An assistant appending a second copy of the document.
+    expect(where(caught('{"a": 1}\n{"a": 1}')).problem).toBe('unexpected');
+    // A bad number, not two values.
+    expect(where(caught('{"a": 01}')).problem).toBe('unexpected');
+  });
+
+  it('points at the start of a misspelt literal', () => {
+    expect(where(caught('{"a": tru}'))).toEqual({ line: 1, column: 7, problem: 'unexpected' });
+  });
+
+  it('keeps the message the CLI and logs print', () => {
+    const err = caught('{"a": 1,}');
+    expect(err.message.startsWith(`Invalid JSON in subject area file ${FILE}: `)).toBe(true);
+    expect(err.mergeConflict).toBe(false);
+    expect(err.transient).toBe(true);
+  });
+});
+
+describe('locateJsonSyntaxError', () => {
+  it('reads the position from older V8, SpiderMonkey and end-of-input messages', () => {
+    const raw = '{\n  "a": 1,\n}';
+    expect(locateJsonSyntaxError(raw, 'Unexpected token } in JSON at position 12'))
+      .toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+    expect(locateJsonSyntaxError(raw, 'JSON.parse: expected double-quoted property name at line 3 column 1 of the JSON data'))
+      .toEqual({ line: 2, column: 9, problem: 'trailing-comma' });
+    expect(locateJsonSyntaxError('{"a": [1', 'Unexpected end of JSON input'))
+      .toEqual({ line: 1, column: 9, problem: 'truncated' });
+  });
+
+  it('finds the mistake itself when the parser names no position (V8 "Unexpected token", Safari)', () => {
+    expect(locateJsonSyntaxError('{"a": 1,}', "JSON Parse error: Expected '}'"))
+      .toEqual({ line: 1, column: 8, problem: 'trailing-comma' });
+    expect(locateJsonSyntaxError('{\n  // a comment\n  "a": 1\n}', "Unexpected token '/', ...\"{ // a com\"... is not valid JSON"))
+      .toEqual({ line: 2, column: 3, problem: 'unexpected' });
+  });
+
+  it('says nothing for text that is JSON after all', () => {
+    expect(locateJsonSyntaxError('{"a": [1, -2.5e3, "x\\u00e9", true, null]}', 'no position here')).toBeUndefined();
+  });
+
+  it('does not call a missing colon a missing comma', () => {
+    const raw = '{"a" 1}';
+    let message = '';
+    try { JSON.parse(raw); } catch (err) { message = (err as Error).message; }
+    expect(locateJsonSyntaxError(raw, message)?.problem).toBe('unexpected');
   });
 });
 

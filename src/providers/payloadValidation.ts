@@ -687,6 +687,15 @@ export function validateOpenModelFilePayload(value: unknown): string | null {
   return validateTableNameSafety((value as { modelName?: unknown }).modelName);
 }
 
+/** `viewFile`: no payload, or a positive integer `line` and an optional positive integer `column` (#186). */
+export function validateViewFilePayload(value: unknown): value is { line: number; column?: number } | undefined {
+  if (value === undefined) return true;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const { line, column } = value as { line?: unknown; column?: unknown };
+  const positive = (n: unknown): boolean => typeof n === 'number' && Number.isInteger(n) && n >= 1;
+  return positive(line) && (column === undefined || positive(column));
+}
+
 /** `layoutFinished` (usage telemetry only): a non-negative finite duration, a boolean and an optional `firstOpen` boolean. */
 export function validateLayoutFinishedPayload(value: unknown): value is { ms: number; ok: boolean; firstOpen?: boolean } {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;

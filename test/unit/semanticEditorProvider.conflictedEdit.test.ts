@@ -284,7 +284,8 @@ describe('an edit on a diagram git left in conflict (#151)', () => {
     const errs = errors(panel);
     expect(errs).toHaveLength(1);
     const text = errs[0].payload.message as string;
-    expect(text).toContain('Invalid JSON in subject area file .erd-studio/silver/showcase.json');
+    expect(text).toContain('.erd-studio/silver/showcase.json has a mistake at line 1, column 2: the text there is not valid JSON. '
+      + 'Fix it and save, then try again.');
     expect(text).not.toContain('SyntaxError');
     expect(text).not.toContain('merge conflict');
     expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
@@ -298,7 +299,7 @@ describe('an edit on a diagram git left in conflict (#151)', () => {
     await panel._simulateMessage(EDITS[1][1]);
 
     expect(errors(panel)).toHaveLength(1);
-    expect(errors(panel)[0].payload.message).toContain('Subject area file is empty: .erd-studio/silver/showcase.json');
+    expect(errors(panel)[0].payload.message).toContain('.erd-studio/silver/showcase.json has no content. Restore its content, then try again.');
     expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
     expect(doc.save).not.toHaveBeenCalled();
     expect(snapshot(path.join(root, '.erd-studio'))).toEqual(before);

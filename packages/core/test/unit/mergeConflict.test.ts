@@ -103,7 +103,8 @@ describe('parseSubjectAreaJson on a file with conflict markers', () => {
     const err = caught(() => parseSubjectAreaJson(lines('{', '  "schemaVersion": 5,', '=======', '}'), FILE)) as SubjectAreaFileError;
     expect(err.reason).toBe('invalid-json');
     expect(err.mergeConflict).toBe(false);
-    expect(err.line).toBeUndefined();
+    // Located as a JSON mistake (#186), not as a conflict marker.
+    expect({ line: err.line, column: err.column, syntaxProblem: err.syntaxProblem }).toEqual({ line: 3, column: 1, syntaxProblem: 'unexpected' });
     expect(err.transient).toBe(true);
     expect(err.message.startsWith(`Invalid JSON in subject area file ${FILE}: `)).toBe(true);
   });

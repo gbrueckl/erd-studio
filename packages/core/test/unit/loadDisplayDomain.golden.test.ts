@@ -89,7 +89,9 @@ describe('loadDisplaySubjectArea matches the extension host golden output', () =
 
   describe.each(Object.entries(ERROR_CASES))('errors/%s', (name, domainPath) => {
     it('rejects with the golden message and the matching error class', async () => {
-      const golden = readGolden(`errors.${name}.host.json`).payload as { message: string; kind?: string };
+      const golden = readGolden(`errors.${name}.host.json`).payload as {
+        message: string; kind?: string; fileProblem?: 'empty' | 'syntax'; line?: number; column?: number;
+      };
       let caught: unknown;
       try {
         await loadDisplaySubjectArea({
@@ -103,6 +105,14 @@ describe('loadDisplaySubjectArea matches the extension host golden output', () =
       }
       // The host tags SubjectAreaFileError failures with kind 'domain-file'.
       expect(caught).toBeInstanceOf(golden.kind === 'domain-file' ? SubjectAreaFileError : SubjectAreaValidationError);
+      // An empty or invalid file (#186): the host words its own sentence from
+      // core's reason and location, so those are what must agree.
+      if (golden.fileProblem) {
+        const err = caught as SubjectAreaFileError;
+        expect(err.reason).toBe(golden.fileProblem === 'empty' ? 'empty' : 'invalid-json');
+        expect({ line: err.line, column: err.column }).toEqual({ line: golden.line, column: golden.column });
+        return;
+      }
       const message = (caught as Error).message.replace(LINE_COLUMN, '');
       expect(message).toBe(golden.message.split('<root>/').join(''));
     });
