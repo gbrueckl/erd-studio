@@ -6,7 +6,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
-import type { DisplayDomain } from '@erd-studio/core';
+import type { DisplaySubjectArea } from '@erd-studio/core';
 import { createCanvasStore, CanvasStoreProvider } from '../../src/store/editorStore';
 import { DetailPanel } from '../../src/components/DetailPanel/DetailPanel';
 
@@ -18,7 +18,7 @@ describe('DetailPanel — self-reference (#133 L3)', () => {
       schemaVersion: 5, domain: 'hr', layer: 'silver', stage: 'logical', description: '', viewConfig: {}, readOnly: false, positionDraggable: true,
       models: [{ name: 'employee', schema: '', description: '', columns: [col('employee_id', true), col('manager_id')] }],
       relationships: [{ fromModel: 'employee', fromColumn: 'manager_id', toModel: 'employee', toColumn: 'employee_id', cardinality: 'many-to-one' }],
-    } as DisplayDomain;
+    } as DisplaySubjectArea;
     const store = createCanvasStore({ domain, selectedNode: 'employee', detailPanelOpen: true });
     const { container } = render(<CanvasStoreProvider store={store}><ReactFlowProvider><DetailPanel /></ReactFlowProvider></CanvasStoreProvider>);
     expect(container.querySelectorAll('.detail-panel__relationship')).toHaveLength(1);
@@ -39,7 +39,7 @@ describe('DetailPanel — composite foreign key (#133 L2)', () => {
         { name: 'sat_customer', schema: '', description: '', columns: [col('customer_hk', true), col('load_date', true)] },
       ],
       relationships: [member('customer_hk', 'customer_hk'), member('as_of_date', 'load_date')],
-    } as DisplayDomain;
+    } as DisplaySubjectArea;
     const store = createCanvasStore({ domain, selectedNode: 'pit_customer', detailPanelOpen: true });
     const postMessage = vi.fn();
     const { CanvasEnvironmentProvider } = await import('../../src/host/canvasEnvironment');

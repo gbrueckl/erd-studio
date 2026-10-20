@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createRef, type ComponentProps } from 'react';
 import { render, act } from '@testing-library/react';
 import type { NodeChange } from '@xyflow/react';
-import type { DisplayDomain, DisplayModel } from '@erd-studio/core';
+import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 import type { GraphEdge, GraphNode } from '../../src/lib/nodeOverlays';
 
 type FlowProps = {
@@ -23,7 +23,7 @@ type FlowProps = {
 };
 
 const flow = vi.hoisted(() => ({ props: null as FlowProps | null }));
-const setDomainSpies = vi.hoisted(() => [] as ReturnType<typeof vi.fn>[]);
+const setSubjectAreaSpies = vi.hoisted(() => [] as ReturnType<typeof vi.fn>[]);
 
 vi.mock('@xyflow/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@xyflow/react')>();
@@ -46,7 +46,7 @@ vi.mock('../../src/store/editorStore', async (importOriginal) => {
       const store = actual.createCanvasStore(...args);
       const setDomain = vi.fn(store.getState().setDomain);
       store.setState({ setDomain });
-      setDomainSpies.push(setDomain);
+      setSubjectAreaSpies.push(setDomain);
       return store;
     },
   };
@@ -58,7 +58,7 @@ import { ErdCanvas, type ErdCanvasHandle } from '../../src/ErdCanvas';
 // Fixtures and helpers
 // ---------------------------------------------------------------------------
 
-function model(name: string): DisplayModel {
+function table(name: string): DisplayTable {
   return {
     name,
     schema: 'sales',
@@ -70,14 +70,14 @@ function model(name: string): DisplayModel {
   };
 }
 
-function makeDomain(customersX = 800): DisplayDomain {
+function makeSubjectArea(customersX = 800): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',
     layer: 'silver',
     stage: 'logical',
     description: '',
-    models: [model('orders'), model('customers')],
+    models: [table('orders'), table('customers')],
     relationships: [
       { fromModel: 'orders', fromColumn: 'ref_id', toModel: 'customers', toColumn: 'id', cardinality: 'many-to-one' },
     ],
@@ -108,7 +108,7 @@ function drag(id: string, to: { x: number; y: number }, dragging = true) {
 function mount(overrides: Partial<ComponentProps<typeof ErdCanvas>> = {}) {
   const onLayoutModifiedChange = vi.fn();
   const ref = createRef<ErdCanvasHandle>();
-  const domain = makeDomain();
+  const domain = makeSubjectArea();
   const view = render(
     <ErdCanvas ref={ref} domain={domain} nodesDraggable onLayoutModifiedChange={onLayoutModifiedChange} {...overrides} />,
   );
@@ -117,7 +117,7 @@ function mount(overrides: Partial<ComponentProps<typeof ErdCanvas>> = {}) {
 
 beforeEach(() => {
   flow.props = null;
-  setDomainSpies.length = 0;
+  setSubjectAreaSpies.length = 0;
 });
 
 // ---------------------------------------------------------------------------
@@ -209,7 +209,7 @@ describe('ErdCanvas drag', () => {
     const { rerender, onLayoutModifiedChange } = mount();
     drag('customers', { x: -900, y: 0 }, false);
 
-    rerender(<ErdCanvas domain={makeDomain(1200)} nodesDraggable onLayoutModifiedChange={onLayoutModifiedChange} />);
+    rerender(<ErdCanvas domain={makeSubjectArea(1200)} nodesDraggable onLayoutModifiedChange={onLayoutModifiedChange} />);
 
     expect(position('customers')).toEqual({ x: 1200, y: 0 });
     expect(edgeHandles()).toEqual(['node-right-src', 'node-left-tgt']);
@@ -218,25 +218,25 @@ describe('ErdCanvas drag', () => {
 
   it('mounts without setting the domain a second time', () => {
     const { rerender, domain } = mount();
-    expect(setDomainSpies).toHaveLength(1);
-    expect(setDomainSpies[0]).not.toHaveBeenCalled();
+    expect(setSubjectAreaSpies).toHaveLength(1);
+    expect(setSubjectAreaSpies[0]).not.toHaveBeenCalled();
 
     rerender(<ErdCanvas domain={domain} />);
-    expect(setDomainSpies[0]).not.toHaveBeenCalled();
+    expect(setSubjectAreaSpies[0]).not.toHaveBeenCalled();
 
-    rerender(<ErdCanvas domain={makeDomain(1200)} />);
-    expect(setDomainSpies[0]).toHaveBeenCalledTimes(1);
+    rerender(<ErdCanvas domain={makeSubjectArea(1200)} />);
+    expect(setSubjectAreaSpies[0]).toHaveBeenCalledTimes(1);
   });
 
   it('gives each canvas its own store', () => {
-    const domain = makeDomain();
+    const domain = makeSubjectArea();
     const { container } = render(
       <>
         <ErdCanvas domain={domain} nodesDraggable />
         <ErdCanvas domain={domain} nodesDraggable />
       </>,
     );
-    expect(setDomainSpies).toHaveLength(2);
+    expect(setSubjectAreaSpies).toHaveLength(2);
     // The stub's recorded props are the second canvas's (rendered last).
     drag('customers', { x: -900, y: 0 });
     const [first, second] = [...container.querySelectorAll('.flow-stub')].map((el) => el.getAttribute('data-positions'));

@@ -19,11 +19,11 @@ vi.mock('../../webview/hooks/useVsCodeApi', () => ({
 
 import { useStatePersistence, type PersistedState } from '../../webview/hooks/useStatePersistence';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
-const domain = {
+const subjectArea = {
   domain: 'test',
   layer: 'silver',
   stage: 'logical',
@@ -31,7 +31,7 @@ const domain = {
   relationships: [],
   viewConfig: { positions: {} },
   readOnly: false,
-} as unknown as DisplayDomain;
+} as unknown as DisplaySubjectArea;
 
 let visibility: DocumentVisibilityState = 'visible';
 
@@ -65,7 +65,7 @@ describe('useStatePersistence restore', () => {
       syncSelections: { 'model:a': 'logical', 'model:b': 'physical', 'column:a.x': 'logical' },
     };
     mockVsCode.getState.mockReturnValue(persisted);
-    useEditorStore.setState({ domain });
+    useEditorStore.setState({ domain: subjectArea });
 
     renderHook(() => useStatePersistence());
 
@@ -97,7 +97,7 @@ describe('useStatePersistence restore', () => {
       syncMode: true, // stale without an overlay — must be ignored
       syncSelections: { 'model:a': 'logical' },
     } satisfies PersistedState);
-    useEditorStore.setState({ domain });
+    useEditorStore.setState({ domain: subjectArea });
 
     renderHook(() => useStatePersistence());
 
@@ -117,7 +117,7 @@ describe('useStatePersistence restore', () => {
       expandedNodes: [],
       allExpanded: false,
     });
-    useEditorStore.setState({ domain });
+    useEditorStore.setState({ domain: subjectArea });
     expect(() => renderHook(() => useStatePersistence())).not.toThrow();
     expect(useEditorStore.getState().canvasMode).toBe('pan');
   });
@@ -126,7 +126,7 @@ describe('useStatePersistence restore', () => {
 describe('useStatePersistence persist', () => {
   it('writes the new fields after the debounce', () => {
     vi.useFakeTimers();
-    useEditorStore.setState({ domain });
+    useEditorStore.setState({ domain: subjectArea });
     renderHook(() => useStatePersistence());
 
     act(() => {
@@ -152,7 +152,7 @@ describe('useStatePersistence persist', () => {
 
   it('flushes a pending write immediately when the webview is hidden', () => {
     vi.useFakeTimers();
-    useEditorStore.setState({ domain });
+    useEditorStore.setState({ domain: subjectArea });
     renderHook(() => useStatePersistence());
     mockVsCode.setState.mockClear();
 

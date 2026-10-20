@@ -18,9 +18,9 @@ import type {
   ColumnAction,
   ColumnResolution,
   GroundTruth,
-  ModelAction,
-  ModelContext,
-  ModelResolution,
+  TableAction,
+  TableContext,
+  TableResolution,
   RelationshipAction,
   RelationshipResolution,
   SyncPlan,
@@ -28,9 +28,9 @@ import type {
 import {
   columnKey,
   deriveColumnAction,
-  deriveModelAction,
+  deriveTableAction,
   deriveRelationshipAction,
-  modelKey,
+  tableKey,
   relationshipKey,
   relationshipSelectionKey,
   resolveGroundTruthDataType,
@@ -58,7 +58,7 @@ export interface SyncPlanContext {
 }
 
 /** Actions that edit dbt files, after which `dbt compile` is needed. */
-const PHYSICAL_ACTIONS: ReadonlySet<ModelAction | ColumnAction | RelationshipAction> = new Set([
+const PHYSICAL_ACTIONS: ReadonlySet<TableAction | ColumnAction | RelationshipAction> = new Set([
   'add-to-physical', 'remove-from-physical',
   'add-column-to-physical', 'remove-column-from-physical',
   'update-type-in-physical',
@@ -76,7 +76,7 @@ const PHYSICAL_ACTIONS: ReadonlySet<ModelAction | ColumnAction | RelationshipAct
 export function allSelections(report: DiscrepancyReport, truth: GroundTruth): Record<string, GroundTruth> {
   const selections: Record<string, GroundTruth> = {};
   for (const m of report.models) {
-    if (m.status !== 'matched') selections[modelKey(m.name)] = truth;
+    if (m.status !== 'matched') selections[tableKey(m.name)] = truth;
     for (const c of m.columns) {
       if (c.status !== 'matched') selections[columnKey(m.name, c.name)] = truth;
     }
@@ -106,7 +106,7 @@ export function buildSyncPlan(
   selections: Record<string, GroundTruth>,
   ctx: SyncPlanContext,
 ): SyncPlan {
-  const models: ModelResolution[] = [];
+  const models: TableResolution[] = [];
   const columns: ColumnResolution[] = [];
   const relationships: RelationshipResolution[] = [];
   const referencedModels = new Set<string>();
@@ -120,7 +120,7 @@ export function buildSyncPlan(
       const disc = report.models.find((m) => m.name === modelName);
       if (!disc || disc.status === 'matched') continue;
 
-      const action = deriveModelAction(disc.status, groundTruth, report.sourceStage);
+      const action = deriveTableAction(disc.status, groundTruth, report.sourceStage);
       if (!action) continue;
 
       models.push({
@@ -196,7 +196,7 @@ export function buildSyncPlan(
   // Every path is project-relative with forward slashes on every platform —
   // the CLI's JSON promises that, and the Claude sync consumer reads either.
   const toSlash = (p: string): string => p.replace(/\\/g, '/');
-  const modelContext: Record<string, ModelContext> = {};
+  const modelContext: Record<string, TableContext> = {};
   for (const modelName of referencedModels) {
     const manifestModel = ctx.manifest.models.get(modelName);
     const ymlModel = ctx.ymlData.models.get(modelName);

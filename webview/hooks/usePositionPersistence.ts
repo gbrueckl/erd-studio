@@ -23,7 +23,7 @@ import {
 import { useVsCodeApi } from './useVsCodeApi';
 import { useEditorStore } from '../store/editorStore';
 import type { WebviewMessage } from './useMessageBus';
-import type { ModelFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -156,7 +156,7 @@ export function usePositionPersistence(): {
       // only refreshes in a useEffect would make the second batch overwrite
       // the first (dropping selection or measured dimensions).
       const updatedNodes = applyNodeChanges(changes, useEditorStore.getState().nodes);
-      setNodes(updatedNodes as (ModelFlowNode | AnnotationFlowNode)[]);
+      setNodes(updatedNodes as (TableFlowNode | AnnotationFlowNode)[]);
 
       // Extract position changes for persistence.
       const dragEndChanges = changes.filter(

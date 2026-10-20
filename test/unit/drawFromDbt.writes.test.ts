@@ -26,13 +26,13 @@ vi.mock('../../src/providers/dbtDraftPicker', () => ({
 }));
 
 import { drawFromDbt, type DrawFromDbtDeps } from '../../src/commands/drawFromDbt';
-import { LogicalModelService } from '../../src/services/logicalModelService';
+import { TableLibraryService } from '../../src/services/logicalModelService';
 
 // fct_order is already in the library, written on Windows; the draw adds its link to dim_customer.
 const FCT_ORDER = ['name: fct_order', 'columns:', '  - name: customer_key', '    dataType: string', ''].join('\r\n');
 
 let tmp: string;
-let lms: LogicalModelService;
+let lms: TableLibraryService;
 let fctPath: string;
 
 function deps(): DrawFromDbtDeps {
@@ -46,8 +46,8 @@ function deps(): DrawFromDbtDeps {
       getAllLayers: () => [],
       saveConfig: async () => undefined,
     } as unknown as DrawFromDbtDeps['layerService'],
-    domainService: { listDomains: () => [], countDomainFileRelationships: () => 0 },
-    logicalModelService: lms,
+    subjectAreaService: { listSubjectAreas: () => [], countSubjectAreaFileRelationships: () => 0 },
+    tableLibraryService: lms,
     loadDbt: async () => ({}),
     validateDomainName: () => undefined,
     onWritten: () => undefined,
@@ -57,9 +57,9 @@ function deps(): DrawFromDbtDeps {
 beforeEach(() => {
   _resetMockWorkspace();
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'erd-draw-writes-'));
-  lms = new LogicalModelService(tmp);
+  lms = new TableLibraryService(tmp);
   lms.ensureDir();
-  fctPath = lms.modelPath('fct_order');
+  fctPath = lms.tablePath('fct_order');
   fs.writeFileSync(fctPath, FCT_ORDER);
   draft.value = {
     modelNames: ['dim_customer', 'fct_order'],
@@ -89,7 +89,7 @@ describe('Draw from dbt — model files it rewrites', () => {
       'Draw from dbt: logical-models/fct_order.yml has unsaved changes. Save or revert it, then try again. Nothing was changed.',
     ]);
     expect(fs.readFileSync(fctPath, 'utf-8')).toBe(FCT_ORDER);
-    expect(lms.modelExists('dim_customer')).toBe(false);
+    expect(lms.tableExists('dim_customer')).toBe(false);
     expect(fs.existsSync(path.join(tmp, '.erd-studio', 'silver', 'orders.json'))).toBe(false);
     expect(tab.getText()).toBe(`${FCT_ORDER}# my unsaved note\r\n`);
   });
@@ -100,7 +100,7 @@ describe('Draw from dbt — model files it rewrites', () => {
     await drawFromDbt(deps());
 
     expect(error).not.toHaveBeenCalled();
-    expect(lms.getModel('fct_order')?.relationships).toEqual([
+    expect(lms.getTable('fct_order')?.relationships).toEqual([
       { fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key', cardinality: 'many-to-one' },
     ]);
     const text = fs.readFileSync(fctPath, 'utf-8');
@@ -111,7 +111,7 @@ describe('Draw from dbt — model files it rewrites', () => {
   it('names what failed when it cannot read the library to plan the diagram, and writes nothing', async () => {
     const error = vi.spyOn(vscode.window, 'showErrorMessage');
     const d = deps();
-    d.domainService.countDomainFileRelationships = () => { throw new Error('EACCES: permission denied, scandir'); };
+    d.subjectAreaService.countSubjectAreaFileRelationships = () => { throw new Error('EACCES: permission denied, scandir'); };
 
     await expect(drawFromDbt(d)).resolves.toBeUndefined();
 
@@ -119,6 +119,6 @@ describe('Draw from dbt — model files it rewrites', () => {
       'Draw from dbt could not read the Table Library to plan the diagram: EACCES: permission denied, scandir. Nothing was changed.',
     ]);
     expect(fs.readFileSync(fctPath, 'utf-8')).toBe(FCT_ORDER);
-    expect(lms.modelExists('dim_customer')).toBe(false);
+    expect(lms.tableExists('dim_customer')).toBe(false);
   });
 });

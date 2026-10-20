@@ -7,10 +7,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { ModelFileError, ModelFileErrorKind } from '../services/logicalModelService';
+import type { TableFileError, TableFileErrorKind } from '../services/logicalModelService';
 
 /** Open `filePath`, placing the cursor at the 1-based `line` / `column` when given. */
-export async function openModelFileAt(filePath: string, line?: number, column?: number): Promise<void> {
+export async function openTableFileAt(filePath: string, line?: number, column?: number): Promise<void> {
   const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
   const options: vscode.TextDocumentShowOptions = { preview: false };
   if (line !== undefined && line >= 1) {
@@ -23,7 +23,7 @@ export async function openModelFileAt(filePath: string, line?: number, column?: 
 }
 
 /** The one tip the notification gives, tailored to what went wrong. */
-export function modelFileErrorTip(kind: ModelFileErrorKind, mergeConflict?: boolean): string {
+export function tableFileErrorTip(kind: TableFileErrorKind, mergeConflict?: boolean): string {
   if (mergeConflict) {
     return 'Tip: keep one side of each conflict, save, then git add the file.';
   }
@@ -44,8 +44,8 @@ export function modelFileErrorTip(kind: ModelFileErrorKind, mergeConflict?: bool
 }
 
 /** The notification text for a model file that exists but cannot be read. */
-export function modelFileErrorNotice(
-  error: Pick<ModelFileError, 'filePath' | 'kind' | 'line' | 'mergeConflict' | 'readable' | 'key'>,
+export function tableFileErrorNotice(
+  error: Pick<TableFileError, 'filePath' | 'kind' | 'line' | 'mergeConflict' | 'readable' | 'key'>,
 ): string {
   const base = path.basename(error.filePath);
   if (error.readable) {
@@ -55,7 +55,7 @@ export function modelFileErrorNotice(
     return `${base}: ${what} in the same block${where}. ERD Studio uses the last one, ` +
       "but can't change this table until you remove the other copy.";
   }
-  const tip = modelFileErrorTip(error.kind, error.mergeConflict);
+  const tip = tableFileErrorTip(error.kind, error.mergeConflict);
   if (error.kind === 'read') {
     return `${base} couldn't be read and can't be shown on the diagram. ${tip}`;
   }
@@ -71,11 +71,11 @@ export function modelFileErrorNotice(
  * opens it at the error. Never throws; the returned promise is not meant to be
  * awaited by the caller.
  */
-export function notifyModelFileError(error: ModelFileError): void {
-  void Promise.resolve(vscode.window.showWarningMessage(modelFileErrorNotice(error), 'Open file'))
+export function notifyTableFileError(error: TableFileError): void {
+  void Promise.resolve(vscode.window.showWarningMessage(tableFileErrorNotice(error), 'Open file'))
     .then((choice) => {
       if (choice === 'Open file') {
-        return openModelFileAt(error.filePath, error.line, error.column);
+        return openTableFileAt(error.filePath, error.line, error.column);
       }
       return undefined;
     })
@@ -85,7 +85,7 @@ export function notifyModelFileError(error: ModelFileError): void {
 }
 
 /** workspaceState key: file path → the `mtime:size` it had when it was last warned about. */
-export const MODEL_FILE_WARNED_KEY = 'erdStudio.modelFileErrorsWarned';
+export const TABLE_FILE_WARNED_KEY = 'erdStudio.modelFileErrorsWarned';
 
 /** Most files remembered; the oldest are forgotten first. */
 const MAX_WARNED_FILES = 200;
@@ -97,7 +97,7 @@ const MAX_WARNED_FILES = 200;
  * the same warning on every window. Records the file as warned about.
  * Usage telemetry is not gated by this: the file is still wrong.
  */
-export function shouldWarnAboutModelFile(state: vscode.Memento, filePath: string): boolean {
+export function shouldWarnAboutTableFile(state: vscode.Memento, filePath: string): boolean {
   let signature: string;
   try {
     const stat = fs.statSync(filePath);
@@ -105,7 +105,7 @@ export function shouldWarnAboutModelFile(state: vscode.Memento, filePath: string
   } catch {
     return true;
   }
-  const warned = { ...(state.get<Record<string, string>>(MODEL_FILE_WARNED_KEY) ?? {}) };
+  const warned = { ...(state.get<Record<string, string>>(TABLE_FILE_WARNED_KEY) ?? {}) };
   if (warned[filePath] === signature) {
     return false;
   }
@@ -115,7 +115,7 @@ export function shouldWarnAboutModelFile(state: vscode.Memento, filePath: string
   for (const old of paths.slice(0, Math.max(0, paths.length - MAX_WARNED_FILES))) {
     delete warned[old];
   }
-  void Promise.resolve(state.update(MODEL_FILE_WARNED_KEY, warned)).catch((err: unknown) => {
+  void Promise.resolve(state.update(TABLE_FILE_WARNED_KEY, warned)).catch((err: unknown) => {
     console.error('[ERD Studio] Could not remember a model file warning:', err);
   });
   return true;

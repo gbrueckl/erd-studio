@@ -1,7 +1,7 @@
 /**
  * `toDbml` — a diagram as DBML (https://dbml.dbdiagram.io), one way.
  *
- * The output is a contract: the same `DisplayDomain` always gives the same
+ * The output is a contract: the same `DisplaySubjectArea` always gives the same
  * text, it opens with a version line, and every mapping change is a
  * deliberate golden update plus a CHANGELOG line. ERD Studio's own files stay
  * the source of truth; nothing reads this back.
@@ -55,9 +55,9 @@
  * sizes, sticky-note colours and nested meta values are never exported.
  */
 
-import type { DisplayDomain } from './types/display.js';
-import { backwardsNoteOf, describeEnds, foreignKeyColumns, oneLine, prepareDomain } from './exportShared.js';
-import type { ExportColumn, ExportLink, ExportMeta, ExportModel } from './exportShared.js';
+import type { DisplaySubjectArea } from './types/display.js';
+import { backwardsNoteOf, describeEnds, foreignKeyColumns, oneLine, prepareSubjectArea } from './exportShared.js';
+import type { ExportColumn, ExportLink, ExportMeta, ExportTable } from './exportShared.js';
 
 export const DBML_EXPORT_HEADER = '// erd-studio dbml-export v1';
 
@@ -107,7 +107,7 @@ function nameChanged(value: string): boolean {
   return !PLAIN_IDENTIFIER.test(value) && portableName(value) !== value;
 }
 
-function tableName(model: ExportModel): string {
+function tableName(model: ExportTable): string {
   return model.schema ? `${ident(model.schema)}.${ident(model.name)}` : ident(model.name);
 }
 
@@ -142,7 +142,7 @@ function columnNote(column: ExportColumn, fkCovered: boolean): string {
 }
 
 /** The table note: the ERD fields, the description, the rationale and the meta, a blank line between each. */
-function tableNote(model: ExportModel): string {
+function tableNote(model: ExportTable): string {
   const facts: string[] = [];
   if (model.modelRole) facts.push(`Role: ${model.modelRole}`);
   if (model.grain) facts.push(`Grain: ${model.grain}`);
@@ -159,19 +159,19 @@ function tableNote(model: ExportModel): string {
     .join('\n\n');
 }
 
-function loadErrorText(model: ExportModel): string {
+function loadErrorText(model: ExportTable): string {
   const error = model.loadError!;
   return `its table file could not be read (${oneLine(error.kind)}${error.line !== undefined ? `, line ${error.line}` : ''})`;
 }
 
-const columnKey = (model: ExportModel, column: string): string => `${model.name}\u0000${column}`.toLowerCase();
+const columnKey = (model: ExportTable, column: string): string => `${model.name}\u0000${column}`.toLowerCase();
 
 /**
  * A table's lines. Records each column it writes in `written`; a column whose
  * DBML name another column of the table already took is left out with a
  * comment.
  */
-function tableBlock(model: ExportModel, fkColumns: Set<string>, written: Set<string>): string[] {
+function tableBlock(model: ExportTable, fkColumns: Set<string>, written: Set<string>): string[] {
   const lines: string[] = [];
   if (nameChanged(model.name) || nameChanged(model.schema)) {
     const original = model.schema ? `${oneLine(model.schema)}.${oneLine(model.name)}` : oneLine(model.name);
@@ -219,7 +219,7 @@ function tableBlock(model: ExportModel, fkColumns: Set<string>, written: Set<str
   return lines;
 }
 
-function refEnd(model: ExportModel, columns: string[]): string {
+function refEnd(model: ExportTable, columns: string[]): string {
   return columns.length === 1
     ? `${tableName(model)}.${ident(columns[0])}`
     : `${tableName(model)}.(${columns.map(ident).join(', ')})`;
@@ -248,9 +248,9 @@ function commentLines(label: string, value: string): string[] {
   return [`// ${label}${lines[0]}`, ...lines.slice(1).map((l) => `//     ${l}`)];
 }
 
-/** The diagram as DBML. Deterministic; never throws on a valid `DisplayDomain`, however minimal. */
-export function toDbml(domain: DisplayDomain): string {
-  const prepared = prepareDomain(domain);
+/** The diagram as DBML. Deterministic; never throws on a valid `DisplaySubjectArea`, however minimal. */
+export function toDbml(domain: DisplaySubjectArea): string {
+  const prepared = prepareSubjectArea(domain);
   const out: string[] = [
     DBML_EXPORT_HEADER,
     '// Not exported: canvas positions and sizes, sticky-note colours, nested meta values (lists and maps).',

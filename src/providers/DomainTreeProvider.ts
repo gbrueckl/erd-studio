@@ -1,5 +1,5 @@
 /**
- * DomainTreeProvider — VS Code TreeDataProvider for the sidebar.
+ * SubjectAreaTreeProvider — VS Code TreeDataProvider for the sidebar.
  *
  * Displays semantic domains grouped by layer (bronze, silver, gold).
  * Each domain shows a badge with model count (from the logical stage).
@@ -14,8 +14,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type { DomainSummary, Layer } from '../types/semantic';
-import { DomainService } from '../services/domainService';
+import type { SubjectAreaSummary, Layer } from '../types/semantic';
+import { SubjectAreaService } from '../services/domainService';
 import type { LayerService } from '../services/layerService';
 
 /** MIME type for layer drag-drop within the tree. */
@@ -30,14 +30,14 @@ interface LayerNode {
   readonly layer: Layer;
 }
 
-interface DomainNode {
+interface SubjectAreaNode {
   readonly type: 'domain';
-  readonly summary: DomainSummary;
+  readonly summary: SubjectAreaSummary;
   readonly modelCount: number;
   readonly designCount: number;
 }
 
-interface NewDomainNode {
+interface NewSubjectAreaNode {
   readonly type: 'newDomain';
   readonly layer: Layer;
 }
@@ -53,7 +53,7 @@ interface ProjectNode {
   readonly location: string;
 }
 
-export type TreeElement = ProjectNode | LayerNode | DomainNode | NewDomainNode;
+export type TreeElement = ProjectNode | LayerNode | SubjectAreaNode | NewSubjectAreaNode;
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -63,12 +63,12 @@ export type TreeElement = ProjectNode | LayerNode | DomainNode | NewDomainNode;
 const DEFAULT_SEMANTIC_DIR = '.erd-studio';
 
 /** Per-domain-file summary cached against the file's mtime + size. */
-interface CachedDomainSummary {
+interface CachedSubjectAreaSummary {
   readonly signature: string;
   readonly modelCount: number;
 }
 
-export class DomainTreeProvider
+export class SubjectAreaTreeProvider
   implements vscode.TreeDataProvider<TreeElement>, vscode.TreeDragAndDropController<TreeElement> {
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<TreeElement | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -78,10 +78,10 @@ export class DomainTreeProvider
    * Parsed-domain cache keyed by file path. Resolving a v5 domain means one
    * YAML parse per referenced model, so without this every tree refresh cost
    * O(domains x models) reads. Entries are validated by mtime + size so an
-   * edit is never served stale; invalidateDomain() drops entries eagerly when
+   * edit is never served stale; invalidateSubjectArea() drops entries eagerly when
    * the file watcher reports a change.
    */
-  private readonly summaryCache = new Map<string, CachedDomainSummary>();
+  private readonly summaryCache = new Map<string, CachedSubjectAreaSummary>();
 
   /** The project row, or undefined while the workspace has one dbt project. */
   private projectRow: ProjectNode | undefined;
@@ -91,7 +91,7 @@ export class DomainTreeProvider
   readonly dragMimeTypes = [LAYER_DRAG_MIME_TYPE];
 
   constructor(
-    private readonly domainService: DomainService,
+    private readonly subjectAreaService: SubjectAreaService,
     private readonly layerService: LayerService,
     private readonly projectPath: string,
     semanticDir?: string,
@@ -170,7 +170,7 @@ export class DomainTreeProvider
    * without arguments). Called from the file watcher handlers; the mtime
    * check in getLayerChildren is the safety net when an event is missed.
    */
-  invalidateDomain(filePath?: string): void {
+  invalidateSubjectArea(filePath?: string): void {
     if (filePath === undefined) {
       this.summaryCache.clear();
     } else {
@@ -183,7 +183,7 @@ export class DomainTreeProvider
    * disk is unchanged. Falls back to an uncached parse when the file cannot
    * be stat'ed (e.g. virtual paths in tests).
    */
-  private getModelCount(filePath: string): number {
+  private getTableCount(filePath: string): number {
     let signature: string | null = null;
     try {
       const stat = fs.statSync(filePath);
@@ -202,7 +202,7 @@ export class DomainTreeProvider
 
     let modelCount = 0;
     try {
-      const domain = this.domainService.getDomain(filePath);
+      const domain = this.subjectAreaService.getSubjectArea(filePath);
       modelCount = domain.logical.models.length;
     } catch (err) {
       console.warn(`[DomainTreeProvider] Failed to load ${filePath}:`, err);
@@ -233,9 +233,9 @@ export class DomainTreeProvider
       case 'layer':
         return this.createLayerItem(element);
       case 'domain':
-        return this.createDomainItem(element);
+        return this.createSubjectAreaItem(element);
       case 'newDomain':
-        return this.createNewDomainItem(element);
+        return this.createNewSubjectAreaItem(element);
     }
   }
 
@@ -264,13 +264,13 @@ export class DomainTreeProvider
   // -------------------------------------------------------------------------
 
   private getLayerChildren(layer: Layer): TreeElement[] {
-    const summaries = this.domainService.listDomains(this.projectPath, this.semanticDir);
+    const summaries = this.subjectAreaService.listSubjectAreas(this.projectPath, this.semanticDir);
     const layerDomains = summaries.filter(s => s.layer === layer);
 
-    const domainNodes: DomainNode[] = layerDomains.map(summary => ({
+    const domainNodes: SubjectAreaNode[] = layerDomains.map(summary => ({
       type: 'domain' as const,
       summary,
-      modelCount: this.getModelCount(summary.filePath),
+      modelCount: this.getTableCount(summary.filePath),
       designCount: 0,
     }));
 
@@ -308,7 +308,7 @@ export class DomainTreeProvider
     return item;
   }
 
-  private createDomainItem(element: DomainNode): vscode.TreeItem {
+  private createSubjectAreaItem(element: SubjectAreaNode): vscode.TreeItem {
     const item = new vscode.TreeItem(
       element.summary.domain,
       vscode.TreeItemCollapsibleState.None,
@@ -332,7 +332,7 @@ export class DomainTreeProvider
     return item;
   }
 
-  private createNewDomainItem(element: NewDomainNode): vscode.TreeItem {
+  private createNewSubjectAreaItem(element: NewSubjectAreaNode): vscode.TreeItem {
     const item = new vscode.TreeItem(
       'New Subject Area...',
       vscode.TreeItemCollapsibleState.None,

@@ -3,11 +3,11 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { TreeItemCollapsibleState } from 'vscode';
-import { DomainTreeProvider, type TreeElement } from '../../src/providers/DomainTreeProvider';
-import type { DomainService } from '../../src/services/domainService';
+import { SubjectAreaTreeProvider, type TreeElement } from '../../src/providers/DomainTreeProvider';
+import type { SubjectAreaService } from '../../src/services/domainService';
 import type { LayerService } from '../../src/services/layerService';
 import type { LayerConfig } from '../../src/types/layer';
-import type { DomainSummary, UnifiedDomain, StageData } from '../../src/types/semantic';
+import type { SubjectAreaSummary, UnifiedSubjectArea, StageData } from '../../src/types/semantic';
 
 // Must be at module level for vitest to hoist correctly
 vi.mock('fs', async () => {
@@ -46,7 +46,7 @@ function createMockLayerService(): LayerService {
 
 const emptyStageData: StageData = { models: [], relationships: [] };
 
-function makeUnifiedDomain(overrides: Partial<UnifiedDomain> = {}): UnifiedDomain {
+function makeUnifiedSubjectArea(overrides: Partial<UnifiedSubjectArea> = {}): UnifiedSubjectArea {
   return {
     schemaVersion: 4,
     domain: 'test',
@@ -58,38 +58,38 @@ function makeUnifiedDomain(overrides: Partial<UnifiedDomain> = {}): UnifiedDomai
   };
 }
 
-function createMockDomainService(
-  summaries: DomainSummary[] = [],
-  domains: Map<string, UnifiedDomain> = new Map(),
-): DomainService {
+function createMockSubjectAreaService(
+  summaries: SubjectAreaSummary[] = [],
+  domains: Map<string, UnifiedSubjectArea> = new Map(),
+): SubjectAreaService {
   return {
-    listDomains: vi.fn().mockReturnValue(summaries),
-    getDomain: vi.fn((filePath: string) => {
+    listSubjectAreas: vi.fn().mockReturnValue(summaries),
+    getSubjectArea: vi.fn((filePath: string) => {
       const d = domains.get(filePath);
       if (!d) throw new Error(`Not found: ${filePath}`);
       return d;
     }),
-  } as unknown as DomainService;
+  } as unknown as SubjectAreaService;
 }
 
 // ---------------------------------------------------------------------------
 // Test data
 // ---------------------------------------------------------------------------
 
-const SILVER_DOMAINS: DomainSummary[] = [
+const SILVER_SUBJECT_AREAS: SubjectAreaSummary[] = [
   { domain: 'customer-360', layer: 'silver', filePath: '/project/.erd-studio/silver/customer-360.json' },
   { domain: 'orders', layer: 'silver', filePath: '/project/.erd-studio/silver/orders.json' },
 ];
 
-const GOLD_DOMAINS: DomainSummary[] = [
+const GOLD_SUBJECT_AREAS: SubjectAreaSummary[] = [
   { domain: 'reporting', layer: 'gold', filePath: '/project/.erd-studio/gold/reporting.json' },
 ];
 
-const ALL_SUMMARIES = [...SILVER_DOMAINS, ...GOLD_DOMAINS];
+const ALL_SUMMARIES = [...SILVER_SUBJECT_AREAS, ...GOLD_SUBJECT_AREAS];
 
-function buildDomainMap(): Map<string, UnifiedDomain> {
-  const map = new Map<string, UnifiedDomain>();
-  map.set('/project/.erd-studio/silver/customer-360.json', makeUnifiedDomain({
+function buildSubjectAreaMap(): Map<string, UnifiedSubjectArea> {
+  const map = new Map<string, UnifiedSubjectArea>();
+  map.set('/project/.erd-studio/silver/customer-360.json', makeUnifiedSubjectArea({
     domain: 'customer-360',
     layer: 'silver',
     logical: {
@@ -97,7 +97,7 @@ function buildDomainMap(): Map<string, UnifiedDomain> {
       relationships: [],
     },
   }));
-  map.set('/project/.erd-studio/silver/orders.json', makeUnifiedDomain({
+  map.set('/project/.erd-studio/silver/orders.json', makeUnifiedSubjectArea({
     domain: 'orders',
     layer: 'silver',
     logical: {
@@ -105,7 +105,7 @@ function buildDomainMap(): Map<string, UnifiedDomain> {
       relationships: [],
     },
   }));
-  map.set('/project/.erd-studio/gold/reporting.json', makeUnifiedDomain({
+  map.set('/project/.erd-studio/gold/reporting.json', makeUnifiedSubjectArea({
     domain: 'reporting',
     layer: 'gold',
     logical: {
@@ -117,7 +117,7 @@ function buildDomainMap(): Map<string, UnifiedDomain> {
 }
 
 // Use a real project path that exists on disk for the semantic dir check.
-// We mock DomainService so no real files are read, but getChildren checks
+// We mock SubjectAreaService so no real files are read, but getChildren checks
 // fs.existsSync for the semantic directory.
 const PROJECT_PATH = '/tmp/test-project';
 
@@ -125,15 +125,15 @@ const PROJECT_PATH = '/tmp/test-project';
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('DomainTreeProvider', () => {
+describe('SubjectAreaTreeProvider', () => {
   let layerService: LayerService;
-  let domainService: DomainService;
-  let provider: DomainTreeProvider;
+  let subjectAreaService: SubjectAreaService;
+  let provider: SubjectAreaTreeProvider;
 
   beforeEach(() => {
     layerService = createMockLayerService();
-    domainService = createMockDomainService(ALL_SUMMARIES, buildDomainMap());
-    provider = new DomainTreeProvider(domainService, layerService, PROJECT_PATH);
+    subjectAreaService = createMockSubjectAreaService(ALL_SUMMARIES, buildSubjectAreaMap());
+    provider = new SubjectAreaTreeProvider(subjectAreaService, layerService, PROJECT_PATH);
   });
 
   describe('getChildren (root)', () => {
@@ -149,7 +149,7 @@ describe('DomainTreeProvider', () => {
     });
 
     it('returns empty array when semantic directory does not exist (F408 welcome)', () => {
-      const providerNoSemantic = new DomainTreeProvider(domainService, layerService, '/nonexistent/path');
+      const providerNoSemantic = new SubjectAreaTreeProvider(subjectAreaService, layerService, '/nonexistent/path');
       const children = providerNoSemantic.getChildren(undefined);
 
       expect(children).toHaveLength(0);
@@ -182,7 +182,7 @@ describe('DomainTreeProvider', () => {
     });
 
     it('never makes an empty tree non-empty, so the welcome view still shows', () => {
-      const providerNoSemantic = new DomainTreeProvider(domainService, layerService, '/nonexistent/path');
+      const providerNoSemantic = new SubjectAreaTreeProvider(subjectAreaService, layerService, '/nonexistent/path');
       providerNoSemantic.setProjectRow({ name: 'finance-dbt', location: 'workspace folder' });
       expect(providerNoSemantic.getChildren(undefined)).toEqual([]);
     });
@@ -239,12 +239,12 @@ describe('DomainTreeProvider', () => {
       expect(hasNewDomain).toBe(false);
     });
 
-    it('handles getDomain errors gracefully with 0 model count', () => {
-      const failService = createMockDomainService(
+    it('handles getSubjectArea errors gracefully with 0 model count', () => {
+      const failService = createMockSubjectAreaService(
         [{ domain: 'broken', layer: 'silver', filePath: '/broken.json' }],
-        new Map(), // empty — getDomain will throw
+        new Map(), // empty — getSubjectArea will throw
       );
-      const failProvider = new DomainTreeProvider(failService, layerService, PROJECT_PATH);
+      const failProvider = new SubjectAreaTreeProvider(failService, layerService, PROJECT_PATH);
       const children = failProvider.getChildren({ type: 'layer', layer: 'silver' })!;
 
       const domain = children.find(c => c.type === 'domain');
@@ -409,71 +409,71 @@ describe('DomainTreeProvider', () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    function realFileProvider(models: unknown[]): { provider: DomainTreeProvider; getDomain: ReturnType<typeof vi.fn> } {
-      const summaries: DomainSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
-      const domains = new Map<string, UnifiedDomain>();
-      domains.set(domainPath, makeUnifiedDomain({
+    function realFileProvider(models: unknown[]): { provider: SubjectAreaTreeProvider; getSubjectArea: ReturnType<typeof vi.fn> } {
+      const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
+      const domains = new Map<string, UnifiedSubjectArea>();
+      domains.set(domainPath, makeUnifiedSubjectArea({
         domain: 'orders',
         logical: { models: models as any, relationships: [] },
       }));
-      const svc = createMockDomainService(summaries, domains);
+      const svc = createMockSubjectAreaService(summaries, domains);
       return {
-        provider: new DomainTreeProvider(svc, layerService, tempDir),
-        getDomain: svc.getDomain as unknown as ReturnType<typeof vi.fn>,
+        provider: new SubjectAreaTreeProvider(svc, layerService, tempDir),
+        getSubjectArea: svc.getSubjectArea as unknown as ReturnType<typeof vi.fn>,
       };
     }
 
     it('parses each domain file once while it is unchanged on disk', () => {
-      const { provider: p, getDomain } = realFileProvider([{ name: 'a' }, { name: 'b' }]);
+      const { provider: p, getSubjectArea } = realFileProvider([{ name: 'a' }, { name: 'b' }]);
 
       const first = p.getChildren({ type: 'layer', layer: 'silver' })!;
       p.refresh();
       const second = p.getChildren({ type: 'layer', layer: 'silver' })!;
       p.getChildren({ type: 'layer', layer: 'silver' });
 
-      expect(getDomain).toHaveBeenCalledTimes(1);
+      expect(getSubjectArea).toHaveBeenCalledTimes(1);
       expect((first[0] as any).modelCount).toBe(2);
       expect((second[0] as any).modelCount).toBe(2);
     });
 
     it('re-parses when the file changes on disk (mtime/size)', () => {
-      const { provider: p, getDomain } = realFileProvider([{ name: 'a' }]);
+      const { provider: p, getSubjectArea } = realFileProvider([{ name: 'a' }]);
       p.getChildren({ type: 'layer', layer: 'silver' });
-      expect(getDomain).toHaveBeenCalledTimes(1);
+      expect(getSubjectArea).toHaveBeenCalledTimes(1);
 
       fs.writeFileSync(domainPath, '{"changed": true}');
       const t = new Date(Date.now() + 5000);
       fs.utimesSync(domainPath, t, t);
 
       p.getChildren({ type: 'layer', layer: 'silver' });
-      expect(getDomain).toHaveBeenCalledTimes(2);
+      expect(getSubjectArea).toHaveBeenCalledTimes(2);
     });
 
-    it('re-parses after invalidateDomain(filePath)', () => {
-      const { provider: p, getDomain } = realFileProvider([{ name: 'a' }]);
+    it('re-parses after invalidateSubjectArea(filePath)', () => {
+      const { provider: p, getSubjectArea } = realFileProvider([{ name: 'a' }]);
       p.getChildren({ type: 'layer', layer: 'silver' });
-      p.invalidateDomain(domainPath);
+      p.invalidateSubjectArea(domainPath);
       p.getChildren({ type: 'layer', layer: 'silver' });
-      expect(getDomain).toHaveBeenCalledTimes(2);
+      expect(getSubjectArea).toHaveBeenCalledTimes(2);
     });
 
-    it('re-parses everything after invalidateDomain() with no argument', () => {
-      const { provider: p, getDomain } = realFileProvider([{ name: 'a' }]);
+    it('re-parses everything after invalidateSubjectArea() with no argument', () => {
+      const { provider: p, getSubjectArea } = realFileProvider([{ name: 'a' }]);
       p.getChildren({ type: 'layer', layer: 'silver' });
-      p.invalidateDomain();
+      p.invalidateSubjectArea();
       p.getChildren({ type: 'layer', layer: 'silver' });
-      expect(getDomain).toHaveBeenCalledTimes(2);
+      expect(getSubjectArea).toHaveBeenCalledTimes(2);
     });
 
     it('does not cache a failed parse', () => {
-      const summaries: DomainSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
-      const svc = createMockDomainService(summaries, new Map()); // getDomain throws
-      const p = new DomainTreeProvider(svc, layerService, tempDir);
+      const summaries: SubjectAreaSummary[] = [{ domain: 'orders', layer: 'silver', filePath: domainPath }];
+      const svc = createMockSubjectAreaService(summaries, new Map()); // getSubjectArea throws
+      const p = new SubjectAreaTreeProvider(svc, layerService, tempDir);
 
       p.getChildren({ type: 'layer', layer: 'silver' });
       p.getChildren({ type: 'layer', layer: 'silver' });
 
-      expect(svc.getDomain).toHaveBeenCalledTimes(2);
+      expect(svc.getSubjectArea).toHaveBeenCalledTimes(2);
     });
   });
 });

@@ -33,7 +33,7 @@ import {
   CanvasEnvironmentProvider,
   DetailPanel,
   Legend,
-  type ModelFlowNode,
+  type TableFlowNode,
   type FkFlowEdge,
   type AnnotationFlowNode,
   type AnnotationFlowEdge,
@@ -44,9 +44,9 @@ import { vscodeCanvasHost } from './host/vscodeCanvasHost';
 import { DragLine } from './components/Graph/DragLine';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { StatusBar } from './components/Toolbar/StatusBar';
-import { NewModelDialog } from './components/NewModelDialog/NewModelDialog';
+import { NewTableDialog } from './components/NewModelDialog/NewModelDialog';
 import { NewFkDialog } from './components/NewFkDialog/NewFkDialog';
-import { AddExistingModelDialog } from './components/AddExistingModelDialog/AddExistingModelDialog';
+import { AddExistingTableDialog } from './components/AddExistingModelDialog/AddExistingModelDialog';
 import { Toast } from './components/Toast/Toast';
 import { ContextMenu } from './components/ContextMenu/ContextMenu';
 import { PhysicalSourceNotice } from './components/Canvas/PhysicalSourceNotice';
@@ -59,7 +59,7 @@ import { SyncMergeModal } from './components/SyncMergeModal/SyncMergeModal';
 import { ReconnectOverlay } from './components/ReconnectOverlay/ReconnectOverlay';
 import { useReconnectWatchdog } from './hooks/useReconnectWatchdog';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts';
-import type { DisplayDomain } from '../src/types/display';
+import type { DisplaySubjectArea } from '../src/types/display';
 import { redactPaths } from '../src/types/feedback';
 import { orientDraggedRelationship } from './lib/relationshipDirection';
 
@@ -71,7 +71,7 @@ import { orientDraggedRelationship } from './lib/relationshipDirection';
  * Load a display-domain payload into the store. Shared by `domainLoaded`
  * (initial load / host refresh) and `stageData` (stage switch reply).
  */
-function applyDomainPayload(payload: DisplayDomain): void {
+function applySubjectAreaPayload(payload: DisplaySubjectArea): void {
   const s = useEditorStore.getState();
   s.setDomain(payload);
   if (payload.templates) {
@@ -202,7 +202,7 @@ function EditorCanvas() {
     (msg: ExtensionMessage) => {
       switch (msg.type) {
         case 'domainLoaded':
-          applyDomainPayload(msg.payload);
+          applySubjectAreaPayload(msg.payload);
           // Set on a fresh domain (no stored positions), cleared by every other
           // payload — a later load without the flag cancels a pending layout.
           useEditorStore.getState().setPendingAutoLayout(msg.autoLayout === true);
@@ -217,7 +217,7 @@ function EditorCanvas() {
           // A reply for a stage the user has since switched away from — drop it
           // so the canvas never flips back to the wrong stage.
           if (isStaleStageReply(msg.requestId)) break;
-          applyDomainPayload(msg.payload);
+          applySubjectAreaPayload(msg.payload);
           // Stage replies never ask for the first-open layout.
           useEditorStore.getState().setPendingAutoLayout(false);
           useEditorStore.getState().setManifestMissing(msg.manifestMissing === true);
@@ -317,7 +317,7 @@ function EditorCanvas() {
   );
 
   // Handle long-press column drag to create relationships.
-  // Listens for custom events dispatched by ColumnRow in ModelNode.
+  // Listens for custom events dispatched by ColumnRow in TableNode.
   // Disabled in read-only mode (physical stage).
   useEffect(() => {
     if (domain?.readOnly) return;
@@ -407,13 +407,13 @@ function EditorCanvas() {
 
   // Handle right-click on nodes (model or annotation) to show context menu
   const onNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: ModelFlowNode | AnnotationFlowNode) => {
+    (event: React.MouseEvent, node: TableFlowNode | AnnotationFlowNode) => {
       event.preventDefault();
       if (node.type === 'annotation') {
         const annData = (node as AnnotationFlowNode).data;
         openAnnotationContextMenu(event.clientX, event.clientY, annData.annotationId);
       } else {
-        const modelData = (node as ModelFlowNode).data;
+        const modelData = (node as TableFlowNode).data;
         openNodeContextMenu(event.clientX, event.clientY, modelData.modelName);
       }
     },
@@ -601,9 +601,9 @@ function EditorCanvas() {
         />
         <StatusBar />
         <DetailPanel />
-        <NewModelDialog />
+        <NewTableDialog />
         <NewFkDialog />
-        <AddExistingModelDialog />
+        <AddExistingTableDialog />
       </ReactFlow>
 
       {activeToastMessage && (

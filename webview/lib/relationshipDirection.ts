@@ -12,11 +12,11 @@
 import { contradictsKeysOf, keyEvidenceDetail, linkEnd, orientLink } from '@erd-studio/core';
 import type { KeyColumn, LinkEnd, Orientation } from '@erd-studio/core';
 
-import type { DisplayModel } from '../../src/types/display';
+import type { DisplayTable } from '../../src/types/display';
 import type { Cardinality } from '../../src/types/semantic';
 import type { FkDialogPrefill } from '../store/editorStore';
 
-type Models = ReadonlyArray<Pick<DisplayModel, 'name' | 'columns'>>;
+type Tables = ReadonlyArray<Pick<DisplayTable, 'name' | 'columns'>>;
 
 /** The prefill a drag opens the dialog with, oriented by key evidence. */
 export interface OrientedPrefill extends FkDialogPrefill {
@@ -25,20 +25,20 @@ export interface OrientedPrefill extends FkDialogPrefill {
   basis: 'keys' | 'dbt' | 'none';
 }
 
-const modelNamed = (models: Models, name: string) =>
+const tableNamed = (models: Tables, name: string) =>
   models.find((m) => m.name === name) ?? models.find((m) => m.name.toLowerCase() === name.toLowerCase());
 
 /** A canvas column's stored foreign-key flag (its `isForeignKey` is the badge). */
 const declaredFk = (column: KeyColumn): boolean => (column as { isForeignKeyDeclared?: boolean }).isForeignKeyDeclared === true;
 
 /** One end of a link on the canvas, with its key evidence (flags, else the columns' `dbtKey`). */
-export function canvasLinkEnd(models: Models, model: string, columns: readonly string[]): LinkEnd {
-  return linkEnd(model, modelNamed(models, model), columns, { declaredFk });
+export function canvasLinkEnd(models: Tables, model: string, columns: readonly string[]): LinkEnd {
+  return linkEnd(model, tableNamed(models, model), columns, { declaredFk });
 }
 
 /** How key evidence orients the link between two canvas ends. */
 export function orientCanvasLink(
-  models: Models,
+  models: Tables,
   from: { model: string; columns: readonly string[] },
   to: { model: string; columns: readonly string[] },
 ): Orientation {
@@ -51,10 +51,10 @@ export function orientCanvasLink(
  * then `direction: 'undecided'` and the dialog asks. Returns the prefill
  * unchanged when the drop named no column or a column the canvas does not show.
  */
-export function orientDraggedRelationship(prefill: FkDialogPrefill, models: Models): FkDialogPrefill | OrientedPrefill {
+export function orientDraggedRelationship(prefill: FkDialogPrefill, models: Tables): FkDialogPrefill | OrientedPrefill {
   if (!prefill.toColumn) return prefill;
   const has = (model: string, column: string): boolean =>
-    !!modelNamed(models, model)?.columns.some((c) => typeof c.name === 'string' && c.name.toLowerCase() === column.toLowerCase());
+    !!tableNamed(models, model)?.columns.some((c) => typeof c.name === 'string' && c.name.toLowerCase() === column.toLowerCase());
   if (!has(prefill.fromModel, prefill.fromColumn) || !has(prefill.toModel, prefill.toColumn)) return prefill;
   const o = orientCanvasLink(models,
     { model: prefill.fromModel, columns: [prefill.fromColumn] }, { model: prefill.toModel, columns: [prefill.toColumn] });
@@ -77,17 +77,17 @@ export function orientDraggedRelationship(prefill: FkDialogPrefill, models: Mode
  */
 export function keysContradictionWarning(
   rel: { fromModel: string; fromColumn: string; toModel: string; toColumn: string; cardinality: Cardinality },
-  models: Models,
+  models: Tables,
   /** A composite's column pairs, the first being rel's (#133 L2): read on the column sets. */
   pairs?: ReadonlyArray<{ fromColumn: string; toColumn: string }>,
 ): string | null {
   if (!rel.fromModel || !rel.fromColumn || !rel.toModel || !rel.toColumn) return null;
   const members = (pairs && pairs.length > 1 ? pairs : [rel]).map((p) => ({ ...rel, fromColumn: p.fromColumn, toColumn: p.toColumn }));
-  if (!contradictsKeysOf(members, (name) => modelNamed(models, name))) return null;
+  if (!contradictsKeysOf(members, (name) => tableNamed(models, name))) return null;
   const end = (model: string, cols: string[]): string => (cols.length === 1 ? `${model}.${cols[0]}` : `${model}.(${cols.join(', ')})`);
   const from = end(rel.fromModel, members.map((m) => m.fromColumn));
   const to = end(rel.toModel, members.map((m) => m.toColumn));
-  const evidence = keyEvidenceDetail(modelNamed(models, rel.fromModel), members.map((m) => m.fromColumn));
+  const evidence = keyEvidenceDetail(tableNamed(models, rel.fromModel), members.map((m) => m.fromColumn));
   const why = evidence.source === 'dbt'
     ? `dbt tests ${from} as unique`
     : `${from} is ${rel.fromModel}'s key`;

@@ -8,7 +8,7 @@
  * once a parse has already failed, so a valid file is never reported.
  *
  * Internal to the package: hosts learn about a conflict from the errors that
- * carry it (`DomainFileError.mergeConflict`, `ModelLoadError.mergeConflict`).
+ * carry it (`SubjectAreaFileError.mergeConflict`, `TableLoadError.mergeConflict`).
  */
 
 // The marker lines as git writes and recognises them (`is_conflict_marker`):

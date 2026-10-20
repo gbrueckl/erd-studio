@@ -381,7 +381,7 @@ describe('setup skill: merge conflicts are the user\'s to settle (#150)', () => 
   it('names the signals doctor and diff really emit', () => {
     // The ids and fields the skill teaches must be the CLI's own spelling.
     expect(cli('doctor.ts')).toContain("id: 'resolve-merge-conflicts'");
-    expect(cli('doctor.ts')).toContain('conflictedDomainFiles: ConflictedDomainFile[]');
+    expect(cli('doctor.ts')).toContain('conflictedDomainFiles: ConflictedSubjectAreaFile[]');
     expect(cli('diff.ts')).toContain("code: 'merge-conflict'");
     expect(cli('diff.ts')).toContain('mergeConflict?: true');
 
@@ -424,13 +424,13 @@ describe('setup skill: merge conflicts are the user\'s to settle (#150)', () => 
   });
 
   it('puts mergeConflict on the unreadableModelFiles entry, never on the fix or the step', () => {
-    // The CLI carries the flag only on UnreadableModelFile; Fix and NextStep have no such field.
+    // The CLI carries the flag only on UnreadableTableFile; Fix and NextStep have no such field.
     const block = (src: string, name: string): string => {
       const start = src.indexOf(`export interface ${name} {`);
       expect(start, name).toBeGreaterThan(-1);
       return src.slice(start, src.indexOf('\n}', start));
     };
-    expect(block(cli('diff.ts'), 'UnreadableModelFile')).toContain('mergeConflict?: true');
+    expect(block(cli('diff.ts'), 'UnreadableTableFile')).toContain('mergeConflict?: true');
     expect(block(cli('diff.ts'), 'Fix')).not.toContain('mergeConflict');
     expect(block(cli('doctor.ts'), 'NextStep')).not.toContain('mergeConflict');
     // So no skill text may say a fix or step "with" / "has" / "marked" the flag, and every

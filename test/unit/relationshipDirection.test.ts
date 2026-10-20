@@ -12,7 +12,7 @@ const col = (name: string, keys: { pk?: boolean; nk?: boolean; fk?: boolean } = 
   name, dataType: 'string', description: '',
   isPrimaryKey: keys.pk ?? false, isNaturalKey: keys.nk ?? false, isForeignKey: keys.fk ?? false,
 });
-const MODELS = [
+const TABLES = [
   { name: 'dim_customer', columns: [col('customer_key', { pk: true }), col('customer_code', { nk: true })] },
   { name: 'fct_order', columns: [col('order_key', { pk: true }), col('customer_key')] },
   { name: 'brg_account_customer', columns: [col('customer_key', { pk: true, fk: true })] },
@@ -24,7 +24,7 @@ const LNK = { name: 'lnk_order_customer', columns: [col('order_customer_hk', { p
 const FCT_GRAIN = { name: 'fct_daily', columns: [col('customer_key', { pk: true }), col('date_key', { pk: true }), col('amount')] };
 
 describe('orientDraggedRelationship — Data Vault and composite keys (#133)', () => {
-  const MODELS2 = [...MODELS, HUB, SAT, LNK, FCT_GRAIN];
+  const MODELS2 = [...TABLES, HUB, SAT, LNK, FCT_GRAIN];
   const turned = (fm: string, fc: string, tm: string, tc: string) =>
     orientDraggedRelationship({ fromModel: fm, fromColumn: fc, toModel: tm, toColumn: tc }, MODELS2).fromModel;
 
@@ -46,7 +46,7 @@ describe('orientDraggedRelationship (#133)', () => {
   it('turns a drag from a dimension key to a fact column round', () => {
     expect(orientDraggedRelationship(
       { fromModel: 'dim_customer', fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key' },
-      MODELS,
+      TABLES,
     )).toEqual({
       fromModel: 'fct_order', fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key',
       cardinality: 'many-to-one', direction: 'decided', basis: 'keys',
@@ -56,32 +56,32 @@ describe('orientDraggedRelationship (#133)', () => {
   it('turns a drag from a natural key round too', () => {
     expect(orientDraggedRelationship(
       { fromModel: 'dim_customer', fromColumn: 'customer_code', toModel: 'fct_order', toColumn: 'customer_key' },
-      MODELS,
+      TABLES,
     ).fromModel).toBe('fct_order');
   });
 
   it('keeps a drag that already starts on the referring column, decided', () => {
     const prefill = { fromModel: 'fct_order', fromColumn: 'customer_key', toModel: 'dim_customer', toColumn: 'customer_key' };
-    expect(orientDraggedRelationship(prefill, MODELS)).toEqual({ ...prefill, cardinality: 'many-to-one', direction: 'decided', basis: 'keys' });
+    expect(orientDraggedRelationship(prefill, TABLES)).toEqual({ ...prefill, cardinality: 'many-to-one', direction: 'decided', basis: 'keys' });
   });
 
   it('key-to-key drags are a one-to-one the user decides: ends as dragged, undecided', () => {
     const prefill = { fromModel: 'dim_customer', fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'order_key' };
-    expect(orientDraggedRelationship(prefill, MODELS)).toEqual({ ...prefill, cardinality: 'one-to-one', direction: 'undecided', basis: 'none' });
+    expect(orientDraggedRelationship(prefill, TABLES)).toEqual({ ...prefill, cardinality: 'one-to-one', direction: 'undecided', basis: 'none' });
   });
 
   it('a key that is also flagged as a foreign key holds the other key: one-to-one from the bridge', () => {
     expect(orientDraggedRelationship(
       { fromModel: 'dim_customer', fromColumn: 'customer_key', toModel: 'brg_account_customer', toColumn: 'customer_key' },
-      MODELS.map((m) => ({ ...m, columns: m.columns.map((c) => ({ ...c, isForeignKeyDeclared: c.isForeignKey })) })),
+      TABLES.map((m) => ({ ...m, columns: m.columns.map((c) => ({ ...c, isForeignKeyDeclared: c.isForeignKey })) })),
     )).toMatchObject({ fromModel: 'brg_account_customer', cardinality: 'one-to-one', direction: 'decided' });
   });
 
   it('leaves a drag with no target column, or unknown columns, alone', () => {
     const noTarget = { fromModel: 'dim_customer', fromColumn: 'customer_key', toModel: 'fct_order' };
-    expect(orientDraggedRelationship(noTarget, MODELS)).toBe(noTarget);
+    expect(orientDraggedRelationship(noTarget, TABLES)).toBe(noTarget);
     const unknown = { fromModel: 'dim_customer', fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'nope' };
-    expect(orientDraggedRelationship(unknown, MODELS)).toBe(unknown);
+    expect(orientDraggedRelationship(unknown, TABLES)).toBe(unknown);
   });
 });
 
@@ -122,7 +122,7 @@ describe('orientDraggedRelationship — no key flagged (#133 L1)', () => {
 describe('keysContradictionWarning — the dialog\'s keys-win warning (#133)', () => {
   const rel = { fromModel: 'dim_customer', fromColumn: 'customer_key', toModel: 'fct_order', toColumn: 'customer_key', cardinality: 'many-to-one' as const };
   it('warns when the many side is its model\'s whole key and the other end is certainly not a key', () => {
-    expect(keysContradictionWarning(rel, MODELS)).toMatch(/^dim_customer\.customer_key is dim_customer's key, so each value appears only once/);
+    expect(keysContradictionWarning(rel, TABLES)).toMatch(/^dim_customer\.customer_key is dim_customer's key, so each value appears only once/);
   });
   it('names dbt\'s test when the many end\'s evidence came from dbt', () => {
     const tested = [
@@ -132,9 +132,9 @@ describe('keysContradictionWarning — the dialog\'s keys-win warning (#133)', (
     expect(keysContradictionWarning(rel, tested)).toMatch(/^dbt tests dim_customer\.customer_key as unique, so each value appears only once/);
   });
   it('says nothing the other way round, for a one-to-one, or without a key on the other end', () => {
-    expect(keysContradictionWarning({ ...rel, fromModel: 'fct_order', toModel: 'dim_customer' }, MODELS)).toBeNull();
-    expect(keysContradictionWarning({ ...rel, cardinality: 'one-to-one' }, MODELS)).toBeNull();
-    expect(keysContradictionWarning(rel, [MODELS[0], { name: 'fct_order', columns: [col('customer_key')] }])).toBeNull();
+    expect(keysContradictionWarning({ ...rel, fromModel: 'fct_order', toModel: 'dim_customer' }, TABLES)).toBeNull();
+    expect(keysContradictionWarning({ ...rel, cardinality: 'one-to-one' }, TABLES)).toBeNull();
+    expect(keysContradictionWarning(rel, [TABLES[0], { name: 'fct_order', columns: [col('customer_key')] }])).toBeNull();
   });
 });
 

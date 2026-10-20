@@ -23,7 +23,7 @@ import * as path from 'path';
 import { parse } from 'yaml';
 
 import { TemplateService } from '../../src/services/templateService';
-import type { ColumnDef, ModelTemplate } from '../../src/types/semantic';
+import type { ColumnDef, TableTemplate } from '../../src/types/semantic';
 
 const FIXTURE = path.resolve(__dirname, '../fixtures/dbt-project');
 const MODELS_DIR = path.join(FIXTURE, '.erd-studio', 'logical-models');
@@ -50,7 +50,7 @@ const factNames = fs
 // ---------------------------------------------------------------------------
 
 describe('built-in templates', () => {
-  const templates: ModelTemplate[] = new TemplateService().loadTemplates(
+  const templates: TableTemplate[] = new TemplateService().loadTemplates(
     // A path with no templates dir forces the built-in fallbacks.
     path.join(FIXTURE, 'does-not-exist'),
   );

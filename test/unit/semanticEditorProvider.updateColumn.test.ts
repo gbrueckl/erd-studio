@@ -13,7 +13,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { SemanticEditorProvider } from '../../src/providers/SemanticEditorProvider';
-import type { ColumnDef, SemanticModel } from '../../src/types/semantic';
+import type { ColumnDef, SemanticTable } from '../../src/types/semantic';
 import type { UpdateColumnPayloadColumn } from '../../src/types/messages';
 
 // ---------------------------------------------------------------------------
@@ -43,13 +43,13 @@ function makeWebview() {
 }
 
 // The domain file must exist: an edit to one deleted outside ERD Studio is refused (#161).
-const DOMAIN_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'erd-updatecolumn-')), '.erd-studio', 'silver', 'test.json');
-fs.mkdirSync(path.dirname(DOMAIN_PATH), { recursive: true });
-fs.writeFileSync(DOMAIN_PATH, '{}');
+const SUBJECT_AREA_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'erd-updatecolumn-')), '.erd-studio', 'silver', 'test.json');
+fs.mkdirSync(path.dirname(SUBJECT_AREA_PATH), { recursive: true });
+fs.writeFileSync(SUBJECT_AREA_PATH, '{}');
 
 function makeDocument(text: string) {
   return {
-    uri: vscode.Uri.file(DOMAIN_PATH),
+    uri: vscode.Uri.file(SUBJECT_AREA_PATH),
     getText: () => text,
     positionAt: (offset: number) => new vscode.Position(0, offset),
     save: async () => true,
@@ -59,39 +59,39 @@ function makeDocument(text: string) {
 /**
  * Build a provider whose logical model service is an in-memory fake.
  *
- * V5 model edits are routed through a WorkspaceEdit (`serializeModel` +
- * `createFile` / `replace`) rather than `saveModel`, so the fake captures the
- * model handed to `serializeModel` and reports every model as not-yet-on-disk
+ * V5 model edits are routed through a WorkspaceEdit (`serializeTable` +
+ * `createFile` / `replace`) rather than `saveTable`, so the fake captures the
+ * model handed to `serializeTable` and reports every model as not-yet-on-disk
  * (the createFile branch needs no TextDocument). `workspace.applyEdit` is
  * stubbed so the edit never reaches the real filesystem.
  */
-function makeProvider(models: SemanticModel[]) {
-  const saved: SemanticModel[] = [];
-  const logicalModelService = {
-    getModel: (name: string) => models.find((m) => m.name === name) ?? null,
-    saveModel: (model: SemanticModel) => { saved.push(model); },
-    serializeModel: (model: SemanticModel) => { saved.push(model); return `name: ${model.name}\n`; },
-    modelExists: () => false,
-    modelPath: (name: string) => `/ws/.erd-studio/logical-models/${name}.yml`,
+function makeProvider(models: SemanticTable[]) {
+  const saved: SemanticTable[] = [];
+  const tableLibraryService = {
+    getTable: (name: string) => models.find((m) => m.name === name) ?? null,
+    saveTable: (model: SemanticTable) => { saved.push(model); },
+    serializeTable: (model: SemanticTable) => { saved.push(model); return `name: ${model.name}\n`; },
+    tableExists: () => false,
+    tablePath: (name: string) => `/ws/.erd-studio/logical-models/${name}.yml`,
     ensureDir: () => {},
-    getModelsDir: () => '/ws/.erd-studio/logical-models',
+    getTablesDir: () => '/ws/.erd-studio/logical-models',
     groupsByFolder: () => false,
     invalidateCache: () => {},
   };
   vi.spyOn(vscode.workspace, 'applyEdit').mockResolvedValue(true);
   const provider = new SemanticEditorProvider(
     {} as vscode.ExtensionContext,
-    {} as never, // domainService
+    {} as never, // subjectAreaService
     {} as never, // manifestService
     {} as never, // ymlParserService
     {} as never, // templateService
     { getAllLayers: () => [] } as never, // layerService
     '/ws',
     {} as never, // selectorsService
-    logicalModelService as never,
+    tableLibraryService as never,
   );
   // Refreshing the webview needs a live panel + services — not under test here.
-  vi.spyOn(provider as unknown as { sendDomainData: () => Promise<void> }, 'sendDomainData')
+  vi.spyOn(provider as unknown as { sendSubjectAreaData: () => Promise<void> }, 'sendSubjectAreaData')
     .mockResolvedValue(undefined);
   return { provider, saved };
 }
@@ -128,7 +128,7 @@ function canvasPayload(overrides: Partial<ColumnDef>): UpdateColumnPayloadColumn
 }
 
 // ---------------------------------------------------------------------------
-// V5 — column lives in logical-models/, written via LogicalModelService
+// V5 — column lives in logical-models/, written via TableLibraryService
 // ---------------------------------------------------------------------------
 
 describe('handleUpdateColumn (V5) scdType / additiveType', () => {
@@ -140,7 +140,7 @@ describe('handleUpdateColumn (V5) scdType / additiveType', () => {
   }));
 
   let provider: SemanticEditorProvider;
-  let saved: SemanticModel[];
+  let saved: SemanticTable[];
 
   beforeEach(() => {
     ({ provider, saved } = makeProvider([{ name: 'dim_customer', columns: [makeColumn()] }]));
@@ -226,7 +226,7 @@ describe('handleUpdateColumn (V4) scdType / additiveType', () => {
   }
 
   /** Capture the JSON the handler writes through vscode.workspace.applyEdit. */
-  function captureWrittenDomain() {
+  function captureWrittenSubjectArea() {
     let written: Record<string, unknown> | null = null;
     vi.spyOn(vscode.workspace, 'applyEdit').mockImplementation(async (edit: unknown) => {
       const ops = (edit as vscode.WorkspaceEdit & { _ops: Array<{ kind: string; newText?: string }> })._ops;
@@ -246,7 +246,7 @@ describe('handleUpdateColumn (V4) scdType / additiveType', () => {
 
   it('keeps existing scdType and additiveType across a canvas rename', async () => {
     const { provider } = makeProvider([]);
-    const readColumn = captureWrittenDomain();
+    const readColumn = captureWrittenSubjectArea();
     const { webview, posted } = makeWebview();
 
     await runUpdate(provider, v4Document(), webview, {
@@ -265,7 +265,7 @@ describe('handleUpdateColumn (V4) scdType / additiveType', () => {
 
   it('clears scdType and additiveType when the payload sets them to null', async () => {
     const { provider } = makeProvider([]);
-    const readColumn = captureWrittenDomain();
+    const readColumn = captureWrittenSubjectArea();
     const { webview } = makeWebview();
 
     await runUpdate(provider, v4Document(), webview, {
@@ -281,7 +281,7 @@ describe('handleUpdateColumn (V4) scdType / additiveType', () => {
 
   it('overwrites scdType and additiveType when the payload provides values', async () => {
     const { provider } = makeProvider([]);
-    const readColumn = captureWrittenDomain();
+    const readColumn = captureWrittenSubjectArea();
     const { webview } = makeWebview();
 
     await runUpdate(provider, v4Document(), webview, {

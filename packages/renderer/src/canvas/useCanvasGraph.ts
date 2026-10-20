@@ -18,10 +18,10 @@ import type { OnSelectionChangeFunc } from '@xyflow/react';
 import type { DiscrepancyReport } from '@erd-studio/core';
 import { useEditorStore, useEditorStoreApi } from '../store/editorStore';
 import { useColumnExpansion } from '../hooks/useColumnExpansion';
-import { transformDomain } from '../lib/graphTransformer';
+import { transformSubjectArea } from '../lib/graphTransformer';
 import { applyNodeOverlays } from '../lib/nodeOverlays';
 import { columnPairs } from '../lib/relationshipDisplayKey';
-import type { ModelFlowNode, FkFlowEdge, AnnotationFlowNode, AnnotationFlowEdge } from '../types/graph';
+import type { TableFlowNode, FkFlowEdge, AnnotationFlowNode, AnnotationFlowEdge } from '../types/graph';
 
 export interface UseCanvasGraphOptions {
   /** Whether the cross-stage discrepancy overlay is shown. */
@@ -33,15 +33,15 @@ export interface UseCanvasGraphOptions {
    * runs, just before they are written to the store.
    */
   onTransformed?: (
-    nodes: (ModelFlowNode | AnnotationFlowNode)[],
+    nodes: (TableFlowNode | AnnotationFlowNode)[],
     edges: (FkFlowEdge | AnnotationFlowEdge)[],
   ) => void;
 }
 
 export interface UseCanvasGraphResult {
-  nodes: (ModelFlowNode | AnnotationFlowNode)[];
+  nodes: (TableFlowNode | AnnotationFlowNode)[];
   edges: (FkFlowEdge | AnnotationFlowEdge)[];
-  onNodeClick: (event: React.MouseEvent, node: ModelFlowNode | AnnotationFlowNode) => void;
+  onNodeClick: (event: React.MouseEvent, node: TableFlowNode | AnnotationFlowNode) => void;
   onEdgeClick: (event: React.MouseEvent, edge: FkFlowEdge | AnnotationFlowEdge) => void;
   onPaneClick: () => void;
   onSelectionChange: OnSelectionChangeFunc;
@@ -105,7 +105,7 @@ export function useCanvasGraph({
         nodeDimensions,
         isExpanded: isExpandedNow,
       };
-      let { nodes: newNodes, edges: newEdges } = transformDomain(domain, transformOptions);
+      let { nodes: newNodes, edges: newEdges } = transformSubjectArea(domain, transformOptions);
 
       // Carry measured dimensions over from the previous nodes.
       newNodes = newNodes.map((n) => {
@@ -181,7 +181,7 @@ export function useCanvasGraph({
 
   // Handle node clicks to open the detail panel (model nodes) or select (annotations).
   const onNodeClick = useCallback(
-    (_event: React.MouseEvent, node: ModelFlowNode | AnnotationFlowNode) => {
+    (_event: React.MouseEvent, node: TableFlowNode | AnnotationFlowNode) => {
       if (node.type === 'annotation') {
         const annData = (node as AnnotationFlowNode).data;
         selectAnnotation(annData.annotationId);

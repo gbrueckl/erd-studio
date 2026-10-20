@@ -1,5 +1,5 @@
 /**
- * NewModelDialog — dialog for creating new design models with configurable templates.
+ * NewTableDialog — dialog for creating new design models with configurable templates.
  *
  * Form fields:
  * - Model name (text input, validated for template prefix)
@@ -17,8 +17,8 @@ import { Panel } from '@xyflow/react';
 import { useEditorStore } from '../../store/editorStore';
 import { useSend } from '../../hooks/useMessageBus';
 import { KeyBadgeGroup } from '@erd-studio/renderer/editor';
-import type { ColumnDef, DesignModel, ModelRole, ModelTemplate } from '../../../src/types/semantic';
-import { COLUMN_NAME_PATTERN, COLUMN_NAME_RULE, MODEL_NAME_PATTERN, findDuplicateNames, sameName } from '../../../src/types/naming';
+import type { ColumnDef, DesignTable, TableRole, TableTemplate } from '../../../src/types/semantic';
+import { COLUMN_NAME_PATTERN, COLUMN_NAME_RULE, TABLE_NAME_PATTERN, findDuplicateNames, sameName } from '../../../src/types/naming';
 import './NewModelDialog.css';
 
 // ---------------------------------------------------------------------------
@@ -63,7 +63,7 @@ function resolvePlaceholders(
  */
 function validateForm(
   modelName: string,
-  template: ModelTemplate,
+  template: TableTemplate,
   leftEntity: string,
   rightEntity: string,
   existingModelNames: string[],
@@ -75,7 +75,7 @@ function validateForm(
   // so a name accepted here can always be renamed later.
   if (!modelName.trim()) {
     errors.modelName = 'Table name is required';
-  } else if (!MODEL_NAME_PATTERN.test(modelName)) {
+  } else if (!TABLE_NAME_PATTERN.test(modelName)) {
     errors.modelName = 'Start with a letter; use only letters, numbers, and underscores';
   } else if (template.prefix && !modelName.startsWith(template.prefix)) {
     errors.modelName = `Must start with "${template.prefix}" for ${template.label} template`;
@@ -111,7 +111,7 @@ function validateForm(
 }
 
 /** Auto-suggested model role based on template ID. */
-const TEMPLATE_ROLE_MAP: Record<string, ModelRole> = {
+const TEMPLATE_ROLE_MAP: Record<string, TableRole> = {
   dimension: 'domain-dim',
   fact: 'transaction-fact',
   bridge: 'factless-fact',
@@ -122,7 +122,7 @@ const TEMPLATE_ROLE_MAP: Record<string, ModelRole> = {
 // Component
 // ---------------------------------------------------------------------------
 
-export function NewModelDialog() {
+export function NewTableDialog() {
   const isOpen = useEditorStore((s) => s.newModelDialogOpen);
   const setNewModelDialogOpen = useEditorStore((s) => s.setNewModelDialogOpen);
   const domain = useEditorStore((s) => s.domain);
@@ -231,7 +231,7 @@ export function NewModelDialog() {
     const finalColumns = [...templateCols, ...validCustomColumns];
 
     const suggestedRole = TEMPLATE_ROLE_MAP[templateId];
-    const newModel: DesignModel = {
+    const newModel: DesignTable = {
       name: modelName.trim(),
       description: description.trim(),
       columns: finalColumns,

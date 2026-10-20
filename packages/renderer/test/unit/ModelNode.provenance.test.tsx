@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 /**
- * ModelNode provenance chip — the header badge naming where a physical model's
+ * TableNode provenance chip — the header badge naming where a physical model's
  * shape came from.
  *
- * `ModelNodeData` carries an index signature (React Flow's Node generic needs
+ * `TableNodeData` carries an index signature (React Flow's Node generic needs
  * one), so a field written by graphTransformer but never destructured in
- * ModelNode type-checks perfectly and ships doing nothing — which is exactly
+ * TableNode type-checks perfectly and ships doing nothing — which is exactly
  * how `hasRationale` and `modelRole` gained matching dead CSS. Only a render
  * assertion catches that, so this file is not optional.
  */
@@ -40,8 +40,8 @@ vi.mock('../../src/store/editorStore', () => ({
 // Fixtures
 // ---------------------------------------------------------------------------
 
-import { ModelNode } from '../../src/components/Graph/ModelNode';
-import type { ColumnDisplay, ModelFlowNode } from '../../src/types/graph';
+import { TableNode } from '../../src/components/Graph/ModelNode';
+import type { ColumnDisplay, TableFlowNode } from '../../src/types/graph';
 
 function cols(...types: string[]): ColumnDisplay[] {
   return types.map((dataType, i) => ({
@@ -53,8 +53,8 @@ function cols(...types: string[]): ColumnDisplay[] {
   }));
 }
 
-function renderNode(extra: Partial<ModelFlowNode['data']> = {}) {
-  const data: ModelFlowNode['data'] = {
+function renderNode(extra: Partial<TableFlowNode['data']> = {}) {
+  const data: TableFlowNode['data'] = {
     modelName: 'dim_customer',
     stage: 'physical',
     layer: 'silver',
@@ -63,7 +63,7 @@ function renderNode(extra: Partial<ModelFlowNode['data']> = {}) {
     readOnly: true,
     ...extra,
   };
-  const Node = ModelNode as unknown as React.ComponentType<{ data: ModelFlowNode['data']; selected: boolean }>;
+  const Node = TableNode as unknown as React.ComponentType<{ data: TableFlowNode['data']; selected: boolean }>;
   return render(<Node data={data} selected={false} />);
 }
 
@@ -73,7 +73,7 @@ const chip = (container: HTMLElement) => container.querySelector('.model-node__s
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ModelNode provenance chip', () => {
+describe('TableNode provenance chip', () => {
   it('renders the chip for a catalog-typed model, with the verified modifier', () => {
     const { container } = renderNode({ provenance: { columns: ['catalog', 'yml'], types: 'catalog' } });
 

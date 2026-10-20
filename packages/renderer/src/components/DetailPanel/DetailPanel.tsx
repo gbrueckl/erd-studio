@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Panel } from '@xyflow/react';
 
-import { ModelRationale, hasRationaleContent } from './ModelRationale';
+import { TableRationale, hasRationaleContent } from './ModelRationale';
 import { DescriptionEditor } from './DescriptionEditor';
 import { GrainEditor } from './GrainEditor';
 import { AliasEditor } from './AliasEditor';
@@ -404,7 +404,7 @@ export function DetailPanel() {
       {/* Design Rationale (the viewer shows the section only when there is some) */}
       {(!viewer || hasRationaleContent(model.rationale)) && (
         <div className="detail-panel__section">
-          <ModelRationale
+          <TableRationale
             modelName={model.name}
             rationale={model.rationale}
             modelRole={model.modelRole}

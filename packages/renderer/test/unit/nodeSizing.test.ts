@@ -6,7 +6,7 @@ import {
   resolveNodeDimensions,
 } from '../../src/lib/nodeSizing';
 import { COLLAPSED_COLUMN_LIMIT } from '../../src/hooks/useColumnExpansion';
-import type { ModelFlowNode, ColumnDisplay } from '../../src/types/graph';
+import type { TableFlowNode, ColumnDisplay } from '../../src/types/graph';
 
 function cols(n: number, keyEvery = 0): ColumnDisplay[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -18,7 +18,7 @@ function cols(n: number, keyEvery = 0): ColumnDisplay[] {
   }));
 }
 
-function node(columns: ColumnDisplay[], extra: Partial<ModelFlowNode['data']> = {}, measured?: { width: number; height: number }): ModelFlowNode {
+function node(columns: ColumnDisplay[], extra: Partial<TableFlowNode['data']> = {}, measured?: { width: number; height: number }): TableFlowNode {
   return {
     id: 'n',
     type: 'model',

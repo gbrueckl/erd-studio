@@ -42,14 +42,14 @@ import {
   orientLink,
   respellRelationship,
 } from '@erd-studio/core';
-import type { DbtKeyIndex, KeyedModel } from '@erd-studio/core';
+import type { DbtKeyIndex, KeyedTable } from '@erd-studio/core';
 import type {
   MoveToLibraryPlan,
   RelationshipWriteInput,
   RelationshipWriteOp,
   RelationshipWritePlan,
 } from './libraryRelationships';
-import type { Cardinality, ColumnDef, Relationship, SemanticModel } from '../types/semantic';
+import type { Cardinality, ColumnDef, Relationship, SemanticTable } from '../types/semantic';
 import type { TelemetryErrorCode, TelemetryFeature } from './telemetryPayload';
 
 type Ends = Pick<Relationship, 'fromModel' | 'fromColumn' | 'toModel' | 'toColumn'>;
@@ -89,12 +89,12 @@ const ownerOf = (rel: Relationship): string => lower(rel.cardinality === 'one-to
 // ---------------------------------------------------------------------------
 
 /** A model as the checks need it: its name, its library `relationships:`, and (for key checks) its columns. */
-export type HealthModel = Pick<SemanticModel, 'name' | 'relationships'> & { columns?: readonly ColumnDef[] };
+export type HealthTable = Pick<SemanticTable, 'name' | 'relationships'> & { columns?: readonly ColumnDef[] };
 
 /** The stored relationships before a write: the library models and the open domain file's `logical.relationships`. */
 export interface RelationshipSnapshot {
   home: 'library' | 'domain';
-  models: readonly HealthModel[];
+  models: readonly HealthTable[];
   domainRelationships: readonly Relationship[];
   /** dbt's key evidence, as the read path used it (decides which copy of a link is drawn). */
   dbt?: DbtKeyIndex;
@@ -108,7 +108,7 @@ export interface RelationshipSnapshot {
  * a v4 domain's inline model (not visible here).
  */
 export interface RelationshipSnapshotAfter {
-  models?: readonly HealthModel[];
+  models?: readonly HealthTable[];
   domainRelationships?: readonly Relationship[];
   drawn?: readonly Relationship[];
   inlineMarkKey?: boolean;
@@ -162,7 +162,7 @@ interface Stored { file: string; key: string; rel: Relationship }
 const isEnds = (r: unknown): r is Relationship => !!r && typeof r === 'object'
   && ['fromModel', 'fromColumn', 'toModel', 'toColumn'].every((k) => typeof (r as Record<string, unknown>)[k] === 'string');
 
-function libraryCopies(model: HealthModel): Stored[] {
+function libraryCopies(model: HealthTable): Stored[] {
   const out: Stored[] = [];
   for (const entry of model.relationships ?? []) {
     const rel = { fromModel: model.name, ...entry } as Relationship;
@@ -171,14 +171,14 @@ function libraryCopies(model: HealthModel): Stored[] {
   return out;
 }
 
-function domainCopies(rels: readonly Relationship[]): Stored[] {
+function subjectAreaCopies(rels: readonly Relationship[]): Stored[] {
   return rels.filter(isEnds).map((rel) => ({ file: 'domain', key: healthLinkKey(rel), rel }));
 }
 
 /** Every stored copy, by file (insertion order), after applying `after`'s overrides when given. */
-function filesOf(models: readonly HealthModel[], domain: readonly Relationship[] | undefined, after?: RelationshipSnapshotAfter): Map<string, Stored[]> {
+function filesOf(models: readonly HealthTable[], domain: readonly Relationship[] | undefined, after?: RelationshipSnapshotAfter): Map<string, Stored[]> {
   const files = new Map<string, Stored[]>();
-  const replaced = new Map<string, HealthModel>();
+  const replaced = new Map<string, HealthTable>();
   for (const m of after?.models ?? []) replaced.set(lower(m.name), m);
   for (const m of models) {
     const name = lower(m.name);
@@ -186,7 +186,7 @@ function filesOf(models: readonly HealthModel[], domain: readonly Relationship[]
     replaced.delete(name);
   }
   for (const m of replaced.values()) files.set(`m:${lower(m.name)}`, libraryCopies(m));
-  if (domain) files.set('domain', domainCopies(after?.domainRelationships ?? domain));
+  if (domain) files.set('domain', subjectAreaCopies(after?.domainRelationships ?? domain));
   return files;
 }
 
@@ -237,7 +237,7 @@ function groupIndex(files: Map<string, Stored[]>): { groupOf: Map<string, string
  */
 function drawnGroups(before: RelationshipSnapshot): Map<string, string[]> {
   const lines = mergeLibraryRelationships(
-    (before.home === 'library' ? before.models : []) as SemanticModel[], before.domainRelationships, '', undefined, before.dbt,
+    (before.home === 'library' ? before.models : []) as SemanticTable[], before.domainRelationships, '', undefined, before.dbt,
   );
   const buckets = new Map<string, string[]>();
   for (const line of lines) {
@@ -408,8 +408,8 @@ export function invariantErrorCodes(invariants: readonly RelationshipInvariant[]
 // ---------------------------------------------------------------------------
 
 /** A model lookup for key evidence, without case. */
-function modelLookup(models: readonly KeyedModel[]): (name: string) => KeyedModel | undefined {
-  const byName = new Map<string, KeyedModel>();
+function tableLookup(models: readonly KeyedTable[]): (name: string) => KeyedTable | undefined {
+  const byName = new Map<string, KeyedTable>();
   for (const m of models) if (typeof m.name === 'string' && !byName.has(lower(m.name))) byName.set(lower(m.name), m);
   return (name) => byName.get(lower(name));
 }
@@ -423,7 +423,7 @@ export function relationshipWriteUsage(
   op: RelationshipWriteOp,
   before: RelationshipSnapshot,
   after: RelationshipSnapshotAfter,
-  keyModels?: readonly KeyedModel[],
+  keyModels?: readonly KeyedTable[],
   dbt?: DbtKeyIndex,
 ): TelemetryFeature[] {
   const out: TelemetryFeature[] = [];
@@ -447,7 +447,7 @@ export function relationshipWriteUsage(
     }
     const drawn = op.drawn;
     const members: Relationship[] = [drawn, ...(op.extraPairs ?? []).map((p) => ({ ...drawn, fromColumn: p.fromColumn, toColumn: p.toColumn }))];
-    const modelOf = modelLookup(keyModels ?? (before.models as readonly KeyedModel[]));
+    const modelOf = tableLookup(keyModels ?? (before.models as readonly KeyedTable[]));
     if (op.kind === 'add' && library && drawn.cardinality === 'one-to-many') out.push('relDragTurned');
     const role = normaliseRelationshipRole(drawn.role);
     if (role !== undefined) {
@@ -486,7 +486,7 @@ export function auditRelationshipWrite(
   op: RelationshipWriteOp,
   input: RelationshipWriteInput,
   plan: RelationshipWritePlan,
-  keyModels?: readonly KeyedModel[],
+  keyModels?: readonly KeyedTable[],
 ): RelationshipAudit {
   try {
     if (!plan.ok) return { usage: [], broken: [] };
@@ -528,8 +528,8 @@ export function auditRelationshipWrite(
  * one group. Never throws.
  */
 export function checkLibraryRewrite(
-  before: readonly HealthModel[],
-  after: readonly HealthModel[],
+  before: readonly HealthTable[],
+  after: readonly HealthTable[],
   placed: readonly Ends[],
 ): RelationshipInvariant[] {
   try {
@@ -626,7 +626,7 @@ const emptySurvey = (): RelationshipSurvey => ({
  * Linear; never throws (a failure is an empty survey).
  */
 export function surveyLibrary(
-  models: readonly HealthModel[],
+  models: readonly HealthTable[],
   domainRelationships: readonly Relationship[],
   options: SurveyOptions = {},
 ): RelationshipSurvey {
@@ -639,7 +639,7 @@ export function surveyLibrary(
       if (!info.has(lower(m.name))) info.set(lower(m.name), { columns: cols });
     }
     survey.unreadable = Math.max(0, Math.floor(options.unreadableEntries ?? 0));
-    const modelOf = modelLookup(models as readonly KeyedModel[]);
+    const modelOf = tableLookup(models as readonly KeyedTable[]);
 
     const files = filesOf(models.filter((m) => typeof m?.name === 'string'), domainRelationships ?? []);
     const library = [...files.entries()].filter(([f]) => f !== 'domain').flatMap(([, c]) => c);
@@ -658,7 +658,7 @@ export function surveyLibrary(
       } else if ((from.columns && !from.columns.has(lower(rel.fromColumn))) || (to.columns && !to.columns.has(lower(rel.toColumn)))) {
         survey.danglingColumn++;
       }
-      if (from && to && respellRelationship(rel, models as readonly HealthModel[]) !== rel) survey.caseRespelled++;
+      if (from && to && respellRelationship(rel, models as readonly HealthTable[]) !== rel) survey.caseRespelled++;
       if (c.file !== 'domain') {
         if (rel.cardinality === 'one-to-many') survey.oneToManyInModelFile++;
         else if (rel.cardinality === 'many-to-one' && !normaliseCompositeKey(rel.compositeKey) && contradictsKeysOf([rel], modelOf, options.dbt)) survey.backwards++;

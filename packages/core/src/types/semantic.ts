@@ -76,7 +76,7 @@ export interface ColumnDef {
  * Classifies a model's role in the data warehouse architecture.
  * Maps to entity types from dimensional modelling methodology.
  */
-export type ModelRole =
+export type TableRole =
   | 'conformed-dim'        // Shared dimension reused across domains
   | 'domain-dim'           // New dimension specific to this domain
   | 'transaction-fact'     // Discrete event fact
@@ -118,7 +118,7 @@ export interface Rationale {
  * The stage is determined by the section (logical) within
  * the unified domain file, not by a field on the model.
  */
-export interface SemanticModel {
+export interface SemanticTable {
   name: string;
   /** Schema the model will be materialised in. */
   schema?: string;
@@ -139,7 +139,7 @@ export interface SemanticModel {
   /** Grain statement — "One row per ___". The single most critical design decision. */
   grain?: string;
   /** Model's role in the data warehouse architecture (e.g. conformed-dim, transaction-fact). */
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
   /** Free-form structured metadata (dbt-style `meta:`). */
   meta?: Meta;
   /**
@@ -147,22 +147,22 @@ export interface SemanticModel {
    * (issue #126) so every domain holding both ends draws the same edge. Read
    * from `logical-models/*.yml` only — never from inline v4 models.
    */
-  relationships?: ModelRelationship[];
+  relationships?: TableRelationship[];
 }
 
 /**
  * The placeholder a host puts in a stage's `models` for a model whose file
  * exists but could not be read. Runtime-only: `loadError` is never written to
- * a model file, which is why it is not a field of {@link SemanticModel} (the
+ * a model file, which is why it is not a field of {@link SemanticTable} (the
  * on-disk shape).
  */
-export interface UnreadableModelPlaceholder extends SemanticModel {
-  loadError: ModelLoadError;
+export interface UnreadableTablePlaceholder extends SemanticTable {
+  loadError: TableLoadError;
 }
 
-/** The load error carried by an {@link UnreadableModelPlaceholder}, if `model` is one. */
-export function modelLoadErrorOf(model: SemanticModel): ModelLoadError | undefined {
-  const candidate = (model as Partial<UnreadableModelPlaceholder>).loadError;
+/** The load error carried by an {@link UnreadableTablePlaceholder}, if `model` is one. */
+export function tableLoadErrorOf(model: SemanticTable): TableLoadError | undefined {
+  const candidate = (model as Partial<UnreadableTablePlaceholder>).loadError;
   return candidate && typeof candidate === 'object' ? candidate : undefined;
 }
 
@@ -172,7 +172,7 @@ export function modelLoadErrorOf(model: SemanticModel): ModelLoadError | undefin
  * written twice in one block — the last value is used, as dbt's PyYAML does,
  * and the file stays refused for writing until one copy is removed.
  */
-export interface ModelLoadWarning {
+export interface TableLoadWarning {
   kind: 'yamlDuplicateKey';
   /** The key written twice, as the file spells it (the first one found). */
   key: string;
@@ -180,14 +180,14 @@ export interface ModelLoadWarning {
   line: number;
 }
 
-/** A model read from a file with a {@link ModelLoadWarning}. */
-export interface ModelWithLoadWarning extends SemanticModel {
-  loadWarning: ModelLoadWarning;
+/** A model read from a file with a {@link TableLoadWarning}. */
+export interface TableWithLoadWarning extends SemanticTable {
+  loadWarning: TableLoadWarning;
 }
 
 /** The load warning carried by a model read from a flawed file, if any. */
-export function modelLoadWarningOf(model: SemanticModel): ModelLoadWarning | undefined {
-  const candidate = (model as Partial<ModelWithLoadWarning>).loadWarning;
+export function tableLoadWarningOf(model: SemanticTable): TableLoadWarning | undefined {
+  const candidate = (model as Partial<TableWithLoadWarning>).loadWarning;
   return candidate && typeof candidate === 'object' ? candidate : undefined;
 }
 
@@ -196,7 +196,7 @@ export function modelLoadWarningOf(model: SemanticModel): ModelLoadWarning | und
  * the YAML parser's error code (never its message), so it is safe to branch on
  * in the UI and to count in usage telemetry.
  */
-export type ModelLoadErrorKind =
+export type TableLoadErrorKind =
   | 'read'
   | 'yamlIndent'
   | 'yamlScalar'
@@ -208,8 +208,8 @@ export type ModelLoadErrorKind =
  * A model file that exists but is broken, as the canvas shows it. Carries no
  * parser message (which may quote the file) — only the kind and the position.
  */
-export interface ModelLoadError {
-  kind: ModelLoadErrorKind;
+export interface TableLoadError {
+  kind: TableLoadErrorKind;
   /** 1-based line of the error, when the parser reported one. */
   line?: number;
   /**
@@ -223,13 +223,13 @@ export interface ModelLoadError {
 /**
  * A model definition used when creating new models via addModel message.
  */
-export interface DesignModel {
+export interface DesignTable {
   name: string;
   schema?: string;
   description: string;
   columns: ColumnDef[];
   /** Model's role in the data warehouse architecture. Auto-suggested from template. */
-  modelRole?: ModelRole;
+  modelRole?: TableRole;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +270,7 @@ export interface Relationship {
  * The from-model is the "many" (foreign-key) side — `canonicalRelationship`
  * turns a `one-to-many` round before it is stored (issue #133).
  */
-export type ModelRelationship = Omit<Relationship, 'fromModel'>;
+export type TableRelationship = Omit<Relationship, 'fromModel'>;
 
 // ---------------------------------------------------------------------------
 // View configuration
@@ -327,7 +327,7 @@ export interface ViewConfig {
 
 /** The models and relationships for a design stage. */
 export interface StageData {
-  models: SemanticModel[];
+  models: SemanticTable[];
   relationships: Relationship[];
 }
 
@@ -336,7 +336,7 @@ export interface StageData {
 // ---------------------------------------------------------------------------
 
 /** A full semantic domain as stored in JSON. */
-export interface SemanticDomain {
+export interface SemanticSubjectArea {
   schemaVersion: number;
   domain: string;
   layer: Layer;
@@ -349,7 +349,7 @@ export interface SemanticDomain {
    * Undefined or null means no filter (show all models).
    */
   modelFolder?: string;
-  models: SemanticModel[];
+  models: SemanticTable[];
   relationships: Relationship[];
 }
 
@@ -360,7 +360,7 @@ export interface SemanticDomain {
  * logical stage data. Physical stage is derived at runtime from
  * the logical models projected through the dbt manifest.
  */
-export interface UnifiedDomain {
+export interface UnifiedSubjectArea {
   schemaVersion: number;
   domain: string;
   layer: Layer;
@@ -395,17 +395,17 @@ export interface StageDataV5 {
  * Unified domain file format (v5).
  *
  * Same as v4 but `logical.models` contains model name strings instead of
- * inline SemanticModel objects. Models are stored centrally in
+ * inline SemanticTable objects. Models are stored centrally in
  * .erd-studio/logical-models/{name}.yml.
  */
-export interface UnifiedDomainV5 {
+export interface UnifiedSubjectAreaV5 {
   schemaVersion: number;
   domain: string;
   layer: Layer;
   description: string;
   modelFolder?: string;
   logical: StageDataV5;
-  /** See UnifiedDomain.stubColumns. */
+  /** See UnifiedSubjectArea.stubColumns. */
   stubColumns?: string[];
   viewConfig: ViewConfig;
 }
@@ -414,14 +414,14 @@ export interface UnifiedDomainV5 {
  * Raw on-disk domain format — may be v4 (inline models) or v5 (model references).
  * Used during parsing before version detection.
  */
-export interface RawDomainFile {
+export interface RawSubjectAreaFile {
   schemaVersion: number;
   domain: string;
   layer: Layer;
   description?: string;
   modelFolder?: string;
   logical: {
-    models: SemanticModel[] | string[];
+    models: SemanticTable[] | string[];
     relationships: Relationship[];
   };
   viewConfig?: ViewConfig;
@@ -431,7 +431,7 @@ export interface RawDomainFile {
  * On-disk format of a raw (JSON.parse'd) domain document.
  *
  * - `v5`     — `logical.models` is an array of model name strings (central model store).
- * - `v4`     — `logical.models` is an array of inline SemanticModel objects (deprecated,
+ * - `v4`     — `logical.models` is an array of inline SemanticTable objects (deprecated,
  *              migratable via "ERD Studio: Migrate Subject Areas to the Central Table Library").
  * - `hybrid` — the document contradicts itself: `schemaVersion >= 5` with inline model
  *              objects, a mix of strings and objects, or entries that are neither.
@@ -439,13 +439,13 @@ export interface RawDomainFile {
  * - `legacy` — pre-v4 layout: `schemaVersion < 4` and/or a top-level `models` array
  *              instead of a `logical` section. Not supported by the editor.
  */
-export type DomainFormat = 'v4' | 'v5' | 'hybrid' | 'legacy';
+export type SubjectAreaFormat = 'v4' | 'v5' | 'hybrid' | 'legacy';
 
 /**
  * Single source of truth for domain file format detection.
  *
- * Every reader/writer of domain JSON (DomainService, SemanticEditorProvider,
- * ModelLibraryTreeProvider, MigrationService) must use this so that a file is
+ * Every reader/writer of domain JSON (SubjectAreaService, SemanticEditorProvider,
+ * TableLibraryTreeProvider, MigrationService) must use this so that a file is
  * never read as one format and written as another.
  *
  * Rules (in order):
@@ -456,7 +456,7 @@ export type DomainFormat = 'v4' | 'v5' | 'hybrid' | 'legacy';
  * 4. All entries are strings → `v5` (content wins over a stale schemaVersion)
  * 5. Empty `logical.models`: `v5` if `schemaVersion >= 5`, else `v4`
  */
-export function detectDomainFormat(raw: unknown): DomainFormat {
+export function detectSubjectAreaFormat(raw: unknown): SubjectAreaFormat {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return 'legacy';
   }
@@ -496,7 +496,7 @@ export function detectDomainFormat(raw: unknown): DomainFormat {
  * Human-readable explanation for a domain format the editor cannot load,
  * including the remediation. Returns null for `v4` and `v5`.
  */
-export function describeUnsupportedDomainFormat(format: DomainFormat, filePath: string): string | null {
+export function describeUnsupportedSubjectAreaFormat(format: SubjectAreaFormat, filePath: string): string | null {
   switch (format) {
     case 'legacy':
       return (
@@ -522,7 +522,7 @@ export function describeUnsupportedDomainFormat(format: DomainFormat, filePath: 
  * String entries are used as-is; inline objects contribute their `name`;
  * anything else is skipped. Legacy top-level `models` arrays are honoured.
  */
-export function getRawDomainModelNames(raw: unknown): string[] {
+export function getRawSubjectAreaTableNames(raw: unknown): string[] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
   const obj = raw as Record<string, unknown>;
   const logicalModels = (obj.logical as Record<string, unknown> | undefined)?.models;
@@ -546,19 +546,19 @@ export function getRawDomainModelNames(raw: unknown): string[] {
 /**
  * Type guard: returns true if the domain file uses v5 format (model name references).
  *
- * @deprecated Use {@link detectDomainFormat} — it distinguishes `hybrid` and
+ * @deprecated Use {@link detectSubjectAreaFormat} — it distinguishes `hybrid` and
  * `legacy` documents that this boolean cannot express.
  */
-export function isDomainV5(raw: RawDomainFile): boolean {
-  return detectDomainFormat(raw) === 'v5';
+export function isSubjectAreaV5(raw: RawSubjectAreaFile): boolean {
+  return detectSubjectAreaFormat(raw) === 'v5';
 }
 
 // ---------------------------------------------------------------------------
 // Summary (lightweight, for tree view listing)
 // ---------------------------------------------------------------------------
 
-/** Lightweight summary returned by listDomains — avoids parsing full JSON. */
-export interface DomainSummary {
+/** Lightweight summary returned by listSubjectAreas — avoids parsing full JSON. */
+export interface SubjectAreaSummary {
   /** Domain slug (filename without extension). */
   domain: string;
   /** Layer derived from parent directory name. */
@@ -583,7 +583,7 @@ export interface DomainSummary {
  * - {left} = left entity name (bridge templates only)
  * - {right} = right entity name (bridge templates only)
  */
-export interface ModelTemplate {
+export interface TableTemplate {
   /** Unique template identifier (e.g., "dimension", "fact", "bridge"). */
   id: string;
   /** Display label in the UI (e.g., "Dimension", "Fact Table"). */

@@ -1,6 +1,6 @@
 /**
  * Node/edge overlays — ephemeral per-node presentation state layered on top
- * of the graph produced by `transformDomain`:
+ * of the graph produced by `transformSubjectArea`:
  *
  *   - `dimmed`: search-miss or not-connected-to-selection dimming (F402)
  *   - `isExpanded` / `onToggleExpansion`: column expansion (F405)
@@ -8,7 +8,7 @@
  * `applyNodeOverlays` is a pure function that preserves object identity for
  * every node/edge whose overlay values did not change, so React Flow's
  * `adoptUserNodes` short-circuits on unchanged nodes and memoised
- * `ModelNode` / `FkEdge` components skip re-rendering. When nothing changed
+ * `TableNode` / `FkEdge` components skip re-rendering. When nothing changed
  * at all, the *same arrays* are returned so callers can skip `setNodes`.
  *
  * This lets selection / search / expansion changes avoid re-running the full
@@ -17,14 +17,14 @@
  */
 
 import type {
-  ModelFlowNode,
+  TableFlowNode,
   FkFlowEdge,
   AnnotationFlowNode,
   AnnotationFlowEdge,
 } from '../types/graph';
-import { matchesModelSearch } from './modelLabels';
+import { matchesTableSearch } from './modelLabels';
 
-export type GraphNode = ModelFlowNode | AnnotationFlowNode;
+export type GraphNode = TableFlowNode | AnnotationFlowNode;
 export type GraphEdge = FkFlowEdge | AnnotationFlowEdge;
 
 export interface OverlayState {
@@ -97,8 +97,8 @@ export function applyNodeOverlays(
       // Annotations: not search-dimmable, not selection-dimmable
       return node;
     }
-    const data = node.data as ModelFlowNode['data'];
-    const searchDimmed = query ? !matchesModelSearch(data, query) : false;
+    const data = node.data as TableFlowNode['data'];
+    const searchDimmed = query ? !matchesTableSearch(data, query) : false;
     const selectionDimmed = hasSelection && !connected.has(node.id);
     const dimmed = searchDimmed || selectionDimmed;
     const expanded = isExpanded(node.id);
@@ -119,7 +119,7 @@ export function applyNodeOverlays(
         isExpanded: expanded,
         onToggleExpansion: toggleExpansion,
       },
-    } as ModelFlowNode;
+    } as TableFlowNode;
   });
 
   let edgesChanged = false;

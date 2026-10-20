@@ -1,7 +1,7 @@
 /**
- * Domain JSON -> UnifiedDomain, without touching a file system.
+ * Domain JSON -> UnifiedSubjectArea, without touching a file system.
  *
- * The extension host's DomainService reads the file and hands the text here;
+ * The extension host's SubjectAreaService reads the file and hands the text here;
  * other hosts (a browser, a server reading from a git provider) do the same
  * with whatever `readFile` they have. The parsing, validation and repair
  * rules — and every message they produce — live in this one place, so every
@@ -10,22 +10,22 @@
 
 import type {
   Cardinality,
-  DomainFormat,
+  SubjectAreaFormat,
   Layer,
-  ModelLoadError,
-  ModelLoadErrorKind,
+  TableLoadError,
+  TableLoadErrorKind,
   NodePosition,
   Relationship,
-  SemanticDomain,
-  SemanticModel,
+  SemanticSubjectArea,
+  SemanticTable,
   StageData,
-  UnreadableModelPlaceholder,
-  UnifiedDomain,
+  UnreadableTablePlaceholder,
+  UnifiedSubjectArea,
   ViewConfig,
   Annotation,
 } from './types/semantic.js';
-import { CURRENT_SCHEMA_VERSION, describeUnsupportedDomainFormat, detectDomainFormat } from './types/semantic.js';
-import { LOGICAL_MODELS_DIR, ModelMergeConflictError } from './logicalModel.js';
+import { CURRENT_SCHEMA_VERSION, describeUnsupportedSubjectAreaFormat, detectSubjectAreaFormat } from './types/semantic.js';
+import { LOGICAL_MODELS_DIR, TableMergeConflictError } from './logicalModel.js';
 import {
   canonicalRelationship, compositeGroupProblem, linkKey, normaliseCompositeKey, normaliseRelationshipRole, respellRelationship,
   reverseRelationship,
@@ -42,12 +42,12 @@ import { findConflictMarkers } from './mergeConflict.js';
  * refuses to render a canvas for anything it excludes — a template opened from
  * the explorer is a JSON file to edit, not a diagram to draw.
  */
-export const NON_DOMAIN_DIRS: ReadonlySet<string> = new Set([
+export const NON_SUBJECT_AREA_DIRS: ReadonlySet<string> = new Set([
   'templates', LOGICAL_MODELS_DIR, 'logical', 'physical',
 ]);
 
-/** Why a domain file could not be turned into a `UnifiedDomain`. */
-export type DomainFileErrorReason = 'missing' | 'unreadable' | 'empty' | 'invalid-json';
+/** Why a domain file could not be turned into a `UnifiedSubjectArea`. */
+export type SubjectAreaFileErrorReason = 'missing' | 'unreadable' | 'empty' | 'invalid-json';
 
 /**
  * A domain file that could not be read or parsed.
@@ -66,7 +66,7 @@ export type DomainFileErrorReason = 'missing' | 'unreadable' | 'empty' | 'invali
  * stays an 'invalid-json' (a flag, not a new reason) so a host that predates
  * the flag still reports it as the unparseable file it is.
  */
-export class DomainFileError extends Error {
+export class SubjectAreaFileError extends Error {
   readonly transient: boolean;
   /** The file holds unresolved git conflict markers; always false unless reason is 'invalid-json'. */
   readonly mergeConflict: boolean;
@@ -74,13 +74,13 @@ export class DomainFileError extends Error {
   readonly line?: number;
 
   constructor(
-    readonly reason: DomainFileErrorReason,
+    readonly reason: SubjectAreaFileErrorReason,
     readonly filePath: string,
     message: string,
     options: { mergeConflict?: boolean; line?: number } = {},
   ) {
     super(message);
-    this.name = 'DomainFileError';
+    this.name = 'SubjectAreaFileError';
     this.mergeConflict = options.mergeConflict === true;
     if (options.line !== undefined) this.line = options.line;
     this.transient = reason === 'empty' || (reason === 'invalid-json' && !this.mergeConflict);
@@ -95,7 +95,7 @@ export class DomainFileError extends Error {
  * Its `name` is deliberately left as `Error`, so logs that print the error
  * read exactly as they did when these were plain `Error`s.
  */
-export class DomainValidationError extends Error {}
+export class SubjectAreaValidationError extends Error {}
 
 export const VALID_CARDINALITIES: ReadonlySet<Cardinality> = new Set<Cardinality>([
   'many-to-one', 'one-to-one', 'one-to-many', 'many-to-many',
@@ -104,19 +104,19 @@ export const VALID_CARDINALITIES: ReadonlySet<Cardinality> = new Set<Cardinality
 /**
  * Parse the text of a domain file.
  *
- * Throws a transient `DomainFileError` for an empty file ('empty') and for
+ * Throws a transient `SubjectAreaFileError` for an empty file ('empty') and for
  * text that is not JSON ('invalid-json') — except text holding git conflict
  * markers, an 'invalid-json' with `mergeConflict` set that is not transient.
  * Reading the file — and the 'missing' / 'unreadable' failures — is the
  * caller's job.
  */
-export function parseDomainJson(raw: string, filePath: string): unknown {
+export function parseSubjectAreaJson(raw: string, filePath: string): unknown {
   if (raw.trim() === '') {
     // Almost always a file mid-creation: the create event lands a zero-byte
     // file and the content follows milliseconds later. Say what is true of
     // the file rather than echoing "Unexpected end of JSON input", which
     // reads as corruption when nothing is corrupt.
-    throw new DomainFileError('empty', filePath, `Subject area file is empty: ${filePath}`);
+    throw new SubjectAreaFileError('empty', filePath, `Subject area file is empty: ${filePath}`);
   }
 
   try {
@@ -126,7 +126,7 @@ export function parseDomainJson(raw: string, filePath: string): unknown {
     // whose description quotes a marker can never be reported as conflicted.
     const line = findConflictMarkers(raw);
     if (line !== null) {
-      throw new DomainFileError(
+      throw new SubjectAreaFileError(
         'invalid-json',
         filePath,
         `Subject area file ${filePath} has unresolved git merge conflicts (first at line ${line}). `
@@ -135,7 +135,7 @@ export function parseDomainJson(raw: string, filePath: string): unknown {
       );
     }
     const message = err instanceof Error ? err.message : String(err);
-    throw new DomainFileError(
+    throw new SubjectAreaFileError(
       'invalid-json',
       filePath,
       `Invalid JSON in subject area file ${filePath}: ${message}`,
@@ -145,27 +145,27 @@ export function parseDomainJson(raw: string, filePath: string): unknown {
 
 /**
  * Check that parsed JSON is a domain document this version can load, and
- * work out its format. Throws `DomainValidationError` otherwise.
+ * work out its format. Throws `SubjectAreaValidationError` otherwise.
  */
-export function validateDomainDocument(
+export function validateSubjectAreaDocument(
   data: unknown,
   filePath: string,
-): { obj: Record<string, unknown>; format: DomainFormat } {
+): { obj: Record<string, unknown>; format: SubjectAreaFormat } {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    throw new DomainValidationError(`Subject area file ${filePath} does not contain a JSON object`);
+    throw new SubjectAreaValidationError(`Subject area file ${filePath} does not contain a JSON object`);
   }
 
   const obj = data as Record<string, unknown>;
 
   // Schema version check
   if (typeof obj.schemaVersion !== 'number') {
-    throw new DomainValidationError(
+    throw new SubjectAreaValidationError(
       `Subject area file ${filePath} is missing a valid "schemaVersion" field`
     );
   }
 
   if (obj.schemaVersion > CURRENT_SCHEMA_VERSION) {
-    throw new DomainValidationError(
+    throw new SubjectAreaValidationError(
       `Subject area file ${filePath} has schemaVersion ${obj.schemaVersion} ` +
       `but this extension only supports up to version ${CURRENT_SCHEMA_VERSION}. ` +
       'Please update the extension.'
@@ -175,10 +175,10 @@ export function validateDomainDocument(
   // Format check — legacy (pre-v4) and hybrid (mixed / self-contradicting)
   // documents are rejected with a remediation hint rather than silently
   // loaded as an empty or half-resolved domain.
-  const format = detectDomainFormat(obj);
-  const unsupported = describeUnsupportedDomainFormat(format, filePath);
+  const format = detectSubjectAreaFormat(obj);
+  const unsupported = describeUnsupportedSubjectAreaFormat(format, filePath);
   if (unsupported) {
-    throw new DomainValidationError(unsupported);
+    throw new SubjectAreaValidationError(unsupported);
   }
 
   return { obj, format };
@@ -193,9 +193,9 @@ export interface LayerLookup {
 /**
  * The layer a domain belongs to: its `layer` field when that is configured,
  * otherwise the name of the directory it sits in. Throws
- * `DomainValidationError` when neither is a configured layer.
+ * `SubjectAreaValidationError` when neither is a configured layer.
  */
-export function resolveDomainLayer(
+export function resolveSubjectAreaLayer(
   value: unknown,
   filePath: string,
   parentDirName: string,
@@ -211,14 +211,14 @@ export function resolveDomainLayer(
   }
 
   const validLayers = layers.getValidLayerIds().join(', ');
-  throw new DomainValidationError(
+  throw new SubjectAreaValidationError(
     `Subject area file ${filePath} has invalid layer "${String(value)}". ` +
     `Expected one of: ${validLayers}`,
   );
 }
 
-/** What `buildUnifiedDomain` needs from its host. */
-export interface BuildUnifiedDomainContext {
+/** What `buildUnifiedSubjectArea` needs from its host. */
+export interface BuildUnifiedSubjectAreaContext {
   /** How the file is named in messages (a path, or a repo-relative label). */
   filePath: string;
   /** Domain name used when the document has no string `domain` (the file name without `.json`). */
@@ -231,14 +231,14 @@ export interface BuildUnifiedDomainContext {
    * model: it becomes a placeholder `{ name, columns: [] }`. When omitted,
    * every reference becomes a placeholder without a warning.
    */
-  getModel?: (name: string) => SemanticModel | null;
+  getModel?: (name: string) => SemanticTable | null;
   /**
    * Asked only when `getModel` returned null: why that model's file, if it
    * exists, could not be read. A non-null answer is attached to the
    * placeholder as `loadError` and names the error in the warning instead of
    * reporting the model as missing.
    */
-  getModelError?: (name: string) => ModelLoadError | null;
+  getModelError?: (name: string) => TableLoadError | null;
   /** Receives repair warnings (dropped entries, defaulted values). Defaults to console.warn. */
   warn?: (message: string) => void;
   /**
@@ -249,20 +249,20 @@ export interface BuildUnifiedDomainContext {
 }
 
 /**
- * Turn a validated domain document into a `UnifiedDomain`: resolve the layer,
+ * Turn a validated domain document into a `UnifiedSubjectArea`: resolve the layer,
  * the global view config, `stubColumns` and the logical stage, repairing or
  * dropping malformed entries with a warning rather than failing the domain.
  */
-export function buildUnifiedDomain(
+export function buildUnifiedSubjectArea(
   obj: Record<string, unknown>,
-  format: DomainFormat,
-  ctx: BuildUnifiedDomainContext,
-): UnifiedDomain {
+  format: SubjectAreaFormat,
+  ctx: BuildUnifiedSubjectAreaContext,
+): UnifiedSubjectArea {
   const warn = ctx.warn ?? ((message: string) => console.warn(message));
   const { filePath } = ctx;
 
   const domain = typeof obj.domain === 'string' ? obj.domain : ctx.domainNameFallback;
-  const layer = resolveDomainLayer(obj.layer, filePath, ctx.parentDirName, ctx.layers);
+  const layer = resolveSubjectAreaLayer(obj.layer, filePath, ctx.parentDirName, ctx.layers);
 
   const emptyStage: StageData = { models: [], relationships: [] };
 
@@ -291,12 +291,12 @@ export function buildUnifiedDomain(
 }
 
 /**
- * Project a `UnifiedDomain` onto its logical stage.
+ * Project a `UnifiedSubjectArea` onto its logical stage.
  *
  * Physical stages are derived from the dbt project by the extension host and
  * are not produced here.
  */
-export function toLogicalStage(unified: UnifiedDomain): SemanticDomain {
+export function toLogicalStage(unified: UnifiedSubjectArea): SemanticSubjectArea {
   const stageData = unified.logical;
 
   return {
@@ -313,18 +313,18 @@ export function toLogicalStage(unified: UnifiedDomain): SemanticDomain {
 
 /**
  * Parse a stage data section from a domain file.
- * Handles both v4 (inline SemanticModel[]) and v5 (string[] name references)
- * as decided by {@link detectDomainFormat} — hybrid/legacy documents are
+ * Handles both v4 (inline SemanticTable[]) and v5 (string[] name references)
+ * as decided by {@link detectSubjectAreaFormat} — hybrid/legacy documents are
  * rejected before this point, so every entry is guaranteed to match `format`.
  * For v5, resolves model names through `getModel`.
  * Returns null if the section is missing or invalid.
  */
 function parseStageData(
   value: unknown,
-  format: DomainFormat,
+  format: SubjectAreaFormat,
   filePath: string,
-  getModel: ((name: string) => SemanticModel | null) | undefined,
-  getModelError: ((name: string) => ModelLoadError | null) | undefined,
+  getModel: ((name: string) => SemanticTable | null) | undefined,
+  getModelError: ((name: string) => TableLoadError | null) | undefined,
   warn: (message: string) => void,
   dbt?: DbtKeyIndex,
 ): StageData | null {
@@ -336,7 +336,7 @@ function parseStageData(
   const rawModels = Array.isArray(obj.models) ? obj.models : [];
   const relationships = parseRelationships(obj.relationships, filePath, warn);
 
-  let models: SemanticModel[];
+  let models: SemanticTable[];
   if (format === 'v5') {
     const names = rawModels.filter((m): m is string => typeof m === 'string');
     if (getModel) {
@@ -350,8 +350,8 @@ function parseStageData(
           // Broken reference — create a placeholder so the UI can show an error
           const loadError = getModelError?.(name) ?? null;
           if (loadError) {
-            warn(`Model "${name}": ${describeModelLoadError(loadError)}`);
-            const placeholder: UnreadableModelPlaceholder = { name, columns: [], loadError: { ...loadError } };
+            warn(`Model "${name}": ${describeTableLoadError(loadError)}`);
+            const placeholder: UnreadableTablePlaceholder = { name, columns: [], loadError: { ...loadError } };
             models.push(placeholder);
           } else {
             warn(`Model "${name}" not found in logical-models/`);
@@ -371,7 +371,7 @@ function parseStageData(
     for (const entry of rawModels) {
       const candidate = entry as Record<string, unknown> | null;
       if (candidate && typeof candidate === 'object' && typeof candidate.name === 'string') {
-        models.push(candidate as unknown as SemanticModel);
+        models.push(candidate as unknown as SemanticTable);
       } else {
         warn(`Skipping inline model without a string "name" in ${filePath}`);
       }
@@ -383,7 +383,7 @@ function parseStageData(
 }
 
 /** The YAML parser's error codes, grouped into the kinds the UI and telemetry use. */
-const YAML_ERROR_KINDS: Readonly<Record<string, ModelLoadErrorKind>> = {
+const YAML_ERROR_KINDS: Readonly<Record<string, TableLoadErrorKind>> = {
   TAB_AS_INDENT: 'yamlIndent',
   BAD_INDENT: 'yamlIndent',
   BAD_SCALAR_START: 'yamlScalar',
@@ -404,15 +404,15 @@ const YAML_ERROR_KINDS: Readonly<Record<string, ModelLoadErrorKind>> = {
  * the table above; anything else is `yamlOther`. A file holding git conflict
  * markers is a `yamlOther` with `mergeConflict` and the first marker's line.
  */
-export function classifyModelLoadError(err: unknown): ModelLoadError & { column?: number; code?: string } {
-  if (err instanceof ModelMergeConflictError) {
+export function classifyTableLoadError(err: unknown): TableLoadError & { column?: number; code?: string } {
+  if (err instanceof TableMergeConflictError) {
     return { kind: 'yamlOther', line: err.line, mergeConflict: true };
   }
   const e = err as { code?: unknown; linePos?: Array<{ line: number; col: number }> } | null;
   const code = e && typeof e.code === 'string' ? e.code : undefined;
   const pos = e && Array.isArray(e.linePos) ? e.linePos[0] : undefined;
   const isFsError = code !== undefined && /^E[A-Z]+$/.test(code);
-  const kind: ModelLoadErrorKind = isFsError
+  const kind: TableLoadErrorKind = isFsError
     ? 'read'
     : (code !== undefined ? (YAML_ERROR_KINDS[code] ?? 'yamlOther') : 'yamlOther');
   return {
@@ -427,7 +427,7 @@ export function classifyModelLoadError(err: unknown): ModelLoadError & { column?
  * `logical-models file has a YAML error on line 4`. Built from the kind and
  * line only, so it never quotes the file.
  */
-export function describeModelLoadError(error: ModelLoadError): string {
+export function describeTableLoadError(error: TableLoadError): string {
   if (error.kind === 'read') {
     return 'logical-models file could not be read';
   }
@@ -460,7 +460,7 @@ export function relationshipKey(rel: Pick<Relationship, 'fromModel' | 'fromColum
  * when they form a valid one (`assembleGroups`, #133 L2).
  */
 export function mergeLibraryRelationships(
-  models: readonly SemanticModel[],
+  models: readonly SemanticTable[],
   own: readonly Relationship[],
   filePath = '',
   warn: (message: string) => void = () => { /* silent */ },
@@ -468,7 +468,7 @@ export function mergeLibraryRelationships(
   dbt?: DbtKeyIndex,
 ): Relationship[] {
   const byName = new Map(models.map((m) => [m.name.toLowerCase(), m]));
-  const modelOf = (name: string): SemanticModel | undefined => byName.get(name.toLowerCase());
+  const modelOf = (name: string): SemanticTable | undefined => byName.get(name.toLowerCase());
   // A link stored twice is drawn from the same copy whatever the file or
   // entry order (#133): one in its home (not one-to-many), then one not
   // leaving its model's whole key (`keyEvidence`: flags, else dbt's tests —

@@ -8,10 +8,10 @@
  *   compare(physicalDomain, logicalDomain) → DiscrepancyReport
  */
 
-import type { DisplayDomain, DisplayModel, DisplayRelationship } from '../types/display';
+import type { DisplaySubjectArea, DisplayTable, DisplayRelationship } from '../types/display';
 import type {
   DiscrepancyReport,
-  ModelDiscrepancy,
+  TableDiscrepancy,
   ColumnDiscrepancy,
   RelationshipDiscrepancy,
 } from '../types/discrepancy';
@@ -250,7 +250,7 @@ function dataTypesMatch(a: string | undefined, b: string | undefined): boolean {
  * target-side extras on models the user has told us are deliberately partial.
  * This one is automatic and fires only when there is no evidence at all.
  */
-function hasNoColumnEvidence(m: DisplayModel): boolean {
+function hasNoColumnEvidence(m: DisplayTable): boolean {
   return m.columns.length === 0
     && m.provenance?.columns.length === 1
     && m.provenance.columns[0] === 'file';
@@ -265,8 +265,8 @@ function hasNoColumnEvidence(m: DisplayModel): boolean {
  *   more columns that should not surface as discrepancies.
  */
 function compareColumns(
-  sourceModel: DisplayModel,
-  targetModel: DisplayModel,
+  sourceModel: DisplayTable,
+  targetModel: DisplayTable,
   stubColumns: boolean,
 ): ColumnDiscrepancy[] {
   // Checked on BOTH sides: physical is the default comparison SOURCE, and an
@@ -440,11 +440,11 @@ function compositeGroups(rels: readonly DisplayRelationship[]): Map<DisplayRelat
  * @param source - The domain being viewed (e.g., physical)
  * @param target - The domain being compared against (e.g., logical)
  * @param stubColumnModels - Model names whose physical-only (missing) column
- *   discrepancies should be suppressed. See UnifiedDomain.stubColumns.
+ *   discrepancies should be suppressed. See UnifiedSubjectArea.stubColumns.
  */
 export function compare(
-  source: DisplayDomain,
-  target: DisplayDomain,
+  source: DisplaySubjectArea,
+  target: DisplaySubjectArea,
   stubColumnModels: ReadonlySet<string> = new Set(),
 ): DiscrepancyReport {
   // Models the dbt project does not have are dropped from BOTH sides before
@@ -460,7 +460,7 @@ export function compare(
   const targetModelMap = new Map(targetModels.map((m) => [normaliseName(m.name), m]));
   const stubModelKeys = new Set(Array.from(stubColumnModels, normaliseName));
   const visitedModels = new Set<string>();
-  const models: ModelDiscrepancy[] = [];
+  const models: TableDiscrepancy[] = [];
 
   let totalColumns = 0;
   let matchedColumns = 0;

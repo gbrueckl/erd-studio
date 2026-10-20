@@ -25,7 +25,7 @@ import {
   resolveSingleDeleteTarget,
 } from '../lib/keyboardShortcuts';
 import { foldComposites, relationshipEdgeId } from '@erd-studio/renderer/editor';
-import type { ModelFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
+import type { TableFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
 import type { WebviewMessage, RelationshipKey } from '../../src/types/messages';
 import type { AnnotationColor } from '../../src/types/semantic';
 
@@ -234,7 +234,7 @@ export function useCanvasShortcuts(): void {
         // Read React Flow's selection from the nodes array (source of truth for multi-select).
         const allSelectedNodes = s.nodes.filter((n) => n.selected);
         const selectedModelNames = allSelectedNodes
-          .filter((n): n is ModelFlowNode => n.type === 'model')
+          .filter((n): n is TableFlowNode => n.type === 'model')
           .map((n) => n.data.modelName);
         // graphTransformer namespaces annotation node IDs as `annotation-${id}` —
         // unwrap to the raw domain ID for the wire protocol.

@@ -2,7 +2,7 @@
  * ColumnTooltip — hover tooltip showing column details on the canvas.
  *
  * Renders via a React Portal to document.body so it is never clipped by
- * the ModelNode's `overflow: hidden`. Positioned with `position: fixed`
+ * the TableNode's `overflow: hidden`. Positioned with `position: fixed`
  * using the anchor element's bounding rect. Automatically flips below
  * the row if there isn't enough space above.
  *

@@ -36,7 +36,7 @@ There are two stages. **Logical** is the editable stage stored in the subject ar
 - **The same warehouse table name in two layers** is two tables with the same `alias`: `silver/silver_date.yml` and `gold/gold_date.yml`, both `alias: date` — the pattern a dbt project uses for two `date` tables (unique dbt model names, `alias` + `schema` for the relation). The canvas labels each node `date`, or `silver.date` / `gold.date` when both are on one canvas.
 - **Folders are opt-in per project.** A library uses layer folders once any table file sits in a folder named after a layer in `layers.json` (or while it is empty); a hand-made folder such as `Staging/` does not count. Then a new table created from a canvas is written to the folder of the layer of the subject area it is added to (`gold/reporting.json` → `logical-models/gold/`). A flat library stays flat: new files go to the top level until someone runs **ERD Studio: Organise Table Library by Layer**. Opting in is a team decision — a teammate on ERD Studio before 1.2.0 only reads the top level and would see tables in folders as missing. A rename keeps the file in its folder.
 - **Organise Table Library by Layer** moves each file into the folder of the one layer whose subject areas reference it: top-level files, and files sitting in *another* layer's folder (the subject areas that use it moved layer). A table used by several layers, or by none, stays where it is. Folders that are not a layer in `layers.json` (a hand-made `Staging/`, or a layer id since removed) are never touched and are named in the confirmation. Re-running it is always safe.
-- Hosts that cannot list directories (the `@erd-studio/core` `loadDisplayDomain` viewer) probe the top level, then every layer folder alphabetically (the extension's order), so they see only folders named after a layer.
+- Hosts that cannot list directories (the `@erd-studio/core` `loadDisplaySubjectArea` viewer) probe the top level, then every layer folder alphabetically (the extension's order), so they see only folders named after a layer.
 
 The base directory name (`.erd-studio`) is configurable via the `erdStudio.semanticDir` setting.
 
@@ -86,7 +86,7 @@ One JSON file per subject area. The file and its `domain` field keep the old nam
 
 ### Format detection and supported versions
 
-The extension decides how to read a file with a single detector (`detectDomainFormat` in `packages/core/src/types/semantic.ts`). Every reader and writer uses the same rules:
+The extension decides how to read a file with a single detector (`detectSubjectAreaFormat` in `packages/core/src/types/semantic.ts`). Every reader and writer uses the same rules:
 
 | Format | Shape | Behaviour |
 |--------|-------|-----------|
@@ -142,7 +142,7 @@ columns:
 | `alias` | string | No | Warehouse table name when it differs from `name` — dbt's `alias` config. A plain identifier (letters, digits, underscores; case kept). `name` stays the identity everywhere; the canvas shows the alias, qualified by `schema` when two tables on one canvas share it. Set from the detail panel's **Warehouse name** row. |
 | `description` | string | No | Human-readable description. |
 | `grain` | string | No | Grain statement: "One row per ___". |
-| `modelRole` | string | No | Role in the warehouse architecture. See ModelRole enum. |
+| `modelRole` | string | No | Role in the warehouse architecture. See TableRole enum. |
 | `columns` | array | No | Array of `ColumnDef`. |
 | `rationale` | object | No | Design rationale. Omit entirely if empty. |
 | `meta` | map | No | Free-form, dbt-style metadata (owner, source system, lineage…). See [Metadata](#metadata-meta). Omit entirely if empty. |
@@ -168,7 +168,7 @@ Tables are defined once and can be referenced from several subject areas. Editin
 
 **`data_type` (still read).** A column whose type is spelled the way dbt's schema.yml spells it, `data_type:`, is read as `dataType` (#144). When a column has both keys, `dataType` wins whenever it holds a value (even `""`); `data_type` is used only when `dataType` is absent or null. ERD Studio writes `dataType` only: the next time it writes that table's file — any canvas edit to that table or to a relationship stored in it (including one Draw from dbt or Add Existing Table adds there, and a rename elsewhere that reaches it); moving nodes and **Move Relationships to Table Library** leave the file's columns as written — it renames each `data_type` the reader used to `dataType` in place (its value and comment unchanged; an empty `dataType:` beside it is dropped), and leaves a `data_type` that sits beside a `dataType` holding a value alone. When the empty `dataType` (its key or value) or the `data_type` key carries a YAML anchor (`dataType: &x`), neither key is renamed or dropped — an alias such as `*x` would lose its anchor or change meaning — and the column's type is written to `data_type`, where the reader takes it from. `erd-studio doctor` lists the files and columns that use it (`erd.dataTypeAliasFiles[].columns`), and separately the columns where `data_type` sits beside a winning `dataType` and is ignored (`.ignored`) — those stay listed until the `data_type` is deleted — and the anchored ones kept as written (`.anchored`). Write `dataType`; the JSON schema still flags `data_type` as an unknown key.
 
-### ModelRole Enum
+### TableRole Enum
 
 | Value | Use Case |
 |-------|----------|

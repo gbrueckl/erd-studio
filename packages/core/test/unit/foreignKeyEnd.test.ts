@@ -1,22 +1,22 @@
 /**
  * One rule decides which end of a relationship holds the foreign key (#163):
  * the `to` end of a `one-to-many`, else the `from` end. The canvas badge
- * (`toDisplayDomain`) and the exports read it, so they cannot disagree.
+ * (`toDisplaySubjectArea`) and the exports read it, so they cannot disagree.
  */
 
 import { describe, it, expect } from 'vitest';
 
-import { toDisplayDomain } from '../../src/displayDomain';
+import { toDisplaySubjectArea } from '../../src/displayDomain';
 import { toDbml } from '../../src/exportDbml';
 import { toMermaid } from '../../src/exportMermaid';
 import { foreignKeyEnd } from '../../src/relationships';
-import type { Cardinality, Relationship, SemanticDomain } from '../../src/types/semantic';
+import type { Cardinality, Relationship, SemanticSubjectArea } from '../../src/types/semantic';
 
 const key = (name: string, isPrimaryKey = false) => ({ name, dataType: 'int', description: '', isPrimaryKey });
 
 /** dim_customer.customer_key (its key) and fct_order.customer_key, joined by `rel`. */
 function display(rel: Relationship) {
-  const domain: SemanticDomain = {
+  const domain: SemanticSubjectArea = {
     schemaVersion: 5,
     domain: 'sales',
     layer: 'gold',
@@ -27,8 +27,8 @@ function display(rel: Relationship) {
       { name: 'fct_order', description: '', columns: [key('order_key', true), key('customer_key')] },
     ],
     relationships: [rel],
-  } as SemanticDomain;
-  return toDisplayDomain(domain, { viewConfig: {}, layerConfig: undefined, readOnly: false });
+  } as SemanticSubjectArea;
+  return toDisplaySubjectArea(domain, { viewConfig: {}, layerConfig: undefined, readOnly: false });
 }
 
 const fkBadges = (d: ReturnType<typeof display>) =>

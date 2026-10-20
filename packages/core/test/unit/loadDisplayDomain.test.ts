@@ -10,16 +10,16 @@ vi.mock('yaml', async (importOriginal) => {
 import { parseDocument } from 'yaml';
 import {
   FileTooLargeError,
-  TooManyModelsError,
-  loadDisplayDomain,
+  TooManyTablesError,
+  loadDisplaySubjectArea,
   mapWithLimit,
-  type LoadDisplayDomainOptions,
+  type LoadDisplaySubjectAreaOptions,
 } from '../../src/loadDisplayDomain';
-import { DomainFileError, DomainValidationError } from '../../src/domain';
+import { SubjectAreaFileError, SubjectAreaValidationError } from '../../src/domain';
 
-const DOMAIN = '.erd-studio/silver/sales.json';
+const SUBJECT_AREA = '.erd-studio/silver/sales.json';
 
-function modelYml(name: string, columns: string[] = ['id']): string {
+function tableYml(name: string, columns: string[] = ['id']): string {
   return [
     `name: ${name}`,
     'columns:',
@@ -42,9 +42,9 @@ function memoryFs(files: Record<string, string>) {
   return { reads, readFile };
 }
 
-function load(files: Record<string, string>, overrides: Partial<LoadDisplayDomainOptions> = {}) {
+function load(files: Record<string, string>, overrides: Partial<LoadDisplaySubjectAreaOptions> = {}) {
   const mem = memoryFs(files);
-  const result = loadDisplayDomain({ domainPath: DOMAIN, readFile: mem.readFile, readOnly: true, warn: () => {}, ...overrides });
+  const result = loadDisplaySubjectArea({ domainPath: SUBJECT_AREA, readFile: mem.readFile, readOnly: true, warn: () => {}, ...overrides });
   return { ...mem, result };
 }
 
@@ -115,16 +115,16 @@ describe('mapWithLimit limits', () => {
   });
 });
 
-describe('loadDisplayDomain', () => {
+describe('loadDisplaySubjectArea', () => {
   it('reads the domain, then layers.json, then each model once, all inside the semantic dir', async () => {
     const { reads, result } = load({
-      [DOMAIN]: v5(['dim_a', 'fct_b']),
-      '.erd-studio/logical-models/dim_a.yml': modelYml('dim_a'),
-      '.erd-studio/logical-models/fct_b.yml': modelYml('fct_b'),
+      [SUBJECT_AREA]: v5(['dim_a', 'fct_b']),
+      '.erd-studio/logical-models/dim_a.yml': tableYml('dim_a'),
+      '.erd-studio/logical-models/fct_b.yml': tableYml('fct_b'),
     });
     const domain = await result;
     expect(reads).toEqual([
-      DOMAIN,
+      SUBJECT_AREA,
       '.erd-studio/layers.json',
       '.erd-studio/logical-models/dim_a.yml',
       '.erd-studio/logical-models/fct_b.yml',
@@ -149,26 +149,26 @@ describe('loadDisplayDomain', () => {
 
     it('makes exactly one read for a model at the top level', async () => {
       const { reads, result } = load({
-        [DOMAIN]: v5(['dim_a']),
+        [SUBJECT_AREA]: v5(['dim_a']),
         '.erd-studio/layers.json': THREE_LAYERS,
-        '.erd-studio/logical-models/dim_a.yml': modelYml('dim_a'),
-        '.erd-studio/logical-models/silver/dim_a.yml': modelYml('dim_a', ['id', 'shadowed']),
+        '.erd-studio/logical-models/dim_a.yml': tableYml('dim_a'),
+        '.erd-studio/logical-models/silver/dim_a.yml': tableYml('dim_a', ['id', 'shadowed']),
       });
       const domain = await result;
-      expect(reads).toEqual([DOMAIN, '.erd-studio/layers.json', '.erd-studio/logical-models/dim_a.yml']);
+      expect(reads).toEqual([SUBJECT_AREA, '.erd-studio/layers.json', '.erd-studio/logical-models/dim_a.yml']);
       expect(domain.models[0].columns.map((c) => c.name)).toEqual(['id']);
     });
 
     it('probes the top level, then the layer folders alphabetically (the extension\'s order)', async () => {
       const { reads, result } = load({
-        [DOMAIN]: v5(['dim_a']),
+        [SUBJECT_AREA]: v5(['dim_a']),
         '.erd-studio/layers.json': THREE_LAYERS,
-        '.erd-studio/logical-models/silver/dim_a.yml': modelYml('dim_a', ['id', 'name']),
-        '.erd-studio/logical-models/gold/dim_a.yml': modelYml('dim_a'),
+        '.erd-studio/logical-models/silver/dim_a.yml': tableYml('dim_a', ['id', 'name']),
+        '.erd-studio/logical-models/gold/dim_a.yml': tableYml('dim_a'),
       });
       const domain = await result;
       // A name in two folders resolves to the alphabetically first one, as
-      // LogicalModelService does — never differently in the two hosts.
+      // TableLibraryService does — never differently in the two hosts.
       expect(reads.slice(2)).toEqual([
         '.erd-studio/logical-models/dim_a.yml',
         '.erd-studio/logical-models/bronze/dim_a.yml',
@@ -179,9 +179,9 @@ describe('loadDisplayDomain', () => {
 
     it('stops at the first hit and probes every layer folder for a missing model', async () => {
       const { reads, result } = load({
-        [DOMAIN]: v5(['sap__mara', 'missing']),
+        [SUBJECT_AREA]: v5(['sap__mara', 'missing']),
         '.erd-studio/layers.json': THREE_LAYERS,
-        '.erd-studio/logical-models/gold/sap__mara.yml': modelYml('sap__mara', ['matnr']),
+        '.erd-studio/logical-models/gold/sap__mara.yml': tableYml('sap__mara', ['matnr']),
       }, { maxParallelReads: 1 });
       const domain = await result;
       expect(reads.slice(2)).toEqual([
@@ -198,8 +198,8 @@ describe('loadDisplayDomain', () => {
 
     it('uses the default layers when there is no layers.json', async () => {
       const { reads, result } = load({
-        [DOMAIN]: v5(['fct_b']),
-        '.erd-studio/logical-models/gold/fct_b.yml': modelYml('fct_b'),
+        [SUBJECT_AREA]: v5(['fct_b']),
+        '.erd-studio/logical-models/gold/fct_b.yml': tableYml('fct_b'),
       });
       const domain = await result;
       expect(reads.slice(2)).toEqual([
@@ -210,15 +210,15 @@ describe('loadDisplayDomain', () => {
     });
 
     it('never probes a folder for a name the filter rejects', async () => {
-      const { reads, result } = load({ [DOMAIN]: v5(['../x', 'a/b']) });
+      const { reads, result } = load({ [SUBJECT_AREA]: v5(['../x', 'a/b']) });
       await result;
       expect(reads.some((r) => r.includes('logical-models'))).toBe(false);
     });
 
     it('keeps at most maxParallelReads probes in flight', async () => {
       const names = Array.from({ length: 12 }, (_, i) => `m${i}`);
-      const files: Record<string, string> = { [DOMAIN]: v5(names) };
-      for (const n of names) files[`.erd-studio/logical-models/gold/${n}.yml`] = modelYml(n);
+      const files: Record<string, string> = { [SUBJECT_AREA]: v5(names) };
+      for (const n of names) files[`.erd-studio/logical-models/gold/${n}.yml`] = tableYml(n);
       let inFlight = 0;
       let peak = 0;
       const readFile = async (p: string) => {
@@ -228,25 +228,25 @@ describe('loadDisplayDomain', () => {
         inFlight--;
         return files[p] ?? null;
       };
-      const domain = await loadDisplayDomain({ domainPath: DOMAIN, readFile, readOnly: true, warn: () => {}, maxParallelReads: 3 });
+      const domain = await loadDisplaySubjectArea({ domainPath: SUBJECT_AREA, readFile, readOnly: true, warn: () => {}, maxParallelReads: 3 });
       expect(domain.models.every((m) => m.columns.length === 1)).toBe(true);
       expect(peak).toBe(3);
     });
   });
 
   it('passes readOnly through', async () => {
-    const domain = await load({ [DOMAIN]: v5([]) }, { readOnly: false }).result;
+    const domain = await load({ [SUBJECT_AREA]: v5([]) }, { readOnly: false }).result;
     expect(domain.readOnly).toBe(false);
   });
 
   it('never reads a model whose name could leave logical-models/, and shows it as a placeholder', async () => {
     const names = ['../secrets', 'a/b', 'a\\b', '..', 'a..b', '   ', 'ok'];
     const { reads, result } = load({
-      [DOMAIN]: v5(names),
-      '.erd-studio/logical-models/ok.yml': modelYml('ok'),
+      [SUBJECT_AREA]: v5(names),
+      '.erd-studio/logical-models/ok.yml': tableYml('ok'),
     });
     const domain = await result;
-    expect(reads).toEqual([DOMAIN, '.erd-studio/layers.json', '.erd-studio/logical-models/ok.yml']);
+    expect(reads).toEqual([SUBJECT_AREA, '.erd-studio/layers.json', '.erd-studio/logical-models/ok.yml']);
     for (const r of reads) {
       expect(r.startsWith('.erd-studio/')).toBe(true);
       expect(r.includes('..')).toBe(false);
@@ -259,11 +259,11 @@ describe('loadDisplayDomain', () => {
   it('never reads a model whose name holds a control character, and shows it as a placeholder', async () => {
     const names = ['evil\u0000name', 'line\nbreak', 'ok'];
     const { reads, result } = load({
-      [DOMAIN]: v5(names),
-      '.erd-studio/logical-models/ok.yml': modelYml('ok'),
+      [SUBJECT_AREA]: v5(names),
+      '.erd-studio/logical-models/ok.yml': tableYml('ok'),
     });
     const domain = await result;
-    expect(reads).toEqual([DOMAIN, '.erd-studio/layers.json', '.erd-studio/logical-models/ok.yml']);
+    expect(reads).toEqual([SUBJECT_AREA, '.erd-studio/layers.json', '.erd-studio/logical-models/ok.yml']);
     expect(domain.models.map((m) => [m.name, m.columns.length])).toEqual([
       ['evil\u0000name', 0], ['line\nbreak', 0], ['ok', 1],
     ]);
@@ -276,7 +276,7 @@ describe('loadDisplayDomain', () => {
     const text = lines.join('\n');
     const warnings: string[] = [];
     const domain = await load(
-      { [DOMAIN]: v5(['m']), '.erd-studio/logical-models/m.yml': text },
+      { [SUBJECT_AREA]: v5(['m']), '.erd-studio/logical-models/m.yml': text },
       { maxYamlChars: 1_048_576, maxYamlNodes: 50_000, warn: (m) => warnings.push(m) },
     ).result;
     expect(text.length).toBeLessThan(1_048_576);
@@ -287,9 +287,9 @@ describe('loadDisplayDomain', () => {
   it('lets modelNameFilter narrow which names are read', async () => {
     const { reads, result } = load(
       {
-        [DOMAIN]: v5(['keep', 'skip']),
-        '.erd-studio/logical-models/keep.yml': modelYml('keep'),
-        '.erd-studio/logical-models/skip.yml': modelYml('skip'),
+        [SUBJECT_AREA]: v5(['keep', 'skip']),
+        '.erd-studio/logical-models/keep.yml': tableYml('keep'),
+        '.erd-studio/logical-models/skip.yml': tableYml('skip'),
       },
       { modelNameFilter: (n) => n === 'keep' },
     );
@@ -301,8 +301,8 @@ describe('loadDisplayDomain', () => {
   it('reads and parses a model listed 200 times once, giving each occurrence its own object', async () => {
     vi.mocked(parseDocument).mockClear();
     const { reads, result } = load({
-      [DOMAIN]: v5(Array(200).fill('dim_a')),
-      '.erd-studio/logical-models/dim_a.yml': modelYml('dim_a'),
+      [SUBJECT_AREA]: v5(Array(200).fill('dim_a')),
+      '.erd-studio/logical-models/dim_a.yml': tableYml('dim_a'),
     });
     const domain = await result;
     expect(reads.filter((r) => r.endsWith('dim_a.yml'))).toHaveLength(1);
@@ -315,8 +315,8 @@ describe('loadDisplayDomain', () => {
 
   it('keeps at most maxParallelReads model reads in flight (8 by default)', async () => {
     const names = Array.from({ length: 30 }, (_, i) => `m${i}`);
-    const files: Record<string, string> = { [DOMAIN]: v5(names) };
-    for (const n of names) files[`.erd-studio/logical-models/${n}.yml`] = modelYml(n);
+    const files: Record<string, string> = { [SUBJECT_AREA]: v5(names) };
+    for (const n of names) files[`.erd-studio/logical-models/${n}.yml`] = tableYml(n);
 
     for (const [limit, expected] of [[undefined, 8], [3, 3], [1, 1]] as const) {
       let inFlight = 0;
@@ -328,8 +328,8 @@ describe('loadDisplayDomain', () => {
         inFlight--;
         return files[p] ?? null;
       };
-      const domain = await loadDisplayDomain({
-        domainPath: DOMAIN, readFile, readOnly: true, warn: () => {},
+      const domain = await loadDisplaySubjectArea({
+        domainPath: SUBJECT_AREA, readFile, readOnly: true, warn: () => {},
         ...(limit === undefined ? {} : { maxParallelReads: limit }),
       });
       expect(domain.models).toHaveLength(30);
@@ -339,74 +339,74 @@ describe('loadDisplayDomain', () => {
 
   it('passes readFile rejections through unchanged', async () => {
     const boom = new Error('network down');
-    for (const failing of [DOMAIN, '.erd-studio/layers.json', '.erd-studio/logical-models/dim_a.yml']) {
+    for (const failing of [SUBJECT_AREA, '.erd-studio/layers.json', '.erd-studio/logical-models/dim_a.yml']) {
       const readFile = async (p: string) => {
         if (p === failing) throw boom;
-        return p === DOMAIN ? v5(['dim_a']) : null;
+        return p === SUBJECT_AREA ? v5(['dim_a']) : null;
       };
-      expect(await rejection(loadDisplayDomain({ domainPath: DOMAIN, readFile, readOnly: true, warn: () => {} }))).toBe(boom);
+      expect(await rejection(loadDisplaySubjectArea({ domainPath: SUBJECT_AREA, readFile, readOnly: true, warn: () => {} }))).toBe(boom);
     }
   });
 
-  it('throws DomainFileError for a missing domain file', async () => {
+  it('throws SubjectAreaFileError for a missing domain file', async () => {
     const err = await rejection(load({}).result);
-    expect(err).toBeInstanceOf(DomainFileError);
-    expect((err as DomainFileError).reason).toBe('missing');
-    expect((err as DomainFileError).message).toBe(`Subject area file not found: ${DOMAIN}`);
+    expect(err).toBeInstanceOf(SubjectAreaFileError);
+    expect((err as SubjectAreaFileError).reason).toBe('missing');
+    expect((err as SubjectAreaFileError).message).toBe(`Subject area file not found: ${SUBJECT_AREA}`);
   });
 
   describe('maxModels', () => {
     it('rejects a v5 domain over the cap before reading any model', async () => {
       const names = Array.from({ length: 6 }, (_, i) => `m${i}`);
-      const { reads, result } = load({ [DOMAIN]: v5(names) }, { maxModels: 5 });
+      const { reads, result } = load({ [SUBJECT_AREA]: v5(names) }, { maxModels: 5 });
       const err = await rejection(result);
-      expect(err).toBeInstanceOf(TooManyModelsError);
-      expect((err as TooManyModelsError).count).toBe(6);
-      expect((err as TooManyModelsError).max).toBe(5);
-      expect(reads).toEqual([DOMAIN, '.erd-studio/layers.json']);
+      expect(err).toBeInstanceOf(TooManyTablesError);
+      expect((err as TooManyTablesError).count).toBe(6);
+      expect((err as TooManyTablesError).max).toBe(5);
+      expect(reads).toEqual([SUBJECT_AREA, '.erd-studio/layers.json']);
     });
 
     it('counts duplicates and entries that would be filtered out', async () => {
-      const dupes = await rejection(load({ [DOMAIN]: v5(Array(6).fill('dim_a')) }, { maxModels: 5 }).result);
-      expect(dupes).toBeInstanceOf(TooManyModelsError);
+      const dupes = await rejection(load({ [SUBJECT_AREA]: v5(Array(6).fill('dim_a')) }, { maxModels: 5 }).result);
+      expect(dupes).toBeInstanceOf(TooManyTablesError);
       const unsafe = Array.from({ length: 600 }, (_, i) => `../m${i}`);
-      const { reads, result } = load({ [DOMAIN]: v5(unsafe) }, { maxModels: 500 });
+      const { reads, result } = load({ [SUBJECT_AREA]: v5(unsafe) }, { maxModels: 500 });
       const err = await rejection(result);
-      expect(err).toBeInstanceOf(TooManyModelsError);
-      expect((err as TooManyModelsError).count).toBe(600);
-      expect(reads).toEqual([DOMAIN, '.erd-studio/layers.json']);
+      expect(err).toBeInstanceOf(TooManyTablesError);
+      expect((err as TooManyTablesError).count).toBe(600);
+      expect(reads).toEqual([SUBJECT_AREA, '.erd-studio/layers.json']);
     });
 
     it('applies to v4 inline models too', async () => {
       const models = Array.from({ length: 501 }, (_, i) => ({ name: `m${i}`, columns: [] }));
       const domain = JSON.stringify({ schemaVersion: 4, layer: 'silver', logical: { models, relationships: [] } });
-      const err = await rejection(load({ [DOMAIN]: domain }, { maxModels: 500 }).result);
-      expect(err).toBeInstanceOf(TooManyModelsError);
-      expect((err as TooManyModelsError).count).toBe(501);
+      const err = await rejection(load({ [SUBJECT_AREA]: domain }, { maxModels: 500 }).result);
+      expect(err).toBeInstanceOf(TooManyTablesError);
+      expect((err as TooManyTablesError).count).toBe(501);
     });
 
     it('allows a domain at the cap', async () => {
-      const domain = await load({ [DOMAIN]: v5(['a', 'b']) }, { maxModels: 2 }).result;
+      const domain = await load({ [SUBJECT_AREA]: v5(['a', 'b']) }, { maxModels: 2 }).result;
       expect(domain.models).toHaveLength(2);
     });
   });
 
   it('rejects a domain file longer than maxDomainChars with FileTooLargeError', async () => {
     const text = v5(['dim_a']);
-    const err = await rejection(load({ [DOMAIN]: text }, { maxDomainChars: text.length - 1 }).result);
+    const err = await rejection(load({ [SUBJECT_AREA]: text }, { maxDomainChars: text.length - 1 }).result);
     expect(err).toBeInstanceOf(FileTooLargeError);
-    expect(err).toMatchObject({ path: DOMAIN, size: text.length, max: text.length - 1 });
-    await expect(load({ [DOMAIN]: text }, { maxDomainChars: text.length }).result).resolves.toBeTruthy();
+    expect(err).toMatchObject({ path: SUBJECT_AREA, size: text.length, max: text.length - 1 });
+    await expect(load({ [SUBJECT_AREA]: text }, { maxDomainChars: text.length }).result).resolves.toBeTruthy();
   });
 
   it('shows a model file longer than maxYamlChars as a placeholder', async () => {
-    const big = modelYml('big', Array.from({ length: 50 }, (_, i) => `c${i}`));
+    const big = tableYml('big', Array.from({ length: 50 }, (_, i) => `c${i}`));
     const warn = vi.fn();
     const domain = await load(
       {
-        [DOMAIN]: v5(['big', 'small']),
+        [SUBJECT_AREA]: v5(['big', 'small']),
         '.erd-studio/logical-models/big.yml': big,
-        '.erd-studio/logical-models/small.yml': modelYml('small'),
+        '.erd-studio/logical-models/small.yml': tableYml('small'),
       },
       { maxYamlChars: 200, warn },
     ).result;
@@ -421,10 +421,10 @@ describe('loadDisplayDomain', () => {
     const started = Date.now();
     const domain = await load(
       {
-        [DOMAIN]: v5(['bomb', 'broken', 'fine']),
+        [SUBJECT_AREA]: v5(['bomb', 'broken', 'fine']),
         '.erd-studio/logical-models/bomb.yml': lines.join('\n'),
         '.erd-studio/logical-models/broken.yml': 'name: broken\ncolumns: [\n',
-        '.erd-studio/logical-models/fine.yml': modelYml('fine'),
+        '.erd-studio/logical-models/fine.yml': tableYml('fine'),
       },
       { maxYamlNodes: 50_000 },
     ).result;
@@ -444,7 +444,7 @@ describe('loadDisplayDomain', () => {
     const started = Date.now();
     const domain = await load(
       {
-        [DOMAIN]: v5(Array(500).fill('wide')),
+        [SUBJECT_AREA]: v5(Array(500).fill('wide')),
         '.erd-studio/logical-models/wide.yml': yml,
       },
       { maxModels: 500, maxYamlNodes: 50_000, maxYamlChars: 1_048_576, maxDomainChars: 1_048_576, warn },
@@ -466,7 +466,7 @@ describe('loadDisplayDomain', () => {
     it('charges every listing to the file\'s node budget, so repeats cannot amplify the result', async () => {
       const warn = vi.fn();
       const domain = await load(
-        { [DOMAIN]: v5(Array(500).fill('m')), '.erd-studio/logical-models/m.yml': wideYml },
+        { [SUBJECT_AREA]: v5(Array(500).fill('m')), '.erd-studio/logical-models/m.yml': wideYml },
         { ...LIMITS, warn },
       ).result;
       expect(domain.models).toHaveLength(500);
@@ -482,7 +482,7 @@ describe('loadDisplayDomain', () => {
 
     it('still gives every listing a copy when the repeats fit the budget', async () => {
       const domain = await load(
-        { [DOMAIN]: v5(Array(500).fill('dim_a')), '.erd-studio/logical-models/dim_a.yml': modelYml('dim_a') },
+        { [SUBJECT_AREA]: v5(Array(500).fill('dim_a')), '.erd-studio/logical-models/dim_a.yml': tableYml('dim_a') },
         LIMITS,
       ).result;
       expect(domain.models.every((m) => m.columns.length === 1)).toBe(true);
@@ -494,7 +494,7 @@ describe('loadDisplayDomain', () => {
       const yml = 'name: a\ncolumns:\n  - {name: id, dataType: INT}\n';
       const nodes = 10;
       const domain = await load(
-        { [DOMAIN]: v5(['a', 'b', 'a', 'a', 'a']), '.erd-studio/logical-models/a.yml': yml },
+        { [SUBJECT_AREA]: v5(['a', 'b', 'a', 'a', 'a']), '.erd-studio/logical-models/a.yml': yml },
         { maxYamlNodes: nodes * 3 },
       ).result;
       expect(domain.models.map((m) => [m.name, m.columns.length])).toEqual([
@@ -505,7 +505,7 @@ describe('loadDisplayDomain', () => {
     it('charges every listing to the file\'s character budget too', async () => {
       const yml = `name: a\ndescription: ${'d'.repeat(1_000)}\n`;
       const domain = await load(
-        { [DOMAIN]: v5(Array(10).fill('a')), '.erd-studio/logical-models/a.yml': yml },
+        { [SUBJECT_AREA]: v5(Array(10).fill('a')), '.erd-studio/logical-models/a.yml': yml },
         { maxYamlChars: 3_100 },
       ).result;
       expect(domain.models.map((m) => m.description?.length ?? 0)).toEqual([1_000, 1_000, 1_000, 0, 0, 0, 0, 0, 0, 0]);
@@ -513,7 +513,7 @@ describe('loadDisplayDomain', () => {
 
     it('is not limited with the budgets unlimited, as in the extension', async () => {
       const domain = await load(
-        { [DOMAIN]: v5(Array(3).fill('m')), '.erd-studio/logical-models/m.yml': wideYml },
+        { [SUBJECT_AREA]: v5(Array(3).fill('m')), '.erd-studio/logical-models/m.yml': wideYml },
       ).result;
       expect(domain.models.map((m) => m.columns.length)).toEqual([16_000, 16_000, 16_000]);
     });
@@ -525,7 +525,7 @@ describe('loadDisplayDomain', () => {
     let domain;
     try {
       domain = await load({
-        [DOMAIN]: v5(['dim_a', 'dim_a']),
+        [SUBJECT_AREA]: v5(['dim_a', 'dim_a']),
         '.erd-studio/logical-models/dim_a.yml': `name: dim_a\ndescription: ${description}\ncolumns:\n  - {name: id, dataType: INT}\n`,
       }).result;
       expect(clone).not.toHaveBeenCalled();
@@ -555,7 +555,7 @@ describe('loadDisplayDomain', () => {
       const err = await rejection(
         load(files, { domainPath: '.erd-studio/platinum/p.json', maxDomainChars: layers.length - 1, warn }).result,
       );
-      expect(err).toBeInstanceOf(DomainValidationError);
+      expect(err).toBeInstanceOf(SubjectAreaValidationError);
       expect(parse.mock.calls.some(([text]) => text === layers)).toBe(false);
     } finally {
       parse.mockRestore();
@@ -581,9 +581,9 @@ describe('loadDisplayDomain', () => {
       const { reads, readFile } = memoryFs({
         [domainPath]: JSON.stringify({ schemaVersion: 5, logical: { models: ['m'] } }),
         [`${prefix}layers.json`]: layers,
-        [`${prefix}logical-models/m.yml`]: modelYml('m'),
+        [`${prefix}logical-models/m.yml`]: tableYml('m'),
       });
-      const domain = await loadDisplayDomain({ domainPath, readFile, readOnly: true, warn: () => {} });
+      const domain = await loadDisplaySubjectArea({ domainPath, readFile, readOnly: true, warn: () => {} });
       expect(reads[1]).toBe(`${prefix}layers.json`);
       // the parent directory is the layer, and the file name is the domain
       expect(domain.layer).toBe('platinum');
@@ -598,7 +598,7 @@ describe('loadDisplayDomain', () => {
       '.erd-studio/diamond/d.json': v5(['dim_a'], { layer: 'diamond' }),
     }, { domainPath: '.erd-studio/diamond/d.json' });
     const err = await rejection(result);
-    expect(err).toBeInstanceOf(DomainValidationError);
+    expect(err).toBeInstanceOf(SubjectAreaValidationError);
     expect((err as Error).message).toBe(
       'Subject area file .erd-studio/diamond/d.json has invalid layer "diamond". Expected one of: silver, gold',
     );
@@ -607,7 +607,7 @@ describe('loadDisplayDomain', () => {
 
   it('fills in positions for models that have none', async () => {
     const domain = await load({
-      [DOMAIN]: v5(['a', 'b'], { viewConfig: { positions: { a: { x: 10, y: 20 } } } }),
+      [SUBJECT_AREA]: v5(['a', 'b'], { viewConfig: { positions: { a: { x: 10, y: 20 } } } }),
     }).result;
     expect(domain.viewConfig.positions?.a).toEqual({ x: 10, y: 20 });
     expect(domain.viewConfig.positions?.b).toEqual(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }));
@@ -619,12 +619,12 @@ describe('loadDisplayDomain', () => {
     });
 
     it('is off by default: models are placed around every entry, as the extension places them', async () => {
-      const domain = await load({ [DOMAIN]: strayAtOrigin }).result;
+      const domain = await load({ [SUBJECT_AREA]: strayAtOrigin }).result;
       expect(domain.viewConfig.positions?.b).toEqual({ x: 420, y: 100 });
     });
 
     it('places models around the positions of models only, keeping the other entries', async () => {
-      const domain = await load({ [DOMAIN]: strayAtOrigin }, { ignoreStrayPositions: true }).result;
+      const domain = await load({ [SUBJECT_AREA]: strayAtOrigin }, { ignoreStrayPositions: true }).result;
       expect(domain.viewConfig.positions).toEqual({
         a: { x: 740, y: 100 },
         gone: { x: 100, y: 100 },
@@ -634,9 +634,9 @@ describe('loadDisplayDomain', () => {
 
     it('is on by default when any limit is set, and can be turned off', async () => {
       for (const limit of ['maxModels', 'maxYamlNodes', 'maxDomainChars', 'maxYamlChars'] as const) {
-        const on = await load({ [DOMAIN]: strayAtOrigin }, { [limit]: 1_000_000 }).result;
+        const on = await load({ [SUBJECT_AREA]: strayAtOrigin }, { [limit]: 1_000_000 }).result;
         expect(on.viewConfig.positions?.b, limit).toEqual({ x: 100, y: 100 });
-        const off = await load({ [DOMAIN]: strayAtOrigin }, { [limit]: 1_000_000, ignoreStrayPositions: false }).result;
+        const off = await load({ [SUBJECT_AREA]: strayAtOrigin }, { [limit]: 1_000_000, ignoreStrayPositions: false }).result;
         expect(off.viewConfig.positions?.b, limit).toEqual({ x: 420, y: 100 });
       }
     });
@@ -658,7 +658,7 @@ describe('loadDisplayDomain', () => {
           text = next;
         }
       }
-      files[DOMAIN] = text;
+      files[SUBJECT_AREA] = text;
       const limits = { maxModels: 500, maxYamlNodes: 50_000, maxDomainChars: 1_048_576, maxYamlChars: 1_048_576 };
       const started = Date.now();
       const domain = await load(files, limits).result;
@@ -674,7 +674,7 @@ describe('loadDisplayDomain', () => {
       const models = Array.from({ length: 100 }, (_, i) => ({ name: `m${i}`, columns: [] }));
       const text = JSON.stringify({ schemaVersion: 4, layer: 'silver', logical: { models, relationships: [] }, viewConfig: { positions } });
       const started = Date.now();
-      const domain = await load({ [DOMAIN]: text }, { ignoreStrayPositions: true }).result;
+      const domain = await load({ [SUBJECT_AREA]: text }, { ignoreStrayPositions: true }).result;
       expect(Date.now() - started).toBeLessThan(2_000);
       expect(Object.keys(domain.viewConfig.positions ?? {})).toHaveLength(25_000 + 200 + 100);
     });
@@ -686,7 +686,7 @@ describe('loadDisplayDomain', () => {
     it('rejects a limit that is not a number of at least 0 with a TypeError, before reading anything', async () => {
       for (const name of NUMERIC) {
         for (const bad of [NaN, -1, -Infinity, '4', null]) {
-          const { reads, result } = load({ [DOMAIN]: v5([]) }, { [name]: bad as number });
+          const { reads, result } = load({ [SUBJECT_AREA]: v5([]) }, { [name]: bad as number });
           const err = await rejection(result);
           expect(err, `${name}: ${String(bad)}`).toBeInstanceOf(TypeError);
           expect((err as Error).message).toContain(name);
@@ -697,7 +697,7 @@ describe('loadDisplayDomain', () => {
 
     it('rejects a maxParallelReads that is not a whole number of at least 1', async () => {
       for (const bad of [NaN, 0, 2.5, -1, -Infinity, '4', null]) {
-        const { reads, result } = load({ [DOMAIN]: v5([]) }, { maxParallelReads: bad as number });
+        const { reads, result } = load({ [SUBJECT_AREA]: v5([]) }, { maxParallelReads: bad as number });
         expect(await rejection(result), String(bad)).toBeInstanceOf(TypeError);
         expect(reads).toEqual([]);
       }
@@ -705,14 +705,14 @@ describe('loadDisplayDomain', () => {
 
     it('accepts Infinity for every limit, and 0 for the caps', async () => {
       const all = Object.fromEntries([...NUMERIC, 'maxParallelReads'].map((n) => [n, Infinity]));
-      await expect(load({ [DOMAIN]: v5(['a']) }, all).result).resolves.toBeTruthy();
-      const domain = await load({ [DOMAIN]: v5([]) }, { maxModels: 0 }).result;
+      await expect(load({ [SUBJECT_AREA]: v5(['a']) }, all).result).resolves.toBeTruthy();
+      const domain = await load({ [SUBJECT_AREA]: v5([]) }, { maxModels: 0 }).result;
       expect(domain.models).toEqual([]);
     });
   });
 
   describe('bad input only ever rejects with the four error classes', () => {
-    const KNOWN = [DomainFileError, DomainValidationError, TooManyModelsError, FileTooLargeError];
+    const KNOWN = [SubjectAreaFileError, SubjectAreaValidationError, TooManyTablesError, FileTooLargeError];
     const expectKnown = (err: unknown) => {
       expect(KNOWN.some((cls) => err instanceof cls), String(err)).toBe(true);
     };
@@ -731,7 +731,7 @@ describe('loadDisplayDomain', () => {
       const domains = files.filter((f) => f.endsWith('.json')).map((f) => `.erd-studio/${f.split(path.sep).join('/')}`);
       expect(domains.length).toBeGreaterThanOrEqual(8);
       for (const domainPath of domains) {
-        expectKnown(await rejection(loadDisplayDomain({ domainPath, readFile, readOnly: true, warn: () => {} })));
+        expectKnown(await rejection(loadDisplaySubjectArea({ domainPath, readFile, readOnly: true, warn: () => {} })));
       }
     });
 
@@ -744,8 +744,8 @@ describe('loadDisplayDomain', () => {
         expectKnown(err);
       }
       expectKnown(await rejection(load({}).result));
-      expectKnown(await rejection(load({ [DOMAIN]: v5(['a', 'b']) }, { maxModels: 1 }).result));
-      expectKnown(await rejection(load({ [DOMAIN]: v5([]) }, { maxDomainChars: 3 }).result));
+      expectKnown(await rejection(load({ [SUBJECT_AREA]: v5(['a', 'b']) }, { maxModels: 1 }).result));
+      expectKnown(await rejection(load({ [SUBJECT_AREA]: v5([]) }, { maxDomainChars: 3 }).result));
     });
 
     it('for malformed v4 inline models', async () => {
@@ -756,23 +756,23 @@ describe('loadDisplayDomain', () => {
         [{ name: 'a', columns: {} }],
         [{ name: 'a', columns: [null] }],
       ]) {
-        const err = await rejection(load({ [DOMAIN]: v4(models) }).result);
+        const err = await rejection(load({ [SUBJECT_AREA]: v4(models) }).result);
         expectKnown(err);
-        expect(err).toBeInstanceOf(DomainValidationError);
-        expect((err as Error).message).toContain(DOMAIN);
+        expect(err).toBeInstanceOf(SubjectAreaValidationError);
+        expect((err as Error).message).toContain(SUBJECT_AREA);
         expect((err as { cause?: unknown }).cause).toBeInstanceOf(TypeError);
       }
     });
 
     it('but passes a TypeError thrown by the caller\'s warn through as it is', async () => {
       const own = new TypeError('from warn');
-      const err = await rejection(load({ [DOMAIN]: v5(['missing']) }, { warn: () => { throw own; } }).result);
+      const err = await rejection(load({ [SUBJECT_AREA]: v5(['missing']) }, { warn: () => { throw own; } }).result);
       expect(err).toBe(own);
     });
 
     it('but never for bad model or layers files, which degrade instead', async () => {
       const domain = await load({
-        [DOMAIN]: v5(['a', 'b', 'c']),
+        [SUBJECT_AREA]: v5(['a', 'b', 'c']),
         '.erd-studio/layers.json': '{ not json',
         '.erd-studio/logical-models/a.yml': ': : :\n  - [',
         '.erd-studio/logical-models/b.yml': '- just\n- a list\n',

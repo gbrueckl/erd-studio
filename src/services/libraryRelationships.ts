@@ -15,8 +15,8 @@ import {
   canonicalRelationship, compositeGroupProblem, contradictsKeys, contradictsKeysOf, keyedRelationship, linkKey,
   mergeLibraryRelationships, normaliseRelationshipRole, relationshipKey, respellRelationship, reverseRelationship, sameLink,
 } from '@erd-studio/core';
-import type { ColumnPair, DbtKeyIndex, KeyedModel } from '@erd-studio/core';
-import type { ModelRelationship, Relationship, SemanticModel } from '../types/semantic';
+import type { ColumnPair, DbtKeyIndex, KeyedTable } from '@erd-studio/core';
+import type { TableRelationship, Relationship, SemanticTable } from '../types/semantic';
 
 type RelationshipEnds = Pick<Relationship, 'fromModel' | 'fromColumn' | 'toModel' | 'toColumn'>;
 
@@ -32,7 +32,7 @@ const same = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCas
  * one would not see an edge stored in the library.
  */
 export function usesLibraryRelationships(
-  models: readonly SemanticModel[],
+  models: readonly SemanticTable[],
   domainFileRelationshipCount: number,
   /** A model file that does not parse still lists some (`hasUnreadableRelationships`). */
   unreadableModelRelationships = false,
@@ -42,7 +42,7 @@ export function usesLibraryRelationships(
 }
 
 /** The full relationships stored in `model`'s library file. */
-export function libraryRelationshipsOf(model: SemanticModel): Relationship[] {
+export function libraryRelationshipsOf(model: SemanticTable): Relationship[] {
   return (model.relationships ?? []).map((rel) => ({ fromModel: model.name, ...rel }));
 }
 
@@ -50,7 +50,7 @@ export function libraryRelationshipsOf(model: SemanticModel): Relationship[] {
  * The library entry for `rel`, without `fromModel`: the four stored fields,
  * plus `role` and `compositeKey` when it has them.
  */
-function libraryEntry(rel: Relationship): ModelRelationship {
+function libraryEntry(rel: Relationship): TableRelationship {
   return {
     fromColumn: rel.fromColumn,
     toModel: rel.toModel,
@@ -67,7 +67,7 @@ function libraryEntry(rel: Relationship): ModelRelationship {
  * `canonicalRelationship`). Returns false when an identical one is already
  * there.
  */
-export function upsertLibraryRelationship(model: SemanticModel, rel: Relationship): boolean {
+export function upsertLibraryRelationship(model: SemanticTable, rel: Relationship): boolean {
   const key = relationshipKey(rel);
   const list = model.relationships ?? [];
   const index = list.findIndex((r) => relationshipKey({ fromModel: model.name, ...r }) === key);
@@ -88,8 +88,8 @@ export function upsertLibraryRelationship(model: SemanticModel, rel: Relationshi
 }
 
 /** Remove each model's relationships for which `drop` is true. Returns the models changed. */
-function dropWhere(models: readonly SemanticModel[], drop: (rel: Relationship) => boolean): SemanticModel[] {
-  const changed: SemanticModel[] = [];
+function dropWhere(models: readonly SemanticTable[], drop: (rel: Relationship) => boolean): SemanticTable[] {
+  const changed: SemanticTable[] = [];
   for (const model of models) {
     const list = model.relationships ?? [];
     const kept = list.filter((rel) => !drop({ fromModel: model.name, ...rel }));
@@ -110,9 +110,9 @@ function dropWhere(models: readonly SemanticModel[], drop: (rel: Relationship) =
  * end, so a deleted line does not come back.
  */
 export function removeLibraryRelationships(
-  models: readonly SemanticModel[],
+  models: readonly SemanticTable[],
   ends: readonly RelationshipEnds[],
-): SemanticModel[] {
+): SemanticTable[] {
   const keys = new Set(ends.map(linkKey));
   return dropWhere(models, (rel) => keys.has(linkKey(rel)));
 }
@@ -128,18 +128,18 @@ const touchesColumn = (rel: Relationship, modelName: string, column: string): bo
  * kept as a narrower link.
  */
 export function removeColumnRelationships(
-  models: readonly SemanticModel[],
+  models: readonly SemanticTable[],
   modelName: string,
   column: string,
   /** The whole library, which a composite is read from when `models` is part of it. */
-  library: readonly SemanticModel[] = models,
-): SemanticModel[] {
+  library: readonly SemanticTable[] = models,
+): SemanticTable[] {
   const keys = columnRemovalKeys(library, [], modelName, column);
   return dropWhere(models, (rel) => keys.has(linkKey(rel)));
 }
 
 /** The links to drop when `model.column` goes: those touching it, and every member of a composite (as drawn) one of them is in. */
-function columnRemovalKeys(models: readonly SemanticModel[], domainRels: readonly Relationship[], modelName: string, column: string): Set<string> {
+function columnRemovalKeys(models: readonly SemanticTable[], domainRels: readonly Relationship[], modelName: string, column: string): Set<string> {
   const own = domainRels.filter(isEnds);
   const keys = new Set([...models.flatMap(libraryRelationshipsOf), ...own].filter((r) => touchesColumn(r, modelName, column)).map(linkKey));
   const lines = mergeLibraryRelationships(models, own);
@@ -156,11 +156,11 @@ function columnRemovalKeys(models: readonly SemanticModel[], domainRels: readonl
  * (`library`: its models), as drawn, so no copy of a member outlives the
  * key. Entries that are not relationships are kept.
  */
-export function removeColumnFromDomainRelationships<T>(
+export function removeColumnFromSubjectAreaRelationships<T>(
   relationships: readonly T[],
   modelName: string,
   column: string,
-  library: readonly SemanticModel[] = [],
+  library: readonly SemanticTable[] = [],
 ): T[] {
   const keys = columnRemovalKeys(library, relationships as unknown as Relationship[], modelName, column);
   return relationships.filter((r) => !isEnds(r) || !keys.has(linkKey(r)));
@@ -204,7 +204,7 @@ export function drawnGroupOf(lines: readonly Relationship[], ends: RelationshipE
  * (#133 L2). How one edge of a composite stands for the whole group.
  */
 export function expandToGroups(
-  models: readonly SemanticModel[],
+  models: readonly SemanticTable[],
   domainRels: readonly Relationship[],
   ends: readonly RelationshipEnds[],
 ): RelationshipEnds[] {
@@ -228,7 +228,7 @@ export function expandToGroups(
  * then `_2`, `_3`, … while the file already uses it. Depends only on the
  * file's entries.
  */
-export function nextCompositeKey(fileEntries: ReadonlyArray<Pick<ModelRelationship, 'compositeKey'>>, toModel: string): string {
+export function nextCompositeKey(fileEntries: ReadonlyArray<Pick<TableRelationship, 'compositeKey'>>, toModel: string): string {
   const used = new Set(fileEntries.map((e) => e.compositeKey?.toLowerCase()).filter((k): k is string => !!k));
   const base = `fk_${toModel}`.toLowerCase();
   if (!used.has(base)) return base;
@@ -241,12 +241,12 @@ export function nextCompositeKey(fileEntries: ReadonlyArray<Pick<ModelRelationsh
  * case, written as the user typed the new name (#133 L4).
  */
 export function renameColumnInRelationships(
-  models: readonly SemanticModel[],
+  models: readonly SemanticTable[],
   modelName: string,
   oldColumn: string,
   newColumn: string,
-): SemanticModel[] {
-  const changed: SemanticModel[] = [];
+): SemanticTable[] {
+  const changed: SemanticTable[] = [];
   for (const model of models) {
     let touched = false;
     for (const rel of model.relationships ?? []) {
@@ -265,12 +265,12 @@ export function renameColumnInRelationships(
 }
 
 /** Follow a model rename in every other model's relationships that point at it (matched without case). */
-export function renameModelInRelationships(
-  models: readonly SemanticModel[],
+export function renameTableInRelationships(
+  models: readonly SemanticTable[],
   oldName: string,
   newName: string,
-): SemanticModel[] {
-  const changed: SemanticModel[] = [];
+): SemanticTable[] {
+  const changed: SemanticTable[] = [];
   for (const model of models) {
     let touched = false;
     for (const rel of model.relationships ?? []) {
@@ -290,7 +290,7 @@ export function renameModelInRelationships(
  * Entries that are not relationships are left alone. Returns whether any
  * entry changed.
  */
-export function renameColumnInDomainRelationships(
+export function renameColumnInSubjectAreaRelationships(
   relationships: ReadonlyArray<Record<string, unknown>>,
   modelName: string,
   oldColumn: string,
@@ -312,7 +312,7 @@ export function renameColumnInDomainRelationships(
 }
 
 /** Follow a model rename in a domain file's own `logical.relationships`, in place, matched without case. */
-export function renameModelInDomainRelationships(
+export function renameTableInSubjectAreaRelationships(
   relationships: ReadonlyArray<Record<string, unknown>>,
   oldName: string,
   newName: string,
@@ -355,7 +355,7 @@ export interface RelationshipWriteInput {
   /** Where this project keeps relationships: the model library, or the open domain file. */
   home: 'library' | 'domain';
   /** Every library model, never changed in place ([] for a v4 domain). */
-  models: readonly SemanticModel[];
+  models: readonly SemanticTable[];
   /** The open domain file's `logical.relationships`, as parsed; never changed in place. */
   domainRelationships: readonly Relationship[];
   /** dbt's key evidence (#133 L1): the line drawn, and ⇄'s keys-win refusal, read it as the canvas does. */
@@ -366,7 +366,7 @@ export type RelationshipWritePlan =
   | {
     ok: true;
     /** Copies of the library models whose `relationships` (or, for `markKey`, key flags) changed, to save. */
-    changed: SemanticModel[];
+    changed: SemanticTable[];
     /** The domain file's new `logical.relationships`, or null when it is unchanged. */
     domainRelationships: Relationship[] | null;
     /** A v4 domain's `markKey`: no library model holds it, so the caller marks the inline model. */
@@ -408,7 +408,7 @@ export function planRelationshipWrite(op: RelationshipWriteOp, input: Relationsh
   if (input.models.length === 0) return { ...plan, inlineMarkKey: op.markKey };
   const target = input.models.find((m) => same(m.name, op.markKey!.model));
   if (!target) return refuse(`Table "${op.markKey.model}" not found in logical-models/.`, op.markKey.model);
-  const marked = markPrimaryKey(plan.changed.find((m) => same(m.name, target.name)) ?? copyModel(target), op.markKey.columns);
+  const marked = markPrimaryKey(plan.changed.find((m) => same(m.name, target.name)) ?? copyTable(target), op.markKey.columns);
   if (typeof marked === 'string') return refuse(marked.replace('{was}', op.kind === 'add' ? 'added' : 'changed'));
   return { ...plan, changed: [...plan.changed.filter((m) => !same(m.name, target.name)), marked] };
 }
@@ -436,7 +436,7 @@ export function planRelationshipWrites(
   let models = input.models;
   let domainRelationships = input.domainRelationships;
   let domainChanged = false;
-  const changed = new Map<string, SemanticModel>();
+  const changed = new Map<string, SemanticTable>();
   const steps: RelationshipWriteStep[] = [];
   let grouped: { count: number; compositeKey: string } | undefined;
   for (const op of ops) {
@@ -474,7 +474,7 @@ export function planRelationshipWrites(
  * the refusal when the model already flags a key (`{was}` names what did not
  * happen) or lacks one of the columns. Never changes `model` itself.
  */
-export function markPrimaryKey<T extends Pick<SemanticModel, 'name' | 'columns'>>(model: T, columns: readonly string[]): T | string {
+export function markPrimaryKey<T extends Pick<SemanticTable, 'name' | 'columns'>>(model: T, columns: readonly string[]): T | string {
   const cols = model.columns ?? [];
   if (cols.some((c) => c.isPrimaryKey || c.isNaturalKey)) {
     return `${model.name} already has a key marked — the relationship was not {was}. Set its keys in the table first.`;
@@ -489,7 +489,7 @@ export function markPrimaryKey<T extends Pick<SemanticModel, 'name' | 'columns'>
 
 function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): RelationshipWritePlan {
   const { home, models, domainRelationships, dbt } = input;
-  const modelOf = (name: string): SemanticModel | undefined => models.find((m) => same(m.name, name));
+  const modelOf = (name: string): SemanticTable | undefined => models.find((m) => same(m.name, name));
   const drawnLines = (): Relationship[] => mergeLibraryRelationships(home === 'library' ? models : [], domainRelationships, '', undefined, dbt);
   const library = models.flatMap(libraryRelationshipsOf);
   const libraryCopies = (key: string): Relationship[] => library.filter((r) => linkKey(r) === key);
@@ -503,7 +503,7 @@ function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): 
     // One edge of a composite deletes the whole group.
     const all = expandToGroups(models, domainRelationships, op.keys);
     const keys = new Set(all.map(linkKey));
-    const changed = models.map(copyModel).filter((m) => removeLibraryRelationships([m], all).length > 0);
+    const changed = models.map(copyTable).filter((m) => removeLibraryRelationships([m], all).length > 0);
     const kept = domainRelationships.filter((r) => !isEnds(r) || !keys.has(linkKey(r)));
     if (changed.length === 0 && kept.length === domainRelationships.length) return refuse('Relationship not found.');
     return { ok: true, changed, domainRelationships: kept.length === domainRelationships.length ? null : kept };
@@ -615,15 +615,15 @@ function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): 
     }
     if (!anchor) list.push(...entries);
     // A library copy (a project switching homes) is folded in too.
-    const changed = models.map(copyModel).filter((m) => dropWhere([m], (r) => replaceKeys.has(linkKey(r))).length > 0);
+    const changed = models.map(copyTable).filter((m) => dropWhere([m], (r) => replaceKeys.has(linkKey(r))).length > 0);
     return { ok: true, changed, domainRelationships: list, ...grouped };
   }
 
-  const changed: SemanticModel[] = [];
+  const changed: SemanticTable[] = [];
   for (const model of models) {
     const list = model.relationships ?? [];
     const isTarget = model === target;
-    const out: ModelRelationship[] = [];
+    const out: TableRelationship[] = [];
     let placed = false;
     for (const entry of list) {
       if (!replaceKeys.has(linkKey({ fromModel: model.name, ...entry }))) {
@@ -635,7 +635,7 @@ function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): 
     }
     if (isTarget && !placed) out.push(...next.map((n) => libraryEntry({ ...n, fromModel: model.name })));
     if (JSON.stringify(out) === JSON.stringify(list)) continue;
-    const copy = copyModel(model);
+    const copy = copyTable(model);
     if (out.length > 0) copy.relationships = out;
     else delete copy.relationships;
     changed.push(copy);
@@ -654,7 +654,7 @@ const isEnds = (r: unknown): r is Relationship => !!r && typeof r === 'object'
 const pickEnds = (r: RelationshipEnds): RelationshipEnds =>
   ({ fromModel: r.fromModel, fromColumn: r.fromColumn, toModel: r.toModel, toColumn: r.toColumn });
 
-const copyModel = (m: SemanticModel): SemanticModel =>
+const copyTable = (m: SemanticTable): SemanticTable =>
   ({ ...m, ...(m.relationships ? { relationships: m.relationships.map((r) => ({ ...r })) } : {}) });
 
 type DiagramRelationships = { label: string; models: readonly string[]; relationships: readonly Relationship[] };
@@ -694,18 +694,18 @@ export function diagramsStillDrawing(keys: readonly RelationshipEnds[], domains:
  */
 export function routeToLibrary(
   relationships: readonly Relationship[],
-  newModels: readonly SemanticModel[],
-  libraryModel: (name: string) => SemanticModel | null,
+  newModels: readonly SemanticTable[],
+  libraryModel: (name: string) => SemanticTable | null,
   /** Copies other diagram files keep of their own: a link one holds stays in `kept`, so it takes nothing over. */
   diagramCopies: readonly Relationship[] = [],
-): { kept: Relationship[]; changed: SemanticModel[] } {
+): { kept: Relationship[]; changed: SemanticTable[] } {
   const heldByDiagrams = new Set(diagramCopies.map(linkKey));
   const kept: Relationship[] = [];
-  const changed = new Map<string, SemanticModel>();
+  const changed = new Map<string, SemanticTable>();
   // One object per model whatever the spelling, so two ends spelled
   // differently never edit two copies of one file (#133 L4).
-  const loaded = new Map<string, SemanticModel | null>();
-  const modelFor = (name: string): SemanticModel | null => {
+  const loaded = new Map<string, SemanticTable | null>();
+  const modelFor = (name: string): SemanticTable | null => {
     const fresh = newModels.find((m) => same(m.name, name));
     if (fresh) return fresh;
     if (!loaded.has(name.toLowerCase())) loaded.set(name.toLowerCase(), libraryModel(name));
@@ -823,8 +823,8 @@ export interface RelationshipRehome {
  * it, or whose files are `locked` (see `MoveToLibraryPlan.lockedFiles`).
  */
 export function planRehome(
-  libraryModels: readonly SemanticModel[],
-  libraryModel: (name: string) => SemanticModel | null,
+  libraryModels: readonly SemanticTable[],
+  libraryModel: (name: string) => SemanticTable | null,
   locked: (model: string) => boolean = () => false,
   /** dbt's key evidence for models that flag no key (#133 L1). */
   dbt?: DbtKeyIndex,
@@ -835,7 +835,7 @@ export function planRehome(
   // member as part of its group (keys on the column sets, #133 L2), any other
   // entry on its own — so a member is never judged by its single column.
   const files = new Map<string, { list: Relationship[]; forms: Relationship[]; groupOf: Array<Relationship[] | undefined> }>();
-  const fileOf = (model: SemanticModel) => {
+  const fileOf = (model: SemanticTable) => {
     const key = model.name.toLowerCase();
     if (!files.has(key)) {
       const list = libraryRelationshipsOf(model);
@@ -849,7 +849,7 @@ export function planRehome(
     return files.get(key)!;
   };
   /** The first other copy of `to`'s link in `inFiles` that says something else, skipping `skip`. */
-  const disagreement = (inFiles: SemanticModel[], to: Relationship, skip: (file: string, i: number) => boolean): Relationship | undefined => {
+  const disagreement = (inFiles: SemanticTable[], to: Relationship, skip: (file: string, i: number) => boolean): Relationship | undefined => {
     for (const m of inFiles) {
       const { list, forms } = fileOf(m);
       const i = list.findIndex((r, j) => !skip(m.name, j) && sameLink(r, to) && !agreesAs(forms[j], r.role, to));
@@ -907,7 +907,7 @@ export function planRehome(
       batches.push([{ from: model.name, stored, to }]);
     });
   }
-  function lockedOut(model: SemanticModel, home: SemanticModel): boolean {
+  function lockedOut(model: SemanticTable, home: SemanticTable): boolean {
     const lockedHere = [model.name, home.name].filter(locked);
     plan.lockedFiles.push(...lockedHere.filter((m) => !plan.lockedFiles.includes(m)));
     return lockedHere.length > 0;
@@ -918,7 +918,7 @@ export function planRehome(
 }
 
 /** A composite's members as the move stores them: on its many side, turned round together where the column sets' keys say so. */
-function keyedGroup(group: readonly Relationship[], modelOf: (name: string) => KeyedModel | null, dbt?: DbtKeyIndex): Relationship[] {
+function keyedGroup(group: readonly Relationship[], modelOf: (name: string) => KeyedTable | null, dbt?: DbtKeyIndex): Relationship[] {
   const canon = group.map(canonicalRelationship);
   return contradictsKeysOf(canon, modelOf, dbt)
     ? canon.map((c) => ({ ...reverseRelationship(c), cardinality: 'many-to-one' as const }))
@@ -947,7 +947,7 @@ function sameMeaning(a: Relationship, b: Relationship): boolean {
  * has no many side — from its lower end, so the order the diagrams are read
  * in never decides its file.
  */
-function moveForm(rel: Relationship, modelOf: (name: string) => KeyedModel | null, dbt?: DbtKeyIndex): Relationship {
+function moveForm(rel: Relationship, modelOf: (name: string) => KeyedTable | null, dbt?: DbtKeyIndex): Relationship {
   const keyed = keyedRelationship(rel, modelOf, dbt);
   if (keyed.cardinality !== 'many-to-many') return keyed;
   const from = `${keyed.fromModel}.${keyed.fromColumn}`.toLowerCase();
@@ -1003,8 +1003,8 @@ function definitionsOf(uses: ReadonlyArray<{ label: string; stored: Relationship
  */
 export function planMoveToLibrary(
   domains: ReadonlyArray<{ label: string; relationships: readonly Relationship[] }>,
-  libraryModel: (name: string) => SemanticModel | null,
-  libraryModels: readonly SemanticModel[] = [],
+  libraryModel: (name: string) => SemanticTable | null,
+  libraryModels: readonly SemanticTable[] = [],
   locked: (model: string) => boolean = () => false,
   /** `dbt`: dbt's key evidence, for models that flag no key (#133 L1). */
   options: { dbt?: DbtKeyIndex } = {},
@@ -1037,7 +1037,7 @@ export function planMoveToLibrary(
     for (const drawn of domain.relationships) {
       const key = linkKey(drawn);
       if (handled.has(key)) continue;
-      const ends = [libraryModel(drawn.fromModel), libraryModel(drawn.toModel)].filter((m): m is SemanticModel => !!m);
+      const ends = [libraryModel(drawn.fromModel), libraryModel(drawn.toModel)].filter((m): m is SemanticTable => !!m);
       const { compositeKey: _stale, ...single } = respellRelationship(drawn, ends);
       const stored = moveForm(single, libraryModel, dbt);
       byKey.set(key, [...(byKey.get(key) ?? []), { label: domain.label, drawn, stored }]);
@@ -1126,7 +1126,7 @@ export function planMoveToLibrary(
 function planGroupMoves(
   plan: MoveToLibraryPlan,
   domains: ReadonlyArray<{ label: string; relationships: readonly Relationship[] }>,
-  libraryModel: (name: string) => SemanticModel | null,
+  libraryModel: (name: string) => SemanticTable | null,
   isLocked: (...names: string[]) => boolean,
   takeOut: (label: string, key: string) => void,
   dbt?: DbtKeyIndex,
@@ -1148,7 +1148,7 @@ function planGroupMoves(
   }
   // As the move stores a composite: real spelling, many side, keys win on the column sets, the first member's role.
   const formOf = (members: readonly Relationship[]): Relationship[] => {
-    const ends = [libraryModel(members[0].fromModel), libraryModel(members[0].toModel)].filter((m): m is SemanticModel => !!m);
+    const ends = [libraryModel(members[0].fromModel), libraryModel(members[0].toModel)].filter((m): m is SemanticTable => !!m);
     const canon = members.map((m) => canonicalRelationship(respellRelationship(m, ends)));
     const keyed = contradictsKeysOf(canon, libraryModel, dbt)
       ? canon.map((c) => ({ ...reverseRelationship(c), cardinality: 'many-to-one' as const }))
@@ -1177,7 +1177,7 @@ function planGroupMoves(
       continue;
     }
     // What the library already says about these pairs.
-    const endFiles = [owner, libraryModel(head[0].toModel)].filter((m, i, all): m is SemanticModel => !!m && all.indexOf(m) === i);
+    const endFiles = [owner, libraryModel(head[0].toModel)].filter((m, i, all): m is SemanticTable => !!m && all.indexOf(m) === i);
     const library = endFiles.flatMap(libraryRelationshipsOf);
     const held = library.filter((r) => keys.includes(linkKey(r)));
     const libGroup = held.length > 0 ? groupOf(library, held[0]) : undefined;
@@ -1324,7 +1324,7 @@ export function moveTargets(plan: Pick<MoveToLibraryPlan, 'toLibrary' | 'rehome'
  * the link keeps that copy, gaining only a role it lacks. Returns whether the
  * model changed. Shared by the command and the exhaustive checker.
  */
-export function applyMoveToModel(plan: Pick<MoveToLibraryPlan, 'toLibrary' | 'rehome'>, model: SemanticModel): boolean {
+export function applyMoveToTable(plan: Pick<MoveToLibraryPlan, 'toLibrary' | 'rehome'>, model: SemanticTable): boolean {
   let changed = false;
   for (const { from, stored } of plan.rehome) {
     if (!same(from, model.name)) continue;

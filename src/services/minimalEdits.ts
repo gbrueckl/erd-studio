@@ -12,7 +12,7 @@ import type { Node, Pair } from 'yaml';
 
 import { VALID_CARDINALITIES, normaliseCompositeKey, normaliseRelationshipRole } from '@erd-studio/core';
 
-import type { ModelRelationship, Relationship } from '../types/semantic';
+import type { TableRelationship, Relationship } from '../types/semantic';
 import { detectEol, keepLineEndings } from './lineEndings';
 
 const BOM = '﻿';
@@ -65,7 +65,7 @@ function detectSeqIndent(text: string, pairs: readonly Pair[]): number {
   return 2;
 }
 
-function renderYamlBlock(relationships: readonly ModelRelationship[], indent: number, eol: string): string {
+function renderYamlBlock(relationships: readonly TableRelationship[], indent: number, eol: string): string {
   const dash = ' '.repeat(indent);
   const body = ' '.repeat(indent + 2);
   const lines = ['relationships:'];
@@ -114,7 +114,7 @@ export function relationshipsRewriteLoses(text: string): boolean {
  * unchanged. Line endings follow the file's own (CRLF stays CRLF); a BOM is
  * kept. Throws if `text` is not a YAML mapping.
  */
-export function setYamlRelationships(text: string, relationships: readonly ModelRelationship[]): string {
+export function setYamlRelationships(text: string, relationships: readonly TableRelationship[]): string {
   const { bom, body } = splitBom(text);
   const doc = parseDocument(body);
   if (doc.errors.length > 0) throw new Error(`setYamlRelationships: ${doc.errors[0].message}`);
@@ -201,7 +201,7 @@ function scanString(text: string, i: number): number {
     else if (ch === '"') return i + 1;
     else i++;
   }
-  throw new Error('setDomainRelationships: unterminated string');
+  throw new Error('setSubjectAreaRelationships: unterminated string');
 }
 
 /** End (exclusive) of the JSON value starting at `i` (already validated text). */
@@ -220,7 +220,7 @@ function scanValue(text: string, i: number): number {
       }
       i++;
     }
-    throw new Error('setDomainRelationships: unterminated container');
+    throw new Error('setSubjectAreaRelationships: unterminated container');
   }
   while (i < text.length && !isWs(text[i]) && text[i] !== ',' && text[i] !== '}' && text[i] !== ']') i++;
   return i;
@@ -278,15 +278,15 @@ function renderJsonArray(
  * file) and every other byte unchanged. Throws if `text` is not a JSON object
  * with a `logical` object.
  */
-export function setDomainRelationships(text: string, relationships: readonly Relationship[]): string {
+export function setSubjectAreaRelationships(text: string, relationships: readonly Relationship[]): string {
   const { bom, body } = splitBom(text);
   const parsed: unknown = JSON.parse(body);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('setDomainRelationships: the subject area file is not a JSON object');
+    throw new Error('setSubjectAreaRelationships: the subject area file is not a JSON object');
   }
   const logicalValue = (parsed as Record<string, unknown>).logical;
   if (!logicalValue || typeof logicalValue !== 'object' || Array.isArray(logicalValue)) {
-    throw new Error('setDomainRelationships: the subject area file has no "logical" object');
+    throw new Error('setSubjectAreaRelationships: the subject area file has no "logical" object');
   }
 
   const eol = detectEol(body);

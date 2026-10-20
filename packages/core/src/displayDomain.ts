@@ -1,12 +1,12 @@
 /**
- * Logical stage -> DisplayDomain: the shape the canvas renders.
+ * Logical stage -> DisplaySubjectArea: the shape the canvas renders.
  */
 
-import type { ModelTemplate, NodePosition, Relationship, SemanticDomain, ViewConfig } from './types/semantic.js';
-import type { DisplayDomain, ExistingModelPreview, ManifestModelPreview } from './types/display.js';
+import type { TableTemplate, NodePosition, Relationship, SemanticSubjectArea, ViewConfig } from './types/semantic.js';
+import type { DisplaySubjectArea, ExistingTablePreview, ManifestModelPreview } from './types/display.js';
 import type { LayerConfig } from './types/layer.js';
-import { computeNewModelPositions } from './positions.js';
-import { modelLoadErrorOf, modelLoadWarningOf } from './types/semantic.js';
+import { computeNewTablePositions } from './positions.js';
+import { tableLoadErrorOf, tableLoadWarningOf } from './types/semantic.js';
 import { foreignKeyEnd, keysContradictedRelationships } from './relationships.js';
 import type { DbtKeyIndex } from './keyEvidence.js';
 
@@ -24,7 +24,7 @@ export function computeMissingPositions(
 
   if (newModels.length === 0) return null;
 
-  const computed = computeNewModelPositions({
+  const computed = computeNewTablePositions({
     newModels,
     relationships: unifiedDomain.logical.relationships ?? [],
     existingPositions: positions,
@@ -34,21 +34,21 @@ export function computeMissingPositions(
 }
 
 /** Editor-only data the extension adds to an editable stage. */
-export interface DisplayDomainEditorPayload {
-  templates: ModelTemplate[];
+export interface DisplaySubjectAreaEditorPayload {
+  templates: TableTemplate[];
   manifestModels: ManifestModelPreview[];
-  existingModels: ExistingModelPreview[];
+  existingModels: ExistingTablePreview[];
 }
 
-export interface ToDisplayDomainOptions {
-  /** The domain's global view config (it lives on the UnifiedDomain, not the stage). */
+export interface ToDisplaySubjectAreaOptions {
+  /** The domain's global view config (it lives on the UnifiedSubjectArea, not the stage). */
   viewConfig: ViewConfig;
   stubColumns?: string[];
   /** The configured layer the domain belongs to, for badge styling. */
   layerConfig: LayerConfig | undefined;
   readOnly: boolean;
   /** Templates and addable models, when the host offers editing. */
-  editorPayload?: DisplayDomainEditorPayload;
+  editorPayload?: DisplaySubjectAreaEditorPayload;
   /**
    * dbt's key evidence for models that flag no key (#133 L1), so a
    * relationship drawn backwards is flagged as the canvas's dialog would warn
@@ -58,13 +58,13 @@ export interface ToDisplayDomainOptions {
 }
 
 /**
- * Convert a SemanticDomain to a DisplayDomain for the canvas.
+ * Convert a SemanticSubjectArea to a DisplaySubjectArea for the canvas.
  *
  * A column is a foreign key when it says so or when it is the foreign-key end
  * of a relationship (`foreignKeyEnd`: the `to` end of a `one-to-many`, else
  * the `from` end).
  */
-export function toDisplayDomain(domain: SemanticDomain, options: ToDisplayDomainOptions): DisplayDomain {
+export function toDisplaySubjectArea(domain: SemanticSubjectArea, options: ToDisplaySubjectAreaOptions): DisplaySubjectArea {
   const { viewConfig, stubColumns, layerConfig, readOnly, editorPayload } = options;
 
   // Build FK column set for isForeignKey computation
@@ -78,8 +78,8 @@ export function toDisplayDomain(domain: SemanticDomain, options: ToDisplayDomain
   }
 
   const models = domain.models.map((model) => {
-    const loadError = modelLoadErrorOf(model);
-    const loadWarning = modelLoadWarningOf(model);
+    const loadError = tableLoadErrorOf(model);
+    const loadWarning = tableLoadWarningOf(model);
     const fkCols = fkColumnsByModel.get(model.name) ?? new Set<string>();
     const columns = (model.columns ?? []).map((col) => ({
       name: col.name,

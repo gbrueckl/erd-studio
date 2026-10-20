@@ -8,11 +8,11 @@
 import { describe, it, expect } from 'vitest';
 
 import { toDbml } from '../../src/exportDbml';
-import type { DisplayDomain } from '../../src/types/display';
-import { col, deepFreeze, domain, model, readDbmlEverywhere, rel } from '../exportParsers';
+import type { DisplaySubjectArea } from '../../src/types/display';
+import { col, deepFreeze, subjectArea, tableDef, readDbmlEverywhere, rel } from '../exportParsers';
 import type { DbmlReading } from '../exportParsers';
 
-function exportAndRead(d: DisplayDomain): { text: string; db: DbmlReading } {
+function exportAndRead(d: DisplaySubjectArea): { text: string; db: DbmlReading } {
   const text = toDbml(deepFreeze(d));
   return { text, db: readDbmlEverywhere(text) };
 }
@@ -22,7 +22,7 @@ const field = (db: DbmlReading, tableName: string, name: string) => table(db, ta
 
 describe('toDbml', () => {
   it('opens with the version line and the left-out list', () => {
-    const { text } = exportAndRead(domain([model('a', [col('id')])]));
+    const { text } = exportAndRead(subjectArea([tableDef('a', [col('id')])]));
     const lines = text.split('\n');
     expect(lines[0]).toBe('// erd-studio dbml-export v1');
     expect(lines[1]).toBe('// Not exported: canvas positions and sizes, sticky-note colours, nested meta values (lists and maps).');
@@ -32,15 +32,15 @@ describe('toDbml', () => {
 
   it('uses no custom properties, which every DBML parser before @dbml/parse 9.1 rejects', () => {
     const { text } = exportAndRead(
-      domain(
+      subjectArea(
         [
-          model('f', [col('id', 'int', { isPrimaryKey: true, isNaturalKey: true, scdType: 2, additiveType: 'additive', meta: { unit: 'EUR' } }), col('d_key', 'int', { isForeignKey: true })], {
+          tableDef('f', [col('id', 'int', { isPrimaryKey: true, isNaturalKey: true, scdType: 2, additiveType: 'additive', meta: { unit: 'EUR' } }), col('d_key', 'int', { isForeignKey: true })], {
             alias: 'facts',
             modelRole: 'transaction-fact',
             grain: 'One row',
             meta: { owner: 'a' },
           }),
-          model('d', [col('k', 'int', { isPrimaryKey: true })]),
+          tableDef('d', [col('k', 'int', { isPrimaryKey: true })]),
         ],
         [],
         { layer: 'gold' },
@@ -55,19 +55,19 @@ describe('toDbml', () => {
   });
 
   it('writes the domain as the Project, with layer, stage and description in its note', () => {
-    const { db } = exportAndRead(domain([], [], { domain: 'customer 360', layer: 'gold', description: "It's\nmulti-line" }));
+    const { db } = exportAndRead(subjectArea([], [], { domain: 'customer 360', layer: 'gold', description: "It's\nmulti-line" }));
     expect(db.project).toEqual({ name: 'customer 360', note: "Layer: gold\nStage: logical\n\nIt's\nmulti-line" });
   });
 
   it('writes a nameless Project, which old parsers need instead of an empty name', () => {
-    const { text, db } = exportAndRead(domain([model('a', [col('id')])], [], { domain: '' }));
+    const { text, db } = exportAndRead(subjectArea([tableDef('a', [col('id')])], [], { domain: '' }));
     expect(text).toContain('Project {\n');
     expect(db.project).toEqual({ name: null, note: 'Layer: silver\nStage: logical' });
     expect(db.tables.map((t) => t.name)).toEqual(['a']);
   });
 
   it('leaves the Project out when there is nothing to put in it', () => {
-    const { text, db } = exportAndRead(domain([], [], { domain: '', layer: '', stage: '' as never }));
+    const { text, db } = exportAndRead(subjectArea([], [], { domain: '', layer: '', stage: '' as never }));
     expect(text).not.toContain('Project');
     expect(db.project).toBeNull();
     expect(db.tables).toEqual([]);
@@ -75,8 +75,8 @@ describe('toDbml', () => {
 
   it('writes a model as a schema-qualified table, its ERD fields as lines in the table note', () => {
     const { text, db } = exportAndRead(
-      domain([
-        model('fct_order', [col('id', 'int', { isPrimaryKey: true })], {
+      subjectArea([
+        tableDef('fct_order', [col('id', 'int', { isPrimaryKey: true })], {
           schema: 'gold',
           alias: 'orders',
           modelRole: 'transaction-fact',
@@ -112,7 +112,7 @@ describe('toDbml', () => {
 
   it('writes only the parts of the table note a model has', () => {
     const { db } = exportAndRead(
-      domain([model('a', [col('id')], { description: 'Just a description' }), model('b', [col('id')], { grain: 'g' }), model('c', [col('id')])]),
+      subjectArea([tableDef('a', [col('id')], { description: 'Just a description' }), tableDef('b', [col('id')], { grain: 'g' }), tableDef('c', [col('id')])]),
     );
     expect(table(db, 'a').note).toBe('Just a description');
     expect(table(db, 'b').note).toBe('Grain: g');
@@ -121,7 +121,7 @@ describe('toDbml', () => {
 
   it('keeps two models that share an alias as two tables', () => {
     const { db } = exportAndRead(
-      domain([model('silver_date', [col('d')], { alias: 'date', schema: 'silver' }), model('gold_date', [col('d')], { alias: 'date', schema: 'gold' })]),
+      subjectArea([tableDef('silver_date', [col('d')], { alias: 'date', schema: 'silver' }), tableDef('gold_date', [col('d')], { alias: 'date', schema: 'gold' })]),
     );
     expect(db.tables.map((t) => [t.schema, t.name, t.note])).toEqual([
       ['silver', 'silver_date', 'Warehouse table (alias): date'],
@@ -131,8 +131,8 @@ describe('toDbml', () => {
 
   it('writes columns with their type and key, and their ERD fields after the description', () => {
     const { db } = exportAndRead(
-      domain([
-        model('dim', [
+      subjectArea([
+        tableDef('dim', [
           col('k', 'INT', { isPrimaryKey: true, description: 'Surrogate key', scdType: 0 }),
           col('code', 'VARCHAR', { isNaturalKey: true, scdType: 2 }),
           col('amount', 'decimal(10,2)', { additiveType: 'semi-additive', meta: { unit: 'EUR', tags: ['x'] } }),
@@ -155,16 +155,16 @@ describe('toDbml', () => {
 
   it('does not repeat "foreign key" for a column a Ref leaves from', () => {
     const { db } = exportAndRead(
-      domain([model('f', [col('d_key', 'int', { isForeignKey: true }), col('e_key', 'int', { isForeignKey: true })]), model('d', [col('d_key')])], [rel('f.d_key', 'd.d_key')]),
+      subjectArea([tableDef('f', [col('d_key', 'int', { isForeignKey: true }), col('e_key', 'int', { isForeignKey: true })]), tableDef('d', [col('d_key')])], [rel('f.d_key', 'd.d_key')]),
     );
     expect(field(db, 'f', 'd_key').note).toBeNull();
     expect(field(db, 'f', 'e_key').note).toBe('Foreign key');
   });
 
   it('notes a foreign-key flag the same whichever way the link is stored', () => {
-    const models = [model('fct', [col('dim_id', 'int', { isForeignKey: true })]), model('dim', [col('id', 'int', { isPrimaryKey: true, isForeignKey: true })])];
-    const manyToOne = exportAndRead(domain(models, [rel('fct.dim_id', 'dim.id', 'many-to-one')])).db;
-    const oneToMany = exportAndRead(domain(models, [rel('dim.id', 'fct.dim_id', 'one-to-many')])).db;
+    const models = [tableDef('fct', [col('dim_id', 'int', { isForeignKey: true })]), tableDef('dim', [col('id', 'int', { isPrimaryKey: true, isForeignKey: true })])];
+    const manyToOne = exportAndRead(subjectArea(models, [rel('fct.dim_id', 'dim.id', 'many-to-one')])).db;
+    const oneToMany = exportAndRead(subjectArea(models, [rel('dim.id', 'fct.dim_id', 'one-to-many')])).db;
     for (const db of [manyToOne, oneToMany]) {
       // A Ref leaves fct.dim_id, so its flag needs no note; dim.id is the key end, so its flag does.
       expect(field(db, 'fct', 'dim_id').note).toBeNull();
@@ -177,8 +177,8 @@ describe('toDbml', () => {
     const endsInBackslash = 'C:\\temp\\';
     const endsInQuote = "say 'hi'";
     const { db } = exportAndRead(
-      domain([
-        model('t', [col('c', 'int', { description: awkward }), col('d', 'int', { description: endsInBackslash }), col('e', 'int', { description: endsInQuote })], {
+      subjectArea([
+        tableDef('t', [col('c', 'int', { description: awkward }), col('d', 'int', { description: endsInBackslash }), col('e', 'int', { description: endsInQuote })], {
           description: awkward,
         }),
       ]),
@@ -195,7 +195,7 @@ describe('toDbml', () => {
   it('spaces apart a run of backslashes and a backslash before a quote, which old parsers misread', () => {
     const notes = ['a\\\\b', 'C:\\\\srv\\x', "back\\'q", "x\\'", 'one \\ alone'];
     const { text, db } = exportAndRead(
-      domain([model('t', notes.map((n, i) => col(`c${i}`, 'int', { description: n })), { description: "regex \\\\d+ isn't" })], [], {
+      subjectArea([tableDef('t', notes.map((n, i) => col(`c${i}`, 'int', { description: n })), { description: "regex \\\\d+ isn't" })], [], {
         description: "ends \\'",
       }),
     );
@@ -210,7 +210,7 @@ describe('toDbml', () => {
   });
 
   it('writes Windows line ends as \\n and drops white space at either end of a note', () => {
-    const { db } = exportAndRead(domain([model('t', [col('c', 'int', { description: '\n\nfirst\r\nsecond\r\n\n  ' })], { description: '  \n one \n' })]));
+    const { db } = exportAndRead(subjectArea([tableDef('t', [col('c', 'int', { description: '\n\nfirst\r\nsecond\r\n\n  ' })], { description: '  \n one \n' })]));
     expect(field(db, 't', 'c').note).toBe('first\nsecond');
     expect(table(db, 't').note).toBe('one');
   });
@@ -218,10 +218,10 @@ describe('toDbml', () => {
   it('quotes types and names that are not plain identifiers', () => {
     const types = ['timestamp(6) without time zone', 'decimal(10,2)', 'STRUCT<a INT64>', '12.50', 'int[]', 'public.my_type'];
     const { db } = exportAndRead(
-      domain([
-        model('weird name', types.map((t, i) => col(`c${i}`, t))),
-        model('日本', [col('a b'), col('Note'), col('indexes'), col('1st')], { schema: 's x' }),
-        model('Table', [col('id')]),
+      subjectArea([
+        tableDef('weird name', types.map((t, i) => col(`c${i}`, t))),
+        tableDef('日本', [col('a b'), col('Note'), col('indexes'), col('1st')], { schema: 's x' }),
+        tableDef('Table', [col('id')]),
       ]),
     );
     expect(table(db, 'weird name').fields.map((f) => f.type)).toEqual(types);
@@ -232,10 +232,10 @@ describe('toDbml', () => {
 
   it('writes " and \\ in a name or type as \' and /, which every parser reads, and gives the original', () => {
     const { text, db } = exportAndRead(
-      domain(
+      subjectArea(
         [
-          model('weird "name"', [col('a"b', 'STRUCT<a "b" INT64>'), col('c\\d', 'int')], { schema: 'x\\y' }),
-          model('other', [col('k')]),
+          tableDef('weird "name"', [col('a"b', 'STRUCT<a "b" INT64>'), col('c\\d', 'int')], { schema: 'x\\y' }),
+          tableDef('other', [col('k')]),
         ],
         [rel('weird "name".a"b', 'other.k')],
       ),
@@ -249,8 +249,8 @@ describe('toDbml', () => {
 
   it('leaves out a table or column whose DBML name another already took, and the Refs that join it', () => {
     const { text, db } = exportAndRead(
-      domain(
-        [model('a"b', [col('x"y'), col("x'y")]), model("a'b", [col('k')]), model('c', [col('k')])],
+      subjectArea(
+        [tableDef('a"b', [col('x"y'), col("x'y")]), tableDef("a'b", [col('k')]), tableDef('c', [col('k')])],
         [rel("a'b.k", 'c.k'), rel("a\"b.x'y", 'c.k'), rel('a"b.x"y', 'c.k', 'one-to-one')],
       ),
     );
@@ -266,12 +266,12 @@ describe('toDbml', () => {
   });
 
   it('writes an empty type as unknown', () => {
-    const { db } = exportAndRead(domain([model('t', [col('c', ''), col('d', '   ')])]));
+    const { db } = exportAndRead(subjectArea([tableDef('t', [col('c', ''), col('d', '   ')])]));
     expect(table(db, 't').fields.map((f) => f.type)).toEqual(['unknown', 'unknown']);
   });
 
   it('writes a composite primary key as a pk index', () => {
-    const { text, db } = exportAndRead(domain([model('sat', [col('hk', 'binary', { isPrimaryKey: true }), col('load date', 'timestamp', { isPrimaryKey: true }), col('x')])]));
+    const { text, db } = exportAndRead(subjectArea([tableDef('sat', [col('hk', 'binary', { isPrimaryKey: true }), col('load date', 'timestamp', { isPrimaryKey: true }), col('x')])]));
     expect(text).toContain('  indexes {\n    (hk, "load date") [pk]\n  }');
     expect(table(db, 'sat').fields.every((f) => !f.pk)).toBe(true);
     expect(table(db, 'sat').indexes).toEqual([{ pk: true, columns: ['hk', 'load date'] }]);
@@ -279,8 +279,8 @@ describe('toDbml', () => {
 
   it('writes plain-text meta into the notes and names what it leaves out', () => {
     const { text, db } = exportAndRead(
-      domain([
-        model('m', [col('c', 'int', { meta: { 'pii-level': 'high', ok: 'yes', multi: 'a\nb', list: ['x'] } })], {
+      subjectArea([
+        tableDef('m', [col('c', 'int', { meta: { 'pii-level': 'high', ok: 'yes', multi: 'a\nb', list: ['x'] } })], {
           meta: { owner: 'a', Owner: 'b', tags: ['x'], map: { k: 'v' }, nothing: null },
         }),
       ]),
@@ -297,15 +297,15 @@ describe('toDbml', () => {
     ['one-to-one', '-', ['1', '1']],
     ['many-to-many', '<>', ['*', '*']],
   ] as const)('writes a %s relationship from its from end', (cardinality, op, relations) => {
-    const { text, db } = exportAndRead(domain([model('f', [col('d_key')]), model('d', [col('d_key')], { schema: 'gold' })], [rel('f.d_key', 'd.d_key', cardinality)]));
+    const { text, db } = exportAndRead(subjectArea([tableDef('f', [col('d_key')]), tableDef('d', [col('d_key')], { schema: 'gold' })], [rel('f.d_key', 'd.d_key', cardinality)]));
     expect(text).toContain(`Ref: f.d_key ${op} gold.d.d_key`);
     expect(db.refs).toEqual([{ name: null, ends: [['public', 'f', ['d_key'], relations[0]], ['gold', 'd', ['d_key'], relations[1]]] }]);
   });
 
   it('names a Ref after its role, and comments a role old parsers cannot read in a name', () => {
     const { text, db } = exportAndRead(
-      domain(
-        [model('f', [col('a'), col('b'), col('c'), col('e')]), model('d', [col('k')])],
+      subjectArea(
+        [tableDef('f', [col('a'), col('b'), col('c'), col('e')]), tableDef('d', [col('k')])],
         [
           rel('f.a', 'd.k', 'many-to-one', { role: 'ship date' }),
           rel('f.b', 'd.k', 'many-to-one', { role: 'billing' }),
@@ -320,8 +320,8 @@ describe('toDbml', () => {
 
   it('folds a composite foreign key into one Ref at its first member', () => {
     const { text, db } = exportAndRead(
-      domain(
-        [model('pit', [col('hk'), col('as_of'), col('other')]), model('sat', [col('hk'), col('load_date')])],
+      subjectArea(
+        [tableDef('pit', [col('hk'), col('as_of'), col('other')]), tableDef('sat', [col('hk'), col('load_date')])],
         [
           rel('pit.hk', 'sat.hk', 'many-to-one', { compositeKey: 'fk_sat', role: 'as of' }),
           rel('pit.other', 'sat.hk'),
@@ -335,8 +335,8 @@ describe('toDbml', () => {
 
   it('does not fold a group that is not a valid composite', () => {
     const { db } = exportAndRead(
-      domain(
-        [model('a', [col('x'), col('y')]), model('b', [col('x'), col('y')]), model('c', [col('x')])],
+      subjectArea(
+        [tableDef('a', [col('x'), col('y')]), tableDef('b', [col('x'), col('y')]), tableDef('c', [col('x')])],
         [rel('a.x', 'b.x', 'many-to-one', { compositeKey: 'k' }), rel('a.y', 'c.x', 'many-to-one', { compositeKey: 'k' }), rel('a.y', 'b.y', 'many-to-one', { compositeKey: 'lone' })],
       ),
     );
@@ -344,19 +344,19 @@ describe('toDbml', () => {
   });
 
   it('writes a self-reference', () => {
-    const { db } = exportAndRead(domain([model('employee', [col('id'), col('manager_id')])], [rel('employee.manager_id', 'employee.id')]));
+    const { db } = exportAndRead(subjectArea([tableDef('employee', [col('id'), col('manager_id')])], [rel('employee.manager_id', 'employee.id')]));
     expect(db.refs[0].ends).toEqual([['public', 'employee', ['manager_id'], '*'], ['public', 'employee', ['id'], '1']]);
   });
 
   it("matches ends without case and writes the model's own spelling", () => {
-    const { text } = exportAndRead(domain([model('Orders', [col('Customer_Key')]), model('dim_customer', [col('customer_key')])], [rel('orders.customer_key', 'DIM_CUSTOMER.CUSTOMER_KEY')]));
+    const { text } = exportAndRead(subjectArea([tableDef('Orders', [col('Customer_Key')]), tableDef('dim_customer', [col('customer_key')])], [rel('orders.customer_key', 'DIM_CUSTOMER.CUSTOMER_KEY')]));
     expect(text).toContain('Ref: Orders.Customer_Key > dim_customer.customer_key');
   });
 
   it('leaves out, with a reason, links DBML would reject or that point outside the diagram', () => {
     const { text, db } = exportAndRead(
-      domain(
-        [model('a', [col('x'), col('y')]), model('b', [col('x')]), model('empty', [])],
+      subjectArea(
+        [tableDef('a', [col('x'), col('y')]), tableDef('b', [col('x')]), tableDef('empty', [])],
         [
           rel('a.x', 'gone.x'),
           rel('nowhere.x', 'a.x'),
@@ -383,7 +383,7 @@ describe('toDbml', () => {
 
   it('comments out a model with no columns or an unreadable file — DBML needs a column', () => {
     const { text, db } = exportAndRead(
-      domain([model('raw_refunds', []), model('broken', [], { loadError: { kind: 'yamlIndent', line: 5 } }), model('ok', [col('id')])]),
+      subjectArea([tableDef('raw_refunds', []), tableDef('broken', [], { loadError: { kind: 'yamlIndent', line: 5 } }), tableDef('ok', [col('id')])]),
     );
     expect(text).toContain('// Table raw_refunds is not exported: it has no columns, and a DBML table needs at least one.');
     expect(text).toContain('// Table broken is not exported: its table file could not be read (yamlIndent, line 5).');
@@ -392,7 +392,7 @@ describe('toDbml', () => {
 
   it('writes sticky notes as comments, text only — old parsers have no Note blocks', () => {
     const { text } = exportAndRead(
-      domain([model('a', [col('id')])], [], {
+      subjectArea([tableDef('a', [col('id')])], [], {
         viewConfig: {
           positions: { a: { x: 10, y: 20 } },
           annotations: [
@@ -409,7 +409,7 @@ describe('toDbml', () => {
     expect(text).not.toMatch(/\b(x|y|width): ?\d/);
   });
 
-  it('accepts a DisplayDomain from an older core: only required fields, odd values, duplicates', () => {
+  it('accepts a DisplaySubjectArea from an older core: only required fields, odd values, duplicates', () => {
     const old = {
       schemaVersion: 5,
       domain: 'old',
@@ -426,7 +426,7 @@ describe('toDbml', () => {
       viewConfig: { annotations: [null, { text: 5 }] },
       readOnly: false,
       positionDraggable: true,
-    } as unknown as DisplayDomain;
+    } as unknown as DisplaySubjectArea;
     const { text, db } = exportAndRead(old);
     expect(text).toContain('// Not exported: A is listed more than once; exported once.');
     expect(text).toContain('// Not exported: table 3 has no name.');
@@ -439,12 +439,12 @@ describe('toDbml', () => {
   });
 
   it('does not throw on a domain with no arrays at all', () => {
-    const text = toDbml({ domain: 'x' } as unknown as DisplayDomain);
+    const text = toDbml({ domain: 'x' } as unknown as DisplaySubjectArea);
     expect(readDbmlEverywhere(text).project).toEqual({ name: 'x', note: null });
   });
 
   it('is deterministic', () => {
-    const d = domain([model('a', [col('id')]), model('b', [col('a_id')])], [rel('b.a_id', 'a.id')]);
+    const d = subjectArea([tableDef('a', [col('id')]), tableDef('b', [col('a_id')])], [rel('b.a_id', 'a.id')]);
     expect(toDbml(d)).toBe(toDbml(JSON.parse(JSON.stringify(d))));
   });
 });

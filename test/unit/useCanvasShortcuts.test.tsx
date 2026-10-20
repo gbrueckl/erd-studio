@@ -35,12 +35,12 @@ vi.mock('@xyflow/react', () => ({
 
 import { useCanvasShortcuts } from '../../webview/hooks/useCanvasShortcuts';
 import { useEditorStore } from '../../webview/store/editorStore';
-import type { ModelFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
-import type { DisplayDomain } from '../../src/types/display';
+import type { TableFlowNode, AnnotationFlowNode } from '@erd-studio/renderer/editor';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 const initialStoreState = useEditorStore.getState();
 
-function modelNode(name: string, selected = false): ModelFlowNode {
+function tableNode(name: string, selected = false): TableFlowNode {
   return {
     id: name,
     type: 'model',
@@ -64,7 +64,7 @@ const REL_AB = { fromModel: 'a', fromColumn: 'b_id', toModel: 'b', toColumn: 'id
 const REL_BC = { fromModel: 'b', fromColumn: 'c_id', toModel: 'c', toColumn: 'id', cardinality: 'many-to-one' as const };
 const edgeId = (r: typeof REL_AB) => `fk-${r.fromModel}-${r.fromColumn}-${r.toModel}-${r.toColumn}`;
 
-const domain = {
+const subjectArea = {
   domain: 'test',
   layer: 'silver',
   stage: 'logical',
@@ -75,7 +75,7 @@ const domain = {
     annotations: [{ id: 'n1', text: 'one', x: 0, y: 0 }, { id: 'n2', text: 'two', x: 0, y: 0 }],
   },
   readOnly: false,
-} as unknown as DisplayDomain;
+} as unknown as DisplaySubjectArea;
 
 function press(key: string, init: KeyboardEventInit = {}) {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
@@ -90,7 +90,7 @@ const sent = () => mockVsCode.postMessage.mock.calls.map((c) => c[0]);
 beforeEach(() => {
   vi.clearAllMocks();
   useEditorStore.setState(initialStoreState, true);
-  useEditorStore.setState({ domain, nodes: [modelNode('a'), modelNode('b'), modelNode('c'), annotationNode('n1'), annotationNode('n2')] });
+  useEditorStore.setState({ domain: subjectArea, nodes: [tableNode('a'), tableNode('b'), tableNode('c'), annotationNode('n1'), annotationNode('n2')] });
   document.body.innerHTML = '';
 });
 
@@ -113,7 +113,7 @@ describe('useCanvasShortcuts', () => {
       useEditorStore.getState().setSelectedEdges([edgeId(REL_AB)]);
       useEditorStore.getState().setNewModelDialogOpen(true);
       useEditorStore.getState().setCanvasMode('select');
-      useEditorStore.getState().setDomain({ ...domain });
+      useEditorStore.getState().setDomain({ ...subjectArea });
     });
     rerender();
     expect(keydownAdds()).toBe(1);
@@ -127,7 +127,7 @@ describe('useCanvasShortcuts', () => {
     renderHook(() => useCanvasShortcuts());
     act(() => {
       useEditorStore.setState({
-        nodes: [modelNode('a', true), modelNode('b'), modelNode('c'), annotationNode('n1', true), annotationNode('n2', true)],
+        nodes: [tableNode('a', true), tableNode('b'), tableNode('c'), annotationNode('n1', true), annotationNode('n2', true)],
       });
       useEditorStore.getState().setSelectedEdges([edgeId(REL_AB), edgeId(REL_BC), 'fk-not-a-real-edge']);
     });
@@ -154,7 +154,7 @@ describe('useCanvasShortcuts', () => {
     renderHook(() => useCanvasShortcuts());
     act(() => {
       useEditorStore.setState({
-        nodes: [modelNode('a'), modelNode('b'), modelNode('c'), annotationNode('n1', true), annotationNode('n2', true)],
+        nodes: [tableNode('a'), tableNode('b'), tableNode('c'), annotationNode('n1', true), annotationNode('n2', true)],
       });
     });
     press('Backspace');
@@ -175,7 +175,7 @@ describe('useCanvasShortcuts', () => {
   it('deleting a composite foreign key\'s one edge sends its first pair (#133 L2)', () => {
     const member = (fromColumn: string, toColumn: string) =>
       ({ fromModel: 'b', fromColumn, toModel: 'c', toColumn, cardinality: 'many-to-one' as const, compositeKey: 'fk_c' });
-    useEditorStore.setState({ domain: { ...domain, relationships: [member('c_id', 'id'), member('c_date', 'valid_from')] } as unknown as DisplayDomain });
+    useEditorStore.setState({ domain: { ...subjectArea, relationships: [member('c_id', 'id'), member('c_date', 'valid_from')] } as unknown as DisplaySubjectArea });
     renderHook(() => useCanvasShortcuts());
     act(() => {
       useEditorStore.getState().setSelectedEdges(['fk-b-c_id+c_date-c-id+valid_from']);
@@ -211,7 +211,7 @@ describe('useCanvasShortcuts', () => {
   it('does nothing on Delete when the domain is read-only or the user is typing', () => {
     renderHook(() => useCanvasShortcuts());
     act(() => {
-      useEditorStore.setState({ nodes: [modelNode('a', true), annotationNode('n1', true)] });
+      useEditorStore.setState({ nodes: [tableNode('a', true), annotationNode('n1', true)] });
     });
 
     const input = document.createElement('input');
@@ -223,7 +223,7 @@ describe('useCanvasShortcuts', () => {
     document.body.removeChild(input);
 
     act(() => {
-      useEditorStore.getState().setDomain({ ...domain, readOnly: true });
+      useEditorStore.getState().setDomain({ ...subjectArea, readOnly: true });
     });
     press('Delete');
     expect(sent()).toEqual([]);

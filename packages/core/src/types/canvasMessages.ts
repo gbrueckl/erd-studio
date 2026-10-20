@@ -7,7 +7,7 @@
  * every one of them and re-exports them from there.
  */
 
-import type { AnnotationColor, Cardinality, ColumnDef, ModelRole, Rationale } from './semantic.js';
+import type { AnnotationColor, Cardinality, ColumnDef, TableRole, Rationale } from './semantic.js';
 
 /**
  * Request to add a column to an existing model.
@@ -205,7 +205,7 @@ export interface UpdateModelRoleMessage {
   type: 'updateModelRole';
   payload: {
     modelName: string;
-    modelRole: ModelRole | null;
+    modelRole: TableRole | null;
   };
 }
 

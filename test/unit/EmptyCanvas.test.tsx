@@ -11,7 +11,7 @@ import { cleanup, fireEvent, render } from '@testing-library/react';
 const send = vi.hoisted(() => vi.fn());
 vi.mock('../../webview/hooks/useMessageBus', () => ({ useSend: () => send }));
 
-const setNewModelDialogOpen = vi.hoisted(() => vi.fn());
+const setNewTableDialogOpen = vi.hoisted(() => vi.fn());
 const storeState = vi.hoisted(() => ({}) as Record<string, unknown>);
 vi.mock('../../webview/store/editorStore', () => ({
   useEditorStore: (selector: (s: Record<string, unknown>) => unknown) => selector(storeState),
@@ -19,19 +19,19 @@ vi.mock('../../webview/store/editorStore', () => ({
 
 import { EmptyCanvas } from '../../webview/components/EmptyCanvas/EmptyCanvas';
 
-function setDomain(overrides: Record<string, unknown> = {}) {
+function setSubjectArea(overrides: Record<string, unknown> = {}) {
   storeState.domain = { stage: 'logical', readOnly: false, models: [], relationships: [], ...overrides };
 }
 
 beforeEach(() => {
-  Object.assign(storeState, { newModelDialogOpen: false, setNewModelDialogOpen });
-  setDomain();
+  Object.assign(storeState, { newModelDialogOpen: false, setNewModelDialogOpen: setNewTableDialogOpen });
+  setSubjectArea();
 });
 
 afterEach(() => {
   cleanup();
   send.mockClear();
-  setNewModelDialogOpen.mockClear();
+  setNewTableDialogOpen.mockClear();
 });
 
 describe('EmptyCanvas', () => {
@@ -58,7 +58,7 @@ describe('EmptyCanvas', () => {
   it('"New table" opens the New Design Table dialog', () => {
     const { getByRole } = render(<EmptyCanvas />);
     fireEvent.click(getByRole('button', { name: 'New table' }));
-    expect(setNewModelDialogOpen).toHaveBeenCalledWith(true);
+    expect(setNewTableDialogOpen).toHaveBeenCalledWith(true);
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -74,7 +74,7 @@ describe('EmptyCanvas', () => {
     ['the physical stage', { stage: 'physical' }],
     ['a read-only domain', { readOnly: true }],
   ])('renders nothing for %s', (_label, overrides) => {
-    setDomain(overrides);
+    setSubjectArea(overrides);
     const { container } = render(<EmptyCanvas />);
     expect(container.innerHTML).toBe('');
   });

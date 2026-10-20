@@ -442,7 +442,7 @@ describe('doctor via main', () => {
   });
 
   /** A diagram whose positions git left conflicted, its first `<<<<<<<` on line 5. */
-  function writeConflictedDomain(root: string): void {
+  function writeConflictedSubjectArea(root: string): void {
     fs.rmSync(path.join(root, '.erd-studio'), { recursive: true, force: true });
     fs.mkdirSync(path.join(root, '.erd-studio', 'silver'), { recursive: true });
     fs.writeFileSync(path.join(root, '.erd-studio', 'silver', 'orders.json'), [
@@ -464,7 +464,7 @@ describe('doctor via main', () => {
     // No dbt on PATH, no manifest and no catalog: install-dbt, run-parse and
     // run-catalog are all due, and the conflict must come before each of them.
     const root = copyFixture('dbt-project-modern-tests');
-    writeConflictedDomain(root);
+    writeConflictedSubjectArea(root);
 
     const r = await runDoctor({ project: root, semanticDir: '.erd-studio', env: cleanEnv, homeDir: home });
     expect(r.erd.conflictedDomainFiles).toEqual([{ file: '.erd-studio/silver/orders.json', line: 5 }]);
@@ -497,7 +497,7 @@ describe('doctor via main', () => {
     const root = copyFixture('dbt-project-modern-tests');
     writeFakeDbt(path.join(root, '.venv', 'bin', 'dbt'), CORE_OUTPUT);
     fs.writeFileSync(path.join(root, '.venv', 'bin', 'activate'), '');
-    writeConflictedDomain(root);
+    writeConflictedSubjectArea(root);
     const r = await runDoctor({ project: root, semanticDir: '.erd-studio', env: cleanEnv, homeDir: home });
     const ids = r.nextSteps.map((s) => s.id);
     expect(ids.slice(0, 2)).toEqual(['confirm-venv', 'resolve-merge-conflicts']);
@@ -537,7 +537,7 @@ describe('doctor via main', () => {
     // No dbt on PATH, no manifest and no catalog: the model renders as empty
     // whatever dbt's state, so fixing it must not wait behind the dbt steps.
     const root = copyFixture('dbt-project-modern-tests');
-    writeConflictedDomain(root);
+    writeConflictedSubjectArea(root);
     fs.mkdirSync(path.join(root, '.erd-studio', 'logical-models'), { recursive: true });
     fs.writeFileSync(path.join(root, '.erd-studio', 'logical-models', 'orders.yml'), [
       'name: orders',

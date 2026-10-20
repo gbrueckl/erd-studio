@@ -15,8 +15,8 @@
 
 import { createContext, createElement, useContext, type ReactNode } from 'react';
 import { createStore, useStore, type StoreApi } from 'zustand';
-import type { DisplayDomain, ExistingModelPreview } from '@erd-studio/core';
-import type { ModelFlowNode, FkFlowEdge, FkEdgeData, AnnotationFlowNode, AnnotationFlowEdge } from '../types/graph';
+import type { DisplaySubjectArea, ExistingTablePreview } from '@erd-studio/core';
+import type { TableFlowNode, FkFlowEdge, FkEdgeData, AnnotationFlowNode, AnnotationFlowEdge } from '../types/graph';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,15 +82,15 @@ export interface CanvasState {
   /** Whether a delete confirmation is pending (triggered by Delete key). */
   pendingDeleteConfirmation: boolean;
   /** The loaded domain data from the extension host (already reconciled with manifest). */
-  domain: DisplayDomain | null;
+  domain: DisplaySubjectArea | null;
   /** React Flow nodes (local state for selection/drag). */
-  nodes: (ModelFlowNode | AnnotationFlowNode)[];
+  nodes: (TableFlowNode | AnnotationFlowNode)[];
   /** React Flow edges. */
   edges: (FkFlowEdge | AnnotationFlowEdge)[];
   /** Annotation currently being edited (auto-focus textarea), or null. */
   editingAnnotationId: string | null;
   /** Models available to add from logical-models/ and manifest. */
-  existingModels: ExistingModelPreview[];
+  existingModels: ExistingTablePreview[];
   /** Context menu state (position and target), or null if closed. */
   contextMenu: ContextMenuState;
   /** Whether the legend panel is visible. */
@@ -123,12 +123,12 @@ export interface CanvasActions {
   setDetailPanelOpen: (open: boolean) => void;
   /** Set pending delete confirmation state (triggered by Delete key). */
   setPendingDeleteConfirmation: (pending: boolean) => void;
-  setDomain: (domain: DisplayDomain) => void;
-  setNodes: (nodes: (ModelFlowNode | AnnotationFlowNode)[]) => void;
+  setDomain: (domain: DisplaySubjectArea) => void;
+  setNodes: (nodes: (TableFlowNode | AnnotationFlowNode)[]) => void;
   setEdges: (edges: (FkFlowEdge | AnnotationFlowEdge)[]) => void;
   /** Set the annotation currently being edited (auto-focus). */
   setEditingAnnotationId: (id: string | null) => void;
-  setExistingModels: (models: ExistingModelPreview[]) => void;
+  setExistingModels: (models: ExistingTablePreview[]) => void;
   /** Open context menu for an edge at the given position. */
   openEdgeContextMenu: (x: number, y: number, data: FkEdgeData) => void;
   /** Open context menu for a node at the given position. */

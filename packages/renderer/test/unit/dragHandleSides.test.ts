@@ -1,16 +1,16 @@
 /**
- * Edge sides re-picked for moved nodes: the same choice transformDomain makes
+ * Edge sides re-picked for moved nodes: the same choice transformSubjectArea makes
  * when the moved positions come back in the domain.
  */
 import { describe, it, expect } from 'vitest';
-import type { DisplayDomain, DisplayModel } from '@erd-studio/core';
+import type { DisplaySubjectArea, DisplayTable } from '@erd-studio/core';
 import { nodeRect, repickHandleSides } from '../../src/lib/dragHandleSides';
-import { transformDomain } from '../../src/lib/graphTransformer';
+import { transformSubjectArea } from '../../src/lib/graphTransformer';
 import { resolveNodeDimensions } from '../../src/lib/nodeSizing';
 import type { GraphEdge, GraphNode } from '../../src/lib/nodeOverlays';
-import type { AnnotationFlowNode, ModelFlowNode } from '../../src/types/graph';
+import type { AnnotationFlowNode, TableFlowNode } from '../../src/types/graph';
 
-function model(name: string, columnCount = 3): DisplayModel {
+function table(name: string, columnCount = 3): DisplayTable {
   return {
     name,
     schema: 'sales',
@@ -26,14 +26,14 @@ function model(name: string, columnCount = 3): DisplayModel {
   };
 }
 
-function domainWith(positions: Record<string, { x: number; y: number }>): DisplayDomain {
+function subjectAreaWith(positions: Record<string, { x: number; y: number }>): DisplaySubjectArea {
   return {
     schemaVersion: 5,
     domain: 'sales',
     layer: 'silver',
     stage: 'logical',
     description: '',
-    models: [model('orders', 8), model('customers', 2), model('products', 4)],
+    models: [table('orders', 8), table('customers', 2), table('products', 4)],
     relationships: [
       { fromModel: 'orders', fromColumn: 'orders_c1', toModel: 'customers', toColumn: 'customers_c0', cardinality: 'many-to-one' },
       { fromModel: 'orders', fromColumn: 'orders_c2', toModel: 'products', toColumn: 'products_c0', cardinality: 'many-to-one' },
@@ -68,14 +68,14 @@ function handles(edges: GraphEdge[]) {
 
 describe('nodeRect', () => {
   it('uses the measured size when React Flow has measured the node', () => {
-    const { nodes } = transformDomain(domainWith(START));
+    const { nodes } = transformSubjectArea(subjectAreaWith(START));
     const orders = { ...nodes[0], measured: { width: 311, height: 222 } } as GraphNode;
     expect(nodeRect(orders)).toEqual({ x: 0, y: 0, width: 311, height: 222 });
   });
 
   it('falls back to the model-node size estimate', () => {
-    const { nodes } = transformDomain(domainWith(START));
-    const customers = nodes.find((n) => n.id === 'customers') as ModelFlowNode;
+    const { nodes } = transformSubjectArea(subjectAreaWith(START));
+    const customers = nodes.find((n) => n.id === 'customers') as TableFlowNode;
     expect(nodeRect(customers)).toEqual({
       x: 600,
       y: 0,
@@ -84,13 +84,13 @@ describe('nodeRect', () => {
   });
 
   it('ignores a half-measured node', () => {
-    const { nodes } = transformDomain(domainWith(START));
+    const { nodes } = transformSubjectArea(subjectAreaWith(START));
     const customers = { ...nodes[1], measured: { width: 999 } } as GraphNode;
     expect(nodeRect(customers).width).not.toBe(999);
   });
 
   it('uses an annotation’s own size, else its default size', () => {
-    const { nodes } = transformDomain(domainWith(START));
+    const { nodes } = transformSubjectArea(subjectAreaWith(START));
     const plain = nodes.find((n) => n.id === 'annotation-n1') as AnnotationFlowNode;
     const sized = nodes.find((n) => n.id === 'annotation-n2') as AnnotationFlowNode;
     expect(nodeRect(plain)).toEqual({ x: -400, y: 0, width: 160, height: 80 });
@@ -100,18 +100,18 @@ describe('nodeRect', () => {
 
 describe('repickHandleSides', () => {
   it('returns the same array when nothing moved', () => {
-    const { nodes, edges } = transformDomain(domainWith(START));
+    const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));
     expect(repickHandleSides(nodes, edges, new Set())).toBe(edges);
   });
 
   it('returns the same array when a move changes no side', () => {
-    const { nodes, edges } = transformDomain(domainWith(START));
+    const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));
     const moved = moveNodes(nodes, { customers: { x: 650, y: 10 } });
     expect(repickHandleSides(moved, edges, new Set(['customers']))).toBe(edges);
   });
 
   it('flips the sides of the edges on a node moved to the other side', () => {
-    const { nodes, edges } = transformDomain(domainWith(START));
+    const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));
     expect(handles(edges)['fk-orders-orders_c1-customers-customers_c0']).toEqual(['node-right-src', 'node-left-tgt']);
 
     const moved = moveNodes(nodes, { customers: { x: -900, y: 0 } });
@@ -125,7 +125,7 @@ describe('repickHandleSides', () => {
   });
 
   it('keeps a self-referencing edge on its fixed top/right handles', () => {
-    const { nodes, edges } = transformDomain(domainWith(START));
+    const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));
     const moved = moveNodes(nodes, { customers: { x: -900, y: 3000 } });
     const next = repickHandleSides(moved, edges, new Set(['customers']));
     const selfLoop = next.find((e) => e.id === 'fk-customers-customers_c1-customers-customers_c0')!;
@@ -133,7 +133,7 @@ describe('repickHandleSides', () => {
   });
 
   it('re-picks annotation link edges when the note moves', () => {
-    const { nodes, edges } = transformDomain(domainWith(START));
+    const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));
     expect(handles(edges)['ann-link-n1']).toEqual(['node-right-src', 'node-left-tgt']);
     const moved = moveNodes(nodes, { 'annotation-n1': { x: 0, y: -900 } });
     const next = repickHandleSides(moved, edges, new Set(['annotation-n1']));
@@ -141,38 +141,38 @@ describe('repickHandleSides', () => {
   });
 
   it('leaves an edge alone when one of its nodes is missing', () => {
-    const { nodes, edges } = transformDomain(domainWith(START));
+    const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));
     const withoutCustomers = moveNodes(nodes, { orders: { x: 2000, y: 0 } }).filter((n) => n.id !== 'customers');
     const next = repickHandleSides(withoutCustomers, edges, new Set(['orders']));
     const edge = next.find((e) => e.id === 'fk-orders-orders_c1-customers-customers_c0')!;
     expect([edge.sourceHandle, edge.targetHandle]).toEqual(['node-right-src', 'node-left-tgt']);
   });
 
-  it('gives the sides transformDomain gives once the moves are saved in the domain', () => {
+  it('gives the sides transformSubjectArea gives once the moves are saved in the domain', () => {
     const moves = {
       orders: { x: 900, y: 700 },
       products: { x: -500, y: -300 },
       'annotation-n2': { x: 1500, y: -200 },
     };
-    const { nodes, edges } = transformDomain(domainWith(START));
+    const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));
     const live = repickHandleSides(moveNodes(nodes, moves), edges, new Set(Object.keys(moves)));
 
-    const saved = domainWith({ ...START, orders: moves.orders, products: moves.products });
+    const saved = subjectAreaWith({ ...START, orders: moves.orders, products: moves.products });
     saved.viewConfig.annotations = saved.viewConfig.annotations!.map((a) =>
       a.id === 'n2' ? { ...a, ...moves['annotation-n2'] } : a,
     );
-    expect(handles(live)).toEqual(handles(transformDomain(saved).edges));
+    expect(handles(live)).toEqual(handles(transformSubjectArea(saved).edges));
   });
 
-  it('matches transformDomain with measured sizes too', () => {
+  it('matches transformSubjectArea with measured sizes too', () => {
     const measured = { width: 280, height: 400 };
     const moves = { customers: { x: 100, y: 600 } };
-    const { nodes, edges } = transformDomain(domainWith(START));
+    const { nodes, edges } = transformSubjectArea(subjectAreaWith(START));
     const measuredNodes = nodes.map((n) => ({ ...n, measured }) as GraphNode);
     const live = repickHandleSides(moveNodes(measuredNodes, moves), edges, new Set(['customers']));
 
     const nodeDimensions = new Map(nodes.map((n) => [n.id, measured]));
-    const expected = transformDomain(domainWith({ ...START, ...moves }), { nodeDimensions }).edges;
+    const expected = transformSubjectArea(subjectAreaWith({ ...START, ...moves }), { nodeDimensions }).edges;
     expect(handles(live)).toEqual(handles(expected));
   });
 });

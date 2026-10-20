@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { relationshipKey } from '../../src/domain';
-import { parseLogicalModelText } from '../../src/logicalModel';
+import { parseTableText } from '../../src/logicalModel';
 import {
   canonicalRelationship, linkKey, normaliseRelationshipRole, RELATIONSHIP_ROLE_MAX_LENGTH, respellRelationship, reverseRelationship,
   sameLink,
@@ -73,7 +73,7 @@ describe('normaliseRelationshipRole', () => {
   });
 
   it('is read from a model file, and an invalid one is dropped', () => {
-    const model = parseLogicalModelText([
+    const model = parseTableText([
       'name: fct_order',
       'relationships:',
       '  - { fromColumn: order_date_key, toModel: dim_date, toColumn: date_key, cardinality: many-to-one, role: order date }',

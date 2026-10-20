@@ -22,7 +22,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { useEditorStore } from '../store/editorStore';
-import type { DisplayDomain } from '../../src/types/display';
+import type { DisplaySubjectArea } from '../../src/types/display';
 
 interface NodeLike {
   id: string;
@@ -31,7 +31,7 @@ interface NodeLike {
 
 export function useFirstOpenAutoLayout(
   runLayout: (firstOpen: boolean) => Promise<void> | void,
-  domain: DisplayDomain | null,
+  domain: DisplaySubjectArea | null,
   nodes: readonly NodeLike[],
   isLayouting: boolean,
 ): void {
@@ -43,7 +43,7 @@ export function useFirstOpenAutoLayout(
     !!domain &&
     domain.stage === 'logical' &&
     domain.models.length > 0 &&
-    hasNodeForEveryModel(domain, nodes);
+    hasNodeForEveryTable(domain, nodes);
 
   useEffect(() => {
     if (!pending || !graphReady || isLayouting || inFlight.current) {
@@ -59,7 +59,7 @@ export function useFirstOpenAutoLayout(
   }, [pending, graphReady, isLayouting, runLayout, setPendingAutoLayout]);
 }
 
-function hasNodeForEveryModel(domain: DisplayDomain, nodes: readonly NodeLike[]): boolean {
+function hasNodeForEveryTable(domain: DisplaySubjectArea, nodes: readonly NodeLike[]): boolean {
   const modelNodeIds = new Set(nodes.filter((n) => n.type === 'model').map((n) => n.id));
   return domain.models.every((m) => modelNodeIds.has(m.name));
 }

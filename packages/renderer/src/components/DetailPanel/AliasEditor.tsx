@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MODEL_ALIAS_MAX_LENGTH, MODEL_ALIAS_RULE, isValidModelAlias } from '@erd-studio/core';
+import { TABLE_ALIAS_MAX_LENGTH, TABLE_ALIAS_RULE, isValidTableAlias } from '@erd-studio/core';
 import { useCanvasHost } from '../../host/canvasEnvironment';
 
 interface AliasEditorProps {
@@ -37,7 +37,7 @@ export function AliasEditor({ modelName, alias, readOnly }: AliasEditorProps) {
   }, [alias, editing]);
 
   const trimmed = value.trim();
-  const error = trimmed && !isValidModelAlias(trimmed) ? MODEL_ALIAS_RULE : null;
+  const error = trimmed && !isValidTableAlias(trimmed) ? TABLE_ALIAS_RULE : null;
 
   const handleSave = useCallback(() => {
     if (error || settled.current) return;
@@ -83,7 +83,7 @@ export function AliasEditor({ modelName, alias, readOnly }: AliasEditorProps) {
             className={`detail-panel__alias-input${error ? ' detail-panel__alias-input--error' : ''}`}
             value={value}
             placeholder={modelName}
-            maxLength={MODEL_ALIAS_MAX_LENGTH}
+            maxLength={TABLE_ALIAS_MAX_LENGTH}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={() => (error ? handleCancel() : handleSave())}

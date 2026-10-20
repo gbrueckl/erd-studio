@@ -2,7 +2,7 @@
  * @erd-studio/core — the ERD Studio domain model.
  *
  * Types, plus the pure pipeline from raw domain files (domain JSON,
- * `layers.json`, `logical-models/*.yml`) to the DisplayDomain the canvas
+ * `layers.json`, `logical-models/*.yml`) to the DisplaySubjectArea the canvas
  * renders. Shared by the VS Code extension host, its webview and
  * `@erd-studio/renderer`. Nothing here may import Node built-ins, `vscode`,
  * React or React Flow.
@@ -24,12 +24,12 @@ export {
   RATIONALE_KEYS,
   YamlNodeLimitError,
   YamlCharLimitError,
-  parseLogicalModelText,
-  isSafeModelName,
-  isValidModelAlias,
-  MODEL_ALIAS_MAX_LENGTH,
-  MODEL_ALIAS_RULE,
-  type ParseLogicalModelOptions,
+  parseTableText,
+  isSafeTableName,
+  isValidTableAlias,
+  TABLE_ALIAS_MAX_LENGTH,
+  TABLE_ALIAS_RULE,
+  type ParseTableOptions,
 } from './logicalModel.js';
 export * from './layers.js';
 export * from './meta.js';

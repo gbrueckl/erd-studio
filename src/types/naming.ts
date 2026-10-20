@@ -7,7 +7,7 @@
  *
  * It is deliberately NOT applied to names discovered in the user's dbt project
  * ("Add Existing Model"), where dbt permits uppercase and digit-leading names.
- * Those go through `validateModelNameSafety`, which only rules out anything
+ * Those go through `validateTableNameSafety`, which only rules out anything
  * unsafe as a file name under `.erd-studio/logical-models/`.
  */
 
@@ -15,10 +15,10 @@
  * A model name: starts with a letter, then letters/digits/underscores. Either
  * case is allowed (`dim_date`, `DimDate`, `D_Date`) — issue #93.
  */
-export const MODEL_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
+export const TABLE_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 /** Human-readable statement of the model-name rule (used in error messages). */
-export const MODEL_NAME_RULE =
+export const TABLE_NAME_RULE =
   'Table name must start with a letter and use only letters, numbers, and underscores.';
 
 /** A column name: letters (either case), digits, and underscores. */
