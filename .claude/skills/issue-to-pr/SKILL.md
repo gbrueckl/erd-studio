@@ -38,6 +38,9 @@ as the video renders and passes your own check.
 - **Pi mode**: the prompt says so. It was started on Liam's Raspberry Pi by the
   `issue-to-pr` label. **Read `references/pi.md` first.** Nobody is watching, but `gh`, push
   and a logged-in browser all work.
+- **Pi review mode**: the prompt says so. The Pi runner starts it after a Pi-mode run opens a
+  PR. **Read `references/pi-review.md` and follow only that**: review the PR with
+  `/code-review`, fix, push, and re-record the video if it's now wrong.
 - **`--video <n>`**: an open PR for #n already exists (usually from a routine) and lacks
   its video. Check out its branch, then do steps 0, 6 and 7.2–7.3 only. Swap the video
   into the PR body and post the issue comment, or edit the existing one with `gh api -X
@@ -267,3 +270,5 @@ if what they'd see has changed, and reply with the new video.
   routine mode.**
 - `references/pi.md`: unattended mode on the Raspberry Pi, including the Xvfb recording
   setup and `scripts/gh_upload.mjs`. **Read first in Pi mode.**
+- `references/pi-review.md`: the Pi's follow-up session, which reviews the PR it opened with
+  `/code-review`, pushes fixes and updates the video. **Read first in Pi review mode.**

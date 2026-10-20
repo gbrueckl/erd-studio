@@ -89,6 +89,20 @@ posting.md says.
 
 ## Finishing
 
+When the run opens a PR, the runner starts a second, fresh session on it: **Pi review mode**
+(`references/pi-review.md`). That session runs `/code-review`, fixes what's real, pushes to
+your branch, and re-records the AFTER clip if a fix changed what it shows. Leave it what it
+needs:
+- Keep the fix worktree and everything in `$SCRATCH`. Don't remove them.
+- Write `$SCRATCH/HANDOFF.md` before the RESULT line, with absolute paths:
+  - the fix worktree and its branch;
+  - the BEFORE and AFTER recording driver scripts, and the exact commands that ran them;
+  - `storyboard.json`, the rendered MP4 and its contact sheet;
+  - the video's `user-attachments` URL;
+  - the issue comment's id: the number after `#issuecomment-` in the URL that `gh issue
+    comment` prints. Don't take the latest comment instead, because someone else may have
+    posted since.
+
 End the run with one line the runner can grep, on its own as the last line of the final
 message:
 
