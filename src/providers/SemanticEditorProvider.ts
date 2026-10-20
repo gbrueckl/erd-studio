@@ -73,6 +73,7 @@ import { findVenvActivate } from '../services/dbtEnv';
 import { runDbtParse } from '../commands/runDbtParse';
 import { NO_DBT_MODELS_MESSAGE } from '../commands/drawFromDbt';
 import { EXPORT_DIAGRAM_COMMAND } from '../commands/exportDiagram';
+import { describeJsonMistake, projectRelative } from '../services/commandErrors';
 import { ManifestService } from '../services/manifestService';
 import { YmlParserService } from '../services/ymlParserService';
 import { TemplateService } from '../services/templateService';
@@ -92,7 +93,7 @@ import {
   setMetaEntry,
   toDisplaySubjectArea,
 } from '@erd-studio/core';
-import type { DbtKeyIndex, JsonSyntaxProblem } from '@erd-studio/core';
+import type { DbtKeyIndex } from '@erd-studio/core';
 import { dbtKeyIndexOf, withDbtKeyHints } from '../services/stageDisplay';
 import { keepLineEndings } from '../services/lineEndings';
 import { rewriteJsonScalars } from '../services/minimalEdits';
@@ -206,26 +207,6 @@ const SUBJECT_AREA_READ_RETRY_DELAYS_MS = [150, 350, 700];
  */
 function isRetryableSubjectAreaRead(err: unknown): err is SubjectAreaFileError {
   return err instanceof SubjectAreaFileError && (err.transient || err.reason === 'unreadable');
-}
-
-/** What a located JSON mistake looks like, in words (#186). */
-const JSON_MISTAKE_HINTS: Record<JsonSyntaxProblem, string> = {
-  'trailing-comma': 'there is a comma after the last item, before a closing } or ]',
-  'missing-comma': 'a comma is missing after this value',
-  truncated: 'the file stops before the JSON is complete, so a closing } or ] may be missing',
-  unexpected: 'the text there is not valid JSON',
-};
-
-/**
- * The plain sentence for a domain file that is not valid JSON (#186): where
- * the mistake is, by line and column, rather than the parser's wording and
- * character offset. `shown` is the project-relative path.
- */
-export function describeJsonMistake(shown: string, err: Pick<SubjectAreaFileError, 'line' | 'column' | 'syntaxProblem'>): string {
-  if (err.line === undefined || err.column === undefined || err.syntaxProblem === undefined) {
-    return `${shown} is not valid JSON.`;
-  }
-  return `${shown} has a mistake at line ${err.line}, column ${err.column}: ${JSON_MISTAKE_HINTS[err.syntaxProblem]}.`;
 }
 
 /** The fixed telemetry reason for a canvas load failure — never its message. */
@@ -2679,11 +2660,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
    * drive on Windows), so no screen or toast shows an absolute path.
    */
   private shownSubjectAreaPath(fsPath: string): string {
-    const relative = path.relative(this.workspaceRoot, fsPath);
-    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-      return path.basename(fsPath);
-    }
-    return relative.split(path.sep).join('/');
+    return projectRelative(this.workspaceRoot, fsPath);
   }
 
   /**

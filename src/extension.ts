@@ -1697,6 +1697,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         hasDiagrams: () => subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir).length > 0,
         pickDomain: async () => pickDomainFile(subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir), 'Export which diagram?'),
         defaultSaveFolder: workspaceRoot,
+        projectRoot: workspaceRoot,
       }, arg)),
     vscode.commands.registerCommand(DRAW_FROM_DBT_COMMAND, async () => {
       const existingDomains = () => subjectAreaService.listSubjectAreas(workspaceRoot, semanticDir);
