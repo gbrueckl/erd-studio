@@ -206,6 +206,8 @@ describe('a project in the v6 naming on the canvas', () => {
     expect(info.mock.calls.some(([m]) => /silver\/showcase\.json uses the new file naming .* shown read-only/.test(m as string))).toBe(true);
     expect(snapshot()).toEqual(before);
     expect(vscode.workspace.applyEdit).not.toHaveBeenCalled();
+    // The first-load usage survey reads it as v5 does, without an error.
+    expect(vi.mocked(console.error).mock.calls.map(([m]) => String(m))).not.toContain('[SemanticEditorProvider] relationship survey failed:');
   });
 
   it.each(EDITS)('%s is refused by name and writes nothing', async (_name, message) => {
@@ -327,6 +329,50 @@ describe('TableLibraryService with tables/', () => {
       ignored: path.join(erd, 'tables', 'gold', 'Dim_Task.yml'),
     }]);
     expect(lib.listTableNames().filter((n) => n.toLowerCase() === 'dim_task')).toEqual(['dim_task']);
+  });
+});
+
+describe('the Breaker\'s cases (#181)', () => {
+  it('refuses a canvas write to a logical-models/ file that uses a v6 key, rather than lose the edit on the next read', () => {
+    const file = path.join(erd, 'logical-models', 'dim_task.yml');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf-8').replace(/^modelRole:/m, 'tableRole:'));
+    const lib = new TableLibraryService(root, '.erd-studio');
+    const model = lib.getTable('dim_task')!;
+    expect(model.modelRole).toBe('domain-dim');
+    expect(() => lib.serializeTable({ ...model, modelRole: 'reference' })).toThrow(/uses the new file naming \("tableRole"\)/);
+    expect(() => lib.serializeTable({ ...model, modelRole: 'reference' })).toThrow(TableNamingWriteRefused);
+  });
+
+  it('an empty tables/ folder is not a library: the project stays v5', async () => {
+    fs.mkdirSync(path.join(erd, 'tables'));
+    expect(new TableLibraryService(root, '.erd-studio').hasTablesLibrary()).toBe(false);
+    const r = await runDoctor({ project: root, semanticDir: '.erd-studio', noDbt: true, env: { PATH: '' }, homeDir: path.join(root, 'home') });
+    expect(r.erd.naming).toBe('v5');
+  });
+
+  it('reads the logical-models/ copy of a name that differs only in case, as doctor reports, on every file system', () => {
+    fs.mkdirSync(path.join(erd, 'tables'));
+    fs.writeFileSync(path.join(erd, 'tables', 'DIM_TASK.yml'), 'name: DIM_TASK\n');
+    const lib = new TableLibraryService(root, '.erd-studio');
+    // The same file whatever the case of its spelling (macOS hands back the name as asked).
+    const found = lib.findTableFile('DIM_TASK')!;
+    expect(path.dirname(found)).toBe(path.join(erd, 'logical-models'));
+    expect(path.basename(found).toLowerCase()).toBe('dim_task.yml');
+    expect(lib.tableNamingConflicts()[0].kept.toLowerCase()).toBe(found.toLowerCase());
+  });
+
+  it('the physical stage of a v6 diagram cannot drag tables (positions would write the v6 file)', async () => {
+    toTableNaming();
+    const { panel } = await open('silver/showcase.json');
+    panel._postedMessages.length = 0;
+    await panel._simulateMessage({ type: 'switchStage', payload: { stage: 'physical', requestId: 1 } });
+    await vi.waitFor(() => expect(posted(panel).some((m) => m.type === 'stageData')).toBe(true), { timeout: 4000, interval: 20 });
+    expect(posted(panel).find((m) => m.type === 'stageData')!.payload.positionDraggable).toBe(false);
+    panel._postedMessages.length = 0;
+    await panel._simulateMessage({ type: 'switchStage', payload: { stage: 'logical', requestId: 2 } });
+    await vi.waitFor(() => expect(posted(panel).some((m) => m.type === 'stageData')).toBe(true), { timeout: 4000, interval: 20 });
+    // And back on the logical stage it is still read-only.
+    expect(posted(panel).find((m) => m.type === 'stageData')!.payload.readOnly).toBe(true);
   });
 });
 

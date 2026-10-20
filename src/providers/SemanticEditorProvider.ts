@@ -1799,7 +1799,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   private async handleOpenModelFile(modelName: string, webview: vscode.Webview): Promise<void> {
     const filePath = this.tableLibraryService.findTableFile(modelName.trim());
     if (!filePath) {
-      this.post(webview, { type: 'error', payload: { message: `Table "${modelName}" not found in logical-models/.` } });
+      this.post(webview, { type: 'error', payload: { message: `Table "${modelName}" not found in the Table Library.` } });
       return;
     }
     const error = this.tableLibraryService.getTableFileError(modelName.trim());
@@ -1819,7 +1819,7 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         ? `Can't edit "${modelName}": its file has an unresolved git merge conflict${where}.`
         : `Can't edit "${modelName}": its file has a YAML error${where}.`;
     }
-    return `Table "${modelName}" not found in logical-models/.`;
+    return `Table "${modelName}" not found in the Table Library.`;
   }
 
   /**
@@ -2671,6 +2671,8 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         const physicalDomain = this.subjectAreaService.buildPhysicalSubjectArea(unifiedDomain, ymlData, manifest, catalog);
         const layerConfig = this.layerService.getLayer(unifiedDomain.layer);
         if (layerConfig) { physicalDomain.layerConfig = layerConfig; }
+        // Positions are written to the v6 file (#162), which is not written yet.
+        if (tableNaming) physicalDomain.positionDraggable = false;
         this.post(webview, { type: 'domainLoaded', payload: physicalDomain, welcomeDismissed });
         if (options.persistPositions) this.recordCanvasOpen(document, 'physical', physicalDomain.models.length, catalog !== undefined);
       } else {
@@ -2748,8 +2750,10 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
   private recordRelationshipState(document: vscode.TextDocument): void {
     try {
       const parsed = JSON.parse(document.getText()) as Record<string, unknown>;
-      const section = this.getStageSection(parsed, 'logical');
-      const v5 = this.isSubjectAreaV5(parsed);
+      // Read only: a v6 file (#162) is surveyed like v5, through its v5 keys.
+      const format = detectSubjectAreaFormat(parsed);
+      const section = this.getStageSection(format === 'v6' ? normaliseSubjectAreaDocument(parsed) : parsed, 'logical');
+      const v5 = format === 'v6' || this.isSubjectAreaV5(parsed);
       const models = v5 ? this.tableLibraryService.listTables() : ((section.models ?? []) as SemanticTable[]).filter((m) => !!m && typeof m === 'object');
       const unreadableEntries = v5 && this.tableLibraryService.hasUnreadableRelationships() ? 1 : 0;
       telemetry.relationshipState(surveyLibrary(models, (section.relationships ?? []) as Relationship[], { unreadableEntries }));
@@ -4917,13 +4921,17 @@ export class SemanticEditorProvider implements vscode.CustomTextEditorProvider {
         if (layerConfig) {
           physicalDomain.layerConfig = layerConfig;
         }
+        // Positions are written to the v6 file (#162), which is not written yet.
+        if (this.usesTableNaming(document)) physicalDomain.positionDraggable = false;
         this.post(webview, { type: 'stageData', payload: physicalDomain, ...reply });
         // #113: where a missing manifest is met (once per day).
         if (this.manifestService.isMissing) telemetry.featureOnce('manifestMissingPhysical');
       } else {
         // Logical — extract from unified file
         const domain = this.subjectAreaService.getSubjectAreaStage(document.uri.fsPath, { dbtKeyIndex });
-        const displayDomain = this.buildDisplaySubjectArea(domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns);
+        const displayDomain = this.buildDisplaySubjectArea(
+          domain, manifest, ymlData, unifiedDomain.viewConfig, unifiedDomain.stubColumns, this.usesTableNaming(document),
+        );
         this.post(webview, { type: 'stageData', payload: displayDomain, ...reply, ...this.manifestHintFlag() });
       }
     } catch (err) {

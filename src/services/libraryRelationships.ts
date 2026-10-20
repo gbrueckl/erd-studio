@@ -407,7 +407,7 @@ export function planRelationshipWrite(op: RelationshipWriteOp, input: Relationsh
   // "Mark … as primary key" (#133 L1): the key flags travel in the same edit.
   if (input.models.length === 0) return { ...plan, inlineMarkKey: op.markKey };
   const target = input.models.find((m) => same(m.name, op.markKey!.model));
-  if (!target) return refuse(`Table "${op.markKey.model}" not found in logical-models/.`, op.markKey.model);
+  if (!target) return refuse(`Table "${op.markKey.model}" not found in the Table Library.`, op.markKey.model);
   const marked = markPrimaryKey(plan.changed.find((m) => same(m.name, target.name)) ?? copyTable(target), op.markKey.columns);
   if (typeof marked === 'string') return refuse(marked.replace('{was}', op.kind === 'add' ? 'added' : 'changed'));
   return { ...plan, changed: [...plan.changed.filter((m) => !same(m.name, target.name)), marked] };
@@ -582,7 +582,7 @@ function planLinkWrite(op: RelationshipWriteOp, input: RelationshipWriteInput): 
   const replaceKeys = new Set([...oldKeys, ...members.map(linkKey)]);
   const next = members.map((m) => ({ ...(home === 'library' ? canonicalRelationship(m) : m), ...(role ? { role } : {}) }) as Relationship);
   const target = home === 'library' ? modelOf(next[0].fromModel) : undefined;
-  if (home === 'library' && !target) return refuse(`Table "${next[0].fromModel}" not found in logical-models/.`, next[0].fromModel);
+  if (home === 'library' && !target) return refuse(`Table "${next[0].fromModel}" not found in the Table Library.`, next[0].fromModel);
   if (composite) {
     // The group keeps its name unless its destination already uses it for other entries.
     const remaining = home === 'library'

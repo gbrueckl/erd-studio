@@ -16,7 +16,7 @@ import { FileWatcherService } from './watchers/FileWatcherService';
 import { HarnessService, HARNESS_TARGETS, HARNESS_VERSION, extractHarnessVersion, type HarnessInstallResult, type HarnessTarget } from './services/harnessService';
 import { SelectorsService } from './services/selectorsService';
 import { LegacyTagCleanupService } from './services/legacyTagCleanupService';
-import { TableLibraryService } from './services/logicalModelService';
+import { TABLES_DIR, TableLibraryService } from './services/logicalModelService';
 import { ownWrites } from './services/ownWriteTracker';
 import { MigrationService, migrateLegacySemanticDir } from './services/migrationService';
 import { hasErdStudioData, resolveDbtProject, samePath, type DbtProjectResolution } from './services/projectDiscovery';
@@ -2109,6 +2109,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             if (!value || !value.trim()) { return 'Layer name is required'; }
             if (!/^[a-z][a-z0-9_-]*$/.test(value.trim())) { return 'Must start with lowercase letter, contain only lowercase letters, numbers, hyphens, underscores'; }
             if (layerService.hasLayer(value.trim())) { return `Layer "${value.trim()}" already exists`; }
+            // Reserved for the table library's new folder (#162); a project that already has the layer keeps it.
+            if (value.trim() === TABLES_DIR) { return `"${TABLES_DIR}" is reserved for the Table Library's folder; pick another name`; }
             return undefined;
           },
         });

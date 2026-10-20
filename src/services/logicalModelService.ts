@@ -54,11 +54,21 @@ export function tablesDirIsLayer(semanticRoot: string): boolean {
 }
 
 /**
- * Whether `{semanticRoot}/tables/` exists and is the v6 table library (not a
- * layer folder; see {@link tablesDirIsLayer}).
+ * Whether `{semanticRoot}/tables/` is the v6 table library: it holds a table
+ * file (top level or one folder down) and is not a layer folder (see
+ * {@link tablesDirIsLayer}).
  */
 export function hasTablesLibrary(semanticRoot: string): boolean {
-  return fs.existsSync(path.join(semanticRoot, TABLES_DIR)) && !tablesDirIsLayer(semanticRoot);
+  const dir = path.join(semanticRoot, TABLES_DIR);
+  if (!fs.existsSync(dir) || tablesDirIsLayer(semanticRoot)) return false;
+  // A folder made by hand (or by an assistant) is not a library until it holds a table file.
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true }).some((d) =>
+      (d.isFile() && d.name.endsWith('.yml')) ||
+      (d.isDirectory() && !d.name.startsWith('.') && fs.readdirSync(path.join(dir, d.name)).some((f) => f.endsWith('.yml'))));
+  } catch {
+    return false;
+  }
 }
 
 /** Parsed model cached against the file's mtime + size. */
@@ -279,6 +289,21 @@ export class TableNamingWriteRefused extends Error {
     super(message);
     this.name = 'TableNamingWriteRefused';
   }
+}
+
+/** The first v6 key (#162) a table file's root map uses — `tableRole`, or a relationship's `toTable` / `fromTable` — or null. */
+function tableNamingKeyIn(root: YAMLMap): string | null {
+  if (root.items.some((pair) => keyIs(pair, 'tableRole'))) return 'tableRole';
+  const relationships = root.items.find((pair) => keyIs(pair, 'relationships'))?.value;
+  if (isSeq(relationships)) {
+    for (const item of relationships.items) {
+      if (!isMap(item)) continue;
+      for (const key of ['toTable', 'fromTable']) {
+        if (item.items.some((pair) => keyIs(pair, key))) return key;
+      }
+    }
+  }
+  return null;
 }
 
 export class TableLibraryService {
@@ -845,10 +870,10 @@ export class TableLibraryService {
   renameTable(oldName: string, newName: string): void {
     const model = this.getTable(oldName);
     if (!model) {
-      throw new Error(`Table "${oldName}" not found in logical-models/`);
+      throw new Error(`Table "${oldName}" not found in the Table Library`);
     }
     if (newName !== oldName && this.tableExists(newName)) {
-      throw new Error(`Table "${newName}" already exists in logical-models/`);
+      throw new Error(`Table "${newName}" already exists in the Table Library`);
     }
     // Carry the existing document (comments, key order, extra keys) across
     // to the new file rather than regenerating it from the parsed model.
@@ -983,8 +1008,13 @@ export class TableLibraryService {
       }
     }
     // Then v6's `tables/` (#162), in the same order. Only ever read: new
-    // files still go to `logical-models/` (newTablePath).
+    // files still go to `logical-models/` (newTablePath). A `logical-models/`
+    // file whose name differs only in case wins first, as `listTableFiles`
+    // reports it, so the file read is the one `doctor` says is kept on every
+    // file system.
     if (this.hasTablesLibrary()) {
+      const v5 = this.listTableFiles().find((e) => !e.library && !e.shadowedBy && sameName(e.name, name));
+      if (v5) return v5.filePath;
       const v6Dir = path.resolve(this.v6TablesDir);
       for (const folder of ['', ...this.listFoldersOf(v6Dir)]) {
         const candidate = path.join(v6Dir, folder, `${name}.yml`);
@@ -1063,6 +1093,15 @@ export class TableLibraryService {
     }
     if (doc.errors.length > 0 || !isMap(doc.contents)) {
       return null;
+    }
+    // A v6 key (#162) wins over the v5 one this writer would set, so the
+    // edit would be lost on the next read: refused instead.
+    const v6Key = tableNamingKeyIn(doc.contents);
+    if (v6Key) {
+      throw new TableNamingWriteRefused(
+        `Can't change this table: its file ${this.libraryRelativePath(filePath)} uses the new file naming ("${v6Key}"), ` +
+          'which this version of ERD Studio reads but cannot edit yet.',
+      );
     }
     SOURCE_TEXT.set(doc, text);
     return doc;

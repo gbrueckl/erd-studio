@@ -534,7 +534,7 @@ describe('SemanticEditorProvider (v5 model library integrity)', () => {
     it('surfaces a missing library model as an error', async () => {
       await h.send({ type: 'updateModelGrain', payload: { modelName: 'ghost', grain: 'x' } });
       expect(h.errors()).toHaveLength(1);
-      expect(h.errors()[0]).toMatch(/not found in logical-models/);
+      expect(h.errors()[0]).toMatch(/not found in the Table Library/);
     });
   });
 
