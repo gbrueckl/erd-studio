@@ -38,6 +38,7 @@ this file is out of date: say so in the report.
 | If the fix touches… | …then also | Tag |
 |---|---|---|
 | Anything under `packages/` | It's released to npm on merge to `main`. Treat each export, `ErdCanvas` props and the `DisplaySubjectArea` shape as a contract. | [convention] |
+| | **The Confluence follow-up issue** in liam-machine/erd-studio-pro, so the app moves its exact pins (`cross-repo.md` A). The same applies to an on-disk format change. | [convention] |
 | A new `Display*` field | It must be **optional**, and the renderer must draw correctly when it's absent (an older cached core built it) | [convention] |
 | A removed or changed meaning of a `Display*` field | A breaking MINOR pinned in `packages/*/package.json`, and a Confluence cache-key note in the PR | [convention] |
 | What the host posts as a `DisplaySubjectArea` | Goldens: `UPDATE_GOLDEN=1` **only** for an intended change, and say so in the PR | [CI] |

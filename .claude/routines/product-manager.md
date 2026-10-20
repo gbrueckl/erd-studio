@@ -29,8 +29,9 @@ Every user-visible problem (toast, notification, error screen, dialog, empty sta
 - **Write:**
   - issues: open, label, and comment (formats below);
   - comments on user-filed issues, only for the purposes in STEP 1;
-  - PRs into `develop`, only for (a) telemetry instrumentation (REFLECT) and (b) entries in the known-fixes registry (STEP 4). Branch from `origin/develop`; never push to `main` or `develop` directly.
-- **Never:** merge anything; close an issue someone else opened; add the `issue-to-pr` label (only Liam starts builds); promise a release date or a priority; speak for Liam on what will be built; argue with a user; post the same point twice on one issue.
+  - PRs into `develop`, only for (a) telemetry instrumentation (REFLECT) and (b) entries in the known-fixes registry (STEP 4). Branch from `origin/develop`; never push to `main` or `develop` directly;
+  - in **liam-machine/erd-studio-pro** (the private Confluence app), only `upstream` follow-up issues and comments on them (STEP 6). Never code, branches or PRs there.
+- **Never:** copy anything from erd-studio-pro into this repo (code, paths, issue text: code flows public → private only); merge anything; close an issue someone else opened; add the `issue-to-pr` label (only Liam starts builds); promise a release date or a priority; speak for Liam on what will be built; argue with a user; post the same point twice on one issue.
 - **Privacy (absolute):** telemetry is anonymous and stays that way. Aggregates only. Never output `install_id` or raw rows. Never show a count below 2 next to an os + host + version combination (say "one install" without that detail). **Never connect a GitHub user, issue or comment to telemetry** — never say or imply "we can see that you…", never look for "their" install. Telemetry evidence goes only into issues about a pattern, never in a reply to a person.
 - End every issue, comment and PR body you write with:
 
@@ -129,6 +130,31 @@ Look for friction: a step most users don't reach, a sudden drop after a release,
 
 Update the baselines in the journal. Don't raise an issue for noise: say in the journal when an install base is too small to tell.
 
+### STEP 6 — Confluence follow-ups (liam-machine/erd-studio-pro)
+
+The Confluence app pins `@erd-studio/core` and `@erd-studio/renderer` exactly and renders whatever is committed, so every change to what it consumes needs an issue in erd-studio-pro telling it to move. The `/issue-to-pr` runs raise one for their own PRs. You are the safety net for every other PR, and you tell Liam when a follow-up becomes actionable. The issue format, and how to tell whether a change counts, is section A of `.claude/skills/issue-to-pr/references/cross-repo.md`. Follow it exactly.
+
+The sandbox's GitHub proxy rejects GraphQL, so use REST (`gh api`) for everything here. If erd-studio-pro is refused, say so in the summary, list the follow-ups you would have raised in the summary, and move on.
+
+1. **Missing follow-ups.**
+   - List merged PRs: `gh api 'repos/liam-machine/erd-studio/pulls?state=closed&base=develop&sort=updated&direction=desc&per_page=100' --jq '.[] | select(.merged_at) | "\(.number) \(.merged_at) \(.head.ref)"'`. Keep those merged since the journal's last run, or the last 14 days if there's no record.
+   - Skip release and sync PRs, whose head is `main` or `develop`.
+   - List each remaining PR's files: `gh api repos/liam-machine/erd-studio/pulls/<n>/files --paginate --jq '.[].filename'`. Keep the PRs whose files count under section A.
+   - For each, search: `gh api -X GET search/issues -f q='repo:liam-machine/erd-studio-pro in:title "erd-studio#<n>"'`. If nothing comes back, raise the issue (`gh api -X POST repos/liam-machine/erd-studio-pro/issues -f title=… -F body=@file -f 'labels[]=upstream'`).
+   - A routine-mode PR whose body has a "Confluence follow-up needed" section already holds the issue text.
+2. **Ready to bump.**
+   - List the open `upstream` issues: `gh api 'repos/liam-machine/erd-studio-pro/issues?labels=upstream&state=open'`.
+   - For each, get its PR's merge commit (`gh api repos/liam-machine/erd-studio/pulls/<pr> --jq .merge_commit_sha`), then the package tags that contain it: `git fetch --tags --unshallow origin` once, then `git tag --contains <sha> -l '@erd-studio/*'`.
+   - If a tag exists and the issue has no `<!-- pm-release-ready -->` comment, comment once:
+
+     ```
+     <!-- pm-release-ready -->
+     Published in @erd-studio/core@X / @erd-studio/renderer@Y. Ready to bump: add `issue-to-pr` to have the Pi do it.
+     ```
+3. **Dead follow-ups.** If an `upstream` issue's PR was closed without merging, comment once saying so and suggest Liam close it. Don't close it yourself.
+4. Never add `issue-to-pr`, in either repo.
+5. **The journal is public.** It records only counts here ("2 Confluence follow-ups raised, 1 ready to bump"). Never put an erd-studio-pro number, title or link in it. Those go in the run summary only.
+
 ### REFLECT — Self-check before finishing
 
 For every candidate ask: do I know (1) that it is a real problem and (2) its root cause, well enough for a developer to fix it from my issue? And for the experience: (3) can the extension tell the user whose problem it is? If any answer is no, it is a **telemetry gap**. That includes:
@@ -201,6 +227,7 @@ Write the journal, then end with a short summary:
 - user replies posted (links);
 - PRs opened;
 - gaps followed up;
+- Confluence follow-ups raised, and the ones now ready to bump (links here only, never in the journal);
 - codes skipped, with reasons;
 - telemetry health (no heartbeats in 2 days → the Worker may be down).
 
